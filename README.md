@@ -1,20 +1,44 @@
 <div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
-</div>
 
-# Run and deploy your AI Studio app
+# Æ T H E R G E N E S I S
 
-This contains everything you need to run your app locally.
-
-View your app in AI Studio: https://ai.studio/apps/4ce5a106-c948-4883-98a8-53f831cffe75
-
-## Run Locally
-
-**Prerequisites:**  Node.js
+### *"Before the first light — there was a choice."*
 
 
-1. Install dependencies:
-   `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
-   `npm run dev`
+
+![Three.js](https://img.shields.io/badge/Three.js-000000?style=for-the-badge&logo=three.js&logoColor=white)
+
+
+
+
+![WebGL](https://img.shields.io/badge/WebGL_2.0-990000?style=for-the-badge&logo=webgl&logoColor=white)
+
+
+
+
+![React](https://img.shields.io/badge/React-20232A?style=for-the-badge&logo=react&logoColor=61DAFB)
+
+
+
+
+![TypeScript](https://img.shields.io/badge/TypeScript-007ACC?style=for-the-badge&logo=typescript&logoColor=white)
+
+
+
+
+![GLSL](https://img.shields.io/badge/GLSL_Shaders-7EB8FF?style=for-the-badge)
+
+
+
+
+![Google AI](https://img.shields.io/badge/Gemini_Pro-4285F4?style=for-the-badge&logo=google&logoColor=white)
+
+
+
+**A physically accurate, real-time universe simulation.**
+**You control the fundamental constants of reality.**
+**13.8 billion years. Your rules.**
+
+[🌌 Launch Simulation](#) • [📖 Science Notes](#the-real-science) • [🗺️ Roadmap](#roadmap)
+
+</d
