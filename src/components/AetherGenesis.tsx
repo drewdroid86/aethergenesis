@@ -90,7 +90,7 @@ const CinematicPass = {
       vec3 color = vec3(r, g, b);
 
       // Dynamic Film Grain
-      float grain = (random(uv * mod(time, 100.0)) - 0.5) * 0.04;
+      float grain = (random(uv + fract(time)) - 0.5) * 0.04;
       color += grain;
 
       // Vignette
@@ -142,15 +142,16 @@ export function AetherGenesis() {
         const baseAngle = r * GALAXY_SPIN + armOffset;
 
         // Dispersion based on distance.
-        const dispersion = randomGaussian(0, Math.max(1, r * 0.12));
+        const armDispersion = Math.max(1, r * 0.12);
 
-        // Core bulge
-        const heightAmp = Math.max(1.0, 30.0 * Math.exp(-r / 40.0));
-        const height = randomGaussian(0, heightAmp);
+        // Core bulge (spherical at center, flattening into disk)
+        const bulgeAmp = 30.0 * Math.exp(-r / 40.0);
+        const xzDispersion = Math.sqrt(armDispersion * armDispersion + bulgeAmp * bulgeAmp);
+        const yDispersion = Math.max(1.0, bulgeAmp);
 
-        let x = Math.cos(baseAngle) * r + randomGaussian(0, dispersion);
-        let z = Math.sin(baseAngle) * r + randomGaussian(0, dispersion);
-        let y = height;
+        let x = Math.cos(baseAngle) * r + randomGaussian(0, xzDispersion);
+        let z = Math.sin(baseAngle) * r + randomGaussian(0, xzDispersion);
+        let y = randomGaussian(0, yDispersion);
 
         // Calculate phase for dust lanes based on final positions
         const ptAngle = Math.atan2(z, x);
@@ -261,13 +262,13 @@ export function AetherGenesis() {
 
         controls.update();
 
-        // Update Shader Unifom
+        // Update Shader Uniform
         cinematicShader.uniforms.time.value = appTime;
 
         // Update HUD
-        if (hudX.current) hudX.current.innerText = camera.position.x.toFixed(1);
-        if (hudY.current) hudY.current.innerText = camera.position.y.toFixed(1);
-        if (hudZ.current) hudZ.current.innerText = camera.position.z.toFixed(1);
+        if (hudX.current) hudX.current.innerText = camera.position.x.toFixed(4);
+        if (hudY.current) hudY.current.innerText = camera.position.y.toFixed(4);
+        if (hudZ.current) hudZ.current.innerText = camera.position.z.toFixed(4);
         if (hudAge.current) hudAge.current.innerText = (13.8 + appTime * 0.0001).toFixed(4);
 
         composer.render();
@@ -298,6 +299,8 @@ export function AetherGenesis() {
         
         geometry.dispose();
         material.dispose();
+        controls.dispose();
+        composer.dispose();
         renderer.dispose();
     };
   }, []);
@@ -380,14 +383,14 @@ export function AetherGenesis() {
           </div>
           <div>GAL_X: <span ref={hudX} className="text-white/80">0.0000</span></div>
           <div>GAL_Y: <span ref={hudY} className="text-white/80">0.0000</span></div>
-          <div className="text-white/80">GAL_Z: <span ref={hudZ}>0.0000</span></div>
+          <div>GAL_Z: <span ref={hudZ} className="text-white/80">0.0000</span></div>
         </div>
 
         {/* Main Action Prompt / Cosmic Age */}
         <div className="absolute left-1/2 -translate-x-1/2 flex flex-col items-center gap-4">
           <div className="px-10 py-4 bg-indigo-600/20 backdrop-blur-2xl border border-indigo-500/50 rounded-full flex flex-col items-center hover:bg-indigo-600/40 transition-all pointer-events-auto cursor-pointer">
             <span className="text-[9px] uppercase tracking-widest text-indigo-200/50 -mt-1 mb-1">Cosmic Age (Gyr)</span>
-            <span className="font-mono text-xl font-light tracking-[0.2em]" ref={hudAge}>13.801</span>
+            <span className="font-mono text-xl font-light tracking-[0.2em]" ref={hudAge}>13.8000</span>
           </div>
           <p className="text-[10px] text-white/30 italic">"Before the first light — there was a choice"</p>
         </div>
