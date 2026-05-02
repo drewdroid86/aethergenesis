@@ -7,7 +7,9 @@ import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js'
 import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
 
 // ---- Constants & Math Utilities ----
-const NUM_STARS = 500000;
+const IS_MOBILE = typeof window !== 'undefined' && /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+const NUM_STARS = IS_MOBILE ? 15000 : 100000;
+const HERO_COUNT = IS_MOBILE ? 6 : 12;
 const GALAXY_ARMS = 5;
 const GALAXY_SPIN = -0.15;
 const GALAXY_MAX_RADIUS = 350;
@@ -22,7 +24,8 @@ function randomGaussian(mean = 0, stdev = 1) {
 }
 
 // IMF (Initial Mass Function) Color Probability
-function getStellarColor() {
+function getStellarColor(isHero = false) {
+  if (isHero) return new THREE.Color(0xffffff); // Hero stars are brilliant white
   const r = Math.random();
   if (r < 0.00003) return new THREE.Color(0x9db4ff); // O-Type (Rare Blue)
   if (r < 0.0013) return new THREE.Color(0xa2b9ff); // B-Type (Blue-White)
@@ -60,7 +63,8 @@ const starFragmentShader = `
 const CinematicPass = {
   uniforms: {
     tDiffuse: { value: null },
-    time: { value: 0 }
+    time: { value: 0 },
+    uGrain: { value: IS_MOBILE ? 0.0 : 0.04 }
   },
   vertexShader: `
     varying vec2 vUv;
@@ -72,6 +76,7 @@ const CinematicPass = {
   fragmentShader: `
     uniform sampler2D tDiffuse;
     uniform float time;
+    uniform float uGrain;
     varying vec2 vUv;
 
     // High-frequency random noise generator
@@ -90,7 +95,7 @@ const CinematicPass = {
       vec3 color = vec3(r, g, b);
 
       // Dynamic Film Grain
-      float grain = (random(uv + fract(time)) - 0.5) * 0.04;
+      float grain = (random(uv + fract(time)) - 0.5) * uGrain;
       color += grain;
 
       // Vignette
@@ -120,8 +125,12 @@ export function AetherGenesis() {
     const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 1, 2000);
     camera.position.set(0, 150, 400);
 
-    const renderer = new THREE.WebGLRenderer({ antialias: false, powerPreference: "high-performance" });
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    const renderer = new THREE.WebGLRenderer({ 
+        antialias: false, 
+        powerPreference: "high-performance",
+        precision: IS_MOBILE ? "mediump" : "highp"
+    });
+    renderer.setPixelRatio(IS_MOBILE ? 1 : Math.min(window.devicePixelRatio, 2));
     renderer.setSize(window.innerWidth, window.innerHeight);
     mountRef.current.appendChild(renderer.domElement);
 
@@ -132,9 +141,11 @@ export function AetherGenesis() {
     const sizes = new Float32Array(NUM_STARS);
 
     for (let i = 0; i < NUM_STARS; i++) {
+        const isHero = i < HERO_COUNT;
+        
         // Density power law: push points towards the center
         const t = Math.pow(Math.random(), 2.5);
-        const r = t * GALAXY_MAX_RADIUS;
+        const r = isHero ? (Math.random() * 50 + 20) : (t * GALAXY_MAX_RADIUS);
 
         // Logarithmic spiral angle + random offset for arms
         const armIndex = Math.floor(Math.random() * GALAXY_ARMS);
@@ -149,9 +160,9 @@ export function AetherGenesis() {
         const xzDispersion = Math.sqrt(armDispersion * armDispersion + bulgeAmp * bulgeAmp);
         const yDispersion = Math.max(1.0, bulgeAmp);
 
-        let x = Math.cos(baseAngle) * r + randomGaussian(0, xzDispersion);
-        let z = Math.sin(baseAngle) * r + randomGaussian(0, xzDispersion);
-        let y = randomGaussian(0, yDispersion);
+        let x = Math.cos(baseAngle) * r + randomGaussian(0, isHero ? 5 : xzDispersion);
+        let z = Math.sin(baseAngle) * r + randomGaussian(0, isHero ? 5 : xzDispersion);
+        let y = randomGaussian(0, isHero ? 5 : yDispersion);
 
         // Calculate phase for dust lanes based on final positions
         const ptAngle = Math.atan2(z, x);
@@ -162,12 +173,12 @@ export function AetherGenesis() {
         const phaseMod = ((spiralPhase % cycle) + cycle) % cycle;
         const armFraction = phaseMod / cycle; // 0 to 1
 
-        const isDustLane = armFraction > 0.15 && armFraction < 0.35 && ptDist > CORE_RADIUS;
+        const isDustLane = !isHero && armFraction > 0.15 && armFraction < 0.35 && ptDist > CORE_RADIUS;
 
-        const color = getStellarColor();
-        let size = Math.random() * 1.5 + 0.2;
+        const color = getStellarColor(isHero);
+        let size = isHero ? (Math.random() * 3 + 4) : (Math.random() * 1.5 + 0.2);
 
-        if (ptDist < CORE_RADIUS * 1.5) {
+        if (!isHero && ptDist < CORE_RADIUS * 1.5) {
             // Intense core glow
             const boost = 1.0 + (CORE_RADIUS * 1.5 - ptDist) / (CORE_RADIUS);
             color.multiplyScalar(boost);
@@ -219,8 +230,8 @@ export function AetherGenesis() {
     composer.addPass(renderPass);
 
     const bloomPass = new UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 1.6, 0.4, 0.1);
-    bloomPass.strength = 1.2;
-    bloomPass.radius = 0.6;
+    bloomPass.strength = IS_MOBILE ? 0.6 : 1.2;
+    bloomPass.radius = IS_MOBILE ? 0.3 : 0.6;
     bloomPass.threshold = 0.2;
     composer.addPass(bloomPass);
 
@@ -345,7 +356,7 @@ export function AetherGenesis() {
         <div className="flex items-center gap-12 bg-white/5 backdrop-blur-md border border-white/10 rounded-full px-6 py-3">
           <div className="flex flex-col items-center">
             <span className="text-[9px] uppercase tracking-widest text-indigo-200/50">Stellar Mass</span>
-            <span className="font-mono text-sm">500,000 <span className="text-indigo-400">★</span></span>
+            <span className="font-mono text-sm">{NUM_STARS.toLocaleString()} <span className="text-indigo-400">★</span></span>
           </div>
           <div className="w-[1px] h-6 bg-white/10"></div>
           <div className="flex flex-col items-center">
