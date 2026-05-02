@@ -8,7 +8,7 @@ import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
 import { Crosshair, Navigation, Scan, Zap, Play, Pause, ChevronRight } from 'lucide-react';
 
 // ---- Constants & Math Utilities ----
-const NUM_STARS = 100000;
+const NUM_STARS = 50000;
 const GALAXY_ARMS = 5;
 const GALAXY_SPIN = -0.15;
 const GALAXY_MAX_RADIUS = 350;
@@ -152,9 +152,8 @@ float noise(vec3 x) {
 }
 float fbm(vec3 p) {
     float f = 0.0;
-    f += 0.5000 * noise(p); p *= 2.02;
-    f += 0.2500 * noise(p); p *= 2.03;
-    f += 0.1250 * noise(p);
+    f += 0.5000 * noise(p); p *= 2.5;
+    f += 0.2500 * noise(p); 
     return f;
 }
 
@@ -163,34 +162,57 @@ void main() {
     vec3 rayDir = normalize(vLocalPosition - localCam);
     vec3 pos = vLocalPosition;
     
-    float stepSize = 0.1;
+    float stepSize = 0.15;
     float alpha = 0.0;
     vec3 accCol = vec3(0.0);
     
-    for(int i=0; i<20; i++) {
+    float progress = smoothstep(0.0, 1.0, uCollapse);
+    
+    for(int i=0; i<12; i++) {
         float d = length(pos);
         if(d > 1.0) break; // Sphere bounds
         
-        float n = fbm(pos * 4.0 + uTime * 0.2);
+        // Swirling gas currents
+        float angle = (1.0 - d) * 3.0 + uTime * 0.3;
+        float s = sin(angle);
+        float c = cos(angle);
+        vec3 p = pos;
+        p.xz = mat2(c, -s, s, c) * p.xz;
+        p.xy = mat2(c, s, -s, c) * p.xy;
         
-        // Collapse to center
-        float targetR = 1.0 - uCollapse * 0.95; 
-        float density = 0.0;
+        // Raymarched 3D noise (use lower frequency to help performance)
+        float n = fbm(p * 2.0 - rayDir * uTime * 0.1);
         
-        if (d < targetR) {
-            density = smoothstep(0.3, 0.7, n) * (1.0 - d / targetR);
-        }
+        // Tiny particle emissions/sparkles (use hash instead of expensive noise)
+        float sparkles = pow(hash(p * 15.0 + uTime * 0.5), 8.0) * 1.5;
         
-        // Heat building up in center
-        vec3 heatColor = mix(uColor, vec3(1.0, 0.6, 0.2), uCollapse * (1.0 - d));
+        // Target collapse radius
+        float targetR = 1.0 - progress * 0.95; 
         
-        alpha += density * stepSize * 4.0;
-        accCol += heatColor * density * stepSize * 4.0;
+        // Density calculation
+        float density = smoothstep(0.3, 0.7, n + sparkles * 0.1);
+        density *= smoothstep(targetR, targetR * 0.6, d); // fade near edge
+        
+        // Calculate temperatures
+        vec3 hotCore = vec3(1.0, 0.8, 0.4);
+        vec3 coldGas = uColor;
+        
+        // Mix heat inside
+        float temp = progress * (1.0 - d);
+        vec3 heatColor = mix(coldGas, hotCore, temp);
+        
+        // Realistic light scattering (more light in dense areas near center)
+        float scattering = pow(max(0.0, 1.0 - d), 2.0) * density;
+        heatColor += hotCore * scattering * progress * 2.5;
+        
+        alpha += density * stepSize * 2.5;
+        accCol += heatColor * density * stepSize * 3.0;
         
         if(alpha > 0.99) {
             alpha = 1.0;
             break;
         }
+        
         // Step forward inside the sphere
         pos += rayDir * stepSize;
     }
@@ -221,9 +243,8 @@ float noise(vec3 x) {
 }
 float fbm(vec3 p) {
     float f = 0.0;
-    f += 0.5000 * noise(p); p *= 2.02;
-    f += 0.2500 * noise(p); p *= 2.03;
-    f += 0.1250 * noise(p);
+    f += 0.5000 * noise(p); p *= 2.5;
+    f += 0.2500 * noise(p); 
     return f;
 }
 
@@ -726,7 +747,7 @@ export function AetherGenesis() {
     camera.position.set(0, 50, 400);
 
     const renderer = new THREE.WebGLRenderer({ antialias: false, powerPreference: "high-performance" });
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
     renderer.setSize(window.innerWidth, window.innerHeight);
     mountRef.current.appendChild(renderer.domElement);
 
@@ -979,23 +1000,6 @@ export function AetherGenesis() {
 
   return (
     <div className="relative w-full h-screen bg-[#020205] overflow-hidden flex flex-col font-sans text-white select-none">
-      <div className="absolute inset-0 opacity-40 pointer-events-none">
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[400px] bg-indigo-600 rounded-[100%] blur-[120px] rotate-12"></div>
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[400px] h-[200px] bg-fuchsia-500 rounded-[100%] blur-[100px] -rotate-12 opacity-60"></div>
-      </div>
-
-      <div className="absolute inset-0 pointer-events-none"
-           style={{
-             backgroundImage: `
-               radial-gradient(1px 1px at 10% 20%, #fff, transparent), 
-               radial-gradient(1.5px 1.5px at 50% 50%, #fff, transparent), 
-               radial-gradient(1px 1px at 80% 90%, #fff, transparent), 
-               radial-gradient(2px 2px at 20% 80%, #fff, transparent),
-               radial-gradient(1px 1px at 70% 30%, #fff, transparent)`,
-             backgroundSize: '200px 200px'
-           }}>
-      </div>
-
       <div ref={mountRef} className="absolute inset-0 cursor-crosshair z-0" />
 
       {/* Top HUD */}
@@ -1015,7 +1019,7 @@ export function AetherGenesis() {
         <div className="flex items-center gap-12 bg-[rgba(8,8,20,0.6)] backdrop-blur-md border border-[rgba(126,184,255,0.2)] rounded-full px-6 py-3">
           <div className="flex flex-col items-center">
             <span className="text-[9px] uppercase tracking-widest text-[#7EB8FF]">Background Mass</span>
-            <span className="font-mono text-sm">100,000 <span className="text-[#C084FC]">★</span></span>
+            <span className="font-mono text-sm">50,000 <span className="text-[#C084FC]">★</span></span>
           </div>
           <div className="w-[1px] h-6 bg-[rgba(126,184,255,0.2)]"></div>
           <div className="flex flex-col items-center">
