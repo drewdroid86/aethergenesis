@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
@@ -14,6 +14,18 @@ const GALAXY_ARMS = 5;
 const GALAXY_SPIN = -0.15;
 const GALAXY_MAX_RADIUS = 350;
 const CORE_RADIUS = 25;
+
+const HERO_NAMES = [
+  "Aetherius", "Genesis Prime", "Nova Custos", "Luminalis", "Vespera", "Aethelgard",
+  "Chronos Prime", "Helios-9", "Selene Alpha", "Eos Major", "Nyx Minor", "Chaos Core"
+];
+
+interface StarInfo {
+  name: string;
+  distance: string;
+  temperature: string;
+  magnitude: string;
+}
 
 // Box-Muller transform for normal distribution
 function randomGaussian(mean = 0, stdev = 1) {
@@ -113,6 +125,7 @@ export function AetherGenesis() {
   const hudY = useRef<HTMLSpanElement>(null);
   const hudZ = useRef<HTMLSpanElement>(null);
   const hudAge = useRef<HTMLSpanElement>(null);
+  const [selectedStar, setSelectedStar] = useState<StarInfo | null>(null);
 
   useEffect(() => {
     if (!mountRef.current) return;
@@ -245,6 +258,41 @@ export function AetherGenesis() {
     controls.maxDistance = 1000;
     controls.minDistance = 5;
 
+    // Interaction Support
+    const raycaster = new THREE.Raycaster();
+    raycaster.params.Points.threshold = 2.0;
+    const mouse = new THREE.Vector2();
+
+    const onSelect = (event: PointerEvent) => {
+        // Standardize coordinates for raycaster
+        mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+        mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+
+        raycaster.setFromCamera(mouse, camera);
+        const intersects = raycaster.intersectObject(starfield);
+
+        if (intersects.length > 0) {
+            const index = intersects[0].index;
+            if (index !== undefined && index < HERO_COUNT) {
+                const pos = intersects[0].point;
+                const dist = pos.length().toFixed(2);
+                const temp = (Math.random() * 20000 + 3000).toFixed(0);
+                const mag = (Math.random() * 5 - 2).toFixed(2);
+
+                setSelectedStar({
+                    name: HERO_NAMES[index % HERO_NAMES.length],
+                    distance: `${dist} LY`,
+                    temperature: `${temp} K`,
+                    magnitude: mag
+                });
+                return;
+            }
+        }
+        setSelectedStar(null);
+    };
+
+    renderer.domElement.addEventListener('pointerdown', onSelect);
+
     let idleTime = 0;
     let clock = new THREE.Clock();
 
@@ -302,6 +350,7 @@ export function AetherGenesis() {
         window.removeEventListener('pointermove', resetIdle);
         window.removeEventListener('wheel', resetIdle);
         window.removeEventListener('touchstart', resetIdle);
+        renderer.domElement.removeEventListener('pointerdown', onSelect);
         cancelAnimationFrame(frameId);
         
         if (mountRef.current && mountRef.current.contains(renderer.domElement)) {
@@ -339,7 +388,7 @@ export function AetherGenesis() {
       </div>
 
       {/* WebGL Mount point */}
-      <div ref={mountRef} className="absolute inset-0 cursor-crosshair z-0" />
+      <div ref={mountRef} className="absolute inset-0 cursor-crosshair z-0 touch-none" />
 
       {/* HUD: Top Bar */}
       <nav className="absolute top-0 w-full p-8 flex justify-between items-start z-20 pointer-events-none">
@@ -371,18 +420,44 @@ export function AetherGenesis() {
         </div>
       </nav>
 
-      {/* Core Action Overlay (Optional floating UI params from design) */}
-      <div className="absolute inset-0 pointer-events-none flex items-center justify-center z-10 hidden">
-        <div className="relative">
-          <div className="absolute -top-12 -left-12 p-4 bg-white/5 backdrop-blur-xl border border-white/10 rounded-lg w-40">
-            <div className="text-[8px] uppercase tracking-tighter text-indigo-300">Gravitational Constant</div>
-            <div className="text-xs font-mono">6.67430 × 10⁻¹¹</div>
-            <div className="mt-2 w-full h-1 bg-white/5 rounded-full overflow-hidden">
-              <div className="w-3/4 h-full bg-indigo-500"></div>
+      {/* Star Information HUD */}
+      {selectedStar && (
+        <div className="absolute top-24 right-8 w-64 p-6 bg-black/40 backdrop-blur-xl border border-white/10 rounded-2xl z-30 animate-in fade-in slide-in-from-right-4 duration-300">
+            <div className="flex justify-between items-start mb-4">
+                <div>
+                    <div className="text-[10px] uppercase tracking-widest text-indigo-400 mb-1">Celestial Object</div>
+                    <div className="text-lg font-bold tracking-tight">{selectedStar.name}</div>
+                </div>
+                <button 
+                    onClick={() => setSelectedStar(null)}
+                    className="p-1 hover:bg-white/10 rounded-full transition-colors pointer-events-auto"
+                >
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                </button>
             </div>
-          </div>
+            
+            <div className="space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                    <div>
+                        <div className="text-[8px] uppercase tracking-tighter text-white/40 mb-0.5">Distance</div>
+                        <div className="text-xs font-mono">{selectedStar.distance}</div>
+                    </div>
+                    <div>
+                        <div className="text-[8px] uppercase tracking-tighter text-white/40 mb-0.5">Temperature</div>
+                        <div className="text-xs font-mono">{selectedStar.temperature}</div>
+                    </div>
+                </div>
+                <div>
+                    <div className="text-[8px] uppercase tracking-tighter text-white/40 mb-0.5">Absolute Magnitude</div>
+                    <div className="text-xs font-mono">{selectedStar.magnitude}</div>
+                </div>
+                <div className="h-[1px] w-full bg-white/10"></div>
+                <p className="text-[9px] text-white/50 leading-relaxed">
+                    Classified as a "Hero Star", this entity maintains the structural integrity of the local gravitational field.
+                </p>
+            </div>
         </div>
-      </div>
+      )}
 
       {/* HUD: Bottom Layout */}
       <div className="absolute bottom-0 w-full p-8 flex justify-between items-end z-20 pointer-events-none">
