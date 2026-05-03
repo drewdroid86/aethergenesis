@@ -878,7 +878,8 @@ export function AetherGenesis() {
     };
 
     const onPointerMove = (e: PointerEvent) => {
-        if (Math.abs(e.clientX - mouseDownPos.x) > 5 || Math.abs(e.clientY - mouseDownPos.y) > 5) {
+        const threshold = e.pointerType === 'touch' ? 15 : 5;
+      if (Math.abs(e.clientX - mouseDownPos.x) > threshold || Math.abs(e.clientY - mouseDownPos.y) > threshold) {
             isDragging = true;
         }
     };
