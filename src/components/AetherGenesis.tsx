@@ -14,10 +14,21 @@ const GALAXY_SPIN = -0.15;
 const GALAXY_MAX_RADIUS = 350;
 const CORE_RADIUS = 25;
 
+// BOLT OPTIMIZATION: Box-Muller transform generates two values at once.
+// Caching the second value halves the number of expensive Math.log/sqrt/sin/cos calls.
+let _nextGaussian: number | null = null;
 function randomGaussian(mean = 0, stdev = 1) {
+  if (_nextGaussian !== null) {
+    const z = _nextGaussian;
+    _nextGaussian = null;
+    return z * stdev + mean;
+  }
   const u = 1 - Math.random();
   const v = Math.random();
-  const z = Math.sqrt(-2.0 * Math.log(u)) * Math.cos(2.0 * Math.PI * v);
+  const r = Math.sqrt(-2.0 * Math.log(u));
+  const angle = 2.0 * Math.PI * v;
+  const z = r * Math.cos(angle);
+  _nextGaussian = r * Math.sin(angle);
   return z * stdev + mean;
 }
 
@@ -356,6 +367,55 @@ const PHASE_NAMES = [
     "Stellar Remnant"
 ];
 
+class MagneticCurve extends THREE.Curve<THREE.Vector3> {
+    constructor(public angle: number) { super(); }
+    getPoint(t: number, optionalTarget = new THREE.Vector3()) {
+        const a = this.angle;
+        const th = t * Math.PI;
+        const r = 0.5 * Math.sin(th);
+        const x = r * Math.cos(a);
+        const y = 0.5 * Math.cos(th);
+        const z = r * Math.sin(a);
+        return optionalTarget.set(x, y, z);
+    }
+}
+
+// BOLT OPTIMIZATION: Reuse geometries across all HeroStarSystem instances.
+// Reduces GPU memory overhead and initialization time by avoiding redundant allocations for 12 systems.
+const GEOMETRIES = {
+    nebula: new THREE.SphereGeometry(15, 32, 32),
+    protostar: new THREE.SphereGeometry(1, 64, 64),
+    protostarDisk: new THREE.TorusGeometry(2, 0.4, 8, 32),
+    mainSeq: new THREE.SphereGeometry(1, 64, 64),
+    corona: new THREE.SphereGeometry(1.15, 32, 32),
+    redGiant: new THREE.SphereGeometry(1, 64, 64),
+    supernovaCore: new THREE.SphereGeometry(1, 48, 48),
+    habitableZone: new THREE.TorusGeometry(1, 0.05, 8, 64), // Radius updated in instance
+    planet: new THREE.SphereGeometry(1, 16, 16), // Radius/scale updated in instance
+    supernovaRing: new THREE.TorusGeometry(1, 0.1, 16, 64),
+    neutronStar: new THREE.SphereGeometry(0.1, 32, 32),
+    pulsarBeam: (() => {
+        const geo = new THREE.ConeGeometry(0.2, 20, 16);
+        geo.translate(0, 10, 0);
+        return geo;
+    })(),
+    blackHoleCore: new THREE.SphereGeometry(0.5, 32, 32),
+    blackHoleDisk: (() => {
+        const geo = new THREE.TorusGeometry(1.5, 0.4, 16, 64);
+        geo.rotateX(Math.PI / 2);
+        return geo;
+    })(),
+    hit: new THREE.SphereGeometry(8, 16, 16),
+    magneticTubes: (() => {
+        const tubes: THREE.TubeGeometry[] = [];
+        for (let a = 0; a < Math.PI * 2; a += Math.PI / 4) {
+            const curve = new MagneticCurve(a);
+            tubes.push(new THREE.TubeGeometry(curve, 20, 0.01, 8, false));
+        }
+        return tubes;
+    })()
+};
+
 class HeroStarSystem extends THREE.Group {
     mass: number;
     lifespanReal: number;
@@ -374,6 +434,7 @@ class HeroStarSystem extends THREE.Group {
     // Stage Groups
     protostarGroup: THREE.Group;
     protostarMat: THREE.ShaderMaterial;
+    protostarMesh: THREE.Mesh;
     protostarDisk: THREE.Mesh;
     
     mainSeqGroup: THREE.Group;
@@ -431,7 +492,7 @@ class HeroStarSystem extends THREE.Group {
             blending: THREE.AdditiveBlending,
             side: THREE.FrontSide
         });
-        this.nebulaMesh = new THREE.Mesh(new THREE.SphereGeometry(15, 32, 32), this.nebulaMat);
+        this.nebulaMesh = new THREE.Mesh(GEOMETRIES.nebula, this.nebulaMat);
         this.add(this.nebulaMesh);
 
         // 1b. Dust Cloud
@@ -493,9 +554,9 @@ class HeroStarSystem extends THREE.Group {
             },
             transparent: true, blending: THREE.AdditiveBlending
         });
-        this.protostarMesh = new THREE.Mesh(new THREE.SphereGeometry(1, 64, 64), this.protostarMat);
+        this.protostarMesh = new THREE.Mesh(GEOMETRIES.protostar, this.protostarMat);
         this.protostarDisk = new THREE.Mesh(
-            new THREE.TorusGeometry(2, 0.4, 8, 32),
+            GEOMETRIES.protostarDisk,
             new THREE.MeshBasicMaterial({ color: 0xff6600, transparent: true, opacity: 0, blending: THREE.AdditiveBlending })
         );
         this.protostarDisk.rotation.x = Math.PI / 2;
@@ -521,9 +582,9 @@ class HeroStarSystem extends THREE.Group {
             },
             transparent: true, blending: THREE.AdditiveBlending
         });
-        this.starMesh = new THREE.Mesh(new THREE.SphereGeometry(1, 64, 64), this.starMat);
+        this.starMesh = new THREE.Mesh(GEOMETRIES.mainSeq, this.starMat);
         this.coronaMesh = new THREE.Mesh(
-            new THREE.SphereGeometry(1.15, 32, 32),
+            GEOMETRIES.corona,
             new THREE.MeshBasicMaterial({ color: msColor, transparent: true, opacity: 0, blending: THREE.AdditiveBlending })
         );
         this.mainSeqGroup.add(this.starMesh);
@@ -544,7 +605,7 @@ class HeroStarSystem extends THREE.Group {
             },
             transparent: true, blending: THREE.AdditiveBlending
         });
-        this.redGiantMesh = new THREE.Mesh(new THREE.SphereGeometry(1, 64, 64), this.redGiantMat);
+        this.redGiantMesh = new THREE.Mesh(GEOMETRIES.redGiant, this.redGiantMat);
         this.redGiantGroup.add(this.redGiantMesh);
         this.redGiantGroup.visible = false;
         this.add(this.redGiantGroup);
@@ -552,7 +613,7 @@ class HeroStarSystem extends THREE.Group {
         // 4b. SUPERNOVA CORE
         this.supernovaGroup = new THREE.Group();
         this.coreFlashMesh = new THREE.Mesh(
-            new THREE.SphereGeometry(1, 48, 48), 
+            GEOMETRIES.supernovaCore,
             new THREE.MeshBasicMaterial({color: 0xffffff, transparent: true, opacity: 0, blending: THREE.AdditiveBlending})
         );
         this.supernovaGroup.add(this.coreFlashMesh);
@@ -564,18 +625,21 @@ class HeroStarSystem extends THREE.Group {
         const hzRadius = Math.max(4, Math.sqrt(lum) * 2.5);
         
         this.hzMesh = new THREE.Mesh(
-            new THREE.TorusGeometry(hzRadius, 0.05, 8, 64),
+            GEOMETRIES.habitableZone,
             new THREE.MeshBasicMaterial({ color: 0x00ff88, transparent: true, opacity: 0.1, blending: THREE.AdditiveBlending })
         );
+        this.hzMesh.scale.setScalar(hzRadius);
         this.hzMesh.rotation.x = Math.PI / 2;
         this.add(this.hzMesh);
 
         for(let i=0; i<4; i++) {
             const dist = 3 + Math.random() * 8 + (i * 2); 
+            const pScale = 0.1 + Math.random()*0.15;
             const pMesh = new THREE.Mesh(
-                new THREE.SphereGeometry(0.1 + Math.random()*0.15, 16, 16), 
+                GEOMETRIES.planet,
                 new THREE.MeshStandardMaterial({color: 0xaaaaaa, roughness: 0.8})
             );
+            pMesh.scale.setScalar(pScale);
             pMesh.position.x = dist;
             const pivot = new THREE.Group();
             pivot.rotation.y = Math.random() * Math.PI * 2;
@@ -587,7 +651,7 @@ class HeroStarSystem extends THREE.Group {
 
         // 5. Supernova Ring & Ejecta
         this.snRing = new THREE.Mesh(
-            new THREE.TorusGeometry(1, 0.1, 16, 64),
+            GEOMETRIES.supernovaRing,
             new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0, blending: THREE.AdditiveBlending })
         );
         this.snRing.rotation.x = Math.PI / 2;
@@ -636,40 +700,21 @@ class HeroStarSystem extends THREE.Group {
 
         // 6. Remnants (Pulsar & Black Hole)
         this.neutronStarGroup = new THREE.Group();
-        const nsGeo = new THREE.SphereGeometry(0.1, 32, 32);
         const nsMat = new THREE.MeshBasicMaterial({color: 0xaaccff});
         this.pulsarGroup = new THREE.Group();
-        const beamGeo = new THREE.ConeGeometry(0.2, 20, 16);
-        beamGeo.translate(0, 10, 0); 
         const beamMat = new THREE.MeshBasicMaterial({ color: 0x00ffff, transparent: true, opacity: 0.6, blending: THREE.AdditiveBlending });
-        const beam1 = new THREE.Mesh(beamGeo, beamMat);
-        const beam2 = new THREE.Mesh(beamGeo, beamMat);
+        const beam1 = new THREE.Mesh(GEOMETRIES.pulsarBeam, beamMat);
+        const beam2 = new THREE.Mesh(GEOMETRIES.pulsarBeam, beamMat);
         beam2.rotation.x = Math.PI;
         this.pulsarGroup.add(beam1);
         this.pulsarGroup.add(beam2);
-        this.neutronStarGroup.add(new THREE.Mesh(nsGeo, nsMat));
+        this.neutronStarGroup.add(new THREE.Mesh(GEOMETRIES.neutronStar, nsMat));
         this.neutronStarGroup.add(this.pulsarGroup);
         
-        // Magnetic field lines (TubeGeometry)
+        // Magnetic field lines
         const nsMagGroup = new THREE.Group();
-        
-        class MagneticCurve extends THREE.Curve<THREE.Vector3> {
-            constructor(public angle: number) { super(); }
-            getPoint(t: number, optionalTarget = new THREE.Vector3()) {
-                const a = this.angle;
-                const th = t * Math.PI;
-                const r = 0.5 * Math.sin(th);
-                const x = r * Math.cos(a);
-                const y = 0.5 * Math.cos(th);
-                const z = r * Math.sin(a);
-                return optionalTarget.set(x, y, z);
-            }
-        }
-
         const tubeMat = new THREE.MeshBasicMaterial({color: 0xaaccff, transparent: true, opacity: 0.3, blending: THREE.AdditiveBlending});
-        for(let a=0; a<Math.PI*2; a+=Math.PI/4) {
-            const curve = new MagneticCurve(a);
-            const tubeGeo = new THREE.TubeGeometry(curve, 20, 0.01, 8, false);
+        for(const tubeGeo of GEOMETRIES.magneticTubes) {
             nsMagGroup.add(new THREE.Mesh(tubeGeo, tubeMat));
         }
         
@@ -680,22 +725,20 @@ class HeroStarSystem extends THREE.Group {
 
         this.blackHoleGroup = new THREE.Group();
         const bhCore = new THREE.Mesh(
-            new THREE.SphereGeometry(0.5, 32, 32),
+            GEOMETRIES.blackHoleCore,
             new THREE.MeshBasicMaterial({ color: 0x000000 })
         );
-        const diskGeo = new THREE.TorusGeometry(1.5, 0.4, 16, 64);
-        diskGeo.rotateX(Math.PI / 2);
         const diskMat = new THREE.MeshBasicMaterial({ 
             color: 0xff8800, transparent: true, opacity: 0.8, blending: THREE.AdditiveBlending
         });
-        const diskMesh = new THREE.Mesh(diskGeo, diskMat);
+        const diskMesh = new THREE.Mesh(GEOMETRIES.blackHoleDisk, diskMat);
         this.blackHoleGroup.add(bhCore);
         this.blackHoleGroup.add(diskMesh);
         this.add(this.blackHoleGroup);
 
         // 7. Hit mesh for raycaster
         this.hitMesh = new THREE.Mesh(
-            new THREE.SphereGeometry(8, 16, 16),
+            GEOMETRIES.hit,
             new THREE.MeshBasicMaterial({visible: false})
         );
         this.add(this.hitMesh);
@@ -901,7 +944,7 @@ class HeroStarSystem extends THREE.Group {
             ((c as THREE.Mesh).material as THREE.MeshBasicMaterial).opacity = opNsLines;
         });
         this.pulsarGroup.children.forEach(c => {
-            (c as THREE.Mesh).material.opacity = targetNs ? 0.6 : 0;
+            ((c as THREE.Mesh).material as THREE.MeshBasicMaterial).opacity = targetNs ? 0.6 : 0;
         });
         const nsMeshMat = (this.neutronStarGroup.children[0] as THREE.Mesh).material as THREE.MeshBasicMaterial;
         nsMeshMat.opacity = stepOp(nsMeshMat.opacity, targetNs);
