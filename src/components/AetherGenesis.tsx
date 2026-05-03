@@ -8,7 +8,13 @@ import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
 import { Crosshair, Navigation, Scan, Zap, Play, Pause, ChevronRight } from 'lucide-react';
 
 // ---- Constants & Math Utilities ----
+<<<<<<< Updated upstream
 const NUM_STARS = 50000;
+=======
+const IS_MOBILE = typeof window !== 'undefined' && window.innerWidth < 768;
+const NUM_STARS = IS_MOBILE ? 15000 : 100000;
+const HERO_COUNT = IS_MOBILE ? 6 : 12;
+>>>>>>> Stashed changes
 const GALAXY_ARMS = 5;
 const GALAXY_SPIN = -0.15;
 const GALAXY_MAX_RADIUS = 350;
@@ -750,6 +756,7 @@ export function AetherGenesis() {
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
     renderer.setSize(window.innerWidth, window.innerHeight);
     mountRef.current.appendChild(renderer.domElement);
+    renderer.domElement.style.touchAction = 'none';
 
     // --- Galaxy Generation (Background) ---
     const geometry = new THREE.BufferGeometry();
@@ -999,11 +1006,99 @@ export function AetherGenesis() {
   };
 
   return (
+<<<<<<< Updated upstream
     <div className="relative w-full h-screen bg-[#020205] overflow-hidden flex flex-col font-sans text-white select-none">
       <div ref={mountRef} className="absolute inset-0 cursor-crosshair z-0" />
 
       {/* Top HUD */}
       <nav className="absolute top-0 w-full p-8 flex justify-between items-start z-20 pointer-events-none">
+=======
+    <div 
+      className="relative w-full bg-[#020205] overflow-hidden flex flex-col font-sans text-white select-none"
+      style={{ height: '100dvh' }}
+    >
+      {/* Galactic Core Background Simulation */}
+      <div className="absolute inset-0 opacity-40 pointer-events-none">
+        <div 
+          style={{
+            position: 'absolute',
+            top: '50%',
+            left: '50%',
+            transform: 'translate(-50%, -50%) rotate(12deg)',
+            width: '800px',
+            height: '400px',
+            backgroundColor: '#4f46e5', // bg-indigo-600
+            borderRadius: '100%',
+            filter: 'blur(120px)'
+          }}
+        />
+        <div 
+          style={{
+            position: 'absolute',
+            top: '50%',
+            left: '50%',
+            transform: 'translate(-50%, -50%) rotate(-12deg)',
+            width: '400px',
+            height: '200px',
+            backgroundColor: '#d946ef', // bg-fuchsia-500
+            borderRadius: '100%',
+            filter: 'blur(100px)',
+            opacity: 0.6
+          }}
+        />
+        <div 
+          style={{
+            position: 'absolute',
+            top: '50%',
+            left: '50%',
+            transform: 'translate(-50%, -50%)',
+            width: '120px',
+            height: '120px',
+            backgroundColor: 'white',
+            borderRadius: '100%',
+            filter: 'blur(60px)',
+            opacity: 0.8
+          }}
+        />
+      </div>
+
+      {/* Procedural Starfield (CSS Patterns) */}
+      <div className="absolute inset-0 pointer-events-none"
+           style={{
+             backgroundImage: `
+               radial-gradient(1px 1px at 10% 20%, #fff, transparent), 
+               radial-gradient(1.5px 1.5px at 50% 50%, #fff, transparent), 
+               radial-gradient(1px 1px at 80% 90%, #fff, transparent), 
+               radial-gradient(2px 2px at 20% 80%, #fff, transparent),
+               radial-gradient(1px 1px at 70% 30%, #fff, transparent)`,
+             backgroundSize: '200px 200px'
+           }}>
+      </div>
+
+      {/* WebGL Mount point */}
+      <div 
+        ref={mountRef} 
+        style={{
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          cursor: 'crosshair',
+          zIndex: 0,
+          touchAction: 'none'
+        }} 
+      />
+
+      {/* HUD: Top Bar */}
+      <nav 
+        className="absolute top-0 w-full flex justify-between items-start z-20 pointer-events-none"
+        style={{ 
+          padding: '2rem',
+          paddingTop: 'calc(max(2rem, env(safe-area-inset-top)))'
+        }}
+      >
+>>>>>>> Stashed changes
         <div className="flex flex-col gap-1">
           <div className="flex items-center gap-3">
             <div className="w-3 h-3 bg-indigo-500 rounded-full animate-pulse shadow-[0_0_8px_#C084FC]"></div>
@@ -1031,10 +1126,28 @@ export function AetherGenesis() {
 
       {/* Stellar Lifecycle Inspect Panel (Frosted Glass Theme) */}
       {selectedStar && (
+<<<<<<< Updated upstream
         <div className="absolute right-8 top-1/2 -translate-y-1/2 w-80 bg-[rgba(14,14,28,0.7)] backdrop-blur-xl border border-[rgba(126,184,255,0.3)] rounded-2xl p-6 z-30 shadow-[0_0_30px_rgba(0,0,0,0.5)] transform transition-all pointer-events-auto">
             <div className="flex items-center gap-3 mb-6 pb-4 border-b border-[rgba(126,184,255,0.1)]">
                 <Scan size={20} className="text-[#C084FC]" />
                 <h2 className="text-sm font-bold tracking-widest uppercase text-white">Stellar Telemetry</h2>
+=======
+        <div 
+          className="absolute right-8 w-64 p-6 bg-black/40 backdrop-blur-xl border border-white/10 rounded-2xl z-30 animate-in fade-in slide-in-from-right-4 duration-300"
+          style={{ top: 'calc(max(6rem, env(safe-area-inset-top) + 4rem))' }}
+        >
+            <div className="flex justify-between items-start mb-4">
+                <div>
+                    <div className="text-[10px] uppercase tracking-widest text-indigo-400 mb-1">Celestial Object</div>
+                    <div className="text-lg font-bold tracking-tight">{selectedStar.name}</div>
+                </div>
+                <button 
+                    onClick={() => setSelectedStar(null)}
+                    className="p-1 hover:bg-white/10 rounded-full transition-colors pointer-events-auto"
+                >
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                </button>
+>>>>>>> Stashed changes
             </div>
 
             <div className="space-y-4 font-mono text-xs">
@@ -1089,12 +1202,28 @@ export function AetherGenesis() {
         </div>
       )}
 
+<<<<<<< Updated upstream
       {/* Bottom HUD */}
       <div className="absolute bottom-0 w-full p-8 flex justify-between items-end z-20 pointer-events-none">
         <div className="font-mono text-[10px] text-[#7EB8FF]/60 space-y-1 border-l border-[#C084FC]/50 pl-4 bg-[rgba(8,8,20,0.4)] backdrop-blur-md py-3 pr-4 rounded-r border-y-0 border-r-0">
           <div className="flex items-center gap-2 mb-2 pb-1 border-b border-[rgba(126,184,255,0.2)]">
             <span className="inline-block w-2 h-2 rounded-full bg-[#C084FC] animate-pulse shadow-[0_0_5px_#C084FC]" />
             <span className="uppercase tracking-widest text-[#7EB8FF]">Location</span>
+=======
+      {/* HUD: Bottom Layout */}
+      <div 
+        className="absolute bottom-0 w-full flex justify-between items-end z-20 pointer-events-none"
+        style={{ 
+          padding: '2rem',
+          paddingBottom: 'calc(max(2rem, env(safe-area-inset-bottom)))'
+        }}
+      >
+        {/* Coordinates Display */}
+        <div className="font-mono text-[10px] text-white/40 space-y-1 border-l border-indigo-500/50 pl-4 w-48">
+          <div className="flex items-center gap-2 mb-2">
+            <span className="inline-block w-1.5 h-1.5 rounded-full bg-indigo-500 animate-pulse shadow-[0_0_5px_rgba(99,102,241,0.5)]" />
+            <span className="uppercase tracking-widest text-white/50 text-[9px] font-sans">Sensors Active</span>
+>>>>>>> Stashed changes
           </div>
           <div className="text-white"><span className="text-[#7EB8FF]/70 mr-2">POS_X:</span><span ref={hudX}>0.0000</span></div>
           <div className="text-white"><span className="text-[#7EB8FF]/70 mr-2">POS_Y:</span><span ref={hudY}>0.0000</span></div>
