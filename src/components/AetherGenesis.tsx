@@ -1399,7 +1399,11 @@ export function AetherGenesis() {
                     <Settings2 size={20} className="text-[#C084FC]" />
                     Constants
                 </h2>
-                <button onClick={() => setIsConstantsOpen(false)} className="text-[#7EB8FF]/70 hover:text-white transition-colors">
+                <button
+                    onClick={() => setIsConstantsOpen(false)}
+                    className="text-[#7EB8FF]/70 hover:text-white transition-colors focus-visible:ring-2 focus-visible:ring-[#C084FC] outline-none rounded"
+                    aria-label="Close Physical Constants"
+                >
                     <X size={20} />
                 </button>
             </div>
@@ -1459,8 +1463,9 @@ export function AetherGenesis() {
       ) : (
         <button 
             onClick={() => setIsConstantsOpen(true)} 
-            className="absolute left-8 top-32 bg-[rgba(14,14,28,0.7)] backdrop-blur-xl border border-[rgba(126,184,255,0.3)] rounded-full p-4 z-30 shadow-[0_0_30px_rgba(0,0,0,0.5)] transform transition-all pointer-events-auto text-[#7EB8FF]/70 hover:text-white group"
+            className="absolute left-8 top-32 bg-[rgba(14,14,28,0.7)] backdrop-blur-xl border border-[rgba(126,184,255,0.3)] rounded-full p-4 z-30 shadow-[0_0_30px_rgba(0,0,0,0.5)] transform transition-all pointer-events-auto text-[#7EB8FF]/70 hover:text-white group focus-visible:ring-2 focus-visible:ring-[#C084FC] outline-none"
             title="Open Physical Constants"
+            aria-label="Open Physical Constants"
         >
             <Settings2 size={24} className="group-hover:text-[#C084FC] transition-colors" />
         </button>
@@ -1502,13 +1507,19 @@ export function AetherGenesis() {
                     <div className="flex justify-between items-center mb-3">
                         <span className="text-[10px] text-[#7EB8FF]/50 uppercase tracking-widest">Time Override</span>
                         <div className="flex gap-2">
-                            <button className="text-white/40 hover:text-white transition-colors"><Pause size={12} /></button>
-                            <button className="text-white/40 hover:text-white transition-colors"><Play size={12} /></button>
+                            <button className="text-white/40 hover:text-white transition-colors focus-visible:ring-2 focus-visible:ring-[#C084FC] outline-none rounded" aria-label="Pause star animation"><Pause size={12} /></button>
+                            <button className="text-white/40 hover:text-white transition-colors focus-visible:ring-2 focus-visible:ring-[#C084FC] outline-none rounded" aria-label="Play star animation"><Play size={12} /></button>
                         </div>
                     </div>
                     {/* Scrubbable Timeline */}
                     <div 
-                        className="w-full h-2 bg-white/10 rounded-full overflow-hidden cursor-ew-resize relative group"
+                        role="slider"
+                        tabIndex={0}
+                        aria-label="Stellar lifecycle timeline"
+                        aria-valuemin={0}
+                        aria-valuemax={100}
+                        aria-valuenow={selectedStar ? Math.round(selectedStar.t * 100) : 0}
+                        className="w-full h-2 bg-white/10 rounded-full overflow-hidden cursor-ew-resize relative group focus-visible:ring-2 focus-visible:ring-[#C084FC] outline-none"
                         onPointerDown={(e) => { isScrubbingRef.current = true; handleTimelineScrub(e); }}
                         onPointerMove={(e) => { if(isScrubbingRef.current) handleTimelineScrub(e); }}
                         onPointerUp={() => { isScrubbingRef.current = false; }}
@@ -1561,14 +1572,24 @@ export function AetherGenesis() {
             <div className="flex justify-between w-full items-center mb-3">
                 <span className="text-[9px] uppercase tracking-widest text-[#7EB8FF]">Global Cosmic Age (Gyr)</span>
                 <div className="flex gap-2">
-                    <button onClick={() => setIsPlayingCosmic(!isPlayingCosmic)} className="text-white/40 hover:text-white transition-colors">
+                    <button
+                        onClick={() => setIsPlayingCosmic(!isPlayingCosmic)}
+                        className="text-white/40 hover:text-white transition-colors focus-visible:ring-2 focus-visible:ring-[#C084FC] outline-none rounded"
+                        aria-label={isPlayingCosmic ? "Pause cosmic simulation" : "Play cosmic simulation"}
+                    >
                         {isPlayingCosmic ? <Pause size={14} /> : <Play size={14} />}
                     </button>
                 </div>
             </div>
             
             <div 
-                className="w-full h-3 bg-white/10 rounded-full overflow-hidden cursor-ew-resize relative"
+                role="slider"
+                tabIndex={0}
+                aria-label="Global cosmic age timeline"
+                aria-valuemin={0}
+                aria-valuemax={14}
+                aria-valuenow={parseFloat(cosmicAge.toFixed(2))}
+                className="w-full h-3 bg-white/10 rounded-full overflow-hidden cursor-ew-resize relative focus-visible:ring-2 focus-visible:ring-[#C084FC] outline-none"
                 onPointerDown={(e) => { isGlobalScrubbingRef.current = true; handleGlobalTimelineScrub(e); }}
                 onPointerMove={(e) => { if(isGlobalScrubbingRef.current) handleGlobalTimelineScrub(e); }}
                 onPointerUp={() => { isGlobalScrubbingRef.current = false; }}
@@ -1584,12 +1605,18 @@ export function AetherGenesis() {
 
         <div className="flex flex-col items-end gap-2 text-right">
           <div className="grid grid-cols-2 gap-2 pointer-events-auto">
-            <div className="w-10 h-10 flex items-center justify-center bg-[rgba(8,8,20,0.6)] border border-[rgba(126,184,255,0.2)] rounded-md backdrop-blur-md transition-colors hover:bg-[rgba(126,184,255,0.1)] cursor-pointer">
+            <button
+              aria-label="Reset camera view"
+              className="w-10 h-10 flex items-center justify-center bg-[rgba(8,8,20,0.6)] border border-[rgba(126,184,255,0.2)] rounded-md backdrop-blur-md transition-colors hover:bg-[rgba(126,184,255,0.1)] cursor-pointer focus-visible:ring-2 focus-visible:ring-[#C084FC] outline-none"
+            >
               <Crosshair size={16} className="text-[#7EB8FF]" />
-            </div>
-            <div className="w-10 h-10 flex items-center justify-center bg-[rgba(8,8,20,0.6)] border border-[rgba(126,184,255,0.2)] rounded-md backdrop-blur-md transition-colors hover:bg-[rgba(126,184,255,0.1)] cursor-pointer">
+            </button>
+            <button
+              aria-label="Toggle navigation aids"
+              className="w-10 h-10 flex items-center justify-center bg-[rgba(8,8,20,0.6)] border border-[rgba(126,184,255,0.2)] rounded-md backdrop-blur-md transition-colors hover:bg-[rgba(126,184,255,0.1)] cursor-pointer focus-visible:ring-2 focus-visible:ring-[#C084FC] outline-none"
+            >
               <Navigation size={16} className="text-[#C084FC]" />
-            </div>
+            </button>
           </div>
           <span className="text-[9px] uppercase tracking-widest text-[#7EB8FF]/60 mt-1">Stellar Raycasting Active</span>
         </div>
