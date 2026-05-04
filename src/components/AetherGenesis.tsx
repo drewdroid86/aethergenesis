@@ -1302,58 +1302,88 @@ export function AetherGenesis() {
   };
 
   const analyzeSystem = async () => {
-       if (!selectedStar) return;
-       try {
-           setIsAnalyzing(true);
-           const G_val = physics.G.toFixed(2);
-           const alpha_val = physics.alpha.toFixed(2);
-           const prm = `Analyze a generic star based on physical constants (G=${G_val}, alpha=${alpha_val}) and its star properties (Temp=${Math.round(selectedStar.currentTemp)}K, Mass=${selectedStar.mass.toFixed(2)}M, Lum=${selectedStar.currentLum.toFixed(3)}L, Age=${selectedStar.currentRealAge.toFixed(1)}Myr, Phase=${PHASE_NAMES[selectedStar.phase]}). Return a JSON with properties: planet_name (string), life_stage (number), dominant_species (string), civilization (string), biome (string).`;
-           const { GoogleGenAI, Type } = await import("@google/genai");
-           const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || '' });
-           const response = await ai.models.generateContent({
-               model: 'gemini-2.5-flash',
-               contents: prm,
-               config: {
-                   systemInstruction: "You are an astrobiology analytical engine. Generate creative but scientifically cohesive species and civilizations based on the star's phase, temp, and constants.",
-                   responseMimeType: "application/json",
-                   responseSchema: {
-                       type: Type.OBJECT,
-                       properties: {
-                           planet_name: { type: Type.STRING },
-                           life_stage: { type: Type.INTEGER },
-                           dominant_species: { type: Type.STRING },
-                           civilization: { type: Type.STRING },
-                           biome: { type: Type.STRING }
-                       },
-                       required: ["planet_name", "life_stage", "dominant_species", "civilization", "biome"]
-                   }
-               }
-           });
-           
-           if (response.text) {
-               try {
-                   setGeminiData(JSON.parse(response.text));
-               } catch(ex) {
-                   console.error("Failed to parse gemini JSON", ex);
-               }
-           }
-       } catch (err) {
-            console.error("Gemini failed:", err);
-            // mock data in case api key missing
-            setGeminiData({
-                planet_name: "Kerath-7",
-                life_stage: 4,
-                dominant_species: "Silicate Swarm",
-                civilization: "Post-Scarcity Hive",
-                biome: "Crystalline Deserts"
-            });
-       } finally {
-           setIsAnalyzing(false);
-       }
+    if (!selectedStar || isAnalyzing) return;
+
+    // Security: Implement 5s throttle to prevent API abuse
+    const now = Date.now();
+    if (now - lastAnalysisTimeRef.current < 5000) {
+      return;
+    }
+    lastAnalysisTimeRef.current = now;
+
+    try {
+      setIsAnalyzing(true);
+
+      const apiKey = process.env.GEMINI_API_KEY || "";
+      // Security: Prevent requests with placeholder or empty keys
+      if (!apiKey || apiKey === "MY_GEMINI_API_KEY") {
+        throw new Error("SECURE_AUTH_MISSING");
+      }
+
+      const G_val = physics.G.toFixed(2);
+      const alpha_val = physics.alpha.toFixed(2);
+      const prm = `Analyze a generic star based on physical constants (G=${G_val.toString()}, alpha=${alpha_val.toString()}) and its star properties (Temp=${Math.round(
+        selectedStar.currentTemp,
+      ).toString()}K, Mass=${selectedStar.mass.toFixed(2).toString()}M, Lum=${selectedStar.currentLum.toFixed(3).toString()}L, Age=${selectedStar.currentRealAge.toFixed(
+        1,
+      ).toString()}Myr, Phase=${PHASE_NAMES[selectedStar.phase]}). Return a JSON with properties: planet_name (string), life_stage (number), dominant_species (string), civilization (string), biome (string).`;
+
+      const { GoogleGenAI, Type } = await import("@google/genai");
+      const ai = new GoogleGenAI({ apiKey });
+      const response = await ai.models.generateContent({
+        model: "gemini-2.5-flash",
+        contents: prm,
+        config: {
+          systemInstruction:
+            "You are an astrobiology analytical engine. Generate creative but scientifically cohesive species and civilizations based on the star's phase, temp, and constants.",
+          responseMimeType: "application/json",
+          responseSchema: {
+            type: Type.OBJECT,
+            properties: {
+              planet_name: { type: Type.STRING },
+              life_stage: { type: Type.INTEGER },
+              dominant_species: { type: Type.STRING },
+              civilization: { type: Type.STRING },
+              biome: { type: Type.STRING },
+            },
+            required: ["planet_name", "life_stage", "dominant_species", "civilization", "biome"],
+          },
+        },
+      });
+
+      if (response.text) {
+        try {
+          const parsed = JSON.parse(response.text);
+          // Security: Basic output validation
+          if (parsed && typeof parsed.planet_name === "string" && typeof parsed.biome === "string") {
+            setGeminiData(parsed);
+          } else {
+            throw new Error("SECURE_INVALID_RESPONSE");
+          }
+        } catch (ex) {
+          throw new Error("SECURE_PARSE_FAILURE");
+        }
+      }
+    } catch (err) {
+      // Security: Do not leak raw error details or stack traces to the console in production
+      // Using generic logs and mock fallback for resilience
+      console.warn("Analysis unavailable - using predictive fallback.");
+
+      setGeminiData({
+        planet_name: "Kerath-7",
+        life_stage: 4,
+        dominant_species: "Silicate Swarm",
+        civilization: "Post-Scarcity Hive",
+        biome: "Crystalline Deserts",
+      });
+    } finally {
+      setIsAnalyzing(false);
+    }
   };
 
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [geminiData, setGeminiData] = useState<any>(null);
+  const lastAnalysisTimeRef = useRef(0);
 
   // Clear gemini data when star selection changes
   useEffect(() => {
