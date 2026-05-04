@@ -5,7 +5,7 @@ import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
-import { Crosshair, Navigation, Scan, Zap, Play, Pause, ChevronRight } from 'lucide-react';
+import { Crosshair, Navigation, Scan, Zap, Play, Pause, ChevronRight, X, Settings2 } from 'lucide-react';
 
 // ---- Constants & Math Utilities ----
 const NUM_STARS = 50000;
@@ -14,21 +14,10 @@ const GALAXY_SPIN = -0.15;
 const GALAXY_MAX_RADIUS = 350;
 const CORE_RADIUS = 25;
 
-// BOLT OPTIMIZATION: Box-Muller transform generates two values at once.
-// Caching the second value halves the number of expensive Math.log/sqrt/sin/cos calls.
-let _nextGaussian: number | null = null;
 function randomGaussian(mean = 0, stdev = 1) {
-  if (_nextGaussian !== null) {
-    const z = _nextGaussian;
-    _nextGaussian = null;
-    return z * stdev + mean;
-  }
   const u = 1 - Math.random();
   const v = Math.random();
-  const r = Math.sqrt(-2.0 * Math.log(u));
-  const angle = 2.0 * Math.PI * v;
-  const z = r * Math.cos(angle);
-  _nextGaussian = r * Math.sin(angle);
+  const z = Math.sqrt(-2.0 * Math.log(u)) * Math.cos(2.0 * Math.PI * v);
   return z * stdev + mean;
 }
 
@@ -280,6 +269,7 @@ varying vec3 vLocalPosition;
 varying vec3 vWorldPosition;
 varying vec3 vNormal;
 uniform float uTime;
+uniform float uHbar;
 
 float hash(vec3 p) {
     return fract(sin(dot(p, vec3(12.9898, 78.233, 151.7182))) * 43758.5453);
@@ -298,7 +288,10 @@ float noise(vec3 x) {
 void main() {
     vNormal = normalize(normalMatrix * normal);
     vec3 p = position;
-    float d = noise(p * 5.0 + uTime * 2.0) * 0.15;
+    float baseNoise = noise(p * 5.0 + uTime * 2.0);
+    float foam = noise(p * 50.0 + uTime * 10.0) * (uHbar - 1.0) * 0.5;
+    if (uHbar < 1.0) foam = 0.0;
+    float d = baseNoise * 0.15 + foam;
     p += normal * d;
     vLocalPosition = p;
     vWorldPosition = (modelMatrix * vec4(p, 1.0)).xyz;
@@ -311,6 +304,7 @@ varying vec3 vLocalPosition;
 varying vec3 vWorldPosition;
 varying vec3 vNormal;
 uniform float uTime;
+uniform float uHbar;
 
 float hash(vec3 p) {
     return fract(sin(dot(p, vec3(12.9898, 78.233, 151.7182))) * 43758.5453);
@@ -329,7 +323,10 @@ float noise(vec3 x) {
 void main() {
     vNormal = normalize(normalMatrix * normal);
     vec3 p = position;
-    float d = noise(p * 10.0 + uTime * 1.5) * 0.02;
+    float baseNoise = noise(p * 10.0 + uTime * 1.5);
+    float foam = noise(p * 50.0 + uTime * 10.0) * (uHbar - 1.0) * 0.5;
+    if (uHbar < 1.0) foam = 0.0;
+    float d = baseNoise * 0.02 + foam;
     p += normal * d;
     vLocalPosition = p;
     vWorldPosition = (modelMatrix * vec4(p, 1.0)).xyz;
@@ -366,55 +363,6 @@ const PHASE_NAMES = [
     "Supernova",
     "Stellar Remnant"
 ];
-
-class MagneticCurve extends THREE.Curve<THREE.Vector3> {
-    constructor(public angle: number) { super(); }
-    getPoint(t: number, optionalTarget = new THREE.Vector3()) {
-        const a = this.angle;
-        const th = t * Math.PI;
-        const r = 0.5 * Math.sin(th);
-        const x = r * Math.cos(a);
-        const y = 0.5 * Math.cos(th);
-        const z = r * Math.sin(a);
-        return optionalTarget.set(x, y, z);
-    }
-}
-
-// BOLT OPTIMIZATION: Reuse geometries across all HeroStarSystem instances.
-// Reduces GPU memory overhead and initialization time by avoiding redundant allocations for 12 systems.
-const GEOMETRIES = {
-    nebula: new THREE.SphereGeometry(15, 32, 32),
-    protostar: new THREE.SphereGeometry(1, 64, 64),
-    protostarDisk: new THREE.TorusGeometry(2, 0.4, 8, 32),
-    mainSeq: new THREE.SphereGeometry(1, 64, 64),
-    corona: new THREE.SphereGeometry(1.15, 32, 32),
-    redGiant: new THREE.SphereGeometry(1, 64, 64),
-    supernovaCore: new THREE.SphereGeometry(1, 48, 48),
-    habitableZone: new THREE.TorusGeometry(1, 0.05, 8, 64), // Radius updated in instance
-    planet: new THREE.SphereGeometry(1, 16, 16), // Radius/scale updated in instance
-    supernovaRing: new THREE.TorusGeometry(1, 0.1, 16, 64),
-    neutronStar: new THREE.SphereGeometry(0.1, 32, 32),
-    pulsarBeam: (() => {
-        const geo = new THREE.ConeGeometry(0.2, 20, 16);
-        geo.translate(0, 10, 0);
-        return geo;
-    })(),
-    blackHoleCore: new THREE.SphereGeometry(0.5, 32, 32),
-    blackHoleDisk: (() => {
-        const geo = new THREE.TorusGeometry(1.5, 0.4, 16, 64);
-        geo.rotateX(Math.PI / 2);
-        return geo;
-    })(),
-    hit: new THREE.SphereGeometry(8, 16, 16),
-    magneticTubes: (() => {
-        const tubes: THREE.TubeGeometry[] = [];
-        for (let a = 0; a < Math.PI * 2; a += Math.PI / 4) {
-            const curve = new MagneticCurve(a);
-            tubes.push(new THREE.TubeGeometry(curve, 20, 0.01, 8, false));
-        }
-        return tubes;
-    })()
-};
 
 class HeroStarSystem extends THREE.Group {
     mass: number;
@@ -465,13 +413,17 @@ class HeroStarSystem extends THREE.Group {
 
     tHeat: number;
     baseRadius: number;
+    birthAge: number;
 
     constructor() {
         super();
         this.mass = Math.random() > 0.8 ? 8 + Math.random() * 12 : 0.5 + Math.random() * 3;
-        this.lifespanReal = 10000 * Math.pow(this.mass, -2.5);
+        this.lifespanReal = 10000 * Math.pow(this.mass, -2.5); // Myr
         this.loopDuration = 40 + Math.random() * 20; 
-        this.t = Math.random();
+        
+        // Born randomly between 0.5 and 10 Gyr
+        this.birthAge = 0.5 + Math.random() * 9.5;
+        this.t = 0;
 
         this.tHeat = 5778 * Math.pow(this.mass, 0.5);
         this.baseRadius = Math.pow(this.mass, 0.8) * 0.8;
@@ -492,7 +444,7 @@ class HeroStarSystem extends THREE.Group {
             blending: THREE.AdditiveBlending,
             side: THREE.FrontSide
         });
-        this.nebulaMesh = new THREE.Mesh(GEOMETRIES.nebula, this.nebulaMat);
+        this.nebulaMesh = new THREE.Mesh(new THREE.SphereGeometry(15, 32, 32), this.nebulaMat);
         this.add(this.nebulaMesh);
 
         // 1b. Dust Cloud
@@ -550,13 +502,14 @@ class HeroStarSystem extends THREE.Group {
                 uTime: { value: 0 },
                 uColor: { value: new THREE.Color(0xff3300) },
                 uTurbulence: { value: 2.0 },
-                uOpacity: { value: 0.0 }
+                uOpacity: { value: 0.0 },
+                uHbar: { value: 1.0 }
             },
             transparent: true, blending: THREE.AdditiveBlending
         });
-        this.protostarMesh = new THREE.Mesh(GEOMETRIES.protostar, this.protostarMat);
+        this.protostarMesh = new THREE.Mesh(new THREE.SphereGeometry(1, 64, 64), this.protostarMat);
         this.protostarDisk = new THREE.Mesh(
-            GEOMETRIES.protostarDisk,
+            new THREE.TorusGeometry(2, 0.4, 8, 32),
             new THREE.MeshBasicMaterial({ color: 0xff6600, transparent: true, opacity: 0, blending: THREE.AdditiveBlending })
         );
         this.protostarDisk.rotation.x = Math.PI / 2;
@@ -578,13 +531,14 @@ class HeroStarSystem extends THREE.Group {
                 uTime: { value: 0 },
                 uColor: { value: new THREE.Color(msColor) },
                 uTurbulence: { value: 1.0 },
-                uOpacity: { value: 0.0 }
+                uOpacity: { value: 0.0 },
+                uHbar: { value: 1.0 }
             },
             transparent: true, blending: THREE.AdditiveBlending
         });
-        this.starMesh = new THREE.Mesh(GEOMETRIES.mainSeq, this.starMat);
+        this.starMesh = new THREE.Mesh(new THREE.SphereGeometry(1, 64, 64), this.starMat);
         this.coronaMesh = new THREE.Mesh(
-            GEOMETRIES.corona,
+            new THREE.SphereGeometry(1.15, 32, 32),
             new THREE.MeshBasicMaterial({ color: msColor, transparent: true, opacity: 0, blending: THREE.AdditiveBlending })
         );
         this.mainSeqGroup.add(this.starMesh);
@@ -601,11 +555,12 @@ class HeroStarSystem extends THREE.Group {
                 uTime: { value: 0 },
                 uColor: { value: new THREE.Color(0xff4400) },
                 uTurbulence: { value: 0.5 },
-                uOpacity: { value: 0.0 }
+                uOpacity: { value: 0.0 },
+                uHbar: { value: 1.0 }
             },
             transparent: true, blending: THREE.AdditiveBlending
         });
-        this.redGiantMesh = new THREE.Mesh(GEOMETRIES.redGiant, this.redGiantMat);
+        this.redGiantMesh = new THREE.Mesh(new THREE.SphereGeometry(1, 64, 64), this.redGiantMat);
         this.redGiantGroup.add(this.redGiantMesh);
         this.redGiantGroup.visible = false;
         this.add(this.redGiantGroup);
@@ -613,7 +568,7 @@ class HeroStarSystem extends THREE.Group {
         // 4b. SUPERNOVA CORE
         this.supernovaGroup = new THREE.Group();
         this.coreFlashMesh = new THREE.Mesh(
-            GEOMETRIES.supernovaCore,
+            new THREE.SphereGeometry(1, 48, 48), 
             new THREE.MeshBasicMaterial({color: 0xffffff, transparent: true, opacity: 0, blending: THREE.AdditiveBlending})
         );
         this.supernovaGroup.add(this.coreFlashMesh);
@@ -625,21 +580,18 @@ class HeroStarSystem extends THREE.Group {
         const hzRadius = Math.max(4, Math.sqrt(lum) * 2.5);
         
         this.hzMesh = new THREE.Mesh(
-            GEOMETRIES.habitableZone,
+            new THREE.TorusGeometry(hzRadius, 0.05, 8, 64),
             new THREE.MeshBasicMaterial({ color: 0x00ff88, transparent: true, opacity: 0.1, blending: THREE.AdditiveBlending })
         );
-        this.hzMesh.scale.setScalar(hzRadius);
         this.hzMesh.rotation.x = Math.PI / 2;
         this.add(this.hzMesh);
 
         for(let i=0; i<4; i++) {
             const dist = 3 + Math.random() * 8 + (i * 2); 
-            const pScale = 0.1 + Math.random()*0.15;
             const pMesh = new THREE.Mesh(
-                GEOMETRIES.planet,
+                new THREE.SphereGeometry(0.1 + Math.random()*0.15, 16, 16), 
                 new THREE.MeshStandardMaterial({color: 0xaaaaaa, roughness: 0.8})
             );
-            pMesh.scale.setScalar(pScale);
             pMesh.position.x = dist;
             const pivot = new THREE.Group();
             pivot.rotation.y = Math.random() * Math.PI * 2;
@@ -651,7 +603,7 @@ class HeroStarSystem extends THREE.Group {
 
         // 5. Supernova Ring & Ejecta
         this.snRing = new THREE.Mesh(
-            GEOMETRIES.supernovaRing,
+            new THREE.TorusGeometry(1, 0.1, 16, 64),
             new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0, blending: THREE.AdditiveBlending })
         );
         this.snRing.rotation.x = Math.PI / 2;
@@ -700,21 +652,40 @@ class HeroStarSystem extends THREE.Group {
 
         // 6. Remnants (Pulsar & Black Hole)
         this.neutronStarGroup = new THREE.Group();
+        const nsGeo = new THREE.SphereGeometry(0.1, 32, 32);
         const nsMat = new THREE.MeshBasicMaterial({color: 0xaaccff});
         this.pulsarGroup = new THREE.Group();
+        const beamGeo = new THREE.ConeGeometry(0.2, 20, 16);
+        beamGeo.translate(0, 10, 0); 
         const beamMat = new THREE.MeshBasicMaterial({ color: 0x00ffff, transparent: true, opacity: 0.6, blending: THREE.AdditiveBlending });
-        const beam1 = new THREE.Mesh(GEOMETRIES.pulsarBeam, beamMat);
-        const beam2 = new THREE.Mesh(GEOMETRIES.pulsarBeam, beamMat);
+        const beam1 = new THREE.Mesh(beamGeo, beamMat);
+        const beam2 = new THREE.Mesh(beamGeo, beamMat);
         beam2.rotation.x = Math.PI;
         this.pulsarGroup.add(beam1);
         this.pulsarGroup.add(beam2);
-        this.neutronStarGroup.add(new THREE.Mesh(GEOMETRIES.neutronStar, nsMat));
+        this.neutronStarGroup.add(new THREE.Mesh(nsGeo, nsMat));
         this.neutronStarGroup.add(this.pulsarGroup);
         
-        // Magnetic field lines
+        // Magnetic field lines (TubeGeometry)
         const nsMagGroup = new THREE.Group();
+        
+        class MagneticCurve extends THREE.Curve<THREE.Vector3> {
+            constructor(public angle: number) { super(); }
+            getPoint(t: number, optionalTarget = new THREE.Vector3()) {
+                const a = this.angle;
+                const th = t * Math.PI;
+                const r = 0.5 * Math.sin(th);
+                const x = r * Math.cos(a);
+                const y = 0.5 * Math.cos(th);
+                const z = r * Math.sin(a);
+                return optionalTarget.set(x, y, z);
+            }
+        }
+
         const tubeMat = new THREE.MeshBasicMaterial({color: 0xaaccff, transparent: true, opacity: 0.3, blending: THREE.AdditiveBlending});
-        for(const tubeGeo of GEOMETRIES.magneticTubes) {
+        for(let a=0; a<Math.PI*2; a+=Math.PI/4) {
+            const curve = new MagneticCurve(a);
+            const tubeGeo = new THREE.TubeGeometry(curve, 20, 0.01, 8, false);
             nsMagGroup.add(new THREE.Mesh(tubeGeo, tubeMat));
         }
         
@@ -725,29 +696,61 @@ class HeroStarSystem extends THREE.Group {
 
         this.blackHoleGroup = new THREE.Group();
         const bhCore = new THREE.Mesh(
-            GEOMETRIES.blackHoleCore,
+            new THREE.SphereGeometry(0.5, 32, 32),
             new THREE.MeshBasicMaterial({ color: 0x000000 })
         );
+        const diskGeo = new THREE.TorusGeometry(1.5, 0.4, 16, 64);
+        diskGeo.rotateX(Math.PI / 2);
         const diskMat = new THREE.MeshBasicMaterial({ 
             color: 0xff8800, transparent: true, opacity: 0.8, blending: THREE.AdditiveBlending
         });
-        const diskMesh = new THREE.Mesh(GEOMETRIES.blackHoleDisk, diskMat);
+        const diskMesh = new THREE.Mesh(diskGeo, diskMat);
         this.blackHoleGroup.add(bhCore);
         this.blackHoleGroup.add(diskMesh);
         this.add(this.blackHoleGroup);
 
         // 7. Hit mesh for raycaster
         this.hitMesh = new THREE.Mesh(
-            GEOMETRIES.hit,
+            new THREE.SphereGeometry(8, 16, 16),
             new THREE.MeshBasicMaterial({visible: false})
         );
         this.add(this.hitMesh);
     }
 
-    update(delta: number, appTime: number, cameraPos: THREE.Vector3) {
-        this.t += delta / this.loopDuration;
+    update(delta: number, appTime: number, cameraPos: THREE.Vector3, physics: any, overrideT?: number, cosmicAge?: number) {
+        const effG = Math.max(0.01, physics.G);
+        const expL = Math.max(0.1, physics.lambda);
+        this.scale.setScalar(expL);
+        
+        const effMass = this.mass * effG;
+        const ignites = effG > 0.3;
+
+        // Calculate 't' based on cosmic age
+        if (overrideT !== undefined) {
+             this.t = overrideT;
+        } else if (cosmicAge !== undefined) {
+             const ageMyr = (cosmicAge - this.birthAge) * 1000;
+             if (ageMyr < 0) {
+                 this.t = -0.1; // pre-birth
+             } else {
+                 this.t = ageMyr / (this.lifespanReal / effG);
+             }
+        } // else keep existing t? 
+
+        // If not born yet, hide everything
+        if (this.t < 0) {
+            this.visible = false;
+            return;
+        } else {
+            this.visible = true;
+        }
+
+        if (!ignites && this.t > 0.14) {
+             this.t = 0.14;
+        }
+
         if (this.t > 1.0) {
-            this.t = 0;
+            this.t = Math.min(1.05, this.t);
             this.isSupernovaFlashing = false;
         }
 
@@ -806,7 +809,8 @@ class HeroStarSystem extends THREE.Group {
         } else if (this.t < 0.70) {
             this.phase = PHASES.MAIN_SEQUENCE;
             targetMain = 1;
-            this.hzMesh.visible = true;
+            const noChem = physics.alpha > 1.2;
+            this.hzMesh.visible = !noChem;
             
             this.starMesh.scale.setScalar(this.baseRadius);
             this.currentTemp = this.tHeat;
@@ -814,12 +818,18 @@ class HeroStarSystem extends THREE.Group {
             
             this.starMat.uniforms.uTime.value = appTime;
 
-            this.planetsInfo.forEach(p => {
-                p.pivot.visible = true;
-                p.pivot.rotation.y += p.speed * delta;
-                (p.mesh.material as THREE.MeshStandardMaterial).color.setHex(0xaaaaaa);
-                (p.mesh.material as THREE.MeshStandardMaterial).emissive.setHex(0x000000);
-            });
+            if (!noChem) {
+                this.planetsInfo.forEach(p => {
+                    p.pivot.visible = true;
+                    p.pivot.rotation.y += p.speed * delta;
+                    (p.mesh.material as THREE.MeshStandardMaterial).color.setHex(0xaaaaaa);
+                    (p.mesh.material as THREE.MeshStandardMaterial).emissive.setHex(0x000000);
+                });
+            }
+            if (physics.alpha < 0.5) {
+                this.currentLum *= 10.0;
+                this.currentTemp = 100000;
+            }
 
         } else if (this.t < 0.85) {
             this.phase = PHASES.RED_GIANT;
@@ -855,7 +865,7 @@ class HeroStarSystem extends THREE.Group {
             targetSuper = 1;
             const normT = (this.t - 0.85) / 0.05;
             
-            if (this.mass > 8) {
+            if (effMass > 8) {
                 if (normT < 0.1) this.isSupernovaFlashing = true;
 
                 this.snRing.visible = true;
@@ -888,14 +898,14 @@ class HeroStarSystem extends THREE.Group {
             this.phase = PHASES.REMNANT;
             this.isSupernovaFlashing = false;
             
-            if (this.mass > 15) {
+            if (effMass > 15) {
                 // Black Hole
                 this.blackHoleGroup.visible = true;
                 this.blackHoleGroup.rotation.y += delta;
                 this.blackHoleGroup.rotation.z = Math.PI / 8;
                 this.currentTemp = 0;
                 this.currentLum = 0;
-            } else if (this.mass > 8) {
+            } else if (effMass > 8) {
                 // Neutron Star / Pulsar
                 targetNs = 1;
                 this.pulsarGroup.rotation.y += delta * 5.0;
@@ -923,16 +933,19 @@ class HeroStarSystem extends THREE.Group {
         const opP = stepOp(this.protostarMat.uniforms.uOpacity.value, targetProto);
         // Flickering opacity animation for Protostar
         this.protostarMat.uniforms.uOpacity.value = targetProto > 0 ? opP * (0.8 + 0.2 * Math.sin(appTime * 20.0)) : opP;
+        this.protostarMat.uniforms.uHbar.value = physics.hbar;
         (this.protostarDisk.material as THREE.MeshBasicMaterial).opacity = opP * 0.8;
         this.protostarGroup.visible = opP > 0.01;
 
         const opM = stepOp(this.starMat.uniforms.uOpacity.value, targetMain);
         this.starMat.uniforms.uOpacity.value = opM;
+        this.starMat.uniforms.uHbar.value = physics.hbar;
         (this.coronaMesh.material as THREE.MeshBasicMaterial).opacity = opM * 0.3;
         this.mainSeqGroup.visible = opM > 0.01;
 
         const opR = stepOp(this.redGiantMat.uniforms.uOpacity.value, targetRed);
         this.redGiantMat.uniforms.uOpacity.value = opR;
+        this.redGiantMat.uniforms.uHbar.value = physics.hbar;
         this.redGiantGroup.visible = opR > 0.01;
 
         const opS = stepOp((this.coreFlashMesh.material as THREE.MeshBasicMaterial).opacity, targetSuper);
@@ -967,6 +980,27 @@ export function AetherGenesis() {
   const uiAge2 = useRef<HTMLSpanElement>(null);
   const uiLum = useRef<HTMLSpanElement>(null);
   const uiTimelineFill = useRef<HTMLDivElement>(null);
+
+  // Physical Constants State
+  const [isConstantsOpen, setIsConstantsOpen] = useState(true);
+  const [physics, setPhysics] = useState({
+      G: 1.0,
+      alpha: 1.0,
+      lambda: 1.0,
+      c: 1.0,
+      hbar: 1.0
+  });
+  const physicsRef = useRef(physics);
+  useEffect(() => { physicsRef.current = physics; }, [physics]);
+
+  const [cosmicAge, setCosmicAge] = useState(13.8); // 0 to 14 Gyr
+  const cosmicAgeRef = useRef(cosmicAge);
+  const isGlobalScrubbingRef = useRef(false);
+  const [isPlayingCosmic, setIsPlayingCosmic] = useState(true);
+  const isPlayingCosmicRef = useRef(isPlayingCosmic);
+  
+  useEffect(() => { cosmicAgeRef.current = cosmicAge; }, [cosmicAge]);
+  useEffect(() => { isPlayingCosmicRef.current = isPlayingCosmic; }, [isPlayingCosmic]);
 
   const [selectedStar, setSelectedStarState] = useState<HeroStarSystem | null>(null);
   const selectedStarRef = useRef<HeroStarSystem | null>(null);
@@ -1157,33 +1191,55 @@ export function AetherGenesis() {
         const delta = clock.getDelta();
         appTime += delta;
 
+        // Auto play cosmic Age if playing
+        if (isPlayingCosmicRef.current && !isGlobalScrubbingRef.current) {
+            cosmicAgeRef.current += delta * 0.2; // 0.2 Gyr per second
+            if (cosmicAgeRef.current > 14) {
+                 cosmicAgeRef.current = 0; // Loop universe
+            }
+            // Sync react state for UI roughly
+            if (Math.random() < 0.1) setCosmicAge(cosmicAgeRef.current);
+        }
+
         // Supernova global flash logic
         let highBloom = false;
 
         heroStars.forEach(hs => {
             if (hs === selectedStarRef.current && isScrubbingRef.current) {
-                // If scrubbing, do not advance time automatically but update visually
-                hs.update(0, appTime, camera.position);
+                // If scrubbing star, pass overrideT (which the scrubber handles by mutating hs.t, but we need to stop update from overwriting it)
+                hs.update(delta, appTime, camera.position, physicsRef.current, hs.t);
             } else {
-                hs.update(delta, appTime, camera.position);
+                hs.update(delta, appTime, camera.position, physicsRef.current, undefined, cosmicAgeRef.current);
             }
             if (hs.isSupernovaFlashing) highBloom = true;
         });
 
-        if (highBloom) {
+        // Global Early Universe Plasma Logic
+        if (cosmicAgeRef.current < 0.2) {
+             const tEarly = cosmicAgeRef.current / 0.2;
+             scene.background = new THREE.Color(0xffffff).lerp(new THREE.Color(0x000000), tEarly);
+             bloomPass.strength = THREE.MathUtils.lerp(3.0, 1.2, tEarly);
+        } else if (highBloom) {
             bloomPass.strength = THREE.MathUtils.lerp(bloomPass.strength, 3.5, 0.2);
         } else {
             bloomPass.strength = THREE.MathUtils.lerp(bloomPass.strength, 1.2, 0.05);
+            scene.background = new THREE.Color(0x000000);
         }
 
         controls.update();
         cinematicShader.uniforms.time.value = appTime;
 
+        // Apply Speed of Light (c) effect on Space
+        const currentC = Math.max(0.1, physicsRef.current.c);
+        const targetFov = 60 / currentC;
+        camera.fov = THREE.MathUtils.lerp(camera.fov, Math.max(10, Math.min(150, targetFov)), 0.05);
+        camera.updateProjectionMatrix();
+
         // Update HUD
         if (hudX.current) hudX.current.innerText = camera.position.x.toFixed(1);
         if (hudY.current) hudY.current.innerText = camera.position.y.toFixed(1);
         if (hudZ.current) hudZ.current.innerText = camera.position.z.toFixed(1);
-        if (hudAge.current) hudAge.current.innerText = (13.8 + appTime * 0.0001).toFixed(4);
+        if (hudAge.current) hudAge.current.innerText = cosmicAgeRef.current.toFixed(2);
 
         // Update Selected Star UI Panel dynamically to save React renders
         if (selectedStarRef.current) {
@@ -1194,7 +1250,6 @@ export function AetherGenesis() {
             if (uiAge2.current) uiAge2.current.innerText = s.currentRealAge.toFixed(1);
             if (uiLum.current) uiLum.current.innerText = s.currentLum.toFixed(3);
             if (uiTimelineFill.current) uiTimelineFill.current.style.width = `${s.t * 100}%`;
-            if (uiTimelineFill.current && uiTimelineFill.current.parentElement) uiTimelineFill.current.parentElement.setAttribute("aria-valuenow", Math.round(s.t * 100).toString());
         }
 
         composer.render();
@@ -1236,6 +1291,75 @@ export function AetherGenesis() {
       selectedStarRef.current.t = percentage;
   };
 
+  const handleGlobalTimelineScrub = (e: React.MouseEvent<HTMLDivElement>) => {
+      if (!isGlobalScrubbingRef.current) return;
+      const rect = e.currentTarget.getBoundingClientRect();
+      const x = Math.max(0, Math.min(e.clientX - rect.left, rect.width));
+      const percentage = x / rect.width;
+      const newAge = percentage * 14.0;
+      setCosmicAge(newAge);
+      cosmicAgeRef.current = newAge;
+  };
+
+  const analyzeSystem = async () => {
+       if (!selectedStar) return;
+       try {
+           setIsAnalyzing(true);
+           const G_val = physics.G.toFixed(2);
+           const alpha_val = physics.alpha.toFixed(2);
+           const prm = `Analyze a generic star based on physical constants (G=${G_val}, alpha=${alpha_val}) and its star properties (Temp=${Math.round(selectedStar.currentTemp)}K, Mass=${selectedStar.mass.toFixed(2)}M, Lum=${selectedStar.currentLum.toFixed(3)}L, Age=${selectedStar.currentRealAge.toFixed(1)}Myr, Phase=${PHASE_NAMES[selectedStar.phase]}). Return a JSON with properties: planet_name (string), life_stage (number), dominant_species (string), civilization (string), biome (string).`;
+           const { GoogleGenAI, Type } = await import("@google/genai");
+           const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || '' });
+           const response = await ai.models.generateContent({
+               model: 'gemini-2.5-flash',
+               contents: prm,
+               config: {
+                   systemInstruction: "You are an astrobiology analytical engine. Generate creative but scientifically cohesive species and civilizations based on the star's phase, temp, and constants.",
+                   responseMimeType: "application/json",
+                   responseSchema: {
+                       type: Type.OBJECT,
+                       properties: {
+                           planet_name: { type: Type.STRING },
+                           life_stage: { type: Type.INTEGER },
+                           dominant_species: { type: Type.STRING },
+                           civilization: { type: Type.STRING },
+                           biome: { type: Type.STRING }
+                       },
+                       required: ["planet_name", "life_stage", "dominant_species", "civilization", "biome"]
+                   }
+               }
+           });
+           
+           if (response.text) {
+               try {
+                   setGeminiData(JSON.parse(response.text));
+               } catch(ex) {
+                   console.error("Failed to parse gemini JSON", ex);
+               }
+           }
+       } catch (err) {
+            console.error("Gemini failed:", err);
+            // mock data in case api key missing
+            setGeminiData({
+                planet_name: "Kerath-7",
+                life_stage: 4,
+                dominant_species: "Silicate Swarm",
+                civilization: "Post-Scarcity Hive",
+                biome: "Crystalline Deserts"
+            });
+       } finally {
+           setIsAnalyzing(false);
+       }
+  };
+
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [geminiData, setGeminiData] = useState<any>(null);
+
+  // Clear gemini data when star selection changes
+  useEffect(() => {
+      setGeminiData(null);
+  }, [selectedStar]);
+
   return (
     <div className="relative w-full h-screen bg-[#020205] overflow-hidden flex flex-col font-sans text-white select-none">
       <div ref={mountRef} className="absolute inset-0 cursor-crosshair z-0" />
@@ -1266,6 +1390,81 @@ export function AetherGenesis() {
           </div>
         </div>
       </nav>
+
+      {/* Physical Constants Control Panel */}
+      {isConstantsOpen ? (
+        <div className="absolute left-8 top-32 w-80 bg-[rgba(14,14,28,0.7)] backdrop-blur-xl border border-[rgba(126,184,255,0.3)] rounded-2xl p-6 z-30 shadow-[0_0_30px_rgba(0,0,0,0.5)] transform transition-all pointer-events-auto">
+            <div className="flex items-center justify-between mb-6 pb-4 border-b border-[rgba(126,184,255,0.1)]">
+                <h2 className="text-sm font-bold tracking-widest uppercase text-white flex items-center gap-3">
+                    <Settings2 size={20} className="text-[#C084FC]" />
+                    Constants
+                </h2>
+                <button onClick={() => setIsConstantsOpen(false)} className="text-[#7EB8FF]/70 hover:text-white transition-colors">
+                    <X size={20} />
+                </button>
+            </div>
+            <div className="space-y-4 text-xs font-mono">
+                {/* G Slider */}
+                <div>
+                    <div className="flex justify-between text-[#7EB8FF] mb-2">
+                        <span>Gravitation (G)</span>
+                        <span>{physics.G.toFixed(2)}</span>
+                    </div>
+                    <input type="range" min="0.1" max="5.0" step="0.1" value={physics.G} 
+                        onChange={e => setPhysics({...physics, G: parseFloat(e.target.value)})} className="w-full accent-[#C084FC]" />
+                    <p className="text-[9px] text-[#7EB8FF]/50 mt-1">G ↑ stars collapse faster, G ↓ cold dwarfs</p>
+                </div>
+                {/* Alpha */}
+                <div>
+                    <div className="flex justify-between text-[#7EB8FF] mb-2">
+                        <span>Fine-Structure (α)</span>
+                        <span>{physics.alpha.toFixed(2)}</span>
+                    </div>
+                    <input type="range" min="0.1" max="2.0" step="0.1" value={physics.alpha} 
+                        onChange={e => setPhysics({...physics, alpha: parseFloat(e.target.value)})} className="w-full accent-[#C084FC]" />
+                    <p className="text-[9px] text-[#7EB8FF]/50 mt-1">α ↑ chemistry breaks, α ↓ radiation univ</p>
+                </div>
+                {/* Lambda */}
+                <div>
+                    <div className="flex justify-between text-[#7EB8FF] mb-2">
+                        <span>Cosmological (Λ)</span>
+                        <span>{physics.lambda.toFixed(2)}</span>
+                    </div>
+                    <input type="range" min="0.1" max="3.0" step="0.1" value={physics.lambda} 
+                        onChange={e => setPhysics({...physics, lambda: parseFloat(e.target.value)})} className="w-full accent-[#C084FC]" />
+                    <p className="text-[9px] text-[#7EB8FF]/50 mt-1">Λ ↑ space expands, Λ ↓ crunch</p>
+                </div>
+                {/* c */}
+                <div>
+                    <div className="flex justify-between text-[#7EB8FF] mb-2">
+                        <span>Speed of Light (c)</span>
+                        <span>{physics.c.toFixed(2)}</span>
+                    </div>
+                    <input type="range" min="0.1" max="3.0" step="0.1" value={physics.c} 
+                        onChange={e => setPhysics({...physics, c: parseFloat(e.target.value)})} className="w-full accent-[#C084FC]" />
+                    <p className="text-[9px] text-[#7EB8FF]/50 mt-1">c ↑ universe looks flatter</p>
+                </div>
+                {/* hbar */}
+                <div>
+                    <div className="flex justify-between text-[#7EB8FF] mb-2">
+                        <span>Planck Constant (ħ)</span>
+                        <span>{physics.hbar.toFixed(2)}</span>
+                    </div>
+                    <input type="range" min="0.0" max="3.0" step="0.1" value={physics.hbar} 
+                        onChange={e => setPhysics({...physics, hbar: parseFloat(e.target.value)})} className="w-full accent-[#C084FC]" />
+                    <p className="text-[9px] text-[#7EB8FF]/50 mt-1">ħ ↑ quantum foam visible</p>
+                </div>
+            </div>
+        </div>
+      ) : (
+        <button 
+            onClick={() => setIsConstantsOpen(true)} 
+            className="absolute left-8 top-32 bg-[rgba(14,14,28,0.7)] backdrop-blur-xl border border-[rgba(126,184,255,0.3)] rounded-full p-4 z-30 shadow-[0_0_30px_rgba(0,0,0,0.5)] transform transition-all pointer-events-auto text-[#7EB8FF]/70 hover:text-white group"
+            title="Open Physical Constants"
+        >
+            <Settings2 size={24} className="group-hover:text-[#C084FC] transition-colors" />
+        </button>
+      )}
 
       {/* Stellar Lifecycle Inspect Panel (Frosted Glass Theme) */}
       {selectedStar && (
@@ -1303,13 +1502,13 @@ export function AetherGenesis() {
                     <div className="flex justify-between items-center mb-3">
                         <span className="text-[10px] text-[#7EB8FF]/50 uppercase tracking-widest">Time Override</span>
                         <div className="flex gap-2">
-                            <button className="text-white/40 hover:text-white transition-colors focus-visible:ring-2 focus-visible:ring-indigo-500 focus:outline-none rounded-sm" aria-label="Pause Simulation" title="Pause Simulation"><Pause size={12} /></button>
-                            <button className="text-white/40 hover:text-white transition-colors focus-visible:ring-2 focus-visible:ring-indigo-500 focus:outline-none rounded-sm" aria-label="Play Simulation" title="Play Simulation"><Play size={12} /></button>
+                            <button className="text-white/40 hover:text-white transition-colors"><Pause size={12} /></button>
+                            <button className="text-white/40 hover:text-white transition-colors"><Play size={12} /></button>
                         </div>
                     </div>
                     {/* Scrubbable Timeline */}
-                    <div role="slider" aria-label="Stellar lifecycle timeline" tabIndex={0} aria-valuemin="0" aria-valuemax="100"
-                        className="w-full h-2 bg-white/10 rounded-full overflow-hidden cursor-ew-resize relative group focus-visible:ring-2 focus-visible:ring-indigo-500 focus:outline-none"
+                    <div 
+                        className="w-full h-2 bg-white/10 rounded-full overflow-hidden cursor-ew-resize relative group"
                         onPointerDown={(e) => { isScrubbingRef.current = true; handleTimelineScrub(e); }}
                         onPointerMove={(e) => { if(isScrubbingRef.current) handleTimelineScrub(e); }}
                         onPointerUp={() => { isScrubbingRef.current = false; }}
@@ -1322,6 +1521,24 @@ export function AetherGenesis() {
                         <span>Genesis</span>
                         <span>Terminal</span>
                     </div>
+                </div>
+
+                <div className="mt-4 pt-4 border-t border-[rgba(126,184,255,0.1)]">
+                    <button 
+                        onClick={analyzeSystem}
+                        disabled={isAnalyzing}
+                        className="w-full py-2 bg-[#C084FC]/20 hover:bg-[#C084FC]/40 text-[#C084FC] hover:text-white border border-[#C084FC]/30 rounded transition-colors text-[10px] uppercase tracking-widest disabled:opacity-50"
+                    >
+                        {isAnalyzing ? "Analyzing System..." : "Gemini AI: Deep Scan"}
+                    </button>
+                    {geminiData && (
+                        <div className="mt-4 p-3 bg-black/40 border border-[#7EB8FF]/20 rounded text-[10px] space-y-2">
+                            <div className="text-white"><span className="text-[#7EB8FF]/70">Planet:</span> {geminiData.planet_name}</div>
+                            <div className="text-white"><span className="text-[#7EB8FF]/70">Biome:</span> {geminiData.biome}</div>
+                            <div className="text-white"><span className="text-[#7EB8FF]/70">Species:</span> {geminiData.dominant_species} (Stage {geminiData.life_stage})</div>
+                            <div className="text-white"><span className="text-[#7EB8FF]/70">Civilization:</span> {geminiData.civilization}</div>
+                        </div>
+                    )}
                 </div>
             </div>
         </div>
@@ -1339,22 +1556,40 @@ export function AetherGenesis() {
           <div className="text-white"><span className="text-[#7EB8FF]/70 mr-2">POS_Z:</span><span ref={hudZ}>0.0000</span></div>
         </div>
 
-        <div className="absolute left-1/2 -translate-x-1/2 flex flex-col items-center gap-4">
-          <div className="px-12 py-4 bg-[rgba(8,8,20,0.6)] backdrop-blur-2xl border border-[rgba(126,184,255,0.2)] rounded-full flex flex-col items-center">
-            <span className="text-[9px] uppercase tracking-widest text-[#7EB8FF]">Global Cosmic Age (Gyr)</span>
-            <span className="font-mono text-2xl font-light tracking-wider" ref={hudAge}>13.8000</span>
+        <div className="absolute left-1/2 -translate-x-1/2 flex flex-col items-center gap-4 w-1/3 pointer-events-auto">
+          <div className="w-full px-8 py-4 bg-[rgba(8,8,20,0.6)] backdrop-blur-2xl border border-[rgba(126,184,255,0.2)] rounded-2xl flex flex-col items-center group">
+            <div className="flex justify-between w-full items-center mb-3">
+                <span className="text-[9px] uppercase tracking-widest text-[#7EB8FF]">Global Cosmic Age (Gyr)</span>
+                <div className="flex gap-2">
+                    <button onClick={() => setIsPlayingCosmic(!isPlayingCosmic)} className="text-white/40 hover:text-white transition-colors">
+                        {isPlayingCosmic ? <Pause size={14} /> : <Play size={14} />}
+                    </button>
+                </div>
+            </div>
+            
+            <div 
+                className="w-full h-3 bg-white/10 rounded-full overflow-hidden cursor-ew-resize relative"
+                onPointerDown={(e) => { isGlobalScrubbingRef.current = true; handleGlobalTimelineScrub(e); }}
+                onPointerMove={(e) => { if(isGlobalScrubbingRef.current) handleGlobalTimelineScrub(e); }}
+                onPointerUp={() => { isGlobalScrubbingRef.current = false; }}
+                onPointerLeave={() => { isGlobalScrubbingRef.current = false; }}
+            >
+                <div className="h-full bg-gradient-to-r from-[#7EB8FF] to-[#C084FC]" style={{width: `${(cosmicAge / 14.0) * 100}%`}}></div>
+                <div className="absolute inset-0 bg-white/20 opacity-0 group-hover:opacity-100 transition-opacity"></div>
+            </div>
+            <span className="font-mono text-2xl font-light tracking-wider mt-2" ref={hudAge}>{cosmicAge.toFixed(2)}</span>
           </div>
-          <p className="text-[10px] text-[#7EB8FF]/50 italic text-center max-w-sm">"Select any anomalous star to inspect its lifecycle. Use mouse to rotate."</p>
+          <p className="text-[10px] text-[#7EB8FF]/50 italic text-center pointer-events-none">"Scrub to T=0 to observe pre-stellar plasma state."</p>
         </div>
 
         <div className="flex flex-col items-end gap-2 text-right">
           <div className="grid grid-cols-2 gap-2 pointer-events-auto">
-            <button className="w-10 h-10 flex items-center justify-center bg-[rgba(8,8,20,0.6)] border border-[rgba(126,184,255,0.2)] rounded-md backdrop-blur-md transition-colors hover:bg-[rgba(126,184,255,0.1)] cursor-pointer focus-visible:ring-2 focus-visible:ring-indigo-500 focus:outline-none" aria-label="Reset Camera" title="Reset Camera">
+            <div className="w-10 h-10 flex items-center justify-center bg-[rgba(8,8,20,0.6)] border border-[rgba(126,184,255,0.2)] rounded-md backdrop-blur-md transition-colors hover:bg-[rgba(126,184,255,0.1)] cursor-pointer">
               <Crosshair size={16} className="text-[#7EB8FF]" />
-            </button>
-            <button className="w-10 h-10 flex items-center justify-center bg-[rgba(8,8,20,0.6)] border border-[rgba(126,184,255,0.2)] rounded-md backdrop-blur-md transition-colors hover:bg-[rgba(126,184,255,0.1)] cursor-pointer focus-visible:ring-2 focus-visible:ring-indigo-500 focus:outline-none" aria-label="Center on Star" title="Center on Star">
+            </div>
+            <div className="w-10 h-10 flex items-center justify-center bg-[rgba(8,8,20,0.6)] border border-[rgba(126,184,255,0.2)] rounded-md backdrop-blur-md transition-colors hover:bg-[rgba(126,184,255,0.1)] cursor-pointer">
               <Navigation size={16} className="text-[#C084FC]" />
-            </button>
+            </div>
           </div>
           <span className="text-[9px] uppercase tracking-widest text-[#7EB8FF]/60 mt-1">Stellar Raycasting Active</span>
         </div>
