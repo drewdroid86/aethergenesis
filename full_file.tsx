@@ -164,7 +164,7 @@ float noise(vec3 x) {
 float fbm(vec3 p) {
     float f = 0.0;
     f += 0.5000 * noise(p); p *= 2.5;
-    f += 0.2500 * noise(p); 
+    f += 0.2500 * noise(p);
     return f;
 }
 
@@ -172,17 +172,17 @@ void main() {
     vec3 localCam = (uInverseModelMatrix * vec4(uCameraPos, 1.0)).xyz;
     vec3 rayDir = normalize(vLocalPosition - localCam);
     vec3 pos = vLocalPosition;
-    
+
     float stepSize = 0.15;
     float alpha = 0.0;
     vec3 accCol = vec3(0.0);
-    
+
     float progress = smoothstep(0.0, 1.0, uCollapse);
-    
+
     for(int i=0; i<12; i++) {
         float d = length(pos);
         if(d > 1.0) break; // Sphere bounds
-        
+
         // Swirling gas currents
         float angle = (1.0 - d) * 3.0 + uTime * 0.3;
         float s = sin(angle);
@@ -190,44 +190,44 @@ void main() {
         vec3 p = pos;
         p.xz = mat2(c, -s, s, c) * p.xz;
         p.xy = mat2(c, s, -s, c) * p.xy;
-        
+
         // Raymarched 3D noise (use lower frequency to help performance)
         float n = fbm(p * 2.0 - rayDir * uTime * 0.1);
-        
+
         // Tiny particle emissions/sparkles (use hash instead of expensive noise)
         float sparkles = pow(hash(p * 15.0 + uTime * 0.5), 8.0) * 1.5;
-        
+
         // Target collapse radius
-        float targetR = 1.0 - progress * 0.95; 
-        
+        float targetR = 1.0 - progress * 0.95;
+
         // Density calculation
         float density = smoothstep(0.3, 0.7, n + sparkles * 0.1);
         density *= smoothstep(targetR, targetR * 0.6, d); // fade near edge
-        
+
         // Calculate temperatures
         vec3 hotCore = vec3(1.0, 0.8, 0.4);
         vec3 coldGas = uColor;
-        
+
         // Mix heat inside
         float temp = progress * (1.0 - d);
         vec3 heatColor = mix(coldGas, hotCore, temp);
-        
+
         // Realistic light scattering (more light in dense areas near center)
         float scattering = pow(max(0.0, 1.0 - d), 2.0) * density;
         heatColor += hotCore * scattering * progress * 2.5;
-        
+
         alpha += density * stepSize * 2.5;
         accCol += heatColor * density * stepSize * 3.0;
-        
+
         if(alpha > 0.99) {
             alpha = 1.0;
             break;
         }
-        
+
         // Step forward inside the sphere
         pos += rayDir * stepSize;
     }
-    
+
     gl_FragColor = vec4(accCol, alpha * smoothstep(1.0, 0.9, uCollapse));
 }
 `;
@@ -256,7 +256,7 @@ float noise(vec3 x) {
 float fbm(vec3 p) {
     float f = 0.0;
     f += 0.5000 * noise(p); p *= 2.5;
-    f += 0.2500 * noise(p); 
+    f += 0.2500 * noise(p);
     return f;
 }
 
@@ -264,13 +264,13 @@ void main() {
     float n1 = fbm(vLocalPosition * 5.0 * uTurbulence + uTime * 0.5);
     float n2 = fbm(vLocalPosition * 10.0 * uTurbulence - uTime * 0.8);
     float noiseVal = (n1 + n2) * 0.5;
-    
+
     vec3 finalColor = mix(uColor * 0.5, uColor * 1.5, noiseVal);
-    
+
     // Limb darkening
     float intensity = max(0.0, dot(vNormal, vec3(0.0, 0.0, 1.0)));
     finalColor *= smoothstep(0.0, 1.0, intensity * 1.2 + 0.2);
-    
+
     gl_FragColor = vec4(finalColor, uOpacity);
 }
 `;
@@ -421,7 +421,7 @@ class HeroStarSystem extends THREE.Group {
     lifespanReal: number;
     loopDuration: number;
     t: number;
-    
+
     currentTemp: number = 3000;
     currentLum: number = 1;
     currentRealAge: number = 0;
@@ -430,25 +430,25 @@ class HeroStarSystem extends THREE.Group {
 
     nebulaMat: THREE.ShaderMaterial;
     nebulaMesh: THREE.Mesh;
-    
+
     // Stage Groups
     protostarGroup: THREE.Group;
     protostarMat: THREE.ShaderMaterial;
     protostarMesh: THREE.Mesh;
     protostarDisk: THREE.Mesh;
-    
+
     mainSeqGroup: THREE.Group;
     starMat: THREE.ShaderMaterial;
     starMesh: THREE.Mesh;
     coronaMesh: THREE.Mesh;
-    
+
     redGiantGroup: THREE.Group;
     redGiantMat: THREE.ShaderMaterial;
     redGiantMesh: THREE.Mesh;
-    
+
     supernovaGroup: THREE.Group;
     coreFlashMesh: THREE.Mesh;
-    
+
     neutronStarGroup: THREE.Group;
     nsMagneticLines: THREE.Group;
 
@@ -458,7 +458,7 @@ class HeroStarSystem extends THREE.Group {
     pulsarGroup: THREE.Group;
     blackHoleGroup: THREE.Group;
     hitMesh: THREE.Mesh;
-    
+
     dustCloud: THREE.Points;
     ejectaMat: THREE.ShaderMaterial;
     ejectaMesh: THREE.Points;
@@ -470,7 +470,7 @@ class HeroStarSystem extends THREE.Group {
         super();
         this.mass = Math.random() > 0.8 ? 8 + Math.random() * 12 : 0.5 + Math.random() * 3;
         this.lifespanReal = 10000 * Math.pow(this.mass, -2.5);
-        this.loopDuration = 40 + Math.random() * 20; 
+        this.loopDuration = 40 + Math.random() * 20;
         this.t = Math.random();
 
         this.tHeat = 5778 * Math.pow(this.mass, 0.5);
@@ -570,7 +570,7 @@ class HeroStarSystem extends THREE.Group {
         let msColor = 0xffaa44; // low mass
         if (this.mass > 8) msColor = 0x99aaff; // high mass
         else if (this.mass > 2) msColor = 0xffffdd; // mid mass
-        
+
         this.starMat = new THREE.ShaderMaterial({
             vertexShader: subtleDisplacementVS,
             fragmentShader: starSurfaceFS,
@@ -623,7 +623,7 @@ class HeroStarSystem extends THREE.Group {
         // 4. Planets & Habitable Zone
         const lum = Math.pow(this.mass, 3.5);
         const hzRadius = Math.max(4, Math.sqrt(lum) * 2.5);
-        
+
         this.hzMesh = new THREE.Mesh(
             GEOMETRIES.habitableZone,
             new THREE.MeshBasicMaterial({ color: 0x00ff88, transparent: true, opacity: 0.1, blending: THREE.AdditiveBlending })
@@ -633,7 +633,7 @@ class HeroStarSystem extends THREE.Group {
         this.add(this.hzMesh);
 
         for(let i=0; i<4; i++) {
-            const dist = 3 + Math.random() * 8 + (i * 2); 
+            const dist = 3 + Math.random() * 8 + (i * 2);
             const pScale = 0.1 + Math.random()*0.15;
             const pMesh = new THREE.Mesh(
                 GEOMETRIES.planet,
@@ -656,7 +656,7 @@ class HeroStarSystem extends THREE.Group {
         );
         this.snRing.rotation.x = Math.PI / 2;
         this.add(this.snRing);
-        
+
         const ejectaGeo = new THREE.BufferGeometry();
         const ejectaPos = new Float32Array(1500 * 3);
         const ejectaVel = new Float32Array(1500 * 3);
@@ -710,14 +710,14 @@ class HeroStarSystem extends THREE.Group {
         this.pulsarGroup.add(beam2);
         this.neutronStarGroup.add(new THREE.Mesh(GEOMETRIES.neutronStar, nsMat));
         this.neutronStarGroup.add(this.pulsarGroup);
-        
+
         // Magnetic field lines
         const nsMagGroup = new THREE.Group();
         const tubeMat = new THREE.MeshBasicMaterial({color: 0xaaccff, transparent: true, opacity: 0.3, blending: THREE.AdditiveBlending});
         for(const tubeGeo of GEOMETRIES.magneticTubes) {
             nsMagGroup.add(new THREE.Mesh(tubeGeo, tubeMat));
         }
-        
+
         this.nsMagneticLines = nsMagGroup as any;
         this.neutronStarGroup.add(this.nsMagneticLines);
         this.neutronStarGroup.visible = false;
@@ -728,7 +728,7 @@ class HeroStarSystem extends THREE.Group {
             GEOMETRIES.blackHoleCore,
             new THREE.MeshBasicMaterial({ color: 0x000000 })
         );
-        const diskMat = new THREE.MeshBasicMaterial({ 
+        const diskMat = new THREE.MeshBasicMaterial({
             color: 0xff8800, transparent: true, opacity: 0.8, blending: THREE.AdditiveBlending
         });
         const diskMesh = new THREE.Mesh(GEOMETRIES.blackHoleDisk, diskMat);
@@ -752,7 +752,7 @@ class HeroStarSystem extends THREE.Group {
         }
 
         this.currentRealAge = this.t * this.lifespanReal;
-        
+
         this.nebulaMesh.visible = false;
         this.hzMesh.visible = false;
         this.snRing.visible = false;
@@ -768,12 +768,12 @@ class HeroStarSystem extends THREE.Group {
             this.nebulaMesh.visible = true;
             this.dustCloud.visible = true;
             const normT = this.t / 0.05;
-            
+
             this.nebulaMat.uniforms.uTime.value = appTime;
             this.nebulaMat.uniforms.uCollapse.value = normT;
             this.nebulaMat.uniforms.uCameraPos.value.copy(cameraPos);
             this.nebulaMat.uniforms.uInverseModelMatrix.value.copy(this.nebulaMesh.matrixWorld).invert();
-            
+
             this.dustCloud.rotation.y += delta * 0.2;
             (this.dustCloud.material as THREE.ShaderMaterial).uniforms.uAlpha.value = 1.0;
             this.dustCloud.scale.setScalar(1.0 - normT * 0.5);
@@ -785,7 +785,7 @@ class HeroStarSystem extends THREE.Group {
             this.phase = PHASES.PROTOSTAR;
             targetProto = 1;
             const normT = (this.t - 0.05) / 0.10;
-            
+
             if (normT < 0.8) {
                 this.nebulaMesh.visible = true;
                 this.nebulaMat.uniforms.uCollapse.value = 1.0;
@@ -799,7 +799,7 @@ class HeroStarSystem extends THREE.Group {
             this.protostarMesh.scale.setScalar(introScale);
             this.currentTemp = 1000 + normT * (this.tHeat - 1000);
             this.currentLum = normT * Math.pow(this.mass, 3.5);
-            
+
             this.protostarMat.uniforms.uTime.value = appTime;
             this.protostarDisk.rotation.z += delta;
 
@@ -807,11 +807,11 @@ class HeroStarSystem extends THREE.Group {
             this.phase = PHASES.MAIN_SEQUENCE;
             targetMain = 1;
             this.hzMesh.visible = true;
-            
+
             this.starMesh.scale.setScalar(this.baseRadius);
             this.currentTemp = this.tHeat;
             this.currentLum = Math.pow(this.mass, 3.5);
-            
+
             this.starMat.uniforms.uTime.value = appTime;
 
             this.planetsInfo.forEach(p => {
@@ -825,13 +825,13 @@ class HeroStarSystem extends THREE.Group {
             this.phase = PHASES.RED_GIANT;
             targetRed = 1;
             const normT = (this.t - 0.70) / 0.15;
-            
+
             const giantScale = this.baseRadius * (1.0 + normT * 6.0) + Math.sin(appTime * 2.0) * 0.1;
             this.redGiantMesh.scale.setScalar(giantScale);
-            
+
             this.currentTemp = this.tHeat - normT * (this.tHeat - 3000);
             this.currentLum = Math.pow(this.mass, 3.5) * (1.0 + normT * 5.0);
-            
+
             this.redGiantMat.uniforms.uTime.value = appTime;
 
             // Destroy inner planets
@@ -854,14 +854,14 @@ class HeroStarSystem extends THREE.Group {
             this.phase = PHASES.SUPERNOVA;
             targetSuper = 1;
             const normT = (this.t - 0.85) / 0.05;
-            
+
             if (this.mass > 8) {
                 if (normT < 0.1) this.isSupernovaFlashing = true;
 
                 this.snRing.visible = true;
                 this.snRing.scale.setScalar(1.0 + normT * 60.0);
                 (this.snRing.material as THREE.MeshBasicMaterial).opacity = 1.0 - Math.pow(normT, 2);
-                
+
                 this.ejectaMesh.visible = true;
                 this.ejectaMat.uniforms.uExp.value = normT;
                 this.ejectaMat.uniforms.uColor.value.setHex(normT < 0.2 ? 0xffffff : 0xff4411);
@@ -875,7 +875,7 @@ class HeroStarSystem extends THREE.Group {
                 this.snRing.scale.setScalar(1.0 + normT * 20.0);
                 (this.snRing.material as THREE.MeshBasicMaterial).opacity = 0.5 * (1.0 - normT);
                 (this.snRing.material as THREE.MeshBasicMaterial).color.setHex(0x00ffaa);
-                
+
                 this.ejectaMesh.visible = true;
                 this.ejectaMat.uniforms.uExp.value = normT * 0.5;
                 this.ejectaMat.uniforms.uColor.value.setHex(0x00ffaa);
@@ -887,7 +887,7 @@ class HeroStarSystem extends THREE.Group {
         } else {
             this.phase = PHASES.REMNANT;
             this.isSupernovaFlashing = false;
-            
+
             if (this.mass > 15) {
                 // Black Hole
                 this.blackHoleGroup.visible = true;
@@ -911,7 +911,7 @@ class HeroStarSystem extends THREE.Group {
                 this.currentLum = 0.1;
             }
         }
-        
+
         // Smooth transitions across all components
         const speed = delta * 4.0;
         const stepOp = (current: number, target: number) => {
@@ -969,7 +969,6 @@ export function AetherGenesis() {
   const uiTimelineFill = useRef<HTMLDivElement>(null);
 
   const [selectedStar, setSelectedStarState] = useState<HeroStarSystem | null>(null);
-  const [isPaused, setIsPaused] = useState(false);
   const selectedStarRef = useRef<HeroStarSystem | null>(null);
   const [heroStars] = useState<HeroStarSystem[]>([]);
 
@@ -1016,7 +1015,7 @@ export function AetherGenesis() {
         const spiralPhase = ptAngle - ptDist * GALAXY_SPIN;
         const cycle = Math.PI * 2 / GALAXY_ARMS;
         const phaseMod = ((spiralPhase % cycle) + cycle) % cycle;
-        const armFraction = phaseMod / cycle; 
+        const armFraction = phaseMod / cycle;
 
         const isDustLane = armFraction > 0.15 && armFraction < 0.35 && ptDist > CORE_RADIUS;
         const color = getStellarColor();
@@ -1033,9 +1032,9 @@ export function AetherGenesis() {
         if (isDustLane) {
             const extinction = 0.05 + Math.random() * 0.05;
             color.multiplyScalar(extinction);
-            color.g *= 0.6; 
+            color.g *= 0.6;
             color.b *= 0.3;
-            size *= 0.5; 
+            size *= 0.5;
         }
 
         positions[i * 3] = x;
@@ -1068,7 +1067,7 @@ export function AetherGenesis() {
     // --- Hero Stars Initialization ---
     for(let i=0; i<12; i++) {
         const hs = new HeroStarSystem();
-        const r = 10 + Math.random() * 200; 
+        const r = 10 + Math.random() * 200;
         const angle = Math.random() * Math.PI * 2;
         hs.position.set(
             Math.cos(angle) * r,
@@ -1119,20 +1118,20 @@ export function AetherGenesis() {
 
     const onPointerUp = (e: PointerEvent) => {
         if (isDragging || e.button !== 0) return;
-        
+
         mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
         mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
         raycaster.setFromCamera(mouse, camera);
 
         const hitMeshes = heroStars.map(h => h.hitMesh);
         const intersects = raycaster.intersectObjects(hitMeshes);
-        
+
         if (intersects.length > 0) {
             const hit = intersects[0].object;
             const system = hit.parent as HeroStarSystem;
             selectedStarRef.current = system;
             setSelectedStarState(system);
-            
+
             // Smooth zoom to star
             const targetPos = system.position.clone();
             const camOffset = camera.position.clone().sub(controls.target).normalize().multiplyScalar(40);
@@ -1162,7 +1161,7 @@ export function AetherGenesis() {
         let highBloom = false;
 
         heroStars.forEach(hs => {
-            if (isPaused || (hs === selectedStarRef.current && isScrubbingRef.current)) {
+            if (hs === selectedStarRef.current && isScrubbingRef.current) {
                 // If scrubbing, do not advance time automatically but update visually
                 hs.update(0, appTime, camera.position);
             } else {
@@ -1228,10 +1227,10 @@ export function AetherGenesis() {
 
   // --- Scrubber Interaction ---
   const isScrubbingRef = useRef(false);
-  
-  const handleTimelineScrub = (e: PointerEvent | React.PointerEvent) => {
+
+  const handleTimelineScrub = (e: React.MouseEvent<HTMLDivElement>) => {
       if (!selectedStarRef.current || !isScrubbingRef.current) return;
-      const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+      const rect = e.currentTarget.getBoundingClientRect();
       const x = Math.max(0, Math.min(e.clientX - rect.left, rect.width));
       const percentage = x / rect.width;
       selectedStarRef.current.t = percentage;
@@ -1254,7 +1253,7 @@ export function AetherGenesis() {
             Simulation Phase 02: Stellar Genesis
           </span>
         </div>
-        
+
         <div className="flex items-center gap-12 bg-[rgba(8,8,20,0.6)] backdrop-blur-md border border-[rgba(126,184,255,0.2)] rounded-full px-6 py-3">
           <div className="flex flex-col items-center">
             <span className="text-[9px] uppercase tracking-widest text-[#7EB8FF]">Background Mass</span>
@@ -1299,19 +1298,19 @@ export function AetherGenesis() {
                     <span className="text-[#7EB8FF]/70 uppercase tracking-wider">Age (Myr)</span>
                     <span ref={uiAge2} className="text-white">-</span>
                 </div>
-                
+
                 <div className="mt-8 pt-6 border-t border-[rgba(126,184,255,0.1)]">
                     <div className="flex justify-between items-center mb-3">
                         <span className="text-[10px] text-[#7EB8FF]/50 uppercase tracking-widest">Time Override</span>
                         <div className="flex gap-2">
-                            <button onClick={() => setIsPaused(true)} className="text-white/40 hover:text-white transition-colors focus-visible:ring-2 focus-visible:ring-indigo-500 focus:outline-none rounded-sm" aria-label="Pause Simulation" title="Pause Simulation"><Pause size={12} /></button>
-                            <button onClick={() => setIsPaused(false)} className="text-white/40 hover:text-white transition-colors focus-visible:ring-2 focus-visible:ring-indigo-500 focus:outline-none rounded-sm" aria-label="Play Simulation" title="Play Simulation"><Play size={12} /></button>
+                            <button className="text-white/40 hover:text-white transition-colors focus-visible:ring-2 focus-visible:ring-indigo-500 focus:outline-none rounded-sm" aria-label="Pause Simulation" title="Pause Simulation"><Pause size={12} /></button>
+                            <button className="text-white/40 hover:text-white transition-colors focus-visible:ring-2 focus-visible:ring-indigo-500 focus:outline-none rounded-sm" aria-label="Play Simulation" title="Play Simulation"><Play size={12} /></button>
                         </div>
                     </div>
                     {/* Scrubbable Timeline */}
                     <div role="slider" aria-label="Stellar lifecycle timeline" tabIndex={0} aria-valuemin="0" aria-valuemax="100"
                         className="w-full h-2 bg-white/10 rounded-full overflow-hidden cursor-ew-resize relative group focus-visible:ring-2 focus-visible:ring-indigo-500 focus:outline-none"
-                        onPointerDown={(e) => { (e.currentTarget as HTMLDivElement).setPointerCapture(e.pointerId); isScrubbingRef.current = true; handleTimelineScrub(e); }}
+                        onPointerDown={(e) => { isScrubbingRef.current = true; handleTimelineScrub(e); }}
                         onPointerMove={(e) => { if(isScrubbingRef.current) handleTimelineScrub(e); }}
                         onPointerUp={() => { isScrubbingRef.current = false; }}
                         onPointerLeave={() => { isScrubbingRef.current = false; }}
