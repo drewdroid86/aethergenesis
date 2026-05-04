@@ -1194,6 +1194,7 @@ export function AetherGenesis() {
             if (uiAge2.current) uiAge2.current.innerText = s.currentRealAge.toFixed(1);
             if (uiLum.current) uiLum.current.innerText = s.currentLum.toFixed(3);
             if (uiTimelineFill.current) uiTimelineFill.current.style.width = `${s.t * 100}%`;
+            if (uiTimelineFill.current && uiTimelineFill.current.parentElement) uiTimelineFill.current.parentElement.setAttribute("aria-valuenow", Math.round(s.t * 100).toString());
         }
 
         composer.render();
@@ -1302,13 +1303,13 @@ export function AetherGenesis() {
                     <div className="flex justify-between items-center mb-3">
                         <span className="text-[10px] text-[#7EB8FF]/50 uppercase tracking-widest">Time Override</span>
                         <div className="flex gap-2">
-                            <button className="text-white/40 hover:text-white transition-colors"><Pause size={12} /></button>
-                            <button className="text-white/40 hover:text-white transition-colors"><Play size={12} /></button>
+                            <button className="text-white/40 hover:text-white transition-colors focus-visible:ring-2 focus-visible:ring-indigo-500 focus:outline-none rounded-sm" aria-label="Pause Simulation" title="Pause Simulation"><Pause size={12} /></button>
+                            <button className="text-white/40 hover:text-white transition-colors focus-visible:ring-2 focus-visible:ring-indigo-500 focus:outline-none rounded-sm" aria-label="Play Simulation" title="Play Simulation"><Play size={12} /></button>
                         </div>
                     </div>
                     {/* Scrubbable Timeline */}
-                    <div 
-                        className="w-full h-2 bg-white/10 rounded-full overflow-hidden cursor-ew-resize relative group"
+                    <div role="slider" aria-label="Stellar lifecycle timeline" tabIndex={0} aria-valuemin="0" aria-valuemax="100"
+                        className="w-full h-2 bg-white/10 rounded-full overflow-hidden cursor-ew-resize relative group focus-visible:ring-2 focus-visible:ring-indigo-500 focus:outline-none"
                         onPointerDown={(e) => { isScrubbingRef.current = true; handleTimelineScrub(e); }}
                         onPointerMove={(e) => { if(isScrubbingRef.current) handleTimelineScrub(e); }}
                         onPointerUp={() => { isScrubbingRef.current = false; }}
@@ -1348,12 +1349,12 @@ export function AetherGenesis() {
 
         <div className="flex flex-col items-end gap-2 text-right">
           <div className="grid grid-cols-2 gap-2 pointer-events-auto">
-            <div className="w-10 h-10 flex items-center justify-center bg-[rgba(8,8,20,0.6)] border border-[rgba(126,184,255,0.2)] rounded-md backdrop-blur-md transition-colors hover:bg-[rgba(126,184,255,0.1)] cursor-pointer">
+            <button className="w-10 h-10 flex items-center justify-center bg-[rgba(8,8,20,0.6)] border border-[rgba(126,184,255,0.2)] rounded-md backdrop-blur-md transition-colors hover:bg-[rgba(126,184,255,0.1)] cursor-pointer focus-visible:ring-2 focus-visible:ring-indigo-500 focus:outline-none" aria-label="Reset Camera" title="Reset Camera">
               <Crosshair size={16} className="text-[#7EB8FF]" />
-            </div>
-            <div className="w-10 h-10 flex items-center justify-center bg-[rgba(8,8,20,0.6)] border border-[rgba(126,184,255,0.2)] rounded-md backdrop-blur-md transition-colors hover:bg-[rgba(126,184,255,0.1)] cursor-pointer">
+            </button>
+            <button className="w-10 h-10 flex items-center justify-center bg-[rgba(8,8,20,0.6)] border border-[rgba(126,184,255,0.2)] rounded-md backdrop-blur-md transition-colors hover:bg-[rgba(126,184,255,0.1)] cursor-pointer focus-visible:ring-2 focus-visible:ring-indigo-500 focus:outline-none" aria-label="Center on Star" title="Center on Star">
               <Navigation size={16} className="text-[#C084FC]" />
-            </div>
+            </button>
           </div>
           <span className="text-[9px] uppercase tracking-widest text-[#7EB8FF]/60 mt-1">Stellar Raycasting Active</span>
         </div>
