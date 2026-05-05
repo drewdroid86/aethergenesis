@@ -1092,7 +1092,7 @@ export function AetherGenesis() {
     });
 
     const starfield = new THREE.Points(geometry, material);
-    scene.add(starfield);
+    // scene.add(starfield);
 
     // --- Hero Stars Initialization ---
     for(let i=0; i<HERO_COUNT; i++) {
@@ -1104,7 +1104,7 @@ export function AetherGenesis() {
             (Math.random() - 0.5) * (Math.max(5, 50 - r*0.1)),
             Math.sin(angle) * r
         );
-        scene.add(hs);
+        // scene.add(hs);
         heroStarsRef.current.push(hs);
     }
 
