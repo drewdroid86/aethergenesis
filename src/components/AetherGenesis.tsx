@@ -16,10 +16,23 @@ const GALAXY_SPIN = -0.15;
 const GALAXY_MAX_RADIUS = 350;
 const CORE_RADIUS = 25;
 
+let nextGaussian: number | null = null;
+/**
+ * Box-Muller transform for generating normally distributed random numbers.
+ * Optimized with a stateful cache to halve mathematical operations.
+ */
 function randomGaussian(mean = 0, stdev = 1) {
+  if (nextGaussian !== null) {
+    const z = nextGaussian;
+    nextGaussian = null;
+    return z * stdev + mean;
+  }
   const u = 1 - Math.random();
   const v = Math.random();
-  const z = Math.sqrt(-2.0 * Math.log(u)) * Math.cos(2.0 * Math.PI * v);
+  const r = Math.sqrt(-2.0 * Math.log(u));
+  const theta = 2.0 * Math.PI * v;
+  nextGaussian = r * Math.sin(theta);
+  const z = r * Math.cos(theta);
   return z * stdev + mean;
 }
 
