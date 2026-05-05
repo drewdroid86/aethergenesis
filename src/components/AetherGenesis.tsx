@@ -8,6 +8,7 @@ import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
 import { Crosshair, Navigation, Scan, Zap, Play, Pause, ChevronRight, X, Settings2 } from 'lucide-react';
 
 // ---- Constants & Math Utilities ----
+const IS_MOBILE = typeof window !== 'undefined' && window.innerWidth < 768;
 const NUM_STARS = IS_MOBILE ? 15000 : 500000;
 const HERO_COUNT = IS_MOBILE ? 8 : 20;
 const GALAXY_ARMS = 5;
