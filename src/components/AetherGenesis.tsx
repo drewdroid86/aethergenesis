@@ -1326,7 +1326,7 @@ export function AetherGenesis() {
       const { GoogleGenAI, Type } = await import("@google/genai");
       const ai = new GoogleGenAI({ apiKey });
       const response = await ai.models.generateContent({
-        model: "gemini-2.5-flash",
+        model: "gemini-2.0-flash", // Use active model
         contents: prm,
         config: {
           systemInstruction:
@@ -1346,11 +1346,20 @@ export function AetherGenesis() {
         },
       });
 
-      if (response.text) {
+      const responseText = response.text;
+      if (responseText) {
         try {
-          const parsed = JSON.parse(response.text);
-          // Security: Basic output validation
-          if (parsed && typeof parsed.planet_name === "string" && typeof parsed.biome === "string") {
+          const parsed = JSON.parse(responseText);
+          // Security: Strict output validation for all required fields
+          const isValid =
+            parsed &&
+            typeof parsed.planet_name === "string" &&
+            typeof parsed.life_stage === "number" &&
+            typeof parsed.dominant_species === "string" &&
+            typeof parsed.civilization === "string" &&
+            typeof parsed.biome === "string";
+
+          if (isValid) {
             setGeminiData(parsed);
           } else {
             throw new Error("SECURE_INVALID_RESPONSE");
