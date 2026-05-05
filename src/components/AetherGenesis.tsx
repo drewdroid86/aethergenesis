@@ -1095,7 +1095,7 @@ export function AetherGenesis() {
     scene.add(starfield);
 
     // --- Hero Stars Initialization ---
-    for(let i=0; i<12; i++) {
+    for(let i=0; i<HERO_COUNT; i++) {
         const hs = new HeroStarSystem();
         const r = 10 + Math.random() * 200; 
         const angle = Math.random() * Math.PI * 2;
@@ -1105,7 +1105,7 @@ export function AetherGenesis() {
             Math.sin(angle) * r
         );
         scene.add(hs);
-        heroStars.push(hs);
+        heroStarsRef.current.push(hs);
     }
 
     // --- Post-Processing Pipeline ---
