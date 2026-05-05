@@ -1,0 +1,3 @@
+## 2025-05-04 - [Accessibility in Scientific Visualizations]
+**Learning:** In complex Three.js visualizations, custom UI elements (like timeline scrubbers or orbital control buttons) are often implemented using non-semantic `div` tags to avoid default browser styling, making them invisible to screen readers and keyboard-only users.
+**Action:** Always convert interactive containers to `<button>` elements or add `role="slider"` with `tabIndex={0}` and appropriate `aria-label` and `aria-value` attributes. Use `focus-visible` with a custom ring to provide clear visual feedback for keyboard navigation without affecting mouse-based aesthetics.
