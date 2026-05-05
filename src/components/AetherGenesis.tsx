@@ -995,7 +995,7 @@ export function AetherGenesis() {
 
   const [selectedStar, setSelectedStarState] = useState<HeroStarSystem | null>(null);
   const selectedStarRef = useRef<HeroStarSystem | null>(null);
-  const [heroStars] = useState<HeroStarSystem[]>([]);
+  const heroStarsRef = useRef<HeroStarSystem[]>([]);
 
   useEffect(() => {
     if (!mountRef.current) return;
@@ -1153,7 +1153,7 @@ export function AetherGenesis() {
         mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
         raycaster.setFromCamera(mouse, camera);
 
-        const hitMeshes = heroStars.map(h => h.hitMesh);
+        const hitMeshes = heroStarsRef.current.map(h => h.hitMesh);
         const intersects = raycaster.intersectObjects(hitMeshes);
         
         if (intersects.length > 0) {
@@ -1200,7 +1200,7 @@ export function AetherGenesis() {
         // Supernova global flash logic
         let highBloom = false;
 
-        heroStars.forEach(hs => {
+        heroStarsRef.current.forEach(hs => {
             if (hs === selectedStarRef.current && isScrubbingRef.current) {
                 // If scrubbing star, pass overrideT (which the scrubber handles by mutating hs.t, but we need to stop update from overwriting it)
                 hs.update(delta, appTime, camera.position, physicsRef.current, hs.t);
