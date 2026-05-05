@@ -1118,10 +1118,10 @@ export function AetherGenesis() {
     bloomPass.strength = 1.2;
     bloomPass.radius = 0.6;
     bloomPass.threshold = 0.2;
-    composer.addPass(bloomPass);
+    // composer.addPass(bloomPass);
 
     const cinematicShader = new ShaderPass(CinematicPass);
-    composer.addPass(cinematicShader);
+    // composer.addPass(cinematicShader);
 
     // --- Controls ---
     const controls = new OrbitControls(camera, renderer.domElement);
