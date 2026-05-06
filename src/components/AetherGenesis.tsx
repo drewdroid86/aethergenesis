@@ -355,6 +355,38 @@ const PHASE_NAMES = [
     "Stellar Remnant"
 ];
 
+class MagneticCurve extends THREE.Curve<THREE.Vector3> {
+    constructor(public angle: number) { super(); }
+    getPoint(t: number, optionalTarget = new THREE.Vector3()) {
+        const a = this.angle;
+        const th = t * Math.PI;
+        const r = 0.5 * Math.sin(th);
+        const x = r * Math.cos(a);
+        const y = 0.5 * Math.cos(th);
+        const z = r * Math.sin(a);
+        return optionalTarget.set(x, y, z);
+    }
+}
+
+// BOLT OPTIMIZATION: Shared geometries to reduce GPU memory and initialization overhead.
+// Note: We only share geometries that are either constant in size or scale uniformly.
+// Torus geometries used for rings with constant tube thickness are kept unique.
+const GEOMETRIES = {
+    sphereNebula: new THREE.SphereGeometry(15, 32, 32),
+    sphereHigh: new THREE.SphereGeometry(1, 64, 64),
+    sphereMid: new THREE.SphereGeometry(1, 32, 32),
+    sphereFlash: new THREE.SphereGeometry(1, 48, 48),
+    sphereLow: new THREE.SphereGeometry(1, 16, 16),
+    torusProtostar: new THREE.TorusGeometry(2, 0.4, 8, 32),
+    torusBH: new THREE.TorusGeometry(1.5, 0.4, 16, 64),
+    coneBeam: (() => {
+        const geo = new THREE.ConeGeometry(0.2, 20, 16);
+        geo.translate(0, 10, 0);
+        return geo;
+    })(),
+    magneticTube: new THREE.TubeGeometry(new MagneticCurve(0), 20, 0.01, 8, false)
+};
+
 class HeroStarSystem extends THREE.Group {
     mass: number;
     lifespanReal: number;
@@ -435,7 +467,7 @@ class HeroStarSystem extends THREE.Group {
             blending: THREE.AdditiveBlending,
             side: THREE.FrontSide
         });
-        this.nebulaMesh = new THREE.Mesh(new THREE.SphereGeometry(15, 32, 32), this.nebulaMat);
+        this.nebulaMesh = new THREE.Mesh(GEOMETRIES.sphereNebula, this.nebulaMat);
         this.add(this.nebulaMesh);
 
         // 1b. Dust Cloud
@@ -498,9 +530,9 @@ class HeroStarSystem extends THREE.Group {
             },
             transparent: true, blending: THREE.AdditiveBlending
         });
-        this.protostarMesh = new THREE.Mesh(new THREE.SphereGeometry(1, 64, 64), this.protostarMat);
+        this.protostarMesh = new THREE.Mesh(GEOMETRIES.sphereHigh, this.protostarMat);
         this.protostarDisk = new THREE.Mesh(
-            new THREE.TorusGeometry(2, 0.4, 8, 32),
+            GEOMETRIES.torusProtostar,
             new THREE.MeshBasicMaterial({ color: 0xff6600, transparent: true, opacity: 0, blending: THREE.AdditiveBlending })
         );
         this.protostarDisk.rotation.x = Math.PI / 2;
@@ -527,11 +559,12 @@ class HeroStarSystem extends THREE.Group {
             },
             transparent: true, blending: THREE.AdditiveBlending
         });
-        this.starMesh = new THREE.Mesh(new THREE.SphereGeometry(1, 64, 64), this.starMat);
+        this.starMesh = new THREE.Mesh(GEOMETRIES.sphereHigh, this.starMat);
         this.coronaMesh = new THREE.Mesh(
-            new THREE.SphereGeometry(1.15, 32, 32),
+            GEOMETRIES.sphereMid,
             new THREE.MeshBasicMaterial({ color: msColor, transparent: true, opacity: 0, blending: THREE.AdditiveBlending })
         );
+        this.coronaMesh.scale.setScalar(1.15);
         this.mainSeqGroup.add(this.starMesh);
         this.mainSeqGroup.add(this.coronaMesh);
         this.mainSeqGroup.visible = false;
@@ -551,7 +584,7 @@ class HeroStarSystem extends THREE.Group {
             },
             transparent: true, blending: THREE.AdditiveBlending
         });
-        this.redGiantMesh = new THREE.Mesh(new THREE.SphereGeometry(1, 64, 64), this.redGiantMat);
+        this.redGiantMesh = new THREE.Mesh(GEOMETRIES.sphereHigh, this.redGiantMat);
         this.redGiantGroup.add(this.redGiantMesh);
         this.redGiantGroup.visible = false;
         this.add(this.redGiantGroup);
@@ -559,7 +592,7 @@ class HeroStarSystem extends THREE.Group {
         // 4b. SUPERNOVA CORE
         this.supernovaGroup = new THREE.Group();
         this.coreFlashMesh = new THREE.Mesh(
-            new THREE.SphereGeometry(1, 48, 48), 
+            GEOMETRIES.sphereFlash,
             new THREE.MeshBasicMaterial({color: 0xffffff, transparent: true, opacity: 0, blending: THREE.AdditiveBlending})
         );
         this.supernovaGroup.add(this.coreFlashMesh);
@@ -570,6 +603,8 @@ class HeroStarSystem extends THREE.Group {
         const lum = Math.pow(this.mass, 3.5);
         const hzRadius = Math.max(4, Math.sqrt(lum) * 2.5);
         
+        // BOLT: We use a unique TorusGeometry here because scaling a shared one
+        // would also scale the tube thickness, which should remain constant at 0.05.
         this.hzMesh = new THREE.Mesh(
             new THREE.TorusGeometry(hzRadius, 0.05, 8, 64),
             new THREE.MeshBasicMaterial({ color: 0x00ff88, transparent: true, opacity: 0.1, blending: THREE.AdditiveBlending })
@@ -580,9 +615,10 @@ class HeroStarSystem extends THREE.Group {
         for(let i=0; i<4; i++) {
             const dist = 3 + Math.random() * 8 + (i * 2); 
             const pMesh = new THREE.Mesh(
-                new THREE.SphereGeometry(0.1 + Math.random()*0.15, 16, 16), 
+                GEOMETRIES.sphereLow,
                 new THREE.MeshStandardMaterial({color: 0xaaaaaa, roughness: 0.8})
             );
+            pMesh.scale.setScalar(0.1 + Math.random()*0.15);
             pMesh.position.x = dist;
             const pivot = new THREE.Group();
             pivot.rotation.y = Math.random() * Math.PI * 2;
@@ -593,6 +629,7 @@ class HeroStarSystem extends THREE.Group {
         }
 
         // 5. Supernova Ring & Ejecta
+        // BOLT: Unique geometry to maintain tube thickness during expansion.
         this.snRing = new THREE.Mesh(
             new THREE.TorusGeometry(1, 0.1, 16, 64),
             new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0, blending: THREE.AdditiveBlending })
@@ -643,41 +680,27 @@ class HeroStarSystem extends THREE.Group {
 
         // 6. Remnants (Pulsar & Black Hole)
         this.neutronStarGroup = new THREE.Group();
-        const nsGeo = new THREE.SphereGeometry(0.1, 32, 32);
         const nsMat = new THREE.MeshBasicMaterial({color: 0xaaccff});
         this.pulsarGroup = new THREE.Group();
-        const beamGeo = new THREE.ConeGeometry(0.2, 20, 16);
-        beamGeo.translate(0, 10, 0); 
         const beamMat = new THREE.MeshBasicMaterial({ color: 0x00ffff, transparent: true, opacity: 0.6, blending: THREE.AdditiveBlending });
-        const beam1 = new THREE.Mesh(beamGeo, beamMat);
-        const beam2 = new THREE.Mesh(beamGeo, beamMat);
+        const beam1 = new THREE.Mesh(GEOMETRIES.coneBeam, beamMat);
+        const beam2 = new THREE.Mesh(GEOMETRIES.coneBeam, beamMat);
         beam2.rotation.x = Math.PI;
         this.pulsarGroup.add(beam1);
         this.pulsarGroup.add(beam2);
-        this.neutronStarGroup.add(new THREE.Mesh(nsGeo, nsMat));
+        const nsCoreMesh = new THREE.Mesh(GEOMETRIES.sphereMid, nsMat);
+        nsCoreMesh.scale.setScalar(0.1);
+        this.neutronStarGroup.add(nsCoreMesh);
         this.neutronStarGroup.add(this.pulsarGroup);
         
         // Magnetic field lines (TubeGeometry)
         const nsMagGroup = new THREE.Group();
         
-        class MagneticCurve extends THREE.Curve<THREE.Vector3> {
-            constructor(public angle: number) { super(); }
-            getPoint(t: number, optionalTarget = new THREE.Vector3()) {
-                const a = this.angle;
-                const th = t * Math.PI;
-                const r = 0.5 * Math.sin(th);
-                const x = r * Math.cos(a);
-                const y = 0.5 * Math.cos(th);
-                const z = r * Math.sin(a);
-                return optionalTarget.set(x, y, z);
-            }
-        }
-
         const tubeMat = new THREE.MeshBasicMaterial({color: 0xaaccff, transparent: true, opacity: 0.3, blending: THREE.AdditiveBlending});
         for(let a=0; a<Math.PI*2; a+=Math.PI/4) {
-            const curve = new MagneticCurve(a);
-            const tubeGeo = new THREE.TubeGeometry(curve, 20, 0.01, 8, false);
-            nsMagGroup.add(new THREE.Mesh(tubeGeo, tubeMat));
+            const tubeMesh = new THREE.Mesh(GEOMETRIES.magneticTube, tubeMat);
+            tubeMesh.rotation.y = a;
+            nsMagGroup.add(tubeMesh);
         }
         
         this.nsMagneticLines = nsMagGroup as any;
@@ -687,24 +710,25 @@ class HeroStarSystem extends THREE.Group {
 
         this.blackHoleGroup = new THREE.Group();
         const bhCore = new THREE.Mesh(
-            new THREE.SphereGeometry(0.5, 32, 32),
+            GEOMETRIES.sphereMid,
             new THREE.MeshBasicMaterial({ color: 0x000000 })
         );
-        const diskGeo = new THREE.TorusGeometry(1.5, 0.4, 16, 64);
-        diskGeo.rotateX(Math.PI / 2);
+        bhCore.scale.setScalar(0.5);
         const diskMat = new THREE.MeshBasicMaterial({ 
             color: 0xff8800, transparent: true, opacity: 0.8, blending: THREE.AdditiveBlending
         });
-        const diskMesh = new THREE.Mesh(diskGeo, diskMat);
+        const diskMesh = new THREE.Mesh(GEOMETRIES.torusBH, diskMat);
+        diskMesh.rotation.x = Math.PI / 2;
         this.blackHoleGroup.add(bhCore);
         this.blackHoleGroup.add(diskMesh);
         this.add(this.blackHoleGroup);
 
         // 7. Hit mesh for raycaster
         this.hitMesh = new THREE.Mesh(
-            new THREE.SphereGeometry(8, 16, 16),
+            GEOMETRIES.sphereLow,
             new THREE.MeshBasicMaterial({visible: false})
         );
+        this.hitMesh.scale.setScalar(8);
         this.add(this.hitMesh);
     }
 
@@ -963,6 +987,7 @@ export function AetherGenesis() {
   const hudY = useRef<HTMLSpanElement>(null);
   const hudZ = useRef<HTMLSpanElement>(null);
   const hudAge = useRef<HTMLSpanElement>(null);
+  const globalTimelineFillRef = useRef<HTMLDivElement>(null);
 
   // Focus UI Refs
   const uiPhase = useRef<HTMLSpanElement>(null);
@@ -1192,8 +1217,15 @@ export function AetherGenesis() {
             if (cosmicAgeRef.current > 14) {
                  cosmicAgeRef.current = 0; // Loop universe
             }
-            // Sync react state for UI roughly
-            if (Math.random() < 0.1) setCosmicAge(cosmicAgeRef.current);
+            // BOLT OPTIMIZATION: Use direct DOM manipulation for the global timeline to eliminate periodic React re-renders during the simulation loop.
+            if (globalTimelineFillRef.current) {
+                globalTimelineFillRef.current.style.width = `${(cosmicAgeRef.current / 14.0) * 100}%`;
+            }
+
+            // BOLT: Throttled state update (once per second) to keep ARIA attributes and React state in sync without harming performance.
+            if (Math.floor(appTime) !== Math.floor(appTime - delta)) {
+                setCosmicAge(cosmicAgeRef.current);
+            }
         }
 
         // Supernova global flash logic
@@ -1271,6 +1303,29 @@ export function AetherGenesis() {
         }
         geometry.dispose();
         material.dispose();
+
+        // BOLT OPTIMIZATION: Comprehensive resource cleanup to prevent memory leaks.
+        composer.dispose();
+        controls.dispose();
+
+        // Note: Global shared GEOMETRIES are not disposed here to avoid crashing on remount/HMR.
+        heroStarsRef.current.forEach(hs => {
+            // Dispose unique geometries (HZ and SN rings) and materials of each hero star system
+            hs.traverse((child) => {
+                if (child instanceof THREE.Mesh || child instanceof THREE.Points) {
+                    // Only dispose geometry if it's NOT one of the shared ones
+                    if (child.geometry && !Object.values(GEOMETRIES).includes(child.geometry as any)) {
+                        child.geometry.dispose();
+                    }
+                    if (Array.isArray(child.material)) {
+                        child.material.forEach(m => m.dispose());
+                    } else {
+                        child.material.dispose();
+                    }
+                }
+            });
+        });
+
         renderer.dispose();
     };
   }, []);
@@ -1620,7 +1675,7 @@ export function AetherGenesis() {
                 onPointerUp={() => { isGlobalScrubbingRef.current = false; }}
                 onPointerLeave={() => { isGlobalScrubbingRef.current = false; }}
             >
-                <div className="h-full bg-gradient-to-r from-[#7EB8FF] to-[#C084FC]" style={{width: `${(cosmicAge / 14.0) * 100}%`}}></div>
+                <div ref={globalTimelineFillRef} className="h-full bg-gradient-to-r from-[#7EB8FF] to-[#C084FC]" style={{width: `${(cosmicAge / 14.0) * 100}%`}}></div>
                 <div className="absolute inset-0 bg-white/20 opacity-0 group-hover:opacity-100 transition-opacity"></div>
             </div>
             <span className="font-mono text-2xl font-light tracking-wider mt-2" ref={hudAge}>{cosmicAge.toFixed(2)}</span>
