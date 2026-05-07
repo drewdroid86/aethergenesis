@@ -988,6 +988,8 @@ export function AetherGenesis() {
   const hudZ = useRef<HTMLSpanElement>(null);
   const hudAge = useRef<HTMLSpanElement>(null);
   const globalTimelineFillRef = useRef<HTMLDivElement>(null);
+  const globalSliderRef = useRef<HTMLDivElement>(null);
+  const stellarSliderRef = useRef<HTMLDivElement>(null);
 
   // Focus UI Refs
   const uiPhase = useRef<HTMLSpanElement>(null);
@@ -1138,7 +1140,8 @@ export function AetherGenesis() {
     const renderPass = new RenderPass(scene, camera);
     composer.addPass(renderPass);
 
-    const bloomPass = new UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 1.6, 0.4, 0.1);
+    // BOLT: Halve Bloom resolution to improve GPU performance while maintaining visual quality.
+    const bloomPass = new UnrealBloomPass(new THREE.Vector2(window.innerWidth / 2, window.innerHeight / 2), 1.6, 0.4, 0.1);
     bloomPass.strength = 1.2;
     bloomPass.radius = 0.6;
     bloomPass.threshold = 0.2;
@@ -1206,6 +1209,18 @@ export function AetherGenesis() {
     let appTime = 0;
     let clock = new THREE.Clock();
 
+    /**
+     * BOLT: Utility to update DOM content only when it changes, reducing reflows and repaints.
+     * Uses textContent for better performance than innerText.
+     */
+    const setHUD = (ref: React.RefObject<HTMLElement | null>, value: string | number) => {
+        if (!ref.current) return;
+        const s = value.toString();
+        if (ref.current.textContent !== s) {
+            ref.current.textContent = s;
+        }
+    };
+
     const animate = () => {
         frameId = requestAnimationFrame(animate);
         const delta = clock.getDelta();
@@ -1220,6 +1235,9 @@ export function AetherGenesis() {
             // BOLT OPTIMIZATION: Use direct DOM manipulation for the global timeline to eliminate periodic React re-renders during the simulation loop.
             if (globalTimelineFillRef.current) {
                 globalTimelineFillRef.current.style.width = `${(cosmicAgeRef.current / 14.0) * 100}%`;
+            }
+            if (globalSliderRef.current) {
+                globalSliderRef.current.setAttribute('aria-valuenow', cosmicAgeRef.current.toFixed(2));
             }
 
             // BOLT: Throttled state update (once per second) to keep ARIA attributes and React state in sync without harming performance.
@@ -1262,21 +1280,25 @@ export function AetherGenesis() {
         camera.fov = THREE.MathUtils.lerp(camera.fov, Math.max(10, Math.min(150, targetFov)), 0.05);
         camera.updateProjectionMatrix();
 
-        // Update HUD
-        if (hudX.current) hudX.current.innerText = camera.position.x.toFixed(1);
-        if (hudY.current) hudY.current.innerText = camera.position.y.toFixed(1);
-        if (hudZ.current) hudZ.current.innerText = camera.position.z.toFixed(1);
-        if (hudAge.current) hudAge.current.innerText = cosmicAgeRef.current.toFixed(2);
+        // BOLT: Use setHUD with dirty-checking and textContent for efficient DOM updates.
+        // Coordinate precision increased to four decimal places as per repository standards.
+        setHUD(hudX, camera.position.x.toFixed(4));
+        setHUD(hudY, camera.position.y.toFixed(4));
+        setHUD(hudZ, camera.position.z.toFixed(4));
+        setHUD(hudAge, cosmicAgeRef.current.toFixed(2));
 
         // Update Selected Star UI Panel dynamically to save React renders
         if (selectedStarRef.current) {
             const s = selectedStarRef.current;
-            if (uiPhase.current) uiPhase.current.innerText = PHASE_NAMES[s.phase];
-            if (uiTemp.current) uiTemp.current.innerText = Math.round(s.currentTemp).toLocaleString();
-            if (uiMass.current) uiMass.current.innerText = s.mass.toFixed(2);
-            if (uiAge2.current) uiAge2.current.innerText = s.currentRealAge.toFixed(1);
-            if (uiLum.current) uiLum.current.innerText = s.currentLum.toFixed(3);
+            setHUD(uiPhase, PHASE_NAMES[s.phase]);
+            setHUD(uiTemp, Math.round(s.currentTemp).toLocaleString());
+            setHUD(uiMass, s.mass.toFixed(2));
+            setHUD(uiAge2, s.currentRealAge.toFixed(1));
+            setHUD(uiLum, s.currentLum.toFixed(3));
             if (uiTimelineFill.current) uiTimelineFill.current.style.width = `${s.t * 100}%`;
+            if (stellarSliderRef.current) {
+                stellarSliderRef.current.setAttribute('aria-valuenow', Math.round(s.t * 100).toString());
+            }
         }
 
         composer.render();
@@ -1593,6 +1615,7 @@ export function AetherGenesis() {
                     </div>
                     {/* Scrubbable Timeline */}
                     <div 
+                        ref={stellarSliderRef}
                         role="slider"
                         tabIndex={0}
                         aria-label="Stellar lifecycle timeline"
@@ -1663,6 +1686,7 @@ export function AetherGenesis() {
             </div>
             
             <div 
+                ref={globalSliderRef}
                 role="slider"
                 tabIndex={0}
                 aria-label="Global cosmic age timeline"
