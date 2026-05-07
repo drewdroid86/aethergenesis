@@ -1339,6 +1339,11 @@ export function AetherGenesis() {
       const x = Math.max(0, Math.min(e.clientX - rect.left, rect.width));
       const percentage = x / rect.width;
       selectedStarRef.current.t = percentage;
+
+      // Update ARIA attributes directly for immediate screen reader feedback
+      const slider = e.currentTarget;
+      slider.setAttribute('aria-valuenow', Math.round(percentage * 100).toString());
+      slider.setAttribute('aria-valuetext', PHASE_NAMES[selectedStarRef.current.phase]);
   };
 
   const handleGlobalTimelineScrub = (e: React.MouseEvent<HTMLDivElement>) => {
@@ -1349,6 +1354,9 @@ export function AetherGenesis() {
       const newAge = percentage * 14.0;
       setCosmicAge(newAge);
       cosmicAgeRef.current = newAge;
+
+      // Update ARIA attributes directly
+      e.currentTarget.setAttribute('aria-valuenow', newAge.toFixed(2));
   };
 
   const analyzeSystem = async () => {
@@ -1599,11 +1607,30 @@ export function AetherGenesis() {
                         aria-valuemin={0}
                         aria-valuemax={100}
                         aria-valuenow={selectedStar ? Math.round(selectedStar.t * 100) : 0}
+                        aria-valuetext={selectedStar ? PHASE_NAMES[selectedStar.phase] : ""}
                         className="w-full h-2 bg-white/10 rounded-full overflow-hidden cursor-ew-resize relative group focus-visible:ring-2 focus-visible:ring-[#C084FC] outline-none"
                         onPointerDown={(e) => { isScrubbingRef.current = true; handleTimelineScrub(e); }}
                         onPointerMove={(e) => { if(isScrubbingRef.current) handleTimelineScrub(e); }}
                         onPointerUp={() => { isScrubbingRef.current = false; }}
                         onPointerLeave={() => { isScrubbingRef.current = false; }}
+                        onKeyDown={(e) => {
+                            if (!selectedStarRef.current) return;
+                            let newT = selectedStarRef.current.t;
+                            if (e.key === 'ArrowRight' || e.key === 'ArrowUp') newT += 0.01;
+                            else if (e.key === 'ArrowLeft' || e.key === 'ArrowDown') newT -= 0.01;
+                            else if (e.key === 'PageUp') newT += 0.1;
+                            else if (e.key === 'PageDown') newT -= 0.1;
+                            else if (e.key === 'Home') newT = 0;
+                            else if (e.key === 'End') newT = 1;
+                            else return;
+                            e.preventDefault();
+                            const finalT = Math.max(0, Math.min(1, newT));
+                            selectedStarRef.current.t = finalT;
+
+                            // Update ARIA attributes directly for immediate screen reader feedback
+                            e.currentTarget.setAttribute('aria-valuenow', Math.round(finalT * 100).toString());
+                            e.currentTarget.setAttribute('aria-valuetext', PHASE_NAMES[selectedStarRef.current.phase]);
+                        }}
                     >
                         <div ref={uiTimelineFill} className="h-full bg-gradient-to-r from-blue-500 via-fuchsia-500 to-red-500" style={{width: '0%'}}></div>
                         <div className="absolute inset-0 bg-white/20 opacity-0 group-hover:opacity-100 transition-opacity"></div>
@@ -1674,6 +1701,23 @@ export function AetherGenesis() {
                 onPointerMove={(e) => { if(isGlobalScrubbingRef.current) handleGlobalTimelineScrub(e); }}
                 onPointerUp={() => { isGlobalScrubbingRef.current = false; }}
                 onPointerLeave={() => { isGlobalScrubbingRef.current = false; }}
+                onKeyDown={(e) => {
+                    let newAge = cosmicAgeRef.current;
+                    if (e.key === 'ArrowRight' || e.key === 'ArrowUp') newAge += 0.1;
+                    else if (e.key === 'ArrowLeft' || e.key === 'ArrowDown') newAge -= 0.1;
+                    else if (e.key === 'PageUp') newAge += 1.0;
+                    else if (e.key === 'PageDown') newAge -= 1.0;
+                    else if (e.key === 'Home') newAge = 0;
+                    else if (e.key === 'End') newAge = 14;
+                    else return;
+                    e.preventDefault();
+                    newAge = Math.max(0, Math.min(14, newAge));
+                    setCosmicAge(newAge);
+                    cosmicAgeRef.current = newAge;
+
+                    // Update ARIA attributes directly
+                    e.currentTarget.setAttribute('aria-valuenow', newAge.toFixed(2));
+                }}
             >
                 <div ref={globalTimelineFillRef} className="h-full bg-gradient-to-r from-[#7EB8FF] to-[#C084FC]" style={{width: `${(cosmicAge / 14.0) * 100}%`}}></div>
                 <div className="absolute inset-0 bg-white/20 opacity-0 group-hover:opacity-100 transition-opacity"></div>
