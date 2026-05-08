@@ -5,7 +5,7 @@ import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
-import { Crosshair, Navigation, Scan, Zap, Play, Pause, ChevronRight, X, Settings2 } from 'lucide-react';
+import { Crosshair, Navigation, Scan, Zap, Play, Pause, X, Settings2 } from 'lucide-react';
 
 // ---- Constants & Math Utilities ----
 const IS_MOBILE = typeof window !== 'undefined' && window.innerWidth < 768;
@@ -50,6 +50,42 @@ function getStellarColor() {
   if (r < 0.2343) return _SHARED_COLOR.setHex(0xffa351);
   return _SHARED_COLOR.setHex(0xff4422);
 }
+
+const GLSL_NOISE = `
+float hash(vec3 p) {
+    p = fract(p * 0.3183099 + .1);
+    p *= 17.0;
+    return fract(p.x * p.y * p.z * (p.x + p.y + p.z));
+}
+float noise(vec3 x) {
+    vec3 i = floor(x);
+    vec3 f = fract(x);f = f*f*(3.0-2.0*f);
+    return mix(mix(mix(hash(i+vec3(0.0,0.0,0.0)),hash(i+vec3(1.0,0.0,0.0)),f.x),mix(hash(i+vec3(0.0,1.0,0.0)),hash(i+vec3(1.0,1.0,0.0)),f.x),f.y),
+               mix(mix(hash(i+vec3(0.0,0.0,1.0)),hash(i+vec3(1.0,0.0,1.0)),f.x),mix(hash(i+vec3(0.0,1.0,1.0)),hash(i+vec3(1.0,1.0,1.0)),f.x),f.y),f.z);
+}
+float fbm(vec3 p) {
+    float f = 0.0;
+    f += 0.5000 * noise(p); p *= 2.5;
+    f += 0.2500 * noise(p); 
+    return f;
+}
+`;
+
+const GLSL_NOISE_SIMPLE = `
+float hash(vec3 p) {
+    return fract(sin(dot(p, vec3(12.9898, 78.233, 151.7182))) * 43758.5453);
+}
+
+float noise(vec3 x) {
+    vec3 p = floor(x);
+    vec3 f = fract(x);
+    f = f * f * (3.0 - 2.0 * f);
+    return mix(mix(mix(hash(p + vec3(0,0,0)), hash(p + vec3(1,0,0)),f.x),
+                   mix(hash(p + vec3(0,1,0)), hash(p + vec3(1,1,0)),f.x),f.y),
+               mix(mix(hash(p + vec3(0,0,1)), hash(p + vec3(1,0,1)),f.x),
+                   mix(hash(p + vec3(0,1,1)), hash(p + vec3(1,1,1)),f.x),f.y),f.z);
+}
+`;
 
 // ---- Background Star Shaders ----
 const starVertexShader = `
@@ -130,23 +166,7 @@ uniform mat4 uInverseModelMatrix;
 varying vec3 vLocalPosition;
 varying vec3 vWorldPosition;
 
-float hash(vec3 p) {
-    p = fract(p * 0.3183099 + .1);
-    p *= 17.0;
-    return fract(p.x * p.y * p.z * (p.x + p.y + p.z));
-}
-float noise(vec3 x) {
-    vec3 i = floor(x);
-    vec3 f = fract(x);f = f*f*(3.0-2.0*f);
-    return mix(mix(mix(hash(i+vec3(0.0,0.0,0.0)),hash(i+vec3(1.0,0.0,0.0)),f.x),mix(hash(i+vec3(0.0,1.0,0.0)),hash(i+vec3(1.0,1.0,0.0)),f.x),f.y),
-               mix(mix(hash(i+vec3(0.0,0.0,1.0)),hash(i+vec3(1.0,0.0,1.0)),f.x),mix(hash(i+vec3(0.0,1.0,1.0)),hash(i+vec3(1.0,1.0,1.0)),f.x),f.y),f.z);
-}
-float fbm(vec3 p) {
-    float f = 0.0;
-    f += 0.5000 * noise(p); p *= 2.5;
-    f += 0.2500 * noise(p); 
-    return f;
-}
+${GLSL_NOISE}
 
 void main() {
     vec3 localCam = (uInverseModelMatrix * vec4(uCameraPos, 1.0)).xyz;
@@ -222,23 +242,7 @@ varying vec3 vLocalPosition;
 varying vec3 vWorldPosition;
 varying vec3 vNormal;
 
-float hash(vec3 p) {
-    p = fract(p * 0.3183099 + .1);
-    p *= 17.0;
-    return fract(p.x * p.y * p.z * (p.x + p.y + p.z));
-}
-float noise(vec3 x) {
-    vec3 i = floor(x);
-    vec3 f = fract(x);f = f*f*(3.0-2.0*f);
-    return mix(mix(mix(hash(i+vec3(0.0,0.0,0.0)),hash(i+vec3(1.0,0.0,0.0)),f.x),mix(hash(i+vec3(0.0,1.0,0.0)),hash(i+vec3(1.0,1.0,0.0)),f.x),f.y),
-               mix(mix(hash(i+vec3(0.0,0.0,1.0)),hash(i+vec3(1.0,0.0,1.0)),f.x),mix(hash(i+vec3(0.0,1.0,1.0)),hash(i+vec3(1.0,1.0,1.0)),f.x),f.y),f.z);
-}
-float fbm(vec3 p) {
-    float f = 0.0;
-    f += 0.5000 * noise(p); p *= 2.5;
-    f += 0.2500 * noise(p); 
-    return f;
-}
+${GLSL_NOISE}
 
 void main() {
     float n1 = fbm(vLocalPosition * 5.0 * uTurbulence + uTime * 0.5);
@@ -262,19 +266,7 @@ varying vec3 vNormal;
 uniform float uTime;
 uniform float uHbar;
 
-float hash(vec3 p) {
-    return fract(sin(dot(p, vec3(12.9898, 78.233, 151.7182))) * 43758.5453);
-}
-
-float noise(vec3 x) {
-    vec3 p = floor(x);
-    vec3 f = fract(x);
-    f = f * f * (3.0 - 2.0 * f);
-    return mix(mix(mix(hash(p + vec3(0,0,0)), hash(p + vec3(1,0,0)),f.x),
-                   mix(hash(p + vec3(0,1,0)), hash(p + vec3(1,1,0)),f.x),f.y),
-               mix(mix(hash(p + vec3(0,0,1)), hash(p + vec3(1,0,1)),f.x),
-                   mix(hash(p + vec3(0,1,1)), hash(p + vec3(1,1,1)),f.x),f.y),f.z);
-}
+${GLSL_NOISE_SIMPLE}
 
 void main() {
     vNormal = normalize(normalMatrix * normal);
@@ -297,19 +289,7 @@ varying vec3 vNormal;
 uniform float uTime;
 uniform float uHbar;
 
-float hash(vec3 p) {
-    return fract(sin(dot(p, vec3(12.9898, 78.233, 151.7182))) * 43758.5453);
-}
-
-float noise(vec3 x) {
-    vec3 p = floor(x);
-    vec3 f = fract(x);
-    f = f * f * (3.0 - 2.0 * f);
-    return mix(mix(mix(hash(p + vec3(0,0,0)), hash(p + vec3(1,0,0)),f.x),
-                   mix(hash(p + vec3(0,1,0)), hash(p + vec3(1,1,0)),f.x),f.y),
-               mix(mix(hash(p + vec3(0,0,1)), hash(p + vec3(1,0,1)),f.x),
-                   mix(hash(p + vec3(0,1,1)), hash(p + vec3(1,1,1)),f.x),f.y),f.z);
-}
+${GLSL_NOISE_SIMPLE}
 
 void main() {
     vNormal = normalize(normalMatrix * normal);
@@ -1016,12 +996,15 @@ export function AetherGenesis() {
   const isGlobalScrubbingRef = useRef(false);
   const [isPlayingCosmic, setIsPlayingCosmic] = useState(true);
   const isPlayingCosmicRef = useRef(isPlayingCosmic);
+  const isStarPlayingRef = useRef(true);
+  const isScrubbingRef = useRef(false);
   
   useEffect(() => { cosmicAgeRef.current = cosmicAge; }, [cosmicAge]);
   useEffect(() => { isPlayingCosmicRef.current = isPlayingCosmic; }, [isPlayingCosmic]);
 
   const [selectedStar, setSelectedStarState] = useState<HeroStarSystem | null>(null);
   const selectedStarRef = useRef<HeroStarSystem | null>(null);
+  const controlsRef = useRef<OrbitControls | null>(null);
   const heroStarsRef = useRef<HeroStarSystem[]>([]);
 
   useEffect(() => {
@@ -1031,6 +1014,12 @@ export function AetherGenesis() {
     const scene = new THREE.Scene();
     scene.background = new THREE.Color(0x000000);
     scene.fog = new THREE.FogExp2(0x000000, 0.002);
+
+    // Add ambient and point light for planet visibility
+    const ambientLight = new THREE.AmbientLight(0x404040, 2);
+    scene.add(ambientLight);
+    const pointLight = new THREE.PointLight(0xffffff, 50, 500);
+    scene.add(pointLight);
 
     const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 1, 2000);
     camera.position.set(0, 50, 400);
@@ -1145,13 +1134,17 @@ export function AetherGenesis() {
     bloomPass.strength = 1.2;
     bloomPass.radius = 0.6;
     bloomPass.threshold = 0.2;
-    composer.addPass(bloomPass);
 
     const cinematicShader = new ShaderPass(CinematicPass);
-    composer.addPass(cinematicShader);
+
+    if (!IS_MOBILE) {
+        composer.addPass(bloomPass);
+        composer.addPass(cinematicShader);
+    }
 
     // --- Controls ---
     const controls = new OrbitControls(camera, renderer.domElement);
+    controlsRef.current = controls;
     controls.enableDamping = true;
     controls.dampingFactor = 0.05;
     controls.maxDistance = 600;
@@ -1223,7 +1216,8 @@ export function AetherGenesis() {
 
     const animate = () => {
         frameId = requestAnimationFrame(animate);
-        const delta = clock.getDelta();
+        let delta = clock.getDelta();
+        if (delta > 0.1) delta = 0.1; // Clamp delta to avoid massive spikes
         appTime += delta;
 
         // Auto play cosmic Age if playing
@@ -1250,8 +1244,11 @@ export function AetherGenesis() {
         let highBloom = false;
 
         heroStarsRef.current.forEach(hs => {
-            if (hs === selectedStarRef.current && isScrubbingRef.current) {
-                // If scrubbing star, pass overrideT (which the scrubber handles by mutating hs.t, but we need to stop update from overwriting it)
+            if (hs === selectedStarRef.current) {
+                if (!isScrubbingRef.current && isStarPlayingRef.current) {
+                    const effG = Math.max(0.01, physicsRef.current.G);
+                    hs.t += (delta * 200) / (hs.lifespanReal / effG);
+                }
                 hs.update(delta, appTime, camera.position, physicsRef.current, hs.t);
             } else {
                 hs.update(delta, appTime, camera.position, physicsRef.current, undefined, cosmicAgeRef.current);
@@ -1353,7 +1350,6 @@ export function AetherGenesis() {
   }, []);
 
   // --- Scrubber Interaction ---
-  const isScrubbingRef = useRef(false);
   
   const handleTimelineScrub = (e: React.MouseEvent<HTMLDivElement>) => {
       if (!selectedStarRef.current || !isScrubbingRef.current) return;
@@ -1373,6 +1369,10 @@ export function AetherGenesis() {
       cosmicAgeRef.current = newAge;
   };
 
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [geminiData, setGeminiData] = useState<any>(null);
+  const lastAnalysisTimeRef = useRef(0);
+
   const analyzeSystem = async () => {
     if (!selectedStar || isAnalyzing) return;
 
@@ -1386,56 +1386,30 @@ export function AetherGenesis() {
     try {
       setIsAnalyzing(true);
 
-      const apiKey = process.env.GEMINI_API_KEY || "";
-      // Security: Prevent requests with placeholder or empty keys
-      if (!apiKey || apiKey === "MY_GEMINI_API_KEY") {
-        throw new Error("SECURE_AUTH_MISSING");
-      }
+      const payload = {
+        temp: Math.round(selectedStar.currentTemp),
+        mass: parseFloat(selectedStar.mass.toFixed(2)),
+        lum: parseFloat(selectedStar.currentLum.toFixed(3)),
+        age: parseFloat(selectedStar.currentRealAge.toFixed(1)),
+        phase: PHASE_NAMES[selectedStar.phase],
+        G: physics.G.toFixed(2),
+        alpha: physics.alpha.toFixed(2)
+      };
 
-      const G_val = physics.G.toFixed(2);
-      const alpha_val = physics.alpha.toFixed(2);
-      const prm = `Analyze a generic star based on physical constants (G=${G_val.toString()}, alpha=${alpha_val.toString()}) and its star properties (Temp=${Math.round(
-        selectedStar.currentTemp,
-      ).toString()}K, Mass=${selectedStar.mass.toFixed(2).toString()}M, Lum=${selectedStar.currentLum.toFixed(3).toString()}L, Age=${selectedStar.currentRealAge.toFixed(
-        1,
-      ).toString()}Myr, Phase=${PHASE_NAMES[selectedStar.phase]}). Return a JSON with properties: planet_name (string), life_stage (number), dominant_species (string), civilization (string), biome (string).`;
-
-      const { GoogleGenAI, Type } = await import("@google/genai");
-      const ai = new GoogleGenAI({ apiKey });
-      const response = await ai.models.generateContent({
-        model: "gemini-2.5-flash",
-        contents: prm,
-        config: {
-          systemInstruction:
-            "You are an astrobiology analytical engine. Generate creative but scientifically cohesive species and civilizations based on the star's phase, temp, and constants.",
-          responseMimeType: "application/json",
-          responseSchema: {
-            type: Type.OBJECT,
-            properties: {
-              planet_name: { type: Type.STRING },
-              life_stage: { type: Type.INTEGER },
-              dominant_species: { type: Type.STRING },
-              civilization: { type: Type.STRING },
-              biome: { type: Type.STRING },
-            },
-            required: ["planet_name", "life_stage", "dominant_species", "civilization", "biome"],
-          },
+      const response = await fetch('/api/analyze', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
         },
+        body: JSON.stringify(payload),
       });
 
-      if (response.text) {
-        try {
-          const parsed = JSON.parse(response.text);
-          // Security: Basic output validation
-          if (parsed && typeof parsed.planet_name === "string" && typeof parsed.biome === "string") {
-            setGeminiData(parsed);
-          } else {
-            throw new Error("SECURE_INVALID_RESPONSE");
-          }
-        } catch (ex) {
-          throw new Error("SECURE_PARSE_FAILURE");
-        }
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
       }
+
+      const data = await response.json();
+      setGeminiData(data);
     } catch (err) {
       // Security: Do not leak raw error details or stack traces to the console in production
       // Using generic logs and mock fallback for resilience
@@ -1452,10 +1426,6 @@ export function AetherGenesis() {
       setIsAnalyzing(false);
     }
   };
-
-  const [isAnalyzing, setIsAnalyzing] = useState(false);
-  const [geminiData, setGeminiData] = useState<any>(null);
-  const lastAnalysisTimeRef = useRef(0);
 
   // Clear gemini data when star selection changes
   useEffect(() => {
@@ -1483,12 +1453,12 @@ export function AetherGenesis() {
         <div className="flex items-center gap-12 bg-[rgba(8,8,20,0.6)] backdrop-blur-md border border-[rgba(126,184,255,0.2)] rounded-full px-6 py-3">
           <div className="flex flex-col items-center">
             <span className="text-[9px] uppercase tracking-widest text-[#7EB8FF]">Background Mass</span>
-            <span className="font-mono text-sm">50,000 <span className="text-[#C084FC]">★</span></span>
+            <span className="font-mono text-sm">500,000 <span className="text-[#C084FC]">★</span></span>
           </div>
           <div className="w-[1px] h-6 bg-[rgba(126,184,255,0.2)]"></div>
           <div className="flex flex-col items-center">
             <span className="text-[9px] uppercase tracking-widest text-[#7EB8FF]">Simulation Subjects</span>
-            <span className="font-mono text-sm">12 Hero Stars</span>
+            <span className="font-mono text-sm">{HERO_COUNT} Hero Stars</span>
           </div>
         </div>
       </nav>
@@ -1609,10 +1579,21 @@ export function AetherGenesis() {
                     <div className="flex justify-between items-center mb-3">
                         <span className="text-[10px] text-[#7EB8FF]/50 uppercase tracking-widest">Time Override</span>
                         <div className="flex gap-2">
-                            <button className="text-white/40 hover:text-white transition-colors focus-visible:ring-2 focus-visible:ring-[#C084FC] outline-none rounded" aria-label="Pause star animation"><Pause size={12} /></button>
-                            <button className="text-white/40 hover:text-white transition-colors focus-visible:ring-2 focus-visible:ring-[#C084FC] outline-none rounded" aria-label="Play star animation"><Play size={12} /></button>
-                        </div>
-                    </div>
+                            <button 
+                                onClick={() => isStarPlayingRef.current = false}
+                                className="text-white/40 hover:text-white transition-colors focus-visible:ring-2 focus-visible:ring-[#C084FC] outline-none rounded" 
+                                aria-label="Pause star animation"
+                            >
+                                <Pause size={12} />
+                            </button>
+                            <button 
+                                onClick={() => isStarPlayingRef.current = true}
+                                className="text-white/40 hover:text-white transition-colors focus-visible:ring-2 focus-visible:ring-[#C084FC] outline-none rounded" 
+                                aria-label="Play star animation"
+                            >
+                                <Play size={12} />
+                            </button>
+                        </div>                    </div>
                     {/* Scrubbable Timeline */}
                     <div 
                         ref={stellarSliderRef}
@@ -1698,6 +1679,10 @@ export function AetherGenesis() {
                 onPointerMove={(e) => { if(isGlobalScrubbingRef.current) handleGlobalTimelineScrub(e); }}
                 onPointerUp={() => { isGlobalScrubbingRef.current = false; }}
                 onPointerLeave={() => { isGlobalScrubbingRef.current = false; }}
+                onKeyDown={(e) => {
+                    if (e.key === 'ArrowRight') { const v = Math.min(14, cosmicAgeRef.current + 0.1); setCosmicAge(v); cosmicAgeRef.current = v; }
+                    if (e.key === 'ArrowLeft') { const v = Math.max(0, cosmicAgeRef.current - 0.1); setCosmicAge(v); cosmicAgeRef.current = v; }
+                }}
             >
                 <div ref={globalTimelineFillRef} className="h-full bg-gradient-to-r from-[#7EB8FF] to-[#C084FC]" style={{width: `${(cosmicAge / 14.0) * 100}%`}}></div>
                 <div className="absolute inset-0 bg-white/20 opacity-0 group-hover:opacity-100 transition-opacity"></div>
@@ -1711,6 +1696,9 @@ export function AetherGenesis() {
           <div className="grid grid-cols-2 gap-2 pointer-events-auto">
             <button
               aria-label="Reset camera view"
+              onClick={() => {
+                  controlsRef.current?.reset();
+              }}
               className="w-10 h-10 flex items-center justify-center bg-[rgba(8,8,20,0.6)] border border-[rgba(126,184,255,0.2)] rounded-md backdrop-blur-md transition-colors hover:bg-[rgba(126,184,255,0.1)] cursor-pointer focus-visible:ring-2 focus-visible:ring-[#C084FC] outline-none"
             >
               <Crosshair size={16} className="text-[#7EB8FF]" />
@@ -1727,6 +1715,10 @@ export function AetherGenesis() {
       </div>
 
       <div className="absolute inset-0 pointer-events-none bg-[radial-gradient(circle_at_center,transparent_0%,rgba(2,2,5,0.6)_100%)]"></div>
+    </div>
+  );
+}
+%,rgba(2,2,5,0.6)_100%)]"></div>
     </div>
   );
 }
