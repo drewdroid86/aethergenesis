@@ -1020,7 +1020,8 @@ export function AetherGenesis() {
     scene.add(pointLight);
 
     const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 1, 2000);
-    camera.position.set(0, 50, 400);
+    camera.position.set(0, 180, 380);
+    camera.lookAt(0, 0, 0);
 
     const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: "high-performance" });    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
     renderer.setSize(window.innerWidth, window.innerHeight);
@@ -1106,6 +1107,11 @@ export function AetherGenesis() {
 
     const starfield = new THREE.Points(geometry, material);
     scene.add(starfield);
+    const ambientLight = new THREE.AmbientLight(0x222244, 3.0);
+    scene.add(ambientLight);
+    const sunLight = new THREE.PointLight(0xffeedd, 4.0, 800);
+    sunLight.position.set(0, 0, 0);
+    scene.add(sunLight);
 
     // --- Hero Stars Initialization ---
     for(let i=0; i<HERO_COUNT; i++) {
@@ -1430,7 +1436,7 @@ export function AetherGenesis() {
       <div ref={mountRef} className="absolute inset-0 cursor-crosshair z-0" />
 
       {/* Top HUD */}
-      <nav className="absolute top-0 w-full p-8 flex justify-between items-start z-20 pointer-events-none">
+      <nav className="absolute top-0 w-full p-4 md:p-8 flex justify-between items-start z-20 pointer-events-none">
         <div className="flex flex-col gap-1">
           <div className="flex items-center gap-3">
             <div className="w-3 h-3 bg-indigo-500 rounded-full animate-pulse shadow-[0_0_8px_#C084FC]"></div>
@@ -1442,7 +1448,7 @@ export function AetherGenesis() {
             Simulation Phase 02: Stellar Genesis
           </span>
         </div>
-        
+
         <div className="flex items-center gap-12 bg-[rgba(8,8,20,0.6)] backdrop-blur-md border border-[rgba(126,184,255,0.2)] rounded-full px-6 py-3">
           <div className="flex flex-col items-center">
             <span className="text-[9px] uppercase tracking-widest text-[#7EB8FF]">Background Mass</span>
@@ -1458,8 +1464,7 @@ export function AetherGenesis() {
 
       {/* Physical Constants Control Panel */}
       {isConstantsOpen ? (
-        <div className="absolute left-8 top-32 w-80 bg-[rgba(14,14,28,0.7)] backdrop-blur-xl border border-[rgba(126,184,255,0.3)] rounded-2xl p-6 z-30 shadow-[0_0_30px_rgba(0,0,0,0.5)] transform transition-all pointer-events-auto">
-            <div className="flex items-center justify-between mb-6 pb-4 border-b border-[rgba(126,184,255,0.1)]">
+        <div className="absolute left-8 top-32 w-[min(320px,85vw)] bg-[rgba(14,14,28,0.7)] backdrop-blur-xl border border-[rgba(126,184,255,0.3)] rounded-2xl p-6 z-30 shadow-[0_0_30px_rgba(0,0,0,0.5)] transform transition-all pointer-events-auto">            <div className="flex items-center justify-between mb-6 pb-4 border-b border-[rgba(126,184,255,0.1)]">
                 <h2 className="text-sm font-bold tracking-widest uppercase text-white flex items-center gap-3">
                     <Settings2 size={20} className="text-[#C084FC]" />
                     Constants
@@ -1538,7 +1543,7 @@ export function AetherGenesis() {
 
       {/* Stellar Lifecycle Inspect Panel (Frosted Glass Theme) */}
       {selectedStar && (
-        <div className="absolute right-8 top-1/2 -translate-y-1/2 w-80 bg-[rgba(14,14,28,0.7)] backdrop-blur-xl border border-[rgba(126,184,255,0.3)] rounded-2xl p-6 z-30 shadow-[0_0_30px_rgba(0,0,0,0.5)] transform transition-all pointer-events-auto">
+        <div className="absolute right-8 top-1/2 -translate-y-1/2 w-[min(320px,85vw)] overflow-hidden bg-[rgba(14,14,28,0.7)] backdrop-blur-xl border border-[rgba(126,184,255,0.3)] rounded-2xl p-6 z-30 shadow-[0_0_30px_rgba(0,0,0,0.5)] transform transition-all pointer-events-auto">
             <div className="flex items-center gap-3 mb-6 pb-4 border-b border-[rgba(126,184,255,0.1)]">
                 <Scan size={20} className="text-[#C084FC]" />
                 <h2 className="text-sm font-bold tracking-widest uppercase text-white">Stellar Telemetry</h2>
