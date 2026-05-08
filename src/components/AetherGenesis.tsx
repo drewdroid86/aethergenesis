@@ -989,6 +989,7 @@ export function AetherGenesis() {
   const isGlobalScrubbingRef = useRef(false);
   const [isPlayingCosmic, setIsPlayingCosmic] = useState(true);
   const isPlayingCosmicRef = useRef(isPlayingCosmic);
+  const isStarPlayingRef = useRef(true);
   
   useEffect(() => { cosmicAgeRef.current = cosmicAge; }, [cosmicAge]);
   useEffect(() => { isPlayingCosmicRef.current = isPlayingCosmic; }, [isPlayingCosmic]);
@@ -1117,10 +1118,13 @@ export function AetherGenesis() {
     bloomPass.strength = 1.2;
     bloomPass.radius = 0.6;
     bloomPass.threshold = 0.2;
-    composer.addPass(bloomPass);
 
     const cinematicShader = new ShaderPass(CinematicPass);
-    composer.addPass(cinematicShader);
+
+    if (!IS_MOBILE) {
+        composer.addPass(bloomPass);
+        composer.addPass(cinematicShader);
+    }
 
     // --- Controls ---
     const controls = new OrbitControls(camera, renderer.domElement);
@@ -1200,8 +1204,11 @@ export function AetherGenesis() {
         let highBloom = false;
 
         heroStarsRef.current.forEach(hs => {
-            if (hs === selectedStarRef.current && isScrubbingRef.current) {
-                // If scrubbing star, pass overrideT (which the scrubber handles by mutating hs.t, but we need to stop update from overwriting it)
+            if (hs === selectedStarRef.current) {
+                if (!isScrubbingRef.current && isStarPlayingRef.current) {
+                    const effG = Math.max(0.01, physicsRef.current.G);
+                    hs.t += (delta * 200) / (hs.lifespanReal / effG);
+                }
                 hs.update(delta, appTime, camera.position, physicsRef.current, hs.t);
             } else {
                 hs.update(delta, appTime, camera.position, physicsRef.current, undefined, cosmicAgeRef.current);
@@ -1296,6 +1303,10 @@ export function AetherGenesis() {
       cosmicAgeRef.current = newAge;
   };
 
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [geminiData, setGeminiData] = useState<any>(null);
+  const lastAnalysisTimeRef = useRef(0);
+
   const analyzeSystem = async () => {
     if (!selectedStar || isAnalyzing) return;
 
@@ -1309,56 +1320,30 @@ export function AetherGenesis() {
     try {
       setIsAnalyzing(true);
 
-      const apiKey = process.env.GEMINI_API_KEY || "";
-      // Security: Prevent requests with placeholder or empty keys
-      if (!apiKey || apiKey === "MY_GEMINI_API_KEY") {
-        throw new Error("SECURE_AUTH_MISSING");
-      }
+      const payload = {
+        temp: Math.round(selectedStar.currentTemp),
+        mass: parseFloat(selectedStar.mass.toFixed(2)),
+        lum: parseFloat(selectedStar.currentLum.toFixed(3)),
+        age: parseFloat(selectedStar.currentRealAge.toFixed(1)),
+        phase: PHASE_NAMES[selectedStar.phase],
+        G: physics.G.toFixed(2),
+        alpha: physics.alpha.toFixed(2)
+      };
 
-      const G_val = physics.G.toFixed(2);
-      const alpha_val = physics.alpha.toFixed(2);
-      const prm = `Analyze a generic star based on physical constants (G=${G_val.toString()}, alpha=${alpha_val.toString()}) and its star properties (Temp=${Math.round(
-        selectedStar.currentTemp,
-      ).toString()}K, Mass=${selectedStar.mass.toFixed(2).toString()}M, Lum=${selectedStar.currentLum.toFixed(3).toString()}L, Age=${selectedStar.currentRealAge.toFixed(
-        1,
-      ).toString()}Myr, Phase=${PHASE_NAMES[selectedStar.phase]}). Return a JSON with properties: planet_name (string), life_stage (number), dominant_species (string), civilization (string), biome (string).`;
-
-      const { GoogleGenAI, Type } = await import("@google/genai");
-      const ai = new GoogleGenAI({ apiKey });
-      const response = await ai.models.generateContent({
-        model: "gemini-2.5-flash",
-        contents: prm,
-        config: {
-          systemInstruction:
-            "You are an astrobiology analytical engine. Generate creative but scientifically cohesive species and civilizations based on the star's phase, temp, and constants.",
-          responseMimeType: "application/json",
-          responseSchema: {
-            type: Type.OBJECT,
-            properties: {
-              planet_name: { type: Type.STRING },
-              life_stage: { type: Type.INTEGER },
-              dominant_species: { type: Type.STRING },
-              civilization: { type: Type.STRING },
-              biome: { type: Type.STRING },
-            },
-            required: ["planet_name", "life_stage", "dominant_species", "civilization", "biome"],
-          },
+      const response = await fetch('/api/analyze', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
         },
+        body: JSON.stringify(payload),
       });
 
-      if (response.text) {
-        try {
-          const parsed = JSON.parse(response.text);
-          // Security: Basic output validation
-          if (parsed && typeof parsed.planet_name === "string" && typeof parsed.biome === "string") {
-            setGeminiData(parsed);
-          } else {
-            throw new Error("SECURE_INVALID_RESPONSE");
-          }
-        } catch (ex) {
-          throw new Error("SECURE_PARSE_FAILURE");
-        }
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
       }
+
+      const data = await response.json();
+      setGeminiData(data);
     } catch (err) {
       // Security: Do not leak raw error details or stack traces to the console in production
       // Using generic logs and mock fallback for resilience
@@ -1375,10 +1360,6 @@ export function AetherGenesis() {
       setIsAnalyzing(false);
     }
   };
-
-  const [isAnalyzing, setIsAnalyzing] = useState(false);
-  const [geminiData, setGeminiData] = useState<any>(null);
-  const lastAnalysisTimeRef = useRef(0);
 
   // Clear gemini data when star selection changes
   useEffect(() => {
@@ -1406,7 +1387,7 @@ export function AetherGenesis() {
         <div className="flex items-center gap-12 bg-[rgba(8,8,20,0.6)] backdrop-blur-md border border-[rgba(126,184,255,0.2)] rounded-full px-6 py-3">
           <div className="flex flex-col items-center">
             <span className="text-[9px] uppercase tracking-widest text-[#7EB8FF]">Background Mass</span>
-            <span className="font-mono text-sm">50,000 <span className="text-[#C084FC]">★</span></span>
+            <span className="font-mono text-sm">500,000 <span className="text-[#C084FC]">★</span></span>
           </div>
           <div className="w-[1px] h-6 bg-[rgba(126,184,255,0.2)]"></div>
           <div className="flex flex-col items-center">
@@ -1532,10 +1513,21 @@ export function AetherGenesis() {
                     <div className="flex justify-between items-center mb-3">
                         <span className="text-[10px] text-[#7EB8FF]/50 uppercase tracking-widest">Time Override</span>
                         <div className="flex gap-2">
-                            <button className="text-white/40 hover:text-white transition-colors focus-visible:ring-2 focus-visible:ring-[#C084FC] outline-none rounded" aria-label="Pause star animation"><Pause size={12} /></button>
-                            <button className="text-white/40 hover:text-white transition-colors focus-visible:ring-2 focus-visible:ring-[#C084FC] outline-none rounded" aria-label="Play star animation"><Play size={12} /></button>
-                        </div>
-                    </div>
+                            <button 
+                                onClick={() => isStarPlayingRef.current = false}
+                                className="text-white/40 hover:text-white transition-colors focus-visible:ring-2 focus-visible:ring-[#C084FC] outline-none rounded" 
+                                aria-label="Pause star animation"
+                            >
+                                <Pause size={12} />
+                            </button>
+                            <button 
+                                onClick={() => isStarPlayingRef.current = true}
+                                className="text-white/40 hover:text-white transition-colors focus-visible:ring-2 focus-visible:ring-[#C084FC] outline-none rounded" 
+                                aria-label="Play star animation"
+                            >
+                                <Play size={12} />
+                            </button>
+                        </div>                    </div>
                     {/* Scrubbable Timeline */}
                     <div 
                         role="slider"
