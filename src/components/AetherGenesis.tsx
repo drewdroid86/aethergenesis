@@ -771,6 +771,8 @@ class HeroStarSystem extends THREE.Group {
         this.dustCloud.visible = false;
         this.planetsInfo.forEach(p => p.pivot.visible = false);
 
+        let targetProto = 0, targetMain = 0, targetRed = 0, targetSuper = 0, targetNs = 0;
+
         const groupVisibility = {
             [PHASES.PROTOSTAR]: this.protostarGroup,
             [PHASES.MAIN_SEQUENCE]: this.mainSeqGroup,
@@ -779,7 +781,7 @@ class HeroStarSystem extends THREE.Group {
             [PHASES.REMNANT]: this.neutronStarGroup,
         };
 
-        const target = {
+        const target: Record<number, number> = {
             [PHASES.PROTOSTAR]: targetProto,
             [PHASES.MAIN_SEQUENCE]: targetMain,
             [PHASES.RED_GIANT]: targetRed,
@@ -1053,8 +1055,8 @@ export function AetherGenesis() {
     scene.fog = new THREE.FogExp2(0x000000, 0.002);
 
     // Add ambient and point light for planet visibility
-    const ambientLight = new THREE.AmbientLight(0x404040, 2);
-    scene.add(ambientLight);
+    const baseAmbientLight = new THREE.AmbientLight(0x404040, 2);
+    scene.add(baseAmbientLight);
     const pointLight = new THREE.PointLight(0xffffff, 50, 500);
     scene.add(pointLight);
 
