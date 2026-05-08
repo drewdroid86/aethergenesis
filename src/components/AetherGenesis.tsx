@@ -771,34 +771,7 @@ class HeroStarSystem extends THREE.Group {
         this.dustCloud.visible = false;
         this.planetsInfo.forEach(p => p.pivot.visible = false);
 
-        const groupVisibility = {
-            [PHASES.PROTOSTAR]: this.protostarGroup,
-            [PHASES.MAIN_SEQUENCE]: this.mainSeqGroup,
-            [PHASES.RED_GIANT]: this.redGiantGroup,
-            [PHASES.SUPERNOVA]: this.supernovaGroup,
-            [PHASES.REMNANT]: this.neutronStarGroup,
-        };
-
-        const target = {
-            [PHASES.PROTOSTAR]: targetProto,
-            [PHASES.MAIN_SEQUENCE]: targetMain,
-            [PHASES.RED_GIANT]: targetRed,
-            [PHASES.SUPERNOVA]: targetSuper,
-            [PHASES.REMNANT]: targetNs,
-        };
-
-        Object.entries(groupVisibility).forEach(([p, group]) => {
-            const phase = parseInt(p);
-            if (target[phase] > 0) {
-                group.visible = true;
-                group.traverse((obj) => {
-                    if ((obj as any).material) {
-                        (obj as any).material.opacity = target[phase];
-                        (obj as any).material.transparent = true;
-                    }
-                });
-            }
-        });
+        let targetProto = 0, targetMain = 0, targetRed = 0, targetSuper = 0, targetNs = 0;
 
         if (this.t < 0.05) {
             this.phase = PHASES.NEBULA;
@@ -1007,6 +980,8 @@ export function AetherGenesis() {
   const hudZ = useRef<HTMLSpanElement>(null);
   const hudAge = useRef<HTMLSpanElement>(null);
   const globalTimelineFillRef = useRef<HTMLDivElement>(null);
+  const stellarSliderRef = useRef<HTMLDivElement>(null);
+  const globalSliderRef = useRef<HTMLDivElement>(null);
 
   // Focus UI Refs
   const uiPhase = useRef<HTMLSpanElement>(null);
@@ -1146,8 +1121,8 @@ export function AetherGenesis() {
 
     const starfield = new THREE.Points(geometry, material);
     scene.add(starfield);
-    const ambientLight = new THREE.AmbientLight(0x222244, 3.0);
-    scene.add(ambientLight);
+    const bgAmbientLight = new THREE.AmbientLight(0x222244, 3.0);
+    scene.add(bgAmbientLight);
     const sunLight = new THREE.PointLight(0xffeedd, 4.0, 800);
     sunLight.position.set(0, 0, 0);
     scene.add(sunLight);
@@ -1316,7 +1291,12 @@ export function AetherGenesis() {
         if (hudX.current) hudX.current.innerText = camera.position.x.toFixed(1);
         if (hudY.current) hudY.current.innerText = camera.position.y.toFixed(1);
         if (hudZ.current) hudZ.current.innerText = camera.position.z.toFixed(1);
-        if (hudAge.current) hudAge.current.innerText = cosmicAgeRef.current.toFixed(2);
+        const cage = cosmicAgeRef.current.toFixed(2);
+        if (hudAge.current) hudAge.current.innerText = cage;
+        if (globalSliderRef.current) {
+            globalSliderRef.current.setAttribute('aria-valuenow', cage);
+            globalSliderRef.current.setAttribute('aria-valuetext', `${cage} Gigayears`);
+        }
 
         // Update Selected Star UI Panel dynamically to save React renders
         if (selectedStarRef.current) {
@@ -1326,7 +1306,12 @@ export function AetherGenesis() {
             if (uiMass.current) uiMass.current.innerText = s.mass.toFixed(2);
             if (uiAge2.current) uiAge2.current.innerText = s.currentRealAge.toFixed(1);
             if (uiLum.current) uiLum.current.innerText = s.currentLum.toFixed(3);
-            if (uiTimelineFill.current) uiTimelineFill.current.style.width = `${s.t * 100}%`;
+            const perc = Math.round(s.t * 100);
+            if (uiTimelineFill.current) uiTimelineFill.current.style.width = `${perc}%`;
+            if (stellarSliderRef.current) {
+                stellarSliderRef.current.setAttribute('aria-valuenow', perc.toString());
+                stellarSliderRef.current.setAttribute('aria-valuetext', `${PHASE_NAMES[s.phase]}, ${perc}% complete`);
+            }
         }
 
         composer.render();
@@ -1526,50 +1511,50 @@ export function AetherGenesis() {
                 {/* G Slider */}
                 <div>
                     <div className="flex justify-between text-[#7EB8FF] mb-2">
-                        <span>Gravitation (G)</span>
+                        <label htmlFor="slider-g">Gravitation (G)</label>
                         <span>{physics.G.toFixed(2)}</span>
                     </div>
-                    <input type="range" min="0.1" max="5.0" step="0.1" value={physics.G} 
+                    <input id="slider-g" type="range" min="0.1" max="5.0" step="0.1" value={physics.G}
                         onChange={e => setPhysics({...physics, G: parseFloat(e.target.value)})} className="w-full accent-[#C084FC]" />
                     <p className="text-[9px] text-[#7EB8FF]/50 mt-1">G ↑ stars collapse faster, G ↓ cold dwarfs</p>
                 </div>
                 {/* Alpha */}
                 <div>
                     <div className="flex justify-between text-[#7EB8FF] mb-2">
-                        <span>Fine-Structure (α)</span>
+                        <label htmlFor="slider-alpha">Fine-Structure (α)</label>
                         <span>{physics.alpha.toFixed(2)}</span>
                     </div>
-                    <input type="range" min="0.1" max="2.0" step="0.1" value={physics.alpha} 
+                    <input id="slider-alpha" type="range" min="0.1" max="2.0" step="0.1" value={physics.alpha}
                         onChange={e => setPhysics({...physics, alpha: parseFloat(e.target.value)})} className="w-full accent-[#C084FC]" />
                     <p className="text-[9px] text-[#7EB8FF]/50 mt-1">α ↑ chemistry breaks, α ↓ radiation univ</p>
                 </div>
                 {/* Lambda */}
                 <div>
                     <div className="flex justify-between text-[#7EB8FF] mb-2">
-                        <span>Cosmological (Λ)</span>
+                        <label htmlFor="slider-lambda">Cosmological (Λ)</label>
                         <span>{physics.lambda.toFixed(2)}</span>
                     </div>
-                    <input type="range" min="0.1" max="3.0" step="0.1" value={physics.lambda} 
+                    <input id="slider-lambda" type="range" min="0.1" max="3.0" step="0.1" value={physics.lambda}
                         onChange={e => setPhysics({...physics, lambda: parseFloat(e.target.value)})} className="w-full accent-[#C084FC]" />
                     <p className="text-[9px] text-[#7EB8FF]/50 mt-1">Λ ↑ space expands, Λ ↓ crunch</p>
                 </div>
                 {/* c */}
                 <div>
                     <div className="flex justify-between text-[#7EB8FF] mb-2">
-                        <span>Speed of Light (c)</span>
+                        <label htmlFor="slider-c">Speed of Light (c)</label>
                         <span>{physics.c.toFixed(2)}</span>
                     </div>
-                    <input type="range" min="0.1" max="3.0" step="0.1" value={physics.c} 
+                    <input id="slider-c" type="range" min="0.1" max="3.0" step="0.1" value={physics.c}
                         onChange={e => setPhysics({...physics, c: parseFloat(e.target.value)})} className="w-full accent-[#C084FC]" />
                     <p className="text-[9px] text-[#7EB8FF]/50 mt-1">c ↑ universe looks flatter</p>
                 </div>
                 {/* hbar */}
                 <div>
                     <div className="flex justify-between text-[#7EB8FF] mb-2">
-                        <span>Planck Constant (ħ)</span>
+                        <label htmlFor="slider-hbar">Planck Constant (ħ)</label>
                         <span>{physics.hbar.toFixed(2)}</span>
                     </div>
-                    <input type="range" min="0.0" max="3.0" step="0.1" value={physics.hbar} 
+                    <input id="slider-hbar" type="range" min="0.0" max="3.0" step="0.1" value={physics.hbar}
                         onChange={e => setPhysics({...physics, hbar: parseFloat(e.target.value)})} className="w-full accent-[#C084FC]" />
                     <p className="text-[9px] text-[#7EB8FF]/50 mt-1">ħ ↑ quantum foam visible</p>
                 </div>
@@ -1639,6 +1624,7 @@ export function AetherGenesis() {
                         </div>                    </div>
                     {/* Scrubbable Timeline */}
                     <div 
+                        ref={stellarSliderRef}
                         role="slider"
                         tabIndex={0}
                         aria-label="Stellar lifecycle timeline"
@@ -1650,6 +1636,13 @@ export function AetherGenesis() {
                         onPointerMove={(e) => { if(isScrubbingRef.current) handleTimelineScrub(e); }}
                         onPointerUp={() => { isScrubbingRef.current = false; }}
                         onPointerLeave={() => { isScrubbingRef.current = false; }}
+                        onKeyDown={(e) => {
+                            if (!selectedStarRef.current) return;
+                            if (e.key === 'ArrowRight') selectedStarRef.current.t = Math.min(1.0, selectedStarRef.current.t + 0.01);
+                            if (e.key === 'ArrowLeft') selectedStarRef.current.t = Math.max(0, selectedStarRef.current.t - 0.01);
+                            if (e.key === 'Home') selectedStarRef.current.t = 0;
+                            if (e.key === 'End') selectedStarRef.current.t = 1.0;
+                        }}
                     >
                         <div ref={uiTimelineFill} className="h-full bg-gradient-to-r from-blue-500 via-fuchsia-500 to-red-500" style={{width: '0%'}}></div>
                         <div className="absolute inset-0 bg-white/20 opacity-0 group-hover:opacity-100 transition-opacity"></div>
@@ -1709,6 +1702,7 @@ export function AetherGenesis() {
             </div>
             
             <div 
+                ref={globalSliderRef}
                 role="slider"
                 tabIndex={0}
                 aria-label="Global cosmic age timeline"
@@ -1723,6 +1717,8 @@ export function AetherGenesis() {
                 onKeyDown={(e) => {
                     if (e.key === 'ArrowRight') { const v = Math.min(14, cosmicAgeRef.current + 0.1); setCosmicAge(v); cosmicAgeRef.current = v; }
                     if (e.key === 'ArrowLeft') { const v = Math.max(0, cosmicAgeRef.current - 0.1); setCosmicAge(v); cosmicAgeRef.current = v; }
+                    if (e.key === 'Home') { setCosmicAge(0); cosmicAgeRef.current = 0; }
+                    if (e.key === 'End') { setCosmicAge(14); cosmicAgeRef.current = 14; }
                 }}
             >
                 <div ref={globalTimelineFillRef} className="h-full bg-gradient-to-r from-[#7EB8FF] to-[#C084FC]" style={{width: `${(cosmicAge / 14.0) * 100}%`}}></div>
