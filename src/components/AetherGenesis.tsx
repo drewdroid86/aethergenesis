@@ -1407,6 +1407,7 @@ export function AetherGenesis() {
         dominant_species: "Silicate Swarm",
         civilization: "Post-Scarcity Hive",
         biome: "Crystalline Deserts",
+        isFallback: true,
       });
     } finally {
       setIsAnalyzing(false);
@@ -1731,10 +1732,6 @@ export function AetherGenesis() {
       </div>
 
       <div className="absolute inset-0 pointer-events-none bg-[radial-gradient(circle_at_center,transparent_0%,rgba(2,2,5,0.6)_100%)]"></div>
-    </div>
-  );
-}
-%,rgba(2,2,5,0.6)_100%)]"></div>
     </div>
   );
 }
