@@ -9,8 +9,8 @@ import { Crosshair, Navigation, Scan, Zap, Play, Pause, X, Settings2 } from 'luc
 
 // ---- Constants & Math Utilities ----
 const IS_MOBILE = typeof window !== 'undefined' && window.innerWidth < 768;
-const NUM_STARS = IS_MOBILE ? 15000 : 500000;
-const HERO_COUNT = IS_MOBILE ? 8 : 20;
+const NUM_STARS = IS_MOBILE ? 8000 : 500000;
+const HERO_COUNT = IS_MOBILE ? 6 : 20;
 const GALAXY_ARMS = 5;
 const GALAXY_SPIN = -0.15;
 const GALAXY_MAX_RADIUS = 350;
@@ -513,7 +513,13 @@ class HeroStarSystem extends THREE.Group {
         this.protostarMesh = new THREE.Mesh(GEOMETRIES.sphereHigh, this.protostarMat);
         this.protostarDisk = new THREE.Mesh(
             GEOMETRIES.torusProtostar,
-            new THREE.MeshBasicMaterial({ color: 0xff6600, transparent: true, opacity: 0, blending: THREE.AdditiveBlending })
+            new THREE.MeshBasicMaterial({ 
+                color: 0xff6600, 
+                transparent: true, 
+                opacity: 0, 
+                blending: THREE.AdditiveBlending,
+                depthWrite: false
+            })
         );
         this.protostarDisk.rotation.x = Math.PI / 2;
         this.protostarGroup.add(this.protostarMesh);
@@ -750,16 +756,49 @@ class HeroStarSystem extends THREE.Group {
         }
 
         this.currentRealAge = this.t * this.lifespanReal;
-        
-        this.nebulaMesh.visible = false;
-        this.hzMesh.visible = false;
+
+        this.protostarGroup.visible = false;
+        this.mainSeqGroup.visible = false;
+        this.redGiantGroup.visible = false;
+        this.supernovaGroup.visible = false;
+        this.neutronStarGroup.visible = false;
+        this.blackHoleGroup.visible = false;
+
+        this.nebulaMesh.visible = false;        this.hzMesh.visible = false;
         this.snRing.visible = false;
         this.ejectaMesh.visible = false;
         this.blackHoleGroup.visible = false;
         this.dustCloud.visible = false;
         this.planetsInfo.forEach(p => p.pivot.visible = false);
 
-        let targetProto = 0, targetMain = 0, targetRed = 0, targetSuper = 0, targetNs = 0;
+        const groupVisibility = {
+            [PHASES.PROTOSTAR]: this.protostarGroup,
+            [PHASES.MAIN_SEQUENCE]: this.mainSeqGroup,
+            [PHASES.RED_GIANT]: this.redGiantGroup,
+            [PHASES.SUPERNOVA]: this.supernovaGroup,
+            [PHASES.REMNANT]: this.neutronStarGroup,
+        };
+
+        const target = {
+            [PHASES.PROTOSTAR]: targetProto,
+            [PHASES.MAIN_SEQUENCE]: targetMain,
+            [PHASES.RED_GIANT]: targetRed,
+            [PHASES.SUPERNOVA]: targetSuper,
+            [PHASES.REMNANT]: targetNs,
+        };
+
+        Object.entries(groupVisibility).forEach(([p, group]) => {
+            const phase = parseInt(p);
+            if (target[phase] > 0) {
+                group.visible = true;
+                group.traverse((obj) => {
+                    if ((obj as any).material) {
+                        (obj as any).material.opacity = target[phase];
+                        (obj as any).material.transparent = true;
+                    }
+                });
+            }
+        });
 
         if (this.t < 0.05) {
             this.phase = PHASES.NEBULA;
@@ -1133,15 +1172,23 @@ export function AetherGenesis() {
     const renderPass = new RenderPass(scene, camera);
     composer.addPass(renderPass);
 
-    const bloomPass = new UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 1.6, 0.4, 0.1);
-    bloomPass.strength = 1.2;
-    bloomPass.radius = 0.6;
-    bloomPass.threshold = 0.2;
+    const bloomPass = new UnrealBloomPass(
+        new THREE.Vector2(
+            IS_MOBILE ? window.innerWidth / 2 : window.innerWidth,
+            IS_MOBILE ? window.innerHeight / 2 : window.innerHeight
+        ),
+        IS_MOBILE ? 0.8 : 1.6,
+        IS_MOBILE ? 0.2 : 0.4,
+        IS_MOBILE ? 0.4 : 0.1
+    );
+    bloomPass.strength = IS_MOBILE ? 0.6 : 1.2;
+    bloomPass.radius = IS_MOBILE ? 0.4 : 0.6;
+    bloomPass.threshold = IS_MOBILE ? 0.4 : 0.2;
 
     const cinematicShader = new ShaderPass(CinematicPass);
 
+    composer.addPass(bloomPass);
     if (!IS_MOBILE) {
-        composer.addPass(bloomPass);
         composer.addPass(cinematicShader);
     }
 
@@ -1330,6 +1377,18 @@ export function AetherGenesis() {
         });
 
         renderer.dispose();
+    };
+    // --- Clean up ---
+    return () => {
+      composer.dispose();
+      controls.dispose();
+      renderer.dispose();
+      geometry.dispose();
+      material.dispose();
+      scene.clear();
+      if (mountRef.current && renderer.domElement) {
+        mountRef.current.removeChild(renderer.domElement);
+      }
     };
   }, []);
 
