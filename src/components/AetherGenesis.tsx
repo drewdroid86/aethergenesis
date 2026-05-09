@@ -16,12 +16,17 @@ import { GLSL_NOISE, GLSL_NOISE_SIMPLE } from '../shaders/utils/noise';
 import { getStellarColor, randomGaussian } from '../utils/math';
 
 import { starVertexShader, starFragmentShader, nebulaFS, starSurfaceFS } from '../shaders/star';
-import HeroStarSystem from '../simulation/HeroStarSystem';
+import HeroStarSystem, { GEOMETRIES } from '../simulation/HeroStarSystem';
+import { CinematicPassFragment, CinematicPassVertex } from '../shaders/geometry';
 
-
-
-
-
+const CinematicPass = {
+  uniforms: {
+    tDiffuse: { value: null },
+    time: { value: 0.0 }
+  },
+  vertexShader: CinematicPassVertex,
+  fragmentShader: CinematicPassFragment
+};
 
 export function AetherGenesis() {
   const mountRef = useRef<HTMLDivElement>(null);
@@ -629,9 +634,22 @@ export function AetherGenesis() {
       {/* Stellar Lifecycle Inspect Panel (Frosted Glass Theme) */}
       {selectedStar && (
         <div className="absolute right-8 top-1/2 -translate-y-1/2 w-[min(320px,85vw)] overflow-hidden bg-[rgba(14,14,28,0.7)] backdrop-blur-xl border border-[rgba(126,184,255,0.3)] rounded-2xl p-6 z-30 shadow-[0_0_30px_rgba(0,0,0,0.5)] transform transition-all pointer-events-auto">
-            <div className="flex items-center gap-3 mb-6 pb-4 border-b border-[rgba(126,184,255,0.1)]">
-                <Scan size={20} className="text-[#C084FC]" />
-                <h2 className="text-sm font-bold tracking-widest uppercase text-white">Stellar Telemetry</h2>
+            <div className="flex items-center justify-between mb-6 pb-4 border-b border-[rgba(126,184,255,0.1)]">
+                <div className="flex items-center gap-3">
+                    <Scan size={20} className="text-[#C084FC]" />
+                    <h2 className="text-sm font-bold tracking-widest uppercase text-white">Stellar Telemetry</h2>
+                </div>
+                <button
+                    onClick={() => {
+                        selectedStarRef.current = null;
+                        setSelectedStarState(null);
+                    }}
+                    className="text-[#7EB8FF]/70 hover:text-white transition-colors focus-visible:ring-2 focus-visible:ring-[#C084FC] outline-none rounded"
+                    aria-label="Close Stellar Telemetry"
+                    title="Close Telemetry"
+                >
+                    <X size={20} />
+                </button>
             </div>
 
             <div className="space-y-4 font-mono text-xs">
@@ -666,6 +684,7 @@ export function AetherGenesis() {
                                 onClick={() => isStarPlayingRef.current = false}
                                 className="text-white/40 hover:text-white transition-colors focus-visible:ring-2 focus-visible:ring-[#C084FC] outline-none rounded" 
                                 aria-label="Pause star animation"
+                                title="Pause Star Animation"
                             >
                                 <Pause size={12} />
                             </button>
@@ -673,6 +692,7 @@ export function AetherGenesis() {
                                 onClick={() => isStarPlayingRef.current = true}
                                 className="text-white/40 hover:text-white transition-colors focus-visible:ring-2 focus-visible:ring-[#C084FC] outline-none rounded" 
                                 aria-label="Play star animation"
+                                title="Play Star Animation"
                             >
                                 <Play size={12} />
                             </button>
@@ -756,6 +776,7 @@ export function AetherGenesis() {
                         onClick={() => setIsPlayingCosmic(!isPlayingCosmic)}
                         className="text-white/40 hover:text-white transition-colors focus-visible:ring-2 focus-visible:ring-[#C084FC] outline-none rounded"
                         aria-label={isPlayingCosmic ? "Pause cosmic simulation" : "Play cosmic simulation"}
+                        title={isPlayingCosmic ? "Pause Cosmic Simulation" : "Play Cosmic Simulation"}
                     >
                         {isPlayingCosmic ? <Pause size={14} /> : <Play size={14} />}
                     </button>
@@ -794,6 +815,7 @@ export function AetherGenesis() {
           <div className="grid grid-cols-2 gap-2 pointer-events-auto">
             <button
               aria-label="Reset camera view"
+              title="Reset Camera View"
               onClick={() => {
                   controlsRef.current?.reset();
               }}
@@ -803,7 +825,8 @@ export function AetherGenesis() {
             </button>
             <button
               aria-label="Toggle navigation aids"
-              className="w-10 h-10 flex items-center justify-center bg-[rgba(8,8,20,0.6)] border border-[rgba(126,184,255,0.2)] rounded-md backdrop-blur-md transition-colors hover:bg-[rgba(126,184,255,0.1)] cursor-pointer focus-visible:ring-2 focus-visible:ring-[#C084FC] outline-none"
+              title="Navigation Aids (Coming Soon)"
+              className="w-10 h-10 flex items-center justify-center bg-[rgba(8,8,20,0.6)] border border-[rgba(126,184,255,0.2)] rounded-md backdrop-blur-md transition-colors hover:bg-[rgba(126,184,255,0.1)] cursor-not-allowed opacity-50 focus-visible:ring-2 focus-visible:ring-[#C084FC] outline-none"
             >
               <Navigation size={16} className="text-[#C084FC]" />
             </button>
