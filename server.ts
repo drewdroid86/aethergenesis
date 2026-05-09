@@ -1,6 +1,8 @@
 import express from 'express';
 import dotenv from 'dotenv';
 import { GoogleGenAI } from '@google/genai';
+import { fileURLToPath } from 'url';
+import path from 'path';
 
 dotenv.config();
 
@@ -49,7 +51,7 @@ app.post('/api/analyze', async (req, res) => {
     };
 
     const response = await ai.models.generateContent({
-      model: "gemini-3-flash-preview",
+      model: "gemini-2.0-flash",
       contents: prompt,
       config: {
         systemInstruction: "You are an astrobiology analytical engine. Generate creative but scientifically cohesive species and civilizations based on the star's phase, temp, and constants.",
@@ -75,6 +77,16 @@ app.post('/api/analyze', async (req, res) => {
     });
   }
 });
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+if (process.env.NODE_ENV === 'production') {
+  const distPath = path.join(__dirname, 'dist');
+  app.use(express.static(distPath));
+  app.get('*', (_req, res) => {
+    res.sendFile(path.join(distPath, 'index.html'));
+  });
+}
 
 app.listen(port, () => {
   console.log(`Server listening at http://localhost:${port}`);

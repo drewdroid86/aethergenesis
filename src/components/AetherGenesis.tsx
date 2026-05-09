@@ -7,1000 +7,21 @@ import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js'
 import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
 import { Crosshair, Navigation, Scan, Zap, Play, Pause, X, Settings2 } from 'lucide-react';
 
-// ---- Constants & Math Utilities ----
-const IS_MOBILE = typeof window !== 'undefined' && window.innerWidth < 768;
-const NUM_STARS = IS_MOBILE ? 8000 : 500000;
-const HERO_COUNT = IS_MOBILE ? 6 : 20;
-const GALAXY_ARMS = 5;
-const GALAXY_SPIN = -0.15;
-const GALAXY_MAX_RADIUS = 350;
-const CORE_RADIUS = 25;
-const GALAXY_CYCLE = (Math.PI * 2) / GALAXY_ARMS;
-const GALAXY_INV_CYCLE = 1.0 / GALAXY_CYCLE;
+import { 
+  IS_MOBILE, NUM_STARS, HERO_COUNT, GALAXY_ARMS, GALAXY_SPIN, 
+  GALAXY_MAX_RADIUS, CORE_RADIUS, GALAXY_CYCLE, GALAXY_INV_CYCLE,
+  PHASES, PHASE_NAMES 
+} from '../constants/simulation';
+import { GLSL_NOISE, GLSL_NOISE_SIMPLE } from '../shaders/utils/noise';
+import { getStellarColor, randomGaussian } from '../utils/math';
 
-let nextGaussian: number | null = null;
-/**
- * Box-Muller transform for generating normally distributed random numbers.
- * Optimized with a stateful cache to halve mathematical operations.
- */
-function randomGaussian(mean = 0, stdev = 1) {
-  if (nextGaussian !== null) {
-    const z = nextGaussian;
-    nextGaussian = null;
-    return z * stdev + mean;
-  }
-  const u = 1 - Math.random();
-  const v = Math.random();
-  const r = Math.sqrt(-2.0 * Math.log(u));
-  const theta = 2.0 * Math.PI * v;
-  nextGaussian = r * Math.sin(theta);
-  const z = r * Math.cos(theta);
-  return z * stdev + mean;
-}
+import { starVertexShader, starFragmentShader, nebulaFS, starSurfaceFS } from '../shaders/star';
+import HeroStarSystem from '../simulation/HeroStarSystem';
 
-// BOLT OPTIMIZATION: Reuse a single Color object and pre-calculated constants to eliminate 50,000 allocations per setup.
-const _SHARED_COLOR = new THREE.Color();
-function getStellarColor() {
-  const r = Math.random();
-  if (r < 0.00003) return _SHARED_COLOR.setHex(0x9db4ff);
-  if (r < 0.0013) return _SHARED_COLOR.setHex(0xa2b9ff);
-  if (r < 0.0073) return _SHARED_COLOR.setHex(0xffffff);
-  if (r < 0.0373) return _SHARED_COLOR.setHex(0xfff4ea);
-  if (r < 0.1133) return _SHARED_COLOR.setHex(0xffd2a1);
-  if (r < 0.2343) return _SHARED_COLOR.setHex(0xffa351);
-  return _SHARED_COLOR.setHex(0xff4422);
-}
 
-const GLSL_NOISE = `
-float hash(vec3 p) {
-    p = fract(p * 0.3183099 + .1);
-    p *= 17.0;
-    return fract(p.x * p.y * p.z * (p.x + p.y + p.z));
-}
-float noise(vec3 x) {
-    vec3 i = floor(x);
-    vec3 f = fract(x);f = f*f*(3.0-2.0*f);
-    return mix(mix(mix(hash(i+vec3(0.0,0.0,0.0)),hash(i+vec3(1.0,0.0,0.0)),f.x),mix(hash(i+vec3(0.0,1.0,0.0)),hash(i+vec3(1.0,1.0,0.0)),f.x),f.y),
-               mix(mix(hash(i+vec3(0.0,0.0,1.0)),hash(i+vec3(1.0,0.0,1.0)),f.x),mix(hash(i+vec3(0.0,1.0,1.0)),hash(i+vec3(1.0,1.0,1.0)),f.x),f.y),f.z);
-}
-float fbm(vec3 p) {
-    float f = 0.0;
-    f += 0.5000 * noise(p); p *= 2.5;
-    f += 0.2500 * noise(p); 
-    return f;
-}
-`;
 
-const GLSL_NOISE_SIMPLE = `
-float hash(vec3 p) {
-    return fract(sin(dot(p, vec3(12.9898, 78.233, 151.7182))) * 43758.5453);
-}
 
-float noise(vec3 x) {
-    vec3 p = floor(x);
-    vec3 f = fract(x);
-    f = f * f * (3.0 - 2.0 * f);
-    return mix(mix(mix(hash(p + vec3(0,0,0)), hash(p + vec3(1,0,0)),f.x),
-                   mix(hash(p + vec3(0,1,0)), hash(p + vec3(1,1,0)),f.x),f.y),
-               mix(mix(hash(p + vec3(0,0,1)), hash(p + vec3(1,0,1)),f.x),
-                   mix(hash(p + vec3(0,1,1)), hash(p + vec3(1,1,1)),f.x),f.y),f.z);
-}
-`;
 
-// ---- Background Star Shaders ----
-const starVertexShader = `
-  attribute vec3 color;
-  attribute float size;
-  varying vec3 vColor;
-  void main() {
-    vColor = color;
-    vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
-    gl_PointSize = size * (400.0 / -mvPosition.z);
-    gl_Position = projectionMatrix * mvPosition;
-  }
-`;
-
-const starFragmentShader = `
-  varying vec3 vColor;
-  void main() {
-    vec2 coord = gl_PointCoord - vec2(0.5);
-    float dist = length(coord);
-    if (dist > 0.5) discard;
-    float alpha = exp(-dist * dist * 30.0);
-    gl_FragColor = vec4(vColor, alpha);
-  }
-`;
-
-const CinematicPass = {
-  uniforms: {
-    tDiffuse: { value: null },
-    time: { value: 0 }
-  },
-  vertexShader: `
-    varying vec2 vUv;
-    void main() {
-      vUv = uv;
-      gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-    }
-  `,
-  fragmentShader: `
-    uniform sampler2D tDiffuse;
-    uniform float time;
-    varying vec2 vUv;
-
-    float random(vec2 p) {
-      return fract(sin(dot(p.xy, vec2(12.9898,78.233))) * 43758.5453);
-    }
-
-    void main() {
-      vec2 uv = vUv;
-
-      // Chromatic Aberration
-      vec2 offset = (uv - 0.5) * 0.002;
-      float r = texture2D(tDiffuse, uv + offset).r;
-      float g = texture2D(tDiffuse, uv).g;
-      float b = texture2D(tDiffuse, uv - offset).b;
-      vec3 color = vec3(r, g, b);
-
-      // Dynamic Film Grain
-      float grain = (random(uv * mod(time, 100.0)) - 0.5) * 0.04;
-      color += grain;
-
-      // Vignette
-      float dist = distance(uv, vec2(0.5));
-      color *= smoothstep(0.8, 0.2, dist * 1.1);
-
-      gl_FragColor = vec4(color, 1.0);
-    }
-  `
-};
-
-// ---- Hero Star Shaders ----
-const nebulaFS = `
-uniform float uTime;
-uniform vec3 uColor;
-uniform float uCollapse;
-uniform vec3 uCameraPos;
-uniform mat4 uInverseModelMatrix;
-
-varying vec3 vLocalPosition;
-varying vec3 vWorldPosition;
-
-${GLSL_NOISE}
-
-void main() {
-    vec3 localCam = (uInverseModelMatrix * vec4(uCameraPos, 1.0)).xyz;
-    vec3 rayDir = normalize(vLocalPosition - localCam);
-    vec3 pos = vLocalPosition;
-    
-    float stepSize = 0.15;
-    float alpha = 0.0;
-    vec3 accCol = vec3(0.0);
-    
-    float progress = smoothstep(0.0, 1.0, uCollapse);
-    
-    for(int i=0; i<12; i++) {
-        float d = length(pos);
-        if(d > 1.0) break; // Sphere bounds
-        
-        // Swirling gas currents
-        float angle = (1.0 - d) * 3.0 + uTime * 0.3;
-        float s = sin(angle);
-        float c = cos(angle);
-        vec3 p = pos;
-        p.xz = mat2(c, -s, s, c) * p.xz;
-        p.xy = mat2(c, s, -s, c) * p.xy;
-        
-        // Raymarched 3D noise (use lower frequency to help performance)
-        float n = fbm(p * 2.0 - rayDir * uTime * 0.1);
-        
-        // Tiny particle emissions/sparkles (use hash instead of expensive noise)
-        float sparkles = pow(hash(p * 15.0 + uTime * 0.5), 8.0) * 1.5;
-        
-        // Target collapse radius
-        float targetR = 1.0 - progress * 0.95; 
-        
-        // Density calculation
-        float density = smoothstep(0.3, 0.7, n + sparkles * 0.1);
-        density *= smoothstep(targetR, targetR * 0.6, d); // fade near edge
-        
-        // Calculate temperatures
-        vec3 hotCore = vec3(1.0, 0.8, 0.4);
-        vec3 coldGas = uColor;
-        
-        // Mix heat inside
-        float temp = progress * (1.0 - d);
-        vec3 heatColor = mix(coldGas, hotCore, temp);
-        
-        // Realistic light scattering (more light in dense areas near center)
-        float scattering = pow(max(0.0, 1.0 - d), 2.0) * density;
-        heatColor += hotCore * scattering * progress * 2.5;
-        
-        alpha += density * stepSize * 2.5;
-        accCol += heatColor * density * stepSize * 3.0;
-        
-        if(alpha > 0.99) {
-            alpha = 1.0;
-            break;
-        }
-        
-        // Step forward inside the sphere
-        pos += rayDir * stepSize;
-    }
-    
-    gl_FragColor = vec4(accCol, alpha * smoothstep(1.0, 0.9, uCollapse));
-}
-`;
-
-const starSurfaceFS = `
-uniform float uTime;
-uniform vec3 uColor;
-uniform float uTurbulence;
-uniform float uOpacity;
-
-varying vec3 vLocalPosition;
-varying vec3 vWorldPosition;
-varying vec3 vNormal;
-
-${GLSL_NOISE}
-
-void main() {
-    float n1 = fbm(vLocalPosition * 5.0 * uTurbulence + uTime * 0.5);
-    float n2 = fbm(vLocalPosition * 10.0 * uTurbulence - uTime * 0.8);
-    float noiseVal = (n1 + n2) * 0.5;
-    
-    vec3 finalColor = mix(uColor * 0.5, uColor * 1.5, noiseVal);
-    
-    // Limb darkening
-    float intensity = max(0.0, dot(vNormal, vec3(0.0, 0.0, 1.0)));
-    finalColor *= smoothstep(0.0, 1.0, intensity * 1.2 + 0.2);
-    
-    gl_FragColor = vec4(finalColor, uOpacity);
-}
-`;
-
-const displacementVS = `
-varying vec3 vLocalPosition;
-varying vec3 vWorldPosition;
-varying vec3 vNormal;
-uniform float uTime;
-uniform float uHbar;
-
-${GLSL_NOISE_SIMPLE}
-
-void main() {
-    vNormal = normalize(normalMatrix * normal);
-    vec3 p = position;
-    float baseNoise = noise(p * 5.0 + uTime * 2.0);
-    float foam = noise(p * 50.0 + uTime * 10.0) * (uHbar - 1.0) * 0.5;
-    if (uHbar < 1.0) foam = 0.0;
-    float d = baseNoise * 0.15 + foam;
-    p += normal * d;
-    vLocalPosition = p;
-    vWorldPosition = (modelMatrix * vec4(p, 1.0)).xyz;
-    gl_Position = projectionMatrix * modelViewMatrix * vec4(p, 1.0);
-}
-`;
-
-const subtleDisplacementVS = `
-varying vec3 vLocalPosition;
-varying vec3 vWorldPosition;
-varying vec3 vNormal;
-uniform float uTime;
-uniform float uHbar;
-
-${GLSL_NOISE_SIMPLE}
-
-void main() {
-    vNormal = normalize(normalMatrix * normal);
-    vec3 p = position;
-    float baseNoise = noise(p * 10.0 + uTime * 1.5);
-    float foam = noise(p * 50.0 + uTime * 10.0) * (uHbar - 1.0) * 0.5;
-    if (uHbar < 1.0) foam = 0.0;
-    float d = baseNoise * 0.02 + foam;
-    p += normal * d;
-    vLocalPosition = p;
-    vWorldPosition = (modelMatrix * vec4(p, 1.0)).xyz;
-    gl_Position = projectionMatrix * modelViewMatrix * vec4(p, 1.0);
-}
-`;
-
-const basicVS = `
-varying vec3 vLocalPosition;
-varying vec3 vWorldPosition;
-varying vec3 vNormal;
-void main() {
-    vLocalPosition = position;
-    vWorldPosition = (modelMatrix * vec4(position, 1.0)).xyz;
-    vNormal = normalize(normalMatrix * normal);
-    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-}
-`;
-
-const PHASES = {
-    NEBULA: 0,
-    PROTOSTAR: 1,
-    MAIN_SEQUENCE: 2,
-    RED_GIANT: 3,
-    SUPERNOVA: 4,
-    REMNANT: 5
-};
-
-const PHASE_NAMES = [
-    "Nebula Formation",
-    "Protostar Ignition",
-    "Main Sequence",
-    "Red Giant",
-    "Supernova",
-    "Stellar Remnant"
-];
-
-class MagneticCurve extends THREE.Curve<THREE.Vector3> {
-    constructor(public angle: number) { super(); }
-    getPoint(t: number, optionalTarget = new THREE.Vector3()) {
-        const a = this.angle;
-        const th = t * Math.PI;
-        const r = 0.5 * Math.sin(th);
-        const x = r * Math.cos(a);
-        const y = 0.5 * Math.cos(th);
-        const z = r * Math.sin(a);
-        return optionalTarget.set(x, y, z);
-    }
-}
-
-// BOLT OPTIMIZATION: Shared geometries to reduce GPU memory and initialization overhead.
-// Note: We only share geometries that are either constant in size or scale uniformly.
-// Torus geometries used for rings with constant tube thickness are kept unique.
-const GEOMETRIES = {
-    sphereNebula: new THREE.SphereGeometry(15, 32, 32),
-    sphereHigh: new THREE.SphereGeometry(1, 64, 64),
-    sphereMid: new THREE.SphereGeometry(1, 32, 32),
-    sphereFlash: new THREE.SphereGeometry(1, 48, 48),
-    sphereLow: new THREE.SphereGeometry(1, 16, 16),
-    torusProtostar: new THREE.TorusGeometry(2, 0.4, 8, 32),
-    torusBH: new THREE.TorusGeometry(1.5, 0.4, 16, 64),
-    coneBeam: (() => {
-        const geo = new THREE.ConeGeometry(0.2, 20, 16);
-        geo.translate(0, 10, 0);
-        return geo;
-    })(),
-    magneticTube: new THREE.TubeGeometry(new MagneticCurve(0), 20, 0.01, 8, false)
-};
-
-class HeroStarSystem extends THREE.Group {
-    mass: number;
-    lifespanReal: number;
-    loopDuration: number;
-    t: number;
-    
-    currentTemp: number = 3000;
-    currentLum: number = 1;
-    currentRealAge: number = 0;
-    phase: number = 0;
-    isSupernovaFlashing: boolean = false;
-
-    nebulaMat: THREE.ShaderMaterial;
-    nebulaMesh: THREE.Mesh;
-    
-    // Stage Groups
-    protostarGroup: THREE.Group;
-    protostarMat: THREE.ShaderMaterial;
-    protostarMesh: THREE.Mesh;
-    protostarDisk: THREE.Mesh;
-    
-    mainSeqGroup: THREE.Group;
-    starMat: THREE.ShaderMaterial;
-    starMesh: THREE.Mesh;
-    coronaMesh: THREE.Mesh;
-    
-    redGiantGroup: THREE.Group;
-    redGiantMat: THREE.ShaderMaterial;
-    redGiantMesh: THREE.Mesh;
-    
-    supernovaGroup: THREE.Group;
-    coreFlashMesh: THREE.Mesh;
-    
-    neutronStarGroup: THREE.Group;
-    nsMagneticLines: THREE.Group;
-
-    planetsInfo: { pivot: THREE.Group, mesh: THREE.Mesh, dist: number, speed: number }[] = [];
-    hzMesh: THREE.Mesh;
-    snRing: THREE.Mesh;
-    pulsarGroup: THREE.Group;
-    blackHoleGroup: THREE.Group;
-    hitMesh: THREE.Mesh;
-    
-    dustCloud: THREE.Points;
-    ejectaMat: THREE.ShaderMaterial;
-    ejectaMesh: THREE.Points;
-
-    tHeat: number;
-    baseRadius: number;
-    birthAge: number;
-
-    constructor() {
-        super();
-        this.mass = Math.random() > 0.8 ? 8 + Math.random() * 12 : 0.5 + Math.random() * 3;
-        this.lifespanReal = 10000 * Math.pow(this.mass, -2.5); // Myr
-        this.loopDuration = 40 + Math.random() * 20; 
-        
-        // Born randomly between 0.5 and 10 Gyr
-        this.birthAge = 0.5 + Math.random() * 9.5;
-        this.t = 0;
-
-        this.tHeat = 5778 * Math.pow(this.mass, 0.5);
-        this.baseRadius = Math.pow(this.mass, 0.8) * 0.8;
-
-        // 1. Nebula
-        this.nebulaMat = new THREE.ShaderMaterial({
-            vertexShader: basicVS,
-            fragmentShader: nebulaFS,
-            uniforms: {
-                uTime: { value: 0 },
-                uColor: { value: new THREE.Color(0x3a0088) },
-                uCollapse: { value: 0 },
-                uCameraPos: { value: new THREE.Vector3() },
-                uInverseModelMatrix: { value: new THREE.Matrix4() }
-            },
-            transparent: true,
-            depthWrite: false,
-            blending: THREE.AdditiveBlending,
-            side: THREE.FrontSide
-        });
-        this.nebulaMesh = new THREE.Mesh(GEOMETRIES.sphereNebula, this.nebulaMat);
-        this.add(this.nebulaMesh);
-
-        // 1b. Dust Cloud
-        const dustGeo = new THREE.BufferGeometry();
-        const dustPos = new Float32Array(500 * 3);
-        const dustSize = new Float32Array(500);
-        for(let i=0; i<500; i++) {
-            const r = 2 + Math.pow(Math.random(), 2) * 15;
-            const a = Math.random() * Math.PI * 2;
-            const h = (Math.random() - 0.5) * Math.max(0.5, r * 0.2);
-            dustPos[i*3] = Math.cos(a) * r;
-            dustPos[i*3+1] = h;
-            dustPos[i*3+2] = Math.sin(a) * r;
-            dustSize[i] = Math.random() * 0.5 + 0.1;
-        }
-        dustGeo.setAttribute('position', new THREE.BufferAttribute(dustPos, 3));
-        dustGeo.setAttribute('size', new THREE.BufferAttribute(dustSize, 1));
-        this.dustCloud = new THREE.Points(
-            dustGeo,
-            new THREE.ShaderMaterial({
-                uniforms: { uColor: { value: new THREE.Color(0xaa66ff) }, uAlpha: { value: 1.0 } },
-                vertexShader: `
-                    attribute float size;
-                    varying float vAlpha;
-                    uniform float uAlpha;
-                    void main() {
-                        vAlpha = uAlpha;
-                        vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
-                        gl_PointSize = size * (200.0 / -mvPosition.z);
-                        gl_Position = projectionMatrix * mvPosition;
-                    }
-                `,
-                fragmentShader: `
-                    uniform vec3 uColor;
-                    varying float vAlpha;
-                    void main() {
-                        float d = length(gl_PointCoord - vec2(0.5));
-                        if(d > 0.5) discard;
-                        gl_FragColor = vec4(uColor, vAlpha * (1.0 - d*2.0));
-                    }
-                `,
-                transparent: true,
-                depthWrite: false,
-                blending: THREE.AdditiveBlending
-            })
-        );
-        this.add(this.dustCloud);
-
-        // 2. PROTOSTAR
-        this.protostarGroup = new THREE.Group();
-        this.protostarMat = new THREE.ShaderMaterial({
-            vertexShader: displacementVS,
-            fragmentShader: starSurfaceFS,
-            uniforms: {
-                uTime: { value: 0 },
-                uColor: { value: new THREE.Color(0xff3300) },
-                uTurbulence: { value: 2.0 },
-                uOpacity: { value: 0.0 },
-                uHbar: { value: 1.0 }
-            },
-            transparent: true, blending: THREE.AdditiveBlending
-        });
-        this.protostarMesh = new THREE.Mesh(GEOMETRIES.sphereHigh, this.protostarMat);
-        this.protostarDisk = new THREE.Mesh(
-            GEOMETRIES.torusProtostar,
-            new THREE.MeshBasicMaterial({ 
-                color: 0xff6600, 
-                transparent: true, 
-                opacity: 0, 
-                blending: THREE.AdditiveBlending,
-                depthWrite: false
-            })
-        );
-        this.protostarDisk.rotation.x = Math.PI / 2;
-        this.protostarGroup.add(this.protostarMesh);
-        this.protostarGroup.add(this.protostarDisk);
-        this.protostarGroup.visible = false;
-        this.add(this.protostarGroup);
-
-        // 3. MAIN SEQUENCE
-        this.mainSeqGroup = new THREE.Group();
-        let msColor = 0xffaa44; // low mass
-        if (this.mass > 8) msColor = 0x99aaff; // high mass
-        else if (this.mass > 2) msColor = 0xffffdd; // mid mass
-        
-        this.starMat = new THREE.ShaderMaterial({
-            vertexShader: subtleDisplacementVS,
-            fragmentShader: starSurfaceFS,
-            uniforms: {
-                uTime: { value: 0 },
-                uColor: { value: new THREE.Color(msColor) },
-                uTurbulence: { value: 1.0 },
-                uOpacity: { value: 0.0 },
-                uHbar: { value: 1.0 }
-            },
-            transparent: true, blending: THREE.AdditiveBlending
-        });
-        this.starMesh = new THREE.Mesh(GEOMETRIES.sphereHigh, this.starMat);
-        this.coronaMesh = new THREE.Mesh(
-            GEOMETRIES.sphereMid,
-            new THREE.MeshBasicMaterial({ color: msColor, transparent: true, opacity: 0, blending: THREE.AdditiveBlending })
-        );
-        this.coronaMesh.scale.setScalar(1.15);
-        this.mainSeqGroup.add(this.starMesh);
-        this.mainSeqGroup.add(this.coronaMesh);
-        this.mainSeqGroup.visible = false;
-        this.add(this.mainSeqGroup);
-
-        // 4. RED GIANT
-        this.redGiantGroup = new THREE.Group();
-        this.redGiantMat = new THREE.ShaderMaterial({
-            vertexShader: basicVS,
-            fragmentShader: starSurfaceFS,
-            uniforms: {
-                uTime: { value: 0 },
-                uColor: { value: new THREE.Color(0xff4400) },
-                uTurbulence: { value: 0.5 },
-                uOpacity: { value: 0.0 },
-                uHbar: { value: 1.0 }
-            },
-            transparent: true, blending: THREE.AdditiveBlending
-        });
-        this.redGiantMesh = new THREE.Mesh(GEOMETRIES.sphereHigh, this.redGiantMat);
-        this.redGiantGroup.add(this.redGiantMesh);
-        this.redGiantGroup.visible = false;
-        this.add(this.redGiantGroup);
-
-        // 4b. SUPERNOVA CORE
-        this.supernovaGroup = new THREE.Group();
-        this.coreFlashMesh = new THREE.Mesh(
-            GEOMETRIES.sphereFlash,
-            new THREE.MeshBasicMaterial({color: 0xffffff, transparent: true, opacity: 0, blending: THREE.AdditiveBlending})
-        );
-        this.supernovaGroup.add(this.coreFlashMesh);
-        this.supernovaGroup.visible = false;
-        this.add(this.supernovaGroup);
-
-        // 4. Planets & Habitable Zone
-        const lum = Math.pow(this.mass, 3.5);
-        const hzRadius = Math.max(4, Math.sqrt(lum) * 2.5);
-        
-        // BOLT: We use a unique TorusGeometry here because scaling a shared one
-        // would also scale the tube thickness, which should remain constant at 0.05.
-        this.hzMesh = new THREE.Mesh(
-            new THREE.TorusGeometry(hzRadius, 0.05, 8, 64),
-            new THREE.MeshBasicMaterial({ color: 0x00ff88, transparent: true, opacity: 0.1, blending: THREE.AdditiveBlending })
-        );
-        this.hzMesh.rotation.x = Math.PI / 2;
-        this.add(this.hzMesh);
-
-        for(let i=0; i<4; i++) {
-            const dist = 3 + Math.random() * 8 + (i * 2); 
-            const pMesh = new THREE.Mesh(
-                GEOMETRIES.sphereLow,
-                new THREE.MeshStandardMaterial({color: 0xaaaaaa, roughness: 0.8})
-            );
-            pMesh.scale.setScalar(0.1 + Math.random()*0.15);
-            pMesh.position.x = dist;
-            const pivot = new THREE.Group();
-            pivot.rotation.y = Math.random() * Math.PI * 2;
-            const speed = (0.5 + Math.random()) / Math.sqrt(dist);
-            pivot.add(pMesh);
-            this.add(pivot);
-            this.planetsInfo.push({ pivot, mesh: pMesh, dist, speed });
-        }
-
-        // 5. Supernova Ring & Ejecta
-        // BOLT: Unique geometry to maintain tube thickness during expansion.
-        this.snRing = new THREE.Mesh(
-            new THREE.TorusGeometry(1, 0.1, 16, 64),
-            new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0, blending: THREE.AdditiveBlending })
-        );
-        this.snRing.rotation.x = Math.PI / 2;
-        this.add(this.snRing);
-        
-        const ejectaGeo = new THREE.BufferGeometry();
-        const ejectaPos = new Float32Array(1500 * 3);
-        const ejectaVel = new Float32Array(1500 * 3);
-        for(let i=0; i<1500; i++) {
-            const v = new THREE.Vector3(Math.random()-0.5, Math.random()-0.5, Math.random()-0.5).normalize();
-            const speed = 1.0 + Math.random() * 2.0;
-            ejectaVel[i*3] = v.x * speed;
-            ejectaVel[i*3+1] = v.y * speed;
-            ejectaVel[i*3+2] = v.z * speed;
-        }
-        ejectaGeo.setAttribute('position', new THREE.BufferAttribute(ejectaPos, 3));
-        ejectaGeo.setAttribute('velocity', new THREE.BufferAttribute(ejectaVel, 3));
-        this.ejectaMat = new THREE.ShaderMaterial({
-            uniforms: { uExp: { value: 0 }, uColor: { value: new THREE.Color(0xff4411) } },
-            vertexShader: `
-                attribute vec3 velocity;
-                uniform float uExp;
-                varying float vAlpha;
-                void main() {
-                    vAlpha = 1.0 - uExp;
-                    vec3 p = position + velocity * uExp * 100.0;
-                    vec4 mvPos = modelViewMatrix * vec4(p, 1.0);
-                    gl_PointSize = (150.0 * (1.0 - uExp)) / -mvPos.z;
-                    gl_Position = projectionMatrix * mvPos;
-                }
-            `,
-            fragmentShader: `
-                uniform vec3 uColor;
-                varying float vAlpha;
-                void main() {
-                    float d = length(gl_PointCoord - vec2(0.5));
-                    if(d > 0.5) discard;
-                    gl_FragColor = vec4(uColor, vAlpha * (1.0 - d*2.0));
-                }
-            `,
-            transparent: true, depthWrite: false, blending: THREE.AdditiveBlending
-        });
-        this.ejectaMesh = new THREE.Points(ejectaGeo, this.ejectaMat);
-        this.add(this.ejectaMesh);
-
-
-        // 6. Remnants (Pulsar & Black Hole)
-        this.neutronStarGroup = new THREE.Group();
-        const nsMat = new THREE.MeshBasicMaterial({color: 0xaaccff});
-        this.pulsarGroup = new THREE.Group();
-        const beamMat = new THREE.MeshBasicMaterial({ color: 0x00ffff, transparent: true, opacity: 0.6, blending: THREE.AdditiveBlending });
-        const beam1 = new THREE.Mesh(GEOMETRIES.coneBeam, beamMat);
-        const beam2 = new THREE.Mesh(GEOMETRIES.coneBeam, beamMat);
-        beam2.rotation.x = Math.PI;
-        this.pulsarGroup.add(beam1);
-        this.pulsarGroup.add(beam2);
-        const nsCoreMesh = new THREE.Mesh(GEOMETRIES.sphereMid, nsMat);
-        nsCoreMesh.scale.setScalar(0.1);
-        this.neutronStarGroup.add(nsCoreMesh);
-        this.neutronStarGroup.add(this.pulsarGroup);
-        
-        // Magnetic field lines (TubeGeometry)
-        const nsMagGroup = new THREE.Group();
-        
-        const tubeMat = new THREE.MeshBasicMaterial({color: 0xaaccff, transparent: true, opacity: 0.3, blending: THREE.AdditiveBlending});
-        for(let a=0; a<Math.PI*2; a+=Math.PI/4) {
-            const tubeMesh = new THREE.Mesh(GEOMETRIES.magneticTube, tubeMat);
-            tubeMesh.rotation.y = a;
-            nsMagGroup.add(tubeMesh);
-        }
-        
-        this.nsMagneticLines = nsMagGroup as any;
-        this.neutronStarGroup.add(this.nsMagneticLines);
-        this.neutronStarGroup.visible = false;
-        this.add(this.neutronStarGroup);
-
-        this.blackHoleGroup = new THREE.Group();
-        const bhCore = new THREE.Mesh(
-            GEOMETRIES.sphereMid,
-            new THREE.MeshBasicMaterial({ color: 0x000000 })
-        );
-        bhCore.scale.setScalar(0.5);
-        const diskMat = new THREE.MeshBasicMaterial({ 
-            color: 0xff8800, transparent: true, opacity: 0.8, blending: THREE.AdditiveBlending
-        });
-        const diskMesh = new THREE.Mesh(GEOMETRIES.torusBH, diskMat);
-        diskMesh.rotation.x = Math.PI / 2;
-        this.blackHoleGroup.add(bhCore);
-        this.blackHoleGroup.add(diskMesh);
-        this.add(this.blackHoleGroup);
-
-        // 7. Hit mesh for raycaster
-        this.hitMesh = new THREE.Mesh(
-            GEOMETRIES.sphereLow,
-            new THREE.MeshBasicMaterial({visible: false})
-        );
-        this.hitMesh.scale.setScalar(8);
-        this.add(this.hitMesh);
-    }
-
-    update(delta: number, appTime: number, cameraPos: THREE.Vector3, physics: any, overrideT?: number, cosmicAge?: number) {
-        const effG = Math.max(0.01, physics.G);
-        const expL = Math.max(0.1, physics.lambda);
-        this.scale.setScalar(expL);
-        
-        const effMass = this.mass * effG;
-        const ignites = effG > 0.3;
-
-        // Calculate 't' based on cosmic age
-        if (overrideT !== undefined) {
-             this.t = overrideT;
-        } else if (cosmicAge !== undefined) {
-             const ageMyr = (cosmicAge - this.birthAge) * 1000;
-             if (ageMyr < 0) {
-                 this.t = -0.1; // pre-birth
-             } else {
-                 this.t = ageMyr / (this.lifespanReal / effG);
-             }
-        } // else keep existing t? 
-
-        // If not born yet, hide everything
-        if (this.t < 0) {
-            this.visible = false;
-            return;
-        } else {
-            this.visible = true;
-        }
-
-        if (!ignites && this.t > 0.14) {
-             this.t = 0.14;
-        }
-
-        if (this.t > 1.0) {
-            this.t = Math.min(1.05, this.t);
-            this.isSupernovaFlashing = false;
-        }
-
-        this.currentRealAge = this.t * this.lifespanReal;
-
-        this.protostarGroup.visible = false;
-        this.mainSeqGroup.visible = false;
-        this.redGiantGroup.visible = false;
-        this.supernovaGroup.visible = false;
-        this.neutronStarGroup.visible = false;
-        this.blackHoleGroup.visible = false;
-
-        this.nebulaMesh.visible = false;        this.hzMesh.visible = false;
-        this.snRing.visible = false;
-        this.ejectaMesh.visible = false;
-        this.blackHoleGroup.visible = false;
-        this.dustCloud.visible = false;
-        this.planetsInfo.forEach(p => p.pivot.visible = false);
-
-        let targetProto = 0, targetMain = 0, targetRed = 0, targetSuper = 0, targetNs = 0;
-
-        const groupVisibility = {
-            [PHASES.PROTOSTAR]: this.protostarGroup,
-            [PHASES.MAIN_SEQUENCE]: this.mainSeqGroup,
-            [PHASES.RED_GIANT]: this.redGiantGroup,
-            [PHASES.SUPERNOVA]: this.supernovaGroup,
-            [PHASES.REMNANT]: this.neutronStarGroup,
-        };
-
-        const target: Record<number, number> = {
-            [PHASES.PROTOSTAR]: targetProto,
-            [PHASES.MAIN_SEQUENCE]: targetMain,
-            [PHASES.RED_GIANT]: targetRed,
-            [PHASES.SUPERNOVA]: targetSuper,
-            [PHASES.REMNANT]: targetNs,
-        };
-
-        Object.entries(groupVisibility).forEach(([p, group]) => {
-            const phase = parseInt(p);
-            if (target[phase] > 0) {
-                group.visible = true;
-                group.traverse((obj) => {
-                    if ((obj as any).material) {
-                        (obj as any).material.opacity = target[phase];
-                        (obj as any).material.transparent = true;
-                    }
-                });
-            }
-        });
-
-        if (this.t < 0.05) {
-            this.phase = PHASES.NEBULA;
-            this.nebulaMesh.visible = true;
-            this.dustCloud.visible = true;
-            const normT = this.t / 0.05;
-            
-            this.nebulaMat.uniforms.uTime.value = appTime;
-            this.nebulaMat.uniforms.uCollapse.value = normT;
-            this.nebulaMat.uniforms.uCameraPos.value.copy(cameraPos);
-            this.nebulaMat.uniforms.uInverseModelMatrix.value.copy(this.nebulaMesh.matrixWorld).invert();
-            
-            this.dustCloud.rotation.y += delta * 0.2;
-            (this.dustCloud.material as THREE.ShaderMaterial).uniforms.uAlpha.value = 1.0;
-            this.dustCloud.scale.setScalar(1.0 - normT * 0.5);
-
-            this.currentTemp = 50 + normT * 1000;
-            this.currentLum = normT * 0.1;
-
-        } else if (this.t < 0.15) {
-            this.phase = PHASES.PROTOSTAR;
-            targetProto = 1;
-            const normT = (this.t - 0.05) / 0.10;
-            
-            if (normT < 0.8) {
-                this.nebulaMesh.visible = true;
-                this.nebulaMat.uniforms.uCollapse.value = 1.0;
-                this.dustCloud.visible = true;
-                this.dustCloud.rotation.y += delta * 0.5;
-                (this.dustCloud.material as THREE.ShaderMaterial).uniforms.uAlpha.value = 1.0 - normT * 1.25;
-                this.dustCloud.scale.setScalar(0.5 - normT * 0.2);
-            }
-
-            const introScale = this.baseRadius * (0.5 + normT * 0.5);
-            this.protostarMesh.scale.setScalar(introScale);
-            this.currentTemp = 1000 + normT * (this.tHeat - 1000);
-            this.currentLum = normT * Math.pow(this.mass, 3.5);
-            
-            this.protostarMat.uniforms.uTime.value = appTime;
-            this.protostarDisk.rotation.z += delta;
-
-        } else if (this.t < 0.70) {
-            this.phase = PHASES.MAIN_SEQUENCE;
-            targetMain = 1;
-            const noChem = physics.alpha > 1.2;
-            this.hzMesh.visible = !noChem;
-            
-            this.starMesh.scale.setScalar(this.baseRadius);
-            this.currentTemp = this.tHeat;
-            this.currentLum = Math.pow(this.mass, 3.5);
-            
-            this.starMat.uniforms.uTime.value = appTime;
-
-            if (!noChem) {
-                this.planetsInfo.forEach(p => {
-                    p.pivot.visible = true;
-                    p.pivot.rotation.y += p.speed * delta;
-                    (p.mesh.material as THREE.MeshStandardMaterial).color.setHex(0xaaaaaa);
-                    (p.mesh.material as THREE.MeshStandardMaterial).emissive.setHex(0x000000);
-                });
-            }
-            if (physics.alpha < 0.5) {
-                this.currentLum *= 10.0;
-                this.currentTemp = 100000;
-            }
-
-        } else if (this.t < 0.85) {
-            this.phase = PHASES.RED_GIANT;
-            targetRed = 1;
-            const normT = (this.t - 0.70) / 0.15;
-            
-            const giantScale = this.baseRadius * (1.0 + normT * 6.0) + Math.sin(appTime * 2.0) * 0.1;
-            this.redGiantMesh.scale.setScalar(giantScale);
-            
-            this.currentTemp = this.tHeat - normT * (this.tHeat - 3000);
-            this.currentLum = Math.pow(this.mass, 3.5) * (1.0 + normT * 5.0);
-            
-            this.redGiantMat.uniforms.uTime.value = appTime;
-
-            // Destroy inner planets
-            this.planetsInfo.forEach(p => {
-                p.pivot.visible = true;
-                p.pivot.rotation.y += p.speed * delta;
-                if (p.dist < giantScale * 1.2) {
-                    const dmg = Math.max(0, 1.0 - (p.dist - giantScale) / (giantScale * 0.2));
-                    (p.mesh.material as THREE.MeshStandardMaterial).color.setHex(0x222222);
-                    (p.mesh.material as THREE.MeshStandardMaterial).emissive.setHex(0xffaa00);
-                    (p.mesh.material as THREE.MeshStandardMaterial).emissiveIntensity = dmg;
-                    p.mesh.scale.setScalar(Math.max(0.01, 1.0 - dmg));
-                } else {
-                    p.mesh.scale.setScalar(1.0);
-                    (p.mesh.material as THREE.MeshStandardMaterial).emissiveIntensity = 0;
-                }
-            });
-
-        } else if (this.t < 0.90) {
-            this.phase = PHASES.SUPERNOVA;
-            targetSuper = 1;
-            const normT = (this.t - 0.85) / 0.05;
-            
-            if (effMass > 8) {
-                if (normT < 0.1) this.isSupernovaFlashing = true;
-
-                this.snRing.visible = true;
-                this.snRing.scale.setScalar(1.0 + normT * 60.0);
-                (this.snRing.material as THREE.MeshBasicMaterial).opacity = 1.0 - Math.pow(normT, 2);
-                
-                this.ejectaMesh.visible = true;
-                this.ejectaMat.uniforms.uExp.value = normT;
-                this.ejectaMat.uniforms.uColor.value.setHex(normT < 0.2 ? 0xffffff : 0xff4411);
-
-                this.coreFlashMesh.scale.setScalar(this.baseRadius * 7.0 * (1.0 - normT));
-                this.currentTemp = 100000;
-                this.currentLum = 100000;
-            } else {
-                // Planetary Nebula (gentle puff)
-                this.snRing.visible = true;
-                this.snRing.scale.setScalar(1.0 + normT * 20.0);
-                (this.snRing.material as THREE.MeshBasicMaterial).opacity = 0.5 * (1.0 - normT);
-                (this.snRing.material as THREE.MeshBasicMaterial).color.setHex(0x00ffaa);
-                
-                this.ejectaMesh.visible = true;
-                this.ejectaMat.uniforms.uExp.value = normT * 0.5;
-                this.ejectaMat.uniforms.uColor.value.setHex(0x00ffaa);
-
-                this.coreFlashMesh.scale.setScalar(this.baseRadius * (1.0 - normT * 0.8));
-                this.currentTemp = 20000;
-            }
-
-        } else {
-            this.phase = PHASES.REMNANT;
-            this.isSupernovaFlashing = false;
-            
-            if (effMass > 15) {
-                // Black Hole
-                this.blackHoleGroup.visible = true;
-                this.blackHoleGroup.rotation.y += delta;
-                this.blackHoleGroup.rotation.z = Math.PI / 8;
-                this.currentTemp = 0;
-                this.currentLum = 0;
-            } else if (effMass > 8) {
-                // Neutron Star / Pulsar
-                targetNs = 1;
-                this.pulsarGroup.rotation.y += delta * 5.0;
-                this.nsMagneticLines.rotation.y += delta * 2.0;
-                this.currentTemp = 500000;
-                this.currentLum = 0.5;
-            } else {
-                // White Dwarf
-                targetNs = 1;
-                this.pulsarGroup.visible = false;
-                this.nsMagneticLines.visible = false;
-                this.currentTemp = 100000;
-                this.currentLum = 0.1;
-            }
-        }
-        
-        // Smooth transitions across all components
-        const speed = delta * 4.0;
-        const stepOp = (current: number, target: number) => {
-            if (current < target) return Math.min(target, current + speed);
-            if (current > target) return Math.max(target, current - speed);
-            return current;
-        };
-
-        const opP = stepOp(this.protostarMat.uniforms.uOpacity.value, targetProto);
-        // Flickering opacity animation for Protostar
-        this.protostarMat.uniforms.uOpacity.value = targetProto > 0 ? opP * (0.8 + 0.2 * Math.sin(appTime * 20.0)) : opP;
-        this.protostarMat.uniforms.uHbar.value = physics.hbar;
-        (this.protostarDisk.material as THREE.MeshBasicMaterial).opacity = opP * 0.8;
-        this.protostarGroup.visible = opP > 0.01;
-
-        const opM = stepOp(this.starMat.uniforms.uOpacity.value, targetMain);
-        this.starMat.uniforms.uOpacity.value = opM;
-        this.starMat.uniforms.uHbar.value = physics.hbar;
-        (this.coronaMesh.material as THREE.MeshBasicMaterial).opacity = opM * 0.3;
-        this.mainSeqGroup.visible = opM > 0.01;
-
-        const opR = stepOp(this.redGiantMat.uniforms.uOpacity.value, targetRed);
-        this.redGiantMat.uniforms.uOpacity.value = opR;
-        this.redGiantMat.uniforms.uHbar.value = physics.hbar;
-        this.redGiantGroup.visible = opR > 0.01;
-
-        const opS = stepOp((this.coreFlashMesh.material as THREE.MeshBasicMaterial).opacity, targetSuper);
-        (this.coreFlashMesh.material as THREE.MeshBasicMaterial).opacity = opS;
-        this.supernovaGroup.visible = opS > 0.01;
-
-        const opNsLines = stepOp(((this.nsMagneticLines.children[0] as THREE.Mesh).material as THREE.MeshBasicMaterial).opacity, targetNs ? 0.3 : 0);
-        this.nsMagneticLines.children.forEach(c => {
-            ((c as THREE.Mesh).material as THREE.MeshBasicMaterial).opacity = opNsLines;
-        });
-        this.pulsarGroup.children.forEach(c => {
-            ((c as THREE.Mesh).material as THREE.MeshBasicMaterial).opacity = targetNs ? 0.6 : 0;
-        });
-        const nsMeshMat = (this.neutronStarGroup.children[0] as THREE.Mesh).material as THREE.MeshBasicMaterial;
-        nsMeshMat.opacity = stepOp(nsMeshMat.opacity, targetNs);
-        nsMeshMat.transparent = true;
-        this.neutronStarGroup.visible = targetNs > 0.01 || opNsLines > 0.01;
-    }
-}
 
 export function AetherGenesis() {
   const mountRef = useRef<HTMLDivElement>(null);
@@ -1009,6 +30,8 @@ export function AetherGenesis() {
   const hudZ = useRef<HTMLSpanElement>(null);
   const hudAge = useRef<HTMLSpanElement>(null);
   const globalTimelineFillRef = useRef<HTMLDivElement>(null);
+  const stellarSliderRef = useRef<HTMLDivElement>(null);
+  const globalSliderRef = useRef<HTMLDivElement>(null);
 
   // Focus UI Refs
   const uiPhase = useRef<HTMLSpanElement>(null);
@@ -1042,6 +65,7 @@ export function AetherGenesis() {
   useEffect(() => { isPlayingCosmicRef.current = isPlayingCosmic; }, [isPlayingCosmic]);
 
   const [selectedStar, setSelectedStarState] = useState<HeroStarSystem | null>(null);
+  const [analysisFailed, setAnalysisFailed] = useState(false);
   const selectedStarRef = useRef<HeroStarSystem | null>(null);
   const controlsRef = useRef<OrbitControls | null>(null);
   const heroStarsRef = useRef<HeroStarSystem[]>([]);
@@ -1053,12 +77,6 @@ export function AetherGenesis() {
     const scene = new THREE.Scene();
     scene.background = new THREE.Color(0x000000);
     scene.fog = new THREE.FogExp2(0x000000, 0.002);
-
-    // Add ambient and point light for planet visibility
-    const baseAmbientLight = new THREE.AmbientLight(0x404040, 2);
-    scene.add(baseAmbientLight);
-    const pointLight = new THREE.PointLight(0xffffff, 50, 500);
-    scene.add(pointLight);
 
     const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 1, 2000);
     camera.position.set(0, 180, 380);
@@ -1148,8 +166,8 @@ export function AetherGenesis() {
 
     const starfield = new THREE.Points(geometry, material);
     scene.add(starfield);
-    const ambientLight = new THREE.AmbientLight(0x222244, 3.0);
-    scene.add(ambientLight);
+    const bgAmbientLight = new THREE.AmbientLight(0x222244, 3.0);
+    scene.add(bgAmbientLight);
     const sunLight = new THREE.PointLight(0xffeedd, 4.0, 800);
     sunLight.position.set(0, 0, 0);
     scene.add(sunLight);
@@ -1256,8 +274,7 @@ export function AetherGenesis() {
 
     const animate = () => {
         frameId = requestAnimationFrame(animate);
-        let delta = clock.getDelta();
-        if (delta > 0.1) delta = 0.1; // Clamp delta to avoid massive spikes
+        let delta = Math.min(clock.getDelta(), 0.05);
         appTime += delta;
 
         // Auto play cosmic Age if playing
@@ -1318,7 +335,12 @@ export function AetherGenesis() {
         if (hudX.current) hudX.current.innerText = camera.position.x.toFixed(1);
         if (hudY.current) hudY.current.innerText = camera.position.y.toFixed(1);
         if (hudZ.current) hudZ.current.innerText = camera.position.z.toFixed(1);
-        if (hudAge.current) hudAge.current.innerText = cosmicAgeRef.current.toFixed(2);
+        const cage = cosmicAgeRef.current.toFixed(2);
+        if (hudAge.current) hudAge.current.innerText = cage;
+        if (globalSliderRef.current) {
+            globalSliderRef.current.setAttribute('aria-valuenow', cage);
+            globalSliderRef.current.setAttribute('aria-valuetext', `${cage} Gigayears`);
+        }
 
         // Update Selected Star UI Panel dynamically to save React renders
         if (selectedStarRef.current) {
@@ -1328,7 +350,12 @@ export function AetherGenesis() {
             if (uiMass.current) uiMass.current.innerText = s.mass.toFixed(2);
             if (uiAge2.current) uiAge2.current.innerText = s.currentRealAge.toFixed(1);
             if (uiLum.current) uiLum.current.innerText = s.currentLum.toFixed(3);
-            if (uiTimelineFill.current) uiTimelineFill.current.style.width = `${s.t * 100}%`;
+            const perc = Math.round(s.t * 100);
+            if (uiTimelineFill.current) uiTimelineFill.current.style.width = `${perc}%`;
+            if (stellarSliderRef.current) {
+                stellarSliderRef.current.setAttribute('aria-valuenow', perc.toString());
+                stellarSliderRef.current.setAttribute('aria-valuetext', `${PHASE_NAMES[s.phase]}, ${perc}% complete`);
+            }
         }
 
         composer.render();
@@ -1345,52 +372,37 @@ export function AetherGenesis() {
     window.addEventListener('resize', handleResize);
 
     return () => {
-        window.removeEventListener('resize', handleResize);
-        window.removeEventListener('pointerdown', onPointerDown);
-        window.removeEventListener('pointermove', onPointerMove);
-        window.removeEventListener('pointerup', onPointerUp);
-        cancelAnimationFrame(frameId);
-        if (mountRef.current && mountRef.current.contains(renderer.domElement)) {
-            mountRef.current.removeChild(renderer.domElement);
-        }
-        geometry.dispose();
-        material.dispose();
-
-        // BOLT OPTIMIZATION: Comprehensive resource cleanup to prevent memory leaks.
-        composer.dispose();
-        controls.dispose();
-
-        // Note: Global shared GEOMETRIES are not disposed here to avoid crashing on remount/HMR.
-        heroStarsRef.current.forEach(hs => {
-            // Dispose unique geometries (HZ and SN rings) and materials of each hero star system
-            hs.traverse((child) => {
-                if (child instanceof THREE.Mesh || child instanceof THREE.Points) {
-                    // Only dispose geometry if it's NOT one of the shared ones
-                    if (child.geometry && !Object.values(GEOMETRIES).includes(child.geometry as any)) {
-                        child.geometry.dispose();
-                    }
-                    if (Array.isArray(child.material)) {
-                        child.material.forEach(m => m.dispose());
-                    } else {
-                        child.material.dispose();
-                    }
-                }
-            });
-        });
-
-        renderer.dispose();
-    };
-    // --- Clean up ---
-    return () => {
+      window.removeEventListener('resize', handleResize);
+      window.removeEventListener('pointerdown', onPointerDown);
+      window.removeEventListener('pointermove', onPointerMove);
+      window.removeEventListener('pointerup', onPointerUp);
+      cancelAnimationFrame(frameId);
+      
       composer.dispose();
       controls.dispose();
       renderer.dispose();
       geometry.dispose();
       material.dispose();
       scene.clear();
-      if (mountRef.current && renderer.domElement) {
+
+      if (mountRef.current && mountRef.current.contains(renderer.domElement)) {
         mountRef.current.removeChild(renderer.domElement);
       }
+
+      heroStarsRef.current.forEach(hs => {
+          hs.traverse((child) => {
+              if (child instanceof THREE.Mesh || child instanceof THREE.Points) {
+                  if (child.geometry && !Object.values(GEOMETRIES).includes(child.geometry as any)) {
+                      child.geometry.dispose();
+                  }
+                  if (Array.isArray(child.material)) {
+                      child.material.forEach(m => m.dispose());
+                  } else if (child.material) {
+                      child.material.dispose();
+                  }
+              }
+          });
+      });
     };
   }, []);
 
@@ -1455,10 +467,12 @@ export function AetherGenesis() {
 
       const data = await response.json();
       setGeminiData(data);
+      setAnalysisFailed(false);
     } catch (err) {
       // Security: Do not leak raw error details or stack traces to the console in production
       // Using generic logs and mock fallback for resilience
       console.warn("Analysis unavailable - using predictive fallback.");
+      setAnalysisFailed(true);
 
       setGeminiData({
         planet_name: "Kerath-7",
@@ -1476,6 +490,7 @@ export function AetherGenesis() {
   // Clear gemini data when star selection changes
   useEffect(() => {
       setGeminiData(null);
+      setAnalysisFailed(false);
   }, [selectedStar]);
 
   return (
@@ -1528,50 +543,50 @@ export function AetherGenesis() {
                 {/* G Slider */}
                 <div>
                     <div className="flex justify-between text-[#7EB8FF] mb-2">
-                        <span>Gravitation (G)</span>
+                        <label htmlFor="slider-g">Gravitation (G)</label>
                         <span>{physics.G.toFixed(2)}</span>
                     </div>
-                    <input type="range" min="0.1" max="5.0" step="0.1" value={physics.G} 
+                    <input id="slider-g" type="range" min="0.1" max="5.0" step="0.1" value={physics.G}
                         onChange={e => setPhysics({...physics, G: parseFloat(e.target.value)})} className="w-full accent-[#C084FC]" />
                     <p className="text-[9px] text-[#7EB8FF]/50 mt-1">G ↑ stars collapse faster, G ↓ cold dwarfs</p>
                 </div>
                 {/* Alpha */}
                 <div>
                     <div className="flex justify-between text-[#7EB8FF] mb-2">
-                        <span>Fine-Structure (α)</span>
+                        <label htmlFor="slider-alpha">Fine-Structure (α)</label>
                         <span>{physics.alpha.toFixed(2)}</span>
                     </div>
-                    <input type="range" min="0.1" max="2.0" step="0.1" value={physics.alpha} 
+                    <input id="slider-alpha" type="range" min="0.1" max="2.0" step="0.1" value={physics.alpha}
                         onChange={e => setPhysics({...physics, alpha: parseFloat(e.target.value)})} className="w-full accent-[#C084FC]" />
                     <p className="text-[9px] text-[#7EB8FF]/50 mt-1">α ↑ chemistry breaks, α ↓ radiation univ</p>
                 </div>
                 {/* Lambda */}
                 <div>
                     <div className="flex justify-between text-[#7EB8FF] mb-2">
-                        <span>Cosmological (Λ)</span>
+                        <label htmlFor="slider-lambda">Cosmological (Λ)</label>
                         <span>{physics.lambda.toFixed(2)}</span>
                     </div>
-                    <input type="range" min="0.1" max="3.0" step="0.1" value={physics.lambda} 
+                    <input id="slider-lambda" type="range" min="0.1" max="3.0" step="0.1" value={physics.lambda}
                         onChange={e => setPhysics({...physics, lambda: parseFloat(e.target.value)})} className="w-full accent-[#C084FC]" />
                     <p className="text-[9px] text-[#7EB8FF]/50 mt-1">Λ ↑ space expands, Λ ↓ crunch</p>
                 </div>
                 {/* c */}
                 <div>
                     <div className="flex justify-between text-[#7EB8FF] mb-2">
-                        <span>Speed of Light (c)</span>
+                        <label htmlFor="slider-c">Speed of Light (c)</label>
                         <span>{physics.c.toFixed(2)}</span>
                     </div>
-                    <input type="range" min="0.1" max="3.0" step="0.1" value={physics.c} 
+                    <input id="slider-c" type="range" min="0.1" max="3.0" step="0.1" value={physics.c}
                         onChange={e => setPhysics({...physics, c: parseFloat(e.target.value)})} className="w-full accent-[#C084FC]" />
                     <p className="text-[9px] text-[#7EB8FF]/50 mt-1">c ↑ universe looks flatter</p>
                 </div>
                 {/* hbar */}
                 <div>
                     <div className="flex justify-between text-[#7EB8FF] mb-2">
-                        <span>Planck Constant (ħ)</span>
+                        <label htmlFor="slider-hbar">Planck Constant (ħ)</label>
                         <span>{physics.hbar.toFixed(2)}</span>
                     </div>
-                    <input type="range" min="0.0" max="3.0" step="0.1" value={physics.hbar} 
+                    <input id="slider-hbar" type="range" min="0.0" max="3.0" step="0.1" value={physics.hbar}
                         onChange={e => setPhysics({...physics, hbar: parseFloat(e.target.value)})} className="w-full accent-[#C084FC]" />
                     <p className="text-[9px] text-[#7EB8FF]/50 mt-1">ħ ↑ quantum foam visible</p>
                 </div>
@@ -1641,6 +656,7 @@ export function AetherGenesis() {
                         </div>                    </div>
                     {/* Scrubbable Timeline */}
                     <div 
+                        ref={stellarSliderRef}
                         role="slider"
                         tabIndex={0}
                         aria-label="Stellar lifecycle timeline"
@@ -1652,6 +668,13 @@ export function AetherGenesis() {
                         onPointerMove={(e) => { if(isScrubbingRef.current) handleTimelineScrub(e); }}
                         onPointerUp={() => { isScrubbingRef.current = false; }}
                         onPointerLeave={() => { isScrubbingRef.current = false; }}
+                        onKeyDown={(e) => {
+                          if (!selectedStarRef.current) return;
+                          if (e.key === 'ArrowRight') 
+                            selectedStarRef.current.t = Math.min(1, selectedStarRef.current.t + 0.01);
+                          if (e.key === 'ArrowLeft') 
+                            selectedStarRef.current.t = Math.max(0, selectedStarRef.current.t - 0.01);
+                        }}
                     >
                         <div ref={uiTimelineFill} className="h-full bg-gradient-to-r from-blue-500 via-fuchsia-500 to-red-500" style={{width: '0%'}}></div>
                         <div className="absolute inset-0 bg-white/20 opacity-0 group-hover:opacity-100 transition-opacity"></div>
@@ -1676,6 +699,11 @@ export function AetherGenesis() {
                             <div className="text-white"><span className="text-[#7EB8FF]/70">Biome:</span> {geminiData.biome}</div>
                             <div className="text-white"><span className="text-[#7EB8FF]/70">Species:</span> {geminiData.dominant_species} (Stage {geminiData.life_stage})</div>
                             <div className="text-white"><span className="text-[#7EB8FF]/70">Civilization:</span> {geminiData.civilization}</div>
+                            {analysisFailed && (
+                              <p className="text-[9px] text-yellow-400/70 mt-3 italic">
+                                ⚠ Predictive fallback — AI scan unavailable
+                              </p>
+                            )}
                         </div>
                     )}
                 </div>
@@ -1711,6 +739,7 @@ export function AetherGenesis() {
             </div>
             
             <div 
+                ref={globalSliderRef}
                 role="slider"
                 tabIndex={0}
                 aria-label="Global cosmic age timeline"
@@ -1725,6 +754,8 @@ export function AetherGenesis() {
                 onKeyDown={(e) => {
                     if (e.key === 'ArrowRight') { const v = Math.min(14, cosmicAgeRef.current + 0.1); setCosmicAge(v); cosmicAgeRef.current = v; }
                     if (e.key === 'ArrowLeft') { const v = Math.max(0, cosmicAgeRef.current - 0.1); setCosmicAge(v); cosmicAgeRef.current = v; }
+                    if (e.key === 'Home') { setCosmicAge(0); cosmicAgeRef.current = 0; }
+                    if (e.key === 'End') { setCosmicAge(14); cosmicAgeRef.current = 14; }
                 }}
             >
                 <div ref={globalTimelineFillRef} className="h-full bg-gradient-to-r from-[#7EB8FF] to-[#C084FC]" style={{width: `${(cosmicAge / 14.0) * 100}%`}}></div>
