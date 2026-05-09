@@ -352,9 +352,9 @@ export function AetherGenesis() {
         camera.updateProjectionMatrix();
 
         // Update HUD
-        if (hudX.current) hudX.current.innerText = camera.position.x.toFixed(1);
-        if (hudY.current) hudY.current.innerText = camera.position.y.toFixed(1);
-        if (hudZ.current) hudZ.current.innerText = camera.position.z.toFixed(1);
+        if (hudX.current) hudX.current.innerText = camera.position.x.toFixed(4);
+        if (hudY.current) hudY.current.innerText = camera.position.y.toFixed(4);
+        if (hudZ.current) hudZ.current.innerText = camera.position.z.toFixed(4);
         const cage = cosmicAgeRef.current.toFixed(2);
         if (hudAge.current) hudAge.current.innerText = cage;
         if (globalSliderRef.current) {
