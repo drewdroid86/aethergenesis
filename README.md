@@ -10,11 +10,22 @@ View your app in AI Studio: https://ai.studio/apps/4ce5a106-c948-4883-98a8-53f83
 
 ## Run Locally
 
-**Prerequisites:**  Node.js
-
+**Prerequisites:** Node.js
 
 1. Install dependencies:
    `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
-   `npm run dev`
+2. Copy the env file and add your Gemini API key:
+   `cp .env.example .env`
+   Then edit .env and set GEMINI_API_KEY to your key.
+3. Run both frontend and server together:
+   `npm run dev:full`
+   Or run them separately in two terminals:
+   Terminal 1: `npm run server`
+   Terminal 2: `npm run dev`
+4. Open http://localhost:3000
+
+## Deploy to Render
+- Connect your GitHub repo to Render
+- The render.yaml file handles all build and start configuration
+- Set GEMINI_API_KEY as a secret environment variable in the 
+  Render dashboard under Environment settings
