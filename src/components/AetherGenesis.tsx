@@ -272,6 +272,18 @@ export function AetherGenesis() {
     let appTime = 0;
     let clock = new THREE.Clock();
 
+    /**
+     * BOLT: Utility to update DOM content only when it changes, reducing reflows and repaints.
+     * Uses textContent for better performance than innerText.
+     */
+    const setHUD = (ref: React.RefObject<HTMLElement | null>, value: string | number) => {
+        if (!ref.current) return;
+        const s = value.toString();
+        if (ref.current.textContent !== s) {
+            ref.current.textContent = s;
+        }
+    };
+
     const animate = () => {
         frameId = requestAnimationFrame(animate);
         let delta = Math.min(clock.getDelta(), 0.05);
@@ -286,6 +298,9 @@ export function AetherGenesis() {
             // BOLT OPTIMIZATION: Use direct DOM manipulation for the global timeline to eliminate periodic React re-renders during the simulation loop.
             if (globalTimelineFillRef.current) {
                 globalTimelineFillRef.current.style.width = `${(cosmicAgeRef.current / 14.0) * 100}%`;
+            }
+            if (globalSliderRef.current) {
+                globalSliderRef.current.setAttribute('aria-valuenow', cosmicAgeRef.current.toFixed(2));
             }
 
             // BOLT: Throttled state update (once per second) to keep ARIA attributes and React state in sync without harming performance.
