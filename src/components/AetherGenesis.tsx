@@ -429,6 +429,11 @@ export function AetherGenesis() {
       const x = Math.max(0, Math.min(e.clientX - rect.left, rect.width));
       const percentage = x / rect.width;
       selectedStarRef.current.t = percentage;
+
+      // Update ARIA attributes directly for immediate screen reader feedback
+      const slider = e.currentTarget;
+      slider.setAttribute('aria-valuenow', Math.round(percentage * 100).toString());
+      slider.setAttribute('aria-valuetext', PHASE_NAMES[selectedStarRef.current.phase]);
   };
 
   const handleGlobalTimelineScrub = (e: React.MouseEvent<HTMLDivElement>) => {
@@ -439,6 +444,9 @@ export function AetherGenesis() {
       const newAge = percentage * 14.0;
       setCosmicAge(newAge);
       cosmicAgeRef.current = newAge;
+
+      // Update ARIA attributes directly
+      e.currentTarget.setAttribute('aria-valuenow', newAge.toFixed(2));
   };
 
   const [isAnalyzing, setIsAnalyzing] = useState(false);
@@ -678,6 +686,7 @@ export function AetherGenesis() {
                         aria-valuemin={0}
                         aria-valuemax={100}
                         aria-valuenow={selectedStar ? Math.round(selectedStar.t * 100) : 0}
+                        aria-valuetext={selectedStar ? PHASE_NAMES[selectedStar.phase] : ""}
                         className="w-full h-2 bg-white/10 rounded-full overflow-hidden cursor-ew-resize relative group focus-visible:ring-2 focus-visible:ring-[#C084FC] outline-none"
                         onPointerDown={(e) => { isScrubbingRef.current = true; handleTimelineScrub(e); }}
                         onPointerMove={(e) => { if(isScrubbingRef.current) handleTimelineScrub(e); }}
