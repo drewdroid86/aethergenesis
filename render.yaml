@@ -1,0 +1,11 @@
+services:
+  - type: web
+    name: aethergenesis
+    env: node
+    buildCommand: npm install && npm run build
+    startCommand: npm start
+    envVars:
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: NODE_ENV
+        value: production
