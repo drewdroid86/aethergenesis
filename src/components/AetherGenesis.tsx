@@ -16,12 +16,17 @@ import { GLSL_NOISE, GLSL_NOISE_SIMPLE } from '../shaders/utils/noise';
 import { getStellarColor, randomGaussian } from '../utils/math';
 
 import { starVertexShader, starFragmentShader, nebulaFS, starSurfaceFS } from '../shaders/star';
-import HeroStarSystem from '../simulation/HeroStarSystem';
+import HeroStarSystem, { GEOMETRIES } from '../simulation/HeroStarSystem';
+import { CinematicPassVertex, CinematicPassFragment } from '../shaders/geometry';
 
-
-
-
-
+const CinematicPass = {
+  uniforms: {
+    tDiffuse: { value: null },
+    time: { value: 0 }
+  },
+  vertexShader: CinematicPassVertex,
+  fragmentShader: CinematicPassFragment
+};
 
 export function AetherGenesis() {
   const mountRef = useRef<HTMLDivElement>(null);

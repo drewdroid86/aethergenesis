@@ -11,13 +11,52 @@ const port = process.env.PORT || 3001;
 
 app.use(express.json());
 
+// Security: Set basic security headers
+app.use((_req, res, next) => {
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('X-Frame-Options', 'DENY');
+  res.setHeader('X-XSS-Protection', '1; mode=block');
+  next();
+});
+
+// Security: Simple in-memory rate limiting for AI analysis
+const analysisLimitMap = new Map<string, number>();
+const RATE_LIMIT_WINDOW = 60 * 1000; // 1 minute
+const MAX_REQUESTS_PER_WINDOW = 5;
+const MAX_ENTRIES = 1000; // Memory protection
+
+// Periodic cleanup to prevent memory exhaustion
+setInterval(() => {
+  const now = Date.now();
+  for (const [ip, time] of analysisLimitMap.entries()) {
+    if (now - time > RATE_LIMIT_WINDOW) analysisLimitMap.delete(ip);
+  }
+}, RATE_LIMIT_WINDOW);
+
 const apiKey = process.env.GEMINI_API_KEY;
 const ai = apiKey ? new GoogleGenAI({ apiKey }) : null;
 
 app.post('/api/analyze', async (req, res) => {
   if (!ai) {
-    return res.status(500).json({ error: 'GEMINI_API_KEY is not configured on the server.' });
+    // Security: Generic error message to avoid leaking server config
+    return res.status(503).json({ error: 'Analysis service currently unavailable.' });
   }
+
+  // Security: Rate limiting by IP
+  const ip = req.ip || req.socket.remoteAddress || 'unknown';
+  const now = Date.now();
+  const lastRequestTime = analysisLimitMap.get(ip) || 0;
+
+  if (now - lastRequestTime < (RATE_LIMIT_WINDOW / MAX_REQUESTS_PER_WINDOW)) {
+    return res.status(429).json({ error: 'Too many requests. Please slow down.' });
+  }
+
+  // Memory protection: don't add new IPs if map is too large
+  if (analysisLimitMap.size >= MAX_ENTRIES && !analysisLimitMap.has(ip)) {
+    return res.status(503).json({ error: 'Server busy.' });
+  }
+
+  analysisLimitMap.set(ip, now);
 
   const { temp, mass, lum, age, phase, G, alpha } = req.body;
 
