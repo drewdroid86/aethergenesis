@@ -16,7 +16,7 @@ class MagneticCurve extends THREE.Curve<THREE.Vector3> {
     }
 }
 
-const GEOMETRIES = {
+export const GEOMETRIES = {
     sphereNebula: new THREE.SphereGeometry(15, 32, 32),
     sphereHigh: new THREE.SphereGeometry(1, 64, 64),
     sphereMid: new THREE.SphereGeometry(1, 32, 32),
