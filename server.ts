@@ -9,13 +9,19 @@ dotenv.config();
 const app = express();
 const port = process.env.PORT || 3001;
 
+// Security: Trust first proxy (Render, etc.) for accurate IP rate limiting
+app.set('trust proxy', 1);
+
 app.use(express.json());
 
-// Security: Set basic security headers
+// Security: Set enhanced security headers
 app.use((_req, res, next) => {
   res.setHeader('X-Content-Type-Options', 'nosniff');
   res.setHeader('X-Frame-Options', 'DENY');
   res.setHeader('X-XSS-Protection', '1; mode=block');
+  res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
+  res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+  res.setHeader('Content-Security-Policy', "default-src 'self'; script-src 'self' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; connect-src 'self' ws:; img-src 'self' data:; font-src 'self';");
   next();
 });
 

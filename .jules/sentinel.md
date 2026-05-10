@@ -12,3 +12,8 @@
 **Vulnerability:** Revealing environment state through error messages in an API proxy.
 **Learning:** Returning specific error messages like "API key missing" when an LLM fails allows external actors to fingerprint the server's environment configuration and service availability.
 **Prevention:** Mask internal configuration status behind generic HTTP status codes (e.g., 503 Service Unavailable) and log details only on the server side.
+
+## 2026-05-30 - [Centralized Security Header Enforcement]
+**Vulnerability:** Weak security policy enforcement via HTML meta tags and missing transport security.
+**Learning:** CSP and Referrer policies defined in `<meta>` tags are limited in scope and don't cover all resource types or API responses. Missing `Strict-Transport-Security` (HSTS) leaves users vulnerable to SSL stripping.
+**Prevention:** Centralize all security policies in server-side HTTP headers. Use `app.set('trust proxy', 1)` when running behind reverse proxies to ensure security logic (like rate limiting) receives the correct client IP.
