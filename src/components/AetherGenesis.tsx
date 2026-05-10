@@ -5,7 +5,7 @@ import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
-import { Crosshair, Navigation, Scan, Zap, Play, Pause, X, Settings2 } from 'lucide-react';
+import { Crosshair, Navigation, Scan, Zap, Play, Pause, X, Settings2, RotateCcw } from 'lucide-react';
 
 import { 
   IS_MOBILE, NUM_STARS, HERO_COUNT, GALAXY_ARMS, GALAXY_SPIN, 
@@ -74,6 +74,22 @@ export function AetherGenesis() {
   const selectedStarRef = useRef<HeroStarSystem | null>(null);
   const controlsRef = useRef<OrbitControls | null>(null);
   const heroStarsRef = useRef<HeroStarSystem[]>([]);
+
+  // Palette: Global keyboard shortcuts
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+        if (e.key === 'Escape') {
+            selectedStarRef.current = null;
+            setSelectedStarState(null);
+        }
+        if (e.key === ' ' && document.activeElement?.tagName !== 'INPUT' && document.activeElement?.tagName !== 'BUTTON') {
+            e.preventDefault();
+            setIsPlayingCosmic(prev => !prev);
+        }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
 
   useEffect(() => {
     if (!mountRef.current) return;
@@ -239,6 +255,13 @@ export function AetherGenesis() {
         if (Math.abs(e.clientX - mouseDownPos.x) > 5 || Math.abs(e.clientY - mouseDownPos.y) > 5) {
             isDragging = true;
         }
+
+        // Palette: Add hover feedback for interactive stars
+        mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
+        mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
+        raycaster.setFromCamera(mouse, camera);
+        const intersects = raycaster.intersectObjects(heroStarsRef.current.map(h => h.hitMesh));
+        renderer.domElement.style.cursor = intersects.length > 0 ? 'pointer' : 'crosshair';
     };
 
     const onPointerUp = (e: PointerEvent) => {
@@ -555,10 +578,20 @@ export function AetherGenesis() {
       {/* Physical Constants Control Panel */}
       {isConstantsOpen ? (
         <div className="absolute left-8 top-32 w-[min(320px,85vw)] bg-[rgba(14,14,28,0.7)] backdrop-blur-xl border border-[rgba(126,184,255,0.3)] rounded-2xl p-6 z-30 shadow-[0_0_30px_rgba(0,0,0,0.5)] transform transition-all pointer-events-auto">            <div className="flex items-center justify-between mb-6 pb-4 border-b border-[rgba(126,184,255,0.1)]">
-                <h2 className="text-sm font-bold tracking-widest uppercase text-white flex items-center gap-3">
-                    <Settings2 size={20} className="text-[#C084FC]" />
-                    Constants
-                </h2>
+                <div className="flex items-center gap-3">
+                    <h2 className="text-sm font-bold tracking-widest uppercase text-white flex items-center gap-3">
+                        <Settings2 size={20} className="text-[#C084FC]" />
+                        Constants
+                    </h2>
+                    <button
+                        onClick={() => setPhysics({ G: 1.0, alpha: 1.0, lambda: 1.0, c: 1.0, hbar: 1.0 })}
+                        className="text-[#7EB8FF]/70 hover:text-white transition-colors focus-visible:ring-2 focus-visible:ring-[#C084FC] outline-none rounded"
+                        aria-label="Reset Physics Constants"
+                        title="Reset to Defaults"
+                    >
+                        <RotateCcw size={16} />
+                    </button>
+                </div>
                 <button
                     onClick={() => setIsConstantsOpen(false)}
                     className="text-[#7EB8FF]/70 hover:text-white transition-colors focus-visible:ring-2 focus-visible:ring-[#C084FC] outline-none rounded"
@@ -714,10 +747,16 @@ export function AetherGenesis() {
                         onPointerLeave={() => { isScrubbingRef.current = false; }}
                         onKeyDown={(e) => {
                           if (!selectedStarRef.current) return;
-                          if (e.key === 'ArrowRight') 
+                          if (e.key === 'ArrowRight') {
+                            e.preventDefault();
                             selectedStarRef.current.t = Math.min(1, selectedStarRef.current.t + 0.01);
-                          if (e.key === 'ArrowLeft') 
+                          }
+                          if (e.key === 'ArrowLeft') {
+                            e.preventDefault();
                             selectedStarRef.current.t = Math.max(0, selectedStarRef.current.t - 0.01);
+                          }
+                          if (e.key === 'Home') { e.preventDefault(); selectedStarRef.current.t = 0; }
+                          if (e.key === 'End') { e.preventDefault(); selectedStarRef.current.t = 1; }
                         }}
                     >
                         <div ref={uiTimelineFill} className="h-full bg-gradient-to-r from-blue-500 via-fuchsia-500 to-red-500" style={{width: '0%'}}></div>
@@ -797,10 +836,10 @@ export function AetherGenesis() {
                 onPointerUp={() => { isGlobalScrubbingRef.current = false; }}
                 onPointerLeave={() => { isGlobalScrubbingRef.current = false; }}
                 onKeyDown={(e) => {
-                    if (e.key === 'ArrowRight') { const v = Math.min(14, cosmicAgeRef.current + 0.1); setCosmicAge(v); cosmicAgeRef.current = v; }
-                    if (e.key === 'ArrowLeft') { const v = Math.max(0, cosmicAgeRef.current - 0.1); setCosmicAge(v); cosmicAgeRef.current = v; }
-                    if (e.key === 'Home') { setCosmicAge(0); cosmicAgeRef.current = 0; }
-                    if (e.key === 'End') { setCosmicAge(14); cosmicAgeRef.current = 14; }
+                    if (e.key === 'ArrowRight') { e.preventDefault(); const v = Math.min(14, cosmicAgeRef.current + 0.1); setCosmicAge(v); cosmicAgeRef.current = v; }
+                    if (e.key === 'ArrowLeft') { e.preventDefault(); const v = Math.max(0, cosmicAgeRef.current - 0.1); setCosmicAge(v); cosmicAgeRef.current = v; }
+                    if (e.key === 'Home') { e.preventDefault(); setCosmicAge(0); cosmicAgeRef.current = 0; }
+                    if (e.key === 'End') { e.preventDefault(); setCosmicAge(14); cosmicAgeRef.current = 14; }
                 }}
             >
                 <div ref={globalTimelineFillRef} className="h-full bg-gradient-to-r from-[#7EB8FF] to-[#C084FC]" style={{width: `${(cosmicAge / 14.0) * 100}%`}}></div>
