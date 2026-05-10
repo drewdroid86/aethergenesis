@@ -7,3 +7,8 @@
 **Vulnerability:** Untrusted state updates from non-validated AI JSON responses.
 **Learning:** LLM outputs are non-deterministic and can be influenced by indirect prompt injection or hallucinations. Parsing these directly into application state without strict schema validation can lead to UI breakage or logic errors.
 **Prevention:** Treat LLM responses as untrusted user input. Implement strict field presence and type checking before committing AI-generated data to the global state.
+
+## 2026-05-22 - [Config Leakage via Proxy Errors]
+**Vulnerability:** Revealing environment state through error messages in an API proxy.
+**Learning:** Returning specific error messages like "API key missing" when an LLM fails allows external actors to fingerprint the server's environment configuration and service availability.
+**Prevention:** Mask internal configuration status behind generic HTTP status codes (e.g., 503 Service Unavailable) and log details only on the server side.
