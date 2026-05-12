@@ -13,3 +13,11 @@
 ## 2025-05-15 - [ARIA Synchronization in Ref-Based Architectures]
 **Learning:** In performance-critical components where UI state is managed via React refs (to bypass re-render overhead in animation loops), ARIA attributes like `aria-valuenow` can become stale for screen readers.
 **Action:** Use direct DOM manipulation (`setAttribute`) within interaction handlers to synchronize ARIA attributes immediately. This ensures screen readers announce the correct value in real-time, even when visual updates are driven by refs or animation loops.
+
+## 2025-05-16 - [Parameter Escape Hatches]
+**Learning:** In sandbox simulations where users can drastically alter environment physics (e.g., Gravitation, Light Speed), it's easy to reach "unstable" states where the visualization becomes confusing or blank.
+**Action:** Always provide a "Reset to Defaults" button (using the `RotateCcw` icon) in control panels. Adding a subtle hover animation (like `rotate-[-45deg]`) provides a satisfying micro-interaction that signals the "undo" nature of the action.
+
+## 2025-05-16 - [ARIA Type Safety in React/TS]
+**Learning:** The project's type-checking (`tsc --noEmit`) is strict about ARIA attributes. Passing `aria-valuemin="0"` as a string causes a type mismatch in `DetailedHTMLProps` for `div` elements, as it expects a number.
+**Action:** Always use numeric literals (e.g., `aria-valuemin={0}`) for ARIA numeric attributes in JSX to avoid build failures in this repo's CI.

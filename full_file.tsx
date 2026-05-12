@@ -1308,7 +1308,7 @@ export function AetherGenesis() {
                         </div>
                     </div>
                     {/* Scrubbable Timeline */}
-                    <div role="slider" aria-label="Stellar lifecycle timeline" tabIndex={0} aria-valuemin="0" aria-valuemax="100"
+                    <div role="slider" aria-label="Stellar lifecycle timeline" tabIndex={0} aria-valuemin={0} aria-valuemax={100}
                         className="w-full h-2 bg-white/10 rounded-full overflow-hidden cursor-ew-resize relative group focus-visible:ring-2 focus-visible:ring-indigo-500 focus:outline-none"
                         onPointerDown={(e) => { isScrubbingRef.current = true; handleTimelineScrub(e); }}
                         onPointerMove={(e) => { if(isScrubbingRef.current) handleTimelineScrub(e); }}
