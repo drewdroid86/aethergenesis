@@ -13,6 +13,7 @@ interface InspectPanelProps {
     onScrubStart: (e: React.PointerEvent) => void;
     onScrubMove: (e: React.PointerEvent) => void;
     onScrubEnd: () => void;
+    onKeyDown: (e: React.KeyboardEvent) => void;
     uiRefs: {
         phase: React.RefObject<HTMLSpanElement | null>;
         temp: React.RefObject<HTMLSpanElement | null>;
@@ -33,6 +34,7 @@ export const InspectPanel: React.FC<InspectPanelProps> = ({
     onScrubStart,
     onScrubMove,
     onScrubEnd,
+    onKeyDown,
     uiRefs
 }) => {
     const [isAnalyzing, setIsAnalyzing] = useState(false);
@@ -151,6 +153,7 @@ export const InspectPanel: React.FC<InspectPanelProps> = ({
                         onPointerMove={onScrubMove}
                         onPointerUp={onScrubEnd}
                         onPointerLeave={onScrubEnd}
+                        onKeyDown={onKeyDown}
                     >
                         <div ref={uiRefs.timelineFill} className="h-full bg-gradient-to-r from-blue-500 via-fuchsia-500 to-red-500" style={{width: '0%'}}></div>
                         <div className="absolute inset-0 bg-white/20 opacity-0 group-hover:opacity-100 transition-opacity"></div>
