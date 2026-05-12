@@ -27,6 +27,14 @@ export class HeroStarSystem extends THREE.Group implements PhysicalBody {
     phase: number = 0;
     isSupernovaFlashing: boolean = false;
 
+    private _activePhase: number = -1;
+    private _lastL: number = -1;
+    private _opP: number = 0;
+    private _opM: number = 0;
+    private _opR: number = 0;
+    private _opS: number = 0;
+    private _opNs: number = 0;
+
     private nebulaPhase: NebulaPhase;
     private protostarPhase: ProtostarPhase;
     private mainSequencePhase: MainSequencePhase;
@@ -82,7 +90,12 @@ export class HeroStarSystem extends THREE.Group implements PhysicalBody {
         let targetProto = 0, targetMain = 0, targetRed = 0, targetSuper = 0, targetNs = 0;
         const effG = Math.max(0.01, physics.G);
         const expL = Math.max(0.1, physics.lambda);
-        this.scale.setScalar(expL);
+
+        // BOLT: Guarded scale update
+        if (this._lastL !== expL) {
+            this.scale.setScalar(expL);
+            this._lastL = expL;
+        }
         
         const ignites = effG > 0.3;
 
@@ -111,64 +124,67 @@ export class HeroStarSystem extends THREE.Group implements PhysicalBody {
 
         this.currentRealAge = this.t * this.lifespanReal;
         
-        // Reset Visibilities
-        this.nebulaPhase.hide();
-        this.protostarPhase.hide();
-        this.mainSequencePhase.hide();
-        this.redGiantPhase.hide();
-        this.supernovaPhase.hide();
-        this.remnantPhase.hide();
+        // BOLT: Determine current phase
+        let newPhase = this.phase;
+        if (this.t < 0.05) newPhase = PHASES.NEBULA;
+        else if (this.t < 0.15) newPhase = PHASES.PROTOSTAR;
+        else if (this.t < 0.70) newPhase = PHASES.MAIN_SEQUENCE;
+        else if (this.t < 0.85) newPhase = PHASES.RED_GIANT;
+        else if (this.t < 0.90) newPhase = PHASES.SUPERNOVA;
+        else newPhase = PHASES.REMNANT;
+
+        // BOLT: Guarded phase transition (hide previous, show new)
+        if (this._activePhase !== newPhase) {
+            if (this._activePhase === PHASES.NEBULA) this.nebulaPhase.hide();
+            else if (this._activePhase === PHASES.PROTOSTAR) this.protostarPhase.hide();
+            else if (this._activePhase === PHASES.MAIN_SEQUENCE) this.mainSequencePhase.hide();
+            else if (this._activePhase === PHASES.RED_GIANT) this.redGiantPhase.hide();
+            else if (this._activePhase === PHASES.SUPERNOVA) this.supernovaPhase.hide();
+            else if (this._activePhase === PHASES.REMNANT) this.remnantPhase.hide();
+
+            if (newPhase === PHASES.NEBULA) this.nebulaPhase.show();
+            else if (newPhase === PHASES.PROTOSTAR) this.protostarPhase.show();
+            else if (newPhase === PHASES.MAIN_SEQUENCE) this.mainSequencePhase.show();
+            else if (newPhase === PHASES.RED_GIANT) this.redGiantPhase.show();
+            else if (newPhase === PHASES.SUPERNOVA) this.supernovaPhase.show();
+            else if (newPhase === PHASES.REMNANT) this.remnantPhase.show();
+
+            this._activePhase = newPhase;
+            this.phase = newPhase;
+        }
+
         this.isSupernovaFlashing = false;
 
-        if (this.t < 0.05) {
-            this.phase = PHASES.NEBULA;
-            this.nebulaPhase.show();
+        if (this.phase === PHASES.NEBULA) {
             this.nebulaPhase.update(delta, appTime, cameraPos, physics, this.t);
-            
             const normT = this.t / 0.05;
             this.currentTemp = 50 + normT * 1000;
             this.currentLum = normT * 0.1;
 
-        } else if (this.t < 0.15) {
-            this.phase = PHASES.PROTOSTAR;
+        } else if (this.phase === PHASES.PROTOSTAR) {
             targetProto = 1;
             const normT = (this.t - 0.05) / 0.10;
-            
-            if (normT < 0.8) {
-                this.nebulaPhase.updateAsSecondary(delta, appTime, cameraPos, normT);
-            }
-
-            this.protostarPhase.show();
+            if (normT < 0.8) this.nebulaPhase.updateAsSecondary(delta, appTime, cameraPos, normT);
             this.protostarPhase.update(delta, appTime, cameraPos, physics, this.t);
-            
             this.currentTemp = 1000 + normT * (this.tHeat - 1000);
             this.currentLum = normT * Math.pow(this.mass, 3.5);
 
-        } else if (this.t < 0.70) {
-            this.phase = PHASES.MAIN_SEQUENCE;
+        } else if (this.phase === PHASES.MAIN_SEQUENCE) {
             targetMain = 1;
-            this.mainSequencePhase.show();
             this.mainSequencePhase.update(delta, appTime, cameraPos, physics, this.t);
-            
             this.currentTemp = this.tHeat;
             this.currentLum = Math.pow(this.mass, 3.5);
 
-        } else if (this.t < 0.85) {
-            this.phase = PHASES.RED_GIANT;
+        } else if (this.phase === PHASES.RED_GIANT) {
             targetRed = 1;
-            this.redGiantPhase.show();
             this.redGiantPhase.update(delta, appTime, cameraPos, physics, this.t);
-            
             this.currentTemp = this.redGiantPhase.getCurrentTemp(this.t);
             this.currentLum = this.redGiantPhase.getCurrentLum(this.t, this.mass);
 
-        } else if (this.t < 0.90) {
-            this.phase = PHASES.SUPERNOVA;
+        } else if (this.phase === PHASES.SUPERNOVA) {
             targetSuper = 1;
-            this.supernovaPhase.show();
             this.supernovaPhase.update(delta, appTime, cameraPos, physics, this.t);
             this.isSupernovaFlashing = this.supernovaPhase.isFlashing;
-
             if (this.mass > 8) {
                 this.currentTemp = 100000;
                 this.currentLum = 100000;
@@ -177,10 +193,7 @@ export class HeroStarSystem extends THREE.Group implements PhysicalBody {
             }
 
         } else {
-            this.phase = PHASES.REMNANT;
-            this.remnantPhase.show();
             this.remnantPhase.update(delta, appTime, cameraPos, physics, this.t);
-            
             if (this.mass > 15) {
                 this.currentTemp = 0;
                 this.currentLum = 0;
@@ -195,7 +208,7 @@ export class HeroStarSystem extends THREE.Group implements PhysicalBody {
             }
         }
         
-        // Manage transition opacities
+        // BOLT: Optimize transition opacities with caching and guarded assignments
         const speed = delta * 4.0;
         const stepOp = (current: number, target: number) => {
             if (current < target) return Math.min(target, current + speed);
@@ -203,21 +216,29 @@ export class HeroStarSystem extends THREE.Group implements PhysicalBody {
             return current;
         };
 
-        const opP = stepOp(this.protostarPhase.protostarMat.uniforms.uOpacity.value, targetProto);
-        this.protostarPhase.setOpacity(targetProto > 0 ? opP * (0.8 + 0.2 * Math.sin(appTime * 20.0)) : opP);
-        this.protostarPhase.protostarGroup.visible = opP > 0.01;
+        this._opP = stepOp(this._opP, targetProto);
+        this.protostarPhase.setOpacity(targetProto > 0 ? this._opP * (0.8 + 0.2 * Math.sin(appTime * 20.0)) : this._opP);
+        if (this.protostarPhase.protostarGroup.visible !== this._opP > 0.01) {
+            this.protostarPhase.protostarGroup.visible = this._opP > 0.01;
+        }
 
-        const opM = stepOp(this.mainSequencePhase.starMat.uniforms.uOpacity.value, targetMain);
-        this.mainSequencePhase.setOpacity(opM);
-        this.mainSequencePhase.mainSeqGroup.visible = opM > 0.01;
+        this._opM = stepOp(this._opM, targetMain);
+        this.mainSequencePhase.setOpacity(this._opM);
+        if (this.mainSequencePhase.mainSeqGroup.visible !== this._opM > 0.01) {
+            this.mainSequencePhase.mainSeqGroup.visible = this._opM > 0.01;
+        }
 
-        const opR = stepOp(this.redGiantPhase.redGiantMat.uniforms.uOpacity.value, targetRed);
-        this.redGiantPhase.setOpacity(opR);
-        this.redGiantPhase.redGiantGroup.visible = opR > 0.01;
+        this._opR = stepOp(this._opR, targetRed);
+        this.redGiantPhase.setOpacity(this._opR);
+        if (this.redGiantPhase.redGiantGroup.visible !== this._opR > 0.01) {
+            this.redGiantPhase.redGiantGroup.visible = this._opR > 0.01;
+        }
 
-        const opS = stepOp((this.supernovaPhase.coreFlashMesh.material as THREE.MeshBasicMaterial).opacity, targetSuper);
-        this.supernovaPhase.setOpacity(opS);
-        this.supernovaPhase.supernovaGroup.visible = opS > 0.01;
+        this._opS = stepOp(this._opS, targetSuper);
+        this.supernovaPhase.setOpacity(this._opS);
+        if (this.supernovaPhase.supernovaGroup.visible !== this._opS > 0.01) {
+            this.supernovaPhase.supernovaGroup.visible = this._opS > 0.01;
+        }
 
         this.remnantPhase.updateRemnantOpacity(delta, targetNs);
     }

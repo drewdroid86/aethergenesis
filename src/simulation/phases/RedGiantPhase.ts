@@ -45,7 +45,7 @@ export class RedGiantPhase implements PhaseComponent {
         this.hide();
     }
 
-    update(delta: number, appTime: number, physics: PhysicsConstants, cameraPos: THREE.Vector3, t: number): void {
+    update(delta: number, appTime: number, cameraPos: THREE.Vector3, physics: PhysicsConstants, t: number): void {
         const normT = (t - 0.70) / 0.15;
         const giantScale = this.baseRadius * (1.0 + normT * 6.0) + Math.sin(appTime * 2.0) * 0.1;
         this.redGiantMesh.scale.setScalar(giantScale);
