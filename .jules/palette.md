@@ -1,6 +1,6 @@
-## 2025-05-04 - [Accessibility in Scientific Visualizations]
-**Learning:** In complex Three.js visualizations, custom UI elements (like timeline scrubbers or orbital control buttons) are often implemented using non-semantic `div` tags to avoid default browser styling, making them invisible to screen readers and keyboard-only users.
-**Action:** Always convert interactive containers to `<button>` elements or add `role="slider"` with `tabIndex={0}` and appropriate `aria-label` and `aria-value` attributes. Use `focus-visible` with a custom ring to provide clear visual feedback for keyboard navigation without affecting mouse-based aesthetics.
+## 2025-05-15 - [Affordance and Shortcuts in 3D Environments]
+**Learning:** In Three.js-based interfaces, users often struggle to identify interactive objects without visual affordances. Raycasting against dedicated `hitMesh` objects to update the cursor to `pointer` provides an essential "hover" state. Additionally, global shortcuts (Space/Escape) must be carefully guarded with `document.activeElement` checks and `e.preventDefault()` to avoid conflicting with accessible UI controls and page scrolling.
+**Action:** Always implement cursor feedback for 3D hit targets and ensure global key listeners respect focused interactive elements.
 
 ## 2025-05-14 - [Semantic Buttons and ARIA Sliders]
 **Learning:** In Three.js/Canvas-heavy apps, HUD elements are often implemented as nested divs with pointer events, which are completely inaccessible to screen readers and keyboard users. Converting these to semantic <button> elements and using ARIA roles (like role="slider") with dynamic attributes (aria-valuenow) provides a massive accessibility boost with minimal code changes.
