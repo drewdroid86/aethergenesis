@@ -1,29 +1,3 @@
-import { GLSL_NOISE } from './noise';
-
-export const starVertexShader = `
-  attribute vec3 color;
-  attribute float size;
-  varying vec3 vColor;
-  void main() {
-    vColor = color;
-    vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
-    gl_PointSize = size * (400.0 / -mvPosition.z);
-    gl_Position = projectionMatrix * mvPosition;
-  }
-`;
-
-export const starFragmentShader = `
-  varying vec3 vColor;
-  void main() {
-    vec2 coord = gl_PointCoord - vec2(0.5);
-    float dist = length(coord);
-    if (dist > 0.5) discard;
-    float alpha = exp(-dist * dist * 30.0);
-    gl_FragColor = vec4(vColor, alpha);
-  }
-`;
-
-export const nebulaFS = `
 uniform float uTime;
 uniform vec3 uColor;
 uniform float uCollapse;
@@ -33,7 +7,7 @@ uniform mat4 uInverseModelMatrix;
 varying vec3 vLocalPosition;
 varying vec3 vWorldPosition;
 
-${GLSL_NOISE}
+#include <noise>
 
 void main() {
     vec3 localCam = (uInverseModelMatrix * vec4(uCameraPos, 1.0)).xyz;
@@ -97,31 +71,3 @@ void main() {
     
     gl_FragColor = vec4(accCol, alpha * smoothstep(1.0, 0.9, uCollapse));
 }
-`;
-
-export const starSurfaceFS = `
-uniform float uTime;
-uniform vec3 uColor;
-uniform float uTurbulence;
-uniform float uOpacity;
-
-varying vec3 vLocalPosition;
-varying vec3 vWorldPosition;
-varying vec3 vNormal;
-
-${GLSL_NOISE}
-
-void main() {
-    float n1 = fbm(vLocalPosition * 5.0 * uTurbulence + uTime * 0.5);
-    float n2 = fbm(vLocalPosition * 10.0 * uTurbulence - uTime * 0.8);
-    float noiseVal = (n1 + n2) * 0.5;
-    
-    vec3 finalColor = mix(uColor * 0.5, uColor * 1.5, noiseVal);
-    
-    // Limb darkening
-    float intensity = max(0.0, dot(vNormal, vec3(0.0, 0.0, 1.0)));
-    finalColor *= smoothstep(0.0, 1.0, intensity * 1.2 + 0.2);
-    
-    gl_FragColor = vec4(finalColor, uOpacity);
-}
-`;

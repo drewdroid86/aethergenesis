@@ -1,4 +1,3 @@
-
 export interface PhysicsConstants {
   G: number;
   alpha: number;
@@ -9,4 +8,6 @@ export interface PhysicsConstants {
   hbar: number;
   darkMatter: number;
   baryon: number;
+  H0: number;
+  softening: number;
 }

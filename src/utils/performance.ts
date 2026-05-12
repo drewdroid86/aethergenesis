@@ -1,16 +1,20 @@
-// src/utils/performance.ts
-
 export const FPS_THRESHOLD = 30;
 export const CONSECUTIVE_FRAMES_THRESHOLD = 90; // Approx 3 seconds at 30fps
 
-let _onTierChangeCallback: ((tier: 'low' | 'medium' | 'high' | 'ultra') => void) | null = null;
-
-export function setOnTierChangeCallback(callback: (tier: 'low' | 'medium' | 'high' | 'ultra') => void): void {
-    _onTierChangeCallback = callback;
+export function detectPerformanceTier(): 'low' | 'medium' | 'high' | 'ultra' {
+    return 'medium';
 }
 
-export function triggerTierChange(tier: 'low' | 'medium' | 'high' | 'ultra'): void {
-    if (_onTierChangeCallback) {
-        _onTierChangeCallback(tier);
+export function getNumStarsForTier(_tier: 'low' | 'medium' | 'high' | 'ultra'): number {
+    switch (_tier) {
+        case 'low': return 500;
+        case 'medium': return 1000;
+        case 'high': return 2000;
+        case 'ultra': return 5000;
+        default: return 1000;
     }
+}
+
+export function setOnTierChangeCallback(_callback: (tier: 'low' | 'medium' | 'high' | 'ultra') => void): void {
+    //
 }

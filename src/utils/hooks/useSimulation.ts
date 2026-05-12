@@ -12,7 +12,7 @@ import {
     FPS_THRESHOLD,
     CONSECUTIVE_FRAMES_THRESHOLD
 } from '../../utils/performance';
-import { updateNumStars } from '../constants/simulation';
+import { updateNumStars } from '../../constants/simulation';
 
 export function useSimulation(containerRef: React.RefObject<HTMLDivElement | null>) {
     const engineRef = useRef<Engine | null>(null);
@@ -29,18 +29,21 @@ export function useSimulation(containerRef: React.RefObject<HTMLDivElement | nul
     const [fps, setFps] = useState(0);
     const [showTierDownIndicator, setShowTierDownIndicator] = useState(false);
     const consecutiveFramesBelowThresholdRef = useRef(0);
-    const lastFpsTimestampRef = useRef(performance.now());
     const tierDownIndicatorTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
     // Physics Constants State
     const [physics, setPhysics] = useState<PhysicsConstants>({
         G: 1.0,
         alpha: 1.0,
+        strongForce: 1.0,
+        weakForce: 1.0,
         lambda: 1.0,
         c: 1.0,
         hbar: 1.0,
-        H0: 0.01, // Hubble constant
-        softening: 0.1 // Softening length for gravity
+        darkMatter: 0.25,
+        baryon: 0.05,
+        H0: 0.01,
+        softening: 0.1
     });
     const physicsRef = useRef(physics);
     useEffect(() => { 
@@ -64,7 +67,6 @@ export function useSimulation(containerRef: React.RefObject<HTMLDivElement | nul
         hudAge: useRef<HTMLSpanElement>(null),
         globalTimelineFill: useRef<HTMLDivElement>(null),
         globalSlider: useRef<HTMLDivElement>(null),
-        // Add ref for tier down indicator
         tierDownIndicator: useRef<HTMLDivElement>(null),
     };
 
@@ -80,75 +82,40 @@ export function useSimulation(containerRef: React.RefObject<HTMLDivElement | nul
 
     const rebuildStarfieldGeometry = useCallback(() => {
         if (engineRef.current && engineRef.current.heroStars) {
-            // Assuming Engine has a method to clear and regenerate stars, or we need to manually clear and re-add
-            // For now, a simple console log. The actual implementation depends on Engine's structure.
             console.log(`Rebuilding starfield geometry for tier: ${currentTierRef.current}`);
-            // Example: engineRef.current.clearHeroStars(); engineRef.current.createHeroStars(getNumStarsForTier(currentTierRef.current));
-            // This part will require deeper knowledge of the Engine class.
-            // For now, we'll assume Engine.update() might handle the star count based on constants,
-            // or we need a specific method.
-            // If the Engine doesn't auto-update star count based on constants, we might need to trigger a re-initialization.
-            // Let's assume for now that updating NUM_STARS is enough and Engine might re-read it.
-            // If not, we might need to find a method like engine.regenerateStars() or similar.
-
-            // A common pattern is to clear and re-add:
             if (engineRef.current && engineRef.current.scene) {
-                // Remove existing stars (assuming they are added to a specific group or managed by engineRef.current.heroStars)
                 engineRef.current.heroStars.forEach(star => engineRef.current?.scene.remove(star));
-                engineRef.current.heroStars = []; // Clear the array
-                
-                // Re-create stars based on the new NUM_STARS
-                // This part is speculative as we don't know Engine's star creation API
-                // Assuming a function like createStars exists on Engine:
-                // engineRef.current.createStars(getNumStarsForTier(currentTierRef.current));
-                
-                // If HeroStarSystem itself is re-instantiated for the whole system:
-                // We might need to re-initialize the simulation with the new star count.
-                // This might be too complex for a simple geometry rebuild.
-                // For now, let's rely on NUM_STARS update and hope Engine picks it up,
-                // or we'll need to refine this based on Engine's structure.
-                // A more robust solution might involve a dedicated method on Engine.
+                engineRef.current.heroStars = []; 
             }
         }
-    }, [currentTier]); // Dependency on currentTier to potentially re-run if tier changes
+    }, [currentTier]); 
 
-    // Handle tier change events
     const handleTierChange = useCallback((newTier: 'low' | 'medium' | 'high' | 'ultra') => {
         if (newTier !== currentTierRef.current) {
             console.log(`Tier changed: ${currentTierRef.current} -> ${newTier}`);
             currentTierRef.current = newTier;
             setCurrentTier(newTier);
-            updateNumStars(newTier); // Update the global NUM_STARS constant
-            setShowTierDownIndicator(true); // Show HUD indicator
+            updateNumStars(newTier); 
+            setShowTierDownIndicator(true); 
 
-            // Reset indicator after a delay
             if (tierDownIndicatorTimeoutRef.current) {
                 clearTimeout(tierDownIndicatorTimeoutRef.current);
             }
             tierDownIndicatorTimeoutRef.current = setTimeout(() => {
                 setShowTierDownIndicator(false);
-            }, 3000); // Show for 3 seconds
+            }, 3000); 
 
-            // Trigger starfield geometry rebuild
             rebuildStarfieldGeometry();
         }
-    }, [rebuildStarfieldGeometry]); // rebuildStarfieldGeometry is now stable due to useCallback
+    }, [rebuildStarfieldGeometry]); 
 
     useEffect(() => {
-        // Register the callback when component mounts or tier changes
         setOnTierChangeCallback(handleTierChange);
-        
-        // Initial tier detection and setup
         const initialTier = detectPerformanceTier();
         currentTierRef.current = initialTier;
         setCurrentTier(initialTier);
         updateNumStars(initialTier);
-        // console.log("Initial tier detected:", initialTier);
-        
-        return () => {
-            // Cleanup callback registration if necessary
-        };
-    }, []); // Run only once on mount
+    }, [handleTierChange]); 
 
     useEffect(() => {
         if (!containerRef.current) return;
@@ -187,7 +154,7 @@ export function useSimulation(containerRef: React.RefObject<HTMLDivElement | nul
                 mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
                 raycaster.setFromCamera(mouse, engine.camera);
 
-                const hitMeshes = engine.heroStars.map(h => h.hitMesh);
+                const hitMeshes = engine.heroStars.map(h => (h as any).hitMesh);
                 const intersects = raycaster.intersectObjects(hitMeshes);
 
                 if (intersects.length > 0) {
@@ -218,16 +185,14 @@ export function useSimulation(containerRef: React.RefObject<HTMLDivElement | nul
                 frameId = requestAnimationFrame(animate);
                 try {
                     const currentTime = performance.now();
-                    const delta = Math.min((currentTime - lastAnimationTime) / 1000, 0.05); // Delta in seconds
+                    const delta = Math.min((currentTime - lastAnimationTime) / 1000, 0.05); 
                     lastAnimationTime = currentTime;
 
-                    // FPS Calculation
-                    fpsHistory.push(1000 / (delta * 1000)); // Store FPS
-                    if (fpsHistory.length > 60) fpsHistory.shift(); // Keep history size manageable
+                    fpsHistory.push(1000 / (delta * 1000)); 
+                    if (fpsHistory.length > 60) fpsHistory.shift(); 
                     const currentFps = fpsHistory.reduce((sum, val) => sum + val, 0) / fpsHistory.length;
                     setFps(Math.round(currentFps));
 
-                    // Tier Adjustment Logic
                     if (currentFps < FPS_THRESHOLD) {
                         consecutiveFramesBelowThresholdRef.current++;
                     } else {
@@ -235,34 +200,26 @@ export function useSimulation(containerRef: React.RefObject<HTMLDivElement | nul
                     }
 
                     if (consecutiveFramesBelowThresholdRef.current >= CONSECUTIVE_FRAMES_THRESHOLD) {
-                        // Step down tier if possible
-                        const tiers: PerformanceTier[] = ['low', 'medium', 'high', 'ultra'];
+                        const tiers: ('low' | 'medium' | 'high' | 'ultra')[] = ['low', 'medium', 'high', 'ultra'];
                         const currentTierIndex = tiers.indexOf(currentTierRef.current);
                         if (currentTierIndex > 0) {
                             const newTier = tiers[currentTierIndex - 1];
-                            console.log(`FPS dropped below threshold (${FPS_THRESHOLD}). Stepping down tier from ${currentTierRef.current} to ${newTier}`);
-                            
-                            // Trigger tier change handler (which will update tier, NUM_STARS, and rebuild geometry)
                             handleTierChange(newTier);
-
-                            consecutiveFramesBelowThresholdRef.current = 0; // Reset counter after tier change
+                            consecutiveFramesBelowThresholdRef.current = 0; 
                         }
                     }
 
-                    // Auto play cosmic Age if playing
                     if (isPlayingCosmicRef.current && !isGlobalScrubbingRef.current) {
-                        cosmicAgeRef.current += delta * 0.2; // 0.2 Gyr per second
+                        cosmicAgeRef.current += delta * 0.2; 
                         if (cosmicAgeRef.current > 14) {
-                            cosmicAgeRef.current = 0; // Loop universe
+                            cosmicAgeRef.current = 0; 
                         }
-                        // Update HUD elements for global timeline
                         if (hudRefs.globalTimelineFill.current) {
                             hudRefs.globalTimelineFill.current.style.width = `${(cosmicAgeRef.current / 14.0) * 100}%`;
                         }
                         if (hudRefs.globalSlider.current) {
                             hudRefs.globalSlider.current.setAttribute('aria-valuenow', cosmicAgeRef.current.toFixed(2));
                         }
-                        // Throttled state update to keep React sync
                         if (Math.floor(engine.appTime) !== Math.floor(engine.appTime - delta)) {
                             setCosmicAge(cosmicAgeRef.current);
                         }
@@ -272,13 +229,11 @@ export function useSimulation(containerRef: React.RefObject<HTMLDivElement | nul
                     engine.update(selectedStarRef.current, isScrubbingRef.current, physicsRef.current, cosmicAgeRef.current);
                     controls.update();
 
-                    // Update HUD for camera position and age
                     if (hudRefs.hudX.current) hudRefs.hudX.current.innerText = engine.camera.position.x.toFixed(4);
                     if (hudRefs.hudY.current) hudRefs.hudY.current.innerText = engine.camera.position.y.toFixed(4);
                     if (hudRefs.hudZ.current) hudRefs.hudZ.current.innerText = engine.camera.position.z.toFixed(4);
                     if (hudRefs.hudAge.current) hudRefs.hudAge.current.innerText = cosmicAgeRef.current.toFixed(2);
 
-                    // Update Selected Star UI Panel
                     if (selectedStarRef.current) {
                         const s = selectedStarRef.current;
                         if (uiRefs.phase.current) uiRefs.phase.current.innerText = PHASE_NAMES[s.phase];
@@ -317,7 +272,7 @@ export function useSimulation(containerRef: React.RefObject<HTMLDivElement | nul
         } catch (err: any) {
             setFatalError(err.message);
         }
-    }, [isPaused, physics, cosmicAge, isPlayingCosmic, handleTierChange, rebuildStarfieldGeometry]); // Dependencies for useEffect
+    }, [isPaused, physics, cosmicAge, isPlayingCosmic, handleTierChange, rebuildStarfieldGeometry]); 
 
     const handleScrub = (e: React.PointerEvent) => {
         if (!selectedStarRef.current || !isScrubbingRef.current) return;
@@ -356,9 +311,9 @@ export function useSimulation(containerRef: React.RefObject<HTMLDivElement | nul
         setCosmicAge,
         isPlayingCosmic,
         setIsPlayingCosmic,
-        currentTier, // Expose current tier
-        fps, // Expose FPS
-        showTierDownIndicator, // Expose indicator visibility
+        currentTier, 
+        fps, 
+        showTierDownIndicator, 
         onScrubStart: (e: React.PointerEvent) => {
             (e.currentTarget as HTMLDivElement).setPointerCapture(e.pointerId);
             isScrubbingRef.current = true;
@@ -386,14 +341,3 @@ export function useSimulation(containerRef: React.RefObject<HTMLDivElement | nul
         }
     };
 }
-
-et();
-        }
-    };
-}
-
-();
-        }
-    };
-}
-

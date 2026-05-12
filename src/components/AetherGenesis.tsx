@@ -1,4 +1,4 @@
-import React, { useRef } from 'react';
+import { useRef } from 'react';
 import { Hud } from '../ui/Hud';
 import { InspectPanel } from '../ui/InspectPanel';
 import { ConstantsPanel } from '../ui/ConstantsPanel';
@@ -26,7 +26,10 @@ export function AetherGenesis() {
     onGlobalScrubStart,
     onGlobalScrubMove,
     onGlobalScrubEnd,
-    resetCamera
+    resetCamera,
+    currentTier,
+    fps,
+    showTierDownIndicator
   } = useSimulation(mountRef);
 
   return (
@@ -52,6 +55,12 @@ export function AetherGenesis() {
         onGlobalScrubMove={onGlobalScrubMove}
         onGlobalScrubEnd={onGlobalScrubEnd}
         resetCamera={resetCamera}
+        performance={{
+          tier: currentTier,
+          numStars: NUM_STARS,
+          fps: fps,
+          showIndicator: showTierDownIndicator
+        }}
       />
 
       <ConstantsPanel 
@@ -68,16 +77,6 @@ export function AetherGenesis() {
           physics={physics}
           onScrubStart={onScrubStart}
           onScrubMove={onScrubMove}
-          onScrubEnd={onScrubEnd}
-          uiRefs={uiRefs}
-        />
-      )}
-
-      <div className="absolute inset-0 pointer-events-none bg-[radial-gradient(circle_at_center,transparent_0%,rgba(2,2,5,0.6)_100%)]"></div>
-    </div>
-  );
-}
- onScrubMove={onScrubMove}
           onScrubEnd={onScrubEnd}
           uiRefs={uiRefs}
         />
