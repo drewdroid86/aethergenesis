@@ -17,3 +17,8 @@
 **Vulnerability:** Rate limiting by IP can be bypassed or incorrectly applied to the proxy server's IP if the application doesn't trust the proxy.
 **Learning:** When running behind a load balancer or proxy (like Render, Heroku, or Nginx), `req.ip` will often return the proxy's IP instead of the client's. This means rate limiting could throttle all users globally or fail to block a specific malicious actor.
 **Prevention:** Configure Express with `app.set('trust proxy', 1)` (or the appropriate number of hops) to ensure the `X-Forwarded-For` header is parsed correctly for client IP identification.
+
+## 2026-05-12 - [Hardened AI Proxy & Payload Limits]
+**Vulnerability:** Risk of payload-based DoS and untrusted data from LLM response.
+**Learning:** Even with schema enforcement, LLM responses should be treated as untrusted. Sanitizing outputs protects the client. Setting overly restrictive payload limits (e.g., 1kb) can break legitimate requests; a balanced limit (e.g., 10kb-1mb) is safer.
+**Prevention:** Implement strict whitelisting for AI response fields and set realistic payload limits on the server.
