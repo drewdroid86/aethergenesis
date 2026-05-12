@@ -9,7 +9,7 @@ dotenv.config();
 const app = express();
 const port = process.env.PORT || 3001;
 
-// Security: Trust first proxy (Render, etc.) for accurate IP rate limiting
+// Security: Trust proxy for correct IP detection in rate limiting (e.g., on Render)
 app.set('trust proxy', 1);
 
 app.use(express.json());

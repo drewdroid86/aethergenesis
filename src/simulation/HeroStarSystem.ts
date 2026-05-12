@@ -346,7 +346,7 @@ export default class HeroStarSystem extends THREE.Group {
         this.add(this.hitMesh);
     }
 
-    update(delta: number, appTime: number, cameraPos: THREE.Vector3, physics: any, overrideT?: number, cosmicAge?: number) {
+    update(delta: number, appTime: number, cameraPos: THREE.Vector3, physics: PhysicsConstants, overrideT?: number, cosmicAge?: number) {
         let targetProto = 0, targetMain = 0, targetRed = 0, targetSuper = 0, targetNs = 0;
         const effG = Math.max(0.01, physics.G);
         const expL = Math.max(0.1, physics.lambda);
