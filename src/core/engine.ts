@@ -7,6 +7,7 @@ import {
 import { randomGaussian, getStellarColor } from '../physics/math';
 import { starVertexShader, starFragmentShader } from '../rendering/shaders/stellar';
 import { PhysicsEngine } from '../physics/PhysicsEngine';
+import { PhysicsConstants } from '../types/physics';
 
 export class Engine {
     scene: THREE.Scene;
@@ -143,7 +144,9 @@ export class Engine {
         }
     }
 
-    update(selectedStar: HeroStarSystem | null, isScrubbing: boolean, physics: any, cosmicAge: number) {
+    update(selectedStar: HeroStarSystem | null, isScrubbing: boolean, physics: PhysicsConstants, cosmicAge: number) {
+// ...
+
         const delta = Math.min(this.clock.getDelta(), 0.05);
         this.physicsEngine.constants = physics;
         

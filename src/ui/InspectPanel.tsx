@@ -2,13 +2,14 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Scan, Zap, Pause, Play, X } from 'lucide-react';
 import { PHASE_NAMES } from '../core/constants';
 import { HeroStarSystem } from '../rendering/systems/HeroStarSystem';
+import { PhysicsConstants } from '../types/physics';
 
 interface InspectPanelProps {
     selectedStar: HeroStarSystem;
     setSelectedStar: (star: HeroStarSystem | null) => void;
     isPaused: boolean;
     setIsPaused: (paused: boolean) => void;
-    physics: any;
+    physics: PhysicsConstants;
     onScrubStart: (e: React.PointerEvent) => void;
     onScrubMove: (e: React.PointerEvent) => void;
     onScrubEnd: () => void;

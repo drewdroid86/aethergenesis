@@ -3,6 +3,7 @@ import { Hud } from '../ui/Hud';
 import { InspectPanel } from '../ui/InspectPanel';
 import { ConstantsPanel } from '../ui/ConstantsPanel';
 import { useSimulation } from '../utils/hooks/useSimulation';
+import { NUM_STARS } from '../constants/simulation';
 
 export function AetherGenesis() {
   const mountRef = useRef<HTMLDivElement>(null);
@@ -67,6 +68,16 @@ export function AetherGenesis() {
           physics={physics}
           onScrubStart={onScrubStart}
           onScrubMove={onScrubMove}
+          onScrubEnd={onScrubEnd}
+          uiRefs={uiRefs}
+        />
+      )}
+
+      <div className="absolute inset-0 pointer-events-none bg-[radial-gradient(circle_at_center,transparent_0%,rgba(2,2,5,0.6)_100%)]"></div>
+    </div>
+  );
+}
+ onScrubMove={onScrubMove}
           onScrubEnd={onScrubEnd}
           uiRefs={uiRefs}
         />

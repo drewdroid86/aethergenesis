@@ -4,6 +4,8 @@ import {
     basicVS, nebulaFS, displacementVS, starSurfaceFS, subtleDisplacementVS 
 } from '../shaders/stellar';
 import { PhysicalBody } from '../../physics/types';
+import { PhysicsConstants } from '../../types/physics';
+
 
 class MagneticCurve extends THREE.Curve<THREE.Vector3> {
     constructor(public angle: number) { super(); }
@@ -363,7 +365,7 @@ export class HeroStarSystem extends THREE.Group implements PhysicalBody {
             nsMagGroup.add(new THREE.Mesh(tubeGeo, tubeMat));
         }
         
-        this.nsMagneticLines = nsMagGroup as any;
+        this.nsMagneticLines = nsMagGroup;
         this.neutronStarGroup.add(this.nsMagneticLines);
         this.neutronStarGroup.visible = false;
         this.add(this.neutronStarGroup);
@@ -389,7 +391,7 @@ export class HeroStarSystem extends THREE.Group implements PhysicalBody {
         this.add(this.hitMesh);
     }
 
-    update(delta: number, appTime: number, cameraPos: THREE.Vector3, physics: any, overrideT?: number, cosmicAge?: number) {
+    update(delta: number, appTime: number, cameraPos: THREE.Vector3, physics: PhysicsConstants, overrideT?: number, cosmicAge?: number) {
         let targetProto = 0, targetMain = 0, targetRed = 0, targetSuper = 0, targetNs = 0;
         const effG = Math.max(0.01, physics.G);
         const expL = Math.max(0.1, physics.lambda);

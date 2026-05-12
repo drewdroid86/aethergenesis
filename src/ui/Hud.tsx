@@ -17,6 +17,12 @@ interface HudProps {
     onGlobalScrubMove: (e: React.PointerEvent) => void;
     onGlobalScrubEnd: () => void;
     resetCamera: () => void;
+    performance: {
+        tier: string;
+        numStars: number;
+        fps: number;
+        showIndicator: boolean;
+    };
 }
 
 export const Hud: React.FC<HudProps> = ({ 
@@ -27,7 +33,8 @@ export const Hud: React.FC<HudProps> = ({
     onGlobalScrubStart,
     onGlobalScrubMove,
     onGlobalScrubEnd,
-    resetCamera
+    resetCamera,
+    performance
 }) => {
     return (
         <>
@@ -48,15 +55,31 @@ export const Hud: React.FC<HudProps> = ({
                 <div className="flex items-center gap-12 bg-[rgba(8,8,20,0.6)] backdrop-blur-md border border-[rgba(126,184,255,0.2)] rounded-full px-6 py-3">
                 <div className="flex flex-col items-center">
                     <span className="text-[9px] uppercase tracking-widest text-[#7EB8FF]">Background Mass</span>
-                    <span className="font-mono text-sm">500,000 <span className="text-[#C084FC]">★</span></span>
+                    <span className="font-mono text-sm">{performance.numStars.toLocaleString()} <span className="text-[#C084FC]">★</span></span>
                 </div>
                 <div className="w-[1px] h-6 bg-[rgba(126,184,255,0.2)]"></div>
                 <div className="flex flex-col items-center">
-                    <span className="text-[9px] uppercase tracking-widest text-[#7EB8FF]">Simulation Subjects</span>
-                    <span className="font-mono text-sm">12 Hero Stars</span>
+                    <span className="text-[9px] uppercase tracking-widest text-[#7EB8FF]">Engine Tier</span>
+                    <span className="font-mono text-sm uppercase text-indigo-300">{performance.tier}</span>
+                </div>
+                <div className="w-[1px] h-6 bg-[rgba(126,184,255,0.2)]"></div>
+                <div className="flex flex-col items-center">
+                    <span className="text-[9px] uppercase tracking-widest text-[#7EB8FF]">Performance</span>
+                    <span className="font-mono text-sm">{performance.fps} <span className="text-[10px] opacity-50">FPS</span></span>
                 </div>
                 </div>
             </nav>
+
+            {/* Tier Down Indicator */}
+            {performance.showIndicator && (
+                <div className="absolute top-24 left-1/2 -translate-x-1/2 z-30 animate-bounce">
+                    <div className="bg-orange-500/20 backdrop-blur-xl border border-orange-500/50 px-6 py-2 rounded-full shadow-[0_0_20px_rgba(249,115,22,0.3)]">
+                        <span className="text-orange-400 text-xs font-bold uppercase tracking-[0.2em]">
+                            Performance Warning: Optimizing Simulation Tier
+                        </span>
+                    </div>
+                </div>
+            )}
 
             {/* Bottom HUD */}
             <div className="absolute bottom-0 w-full p-8 flex justify-between items-end z-20 pointer-events-none">
