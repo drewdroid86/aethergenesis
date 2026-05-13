@@ -1,7 +1,8 @@
 export type PerformanceTier = 'low' | 'medium' | 'high' | 'ultra';
 
-export const FPS_THRESHOLD = 30;
-export const CONSECUTIVE_FRAMES_THRESHOLD = 90; // Approx 3 seconds at 30fps
+export const FPS_THRESHOLD = 25;
+export const CONSECUTIVE_FRAMES_THRESHOLD = 150; 
+export const BANNER_DISPLAY_DURATION = 3000;
 
 let onTierChangeCallback: ((tier: PerformanceTier) => void) | null = null;
 
