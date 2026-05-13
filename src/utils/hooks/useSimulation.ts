@@ -344,6 +344,21 @@ export function useSimulation(containerRef: React.RefObject<HTMLDivElement | nul
         onGlobalScrubEnd: () => {
             isGlobalScrubbingRef.current = false;
         },
+        onKeyDown: (e: React.KeyboardEvent, global: boolean) => {
+            const k = e.key;
+            if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(k)) return;
+            e.preventDefault();
+            if (global) {
+                let a = k==='Home'?0 : k==='End'?14 : cosmicAgeRef.current+(k==='ArrowLeft'?-0.1:0.1);
+                a = Math.max(0, Math.min(14, a));
+                setCosmicAge(a); cosmicAgeRef.current = a;
+                e.currentTarget.setAttribute('aria-valuenow', a.toFixed(2));
+            } else if (selectedStarRef.current) {
+                let t = k==='Home'?0 : k==='End'?1 : selectedStarRef.current.t+(k==='ArrowLeft'?-0.01:0.01);
+                selectedStarRef.current.t = Math.max(0, Math.min(1, t));
+                e.currentTarget.setAttribute('aria-valuenow', Math.round(selectedStarRef.current.t * 100).toString());
+            }
+        },
         resetCamera: () => {
             controlsRef.current?.reset();
         }

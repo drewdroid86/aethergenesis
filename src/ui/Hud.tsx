@@ -16,6 +16,7 @@ interface HudProps {
     onGlobalScrubStart: (e: React.PointerEvent) => void;
     onGlobalScrubMove: (e: React.PointerEvent) => void;
     onGlobalScrubEnd: () => void;
+    onKeyDown: (e: React.KeyboardEvent) => void;
     resetCamera: () => void;
     performance: {
         tier: string;
@@ -33,6 +34,7 @@ export const Hud: React.FC<HudProps> = ({
     onGlobalScrubStart,
     onGlobalScrubMove,
     onGlobalScrubEnd,
+    onKeyDown,
     resetCamera,
     performance
 }) => {
@@ -122,6 +124,7 @@ export const Hud: React.FC<HudProps> = ({
                             onPointerMove={onGlobalScrubMove}
                             onPointerUp={onGlobalScrubEnd}
                             onPointerLeave={onGlobalScrubEnd}
+                            onKeyDown={onKeyDown}
                         >
                             <div ref={uiRefs.globalTimelineFill} className="h-full bg-gradient-to-r from-[#7EB8FF] to-[#C084FC]" style={{width: `${(cosmicAge / 14.0) * 100}%`}}></div>
                             <div className="absolute inset-0 bg-white/20 opacity-0 group-hover:opacity-100 transition-opacity"></div>

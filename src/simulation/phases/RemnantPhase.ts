@@ -11,6 +11,8 @@ export class RemnantPhase implements PhaseComponent {
     
     private parent!: THREE.Group;
     private mass: number;
+    private _opNs: number = 0;
+    private _opNsLines: number = 0;
 
     constructor(mass: number) {
         this.mass = mass;
@@ -59,7 +61,7 @@ export class RemnantPhase implements PhaseComponent {
         this.hide();
     }
 
-    update(delta: number, appTime: number, physics: PhysicsConstants, cameraPos: THREE.Vector3, t: number): void {
+    update(delta: number, appTime: number, cameraPos: THREE.Vector3, physics: PhysicsConstants, t: number): void {
         if (this.mass > 15) {
             this.blackHoleGroup.visible = true;
             this.blackHoleGroup.rotation.y += delta;
@@ -81,22 +83,35 @@ export class RemnantPhase implements PhaseComponent {
             return current;
         };
 
-        const nsMeshMat = (this.neutronStarGroup.children[0] as THREE.Mesh).material as THREE.MeshBasicMaterial;
-        const opNs = stepOp(nsMeshMat.opacity, targetNs);
-        nsMeshMat.opacity = opNs;
+        const nextOpNs = stepOp(this._opNs, targetNs);
+        if (this._opNs !== nextOpNs) {
+            this._opNs = nextOpNs;
+            const nsMeshMat = (this.neutronStarGroup.children[0] as THREE.Mesh).material as THREE.MeshBasicMaterial;
+            nsMeshMat.opacity = this._opNs;
+        }
 
-        const firstMagLine = this.nsMagneticLines.children[0] as THREE.Mesh;
-        const currentMagOp = (firstMagLine.material as THREE.MeshBasicMaterial).opacity;
-        const opNsLines = stepOp(currentMagOp, targetNs ? 0.3 : 0);
+        const targetLines = targetNs ? 0.3 : 0;
+        const nextOpLines = stepOp(this._opNsLines, targetLines);
+        if (this._opNsLines !== nextOpLines) {
+            this._opNsLines = nextOpLines;
+            this.nsMagneticLines.children.forEach(c => {
+                ((c as THREE.Mesh).material as THREE.MeshBasicMaterial).opacity = this._opNsLines;
+            });
+        }
 
-        this.nsMagneticLines.children.forEach(c => {
-            ((c as THREE.Mesh).material as THREE.MeshBasicMaterial).opacity = opNsLines;
-        });
-        this.pulsarGroup.children.forEach(c => {
-            ((c as THREE.Mesh).material as THREE.MeshBasicMaterial).opacity = targetNs ? 0.6 : 0;
-        });
+        // Pulsar beams are either on or off for simplicity in opacity guarding
+        const targetBeam = targetNs ? 0.6 : 0;
+        const firstBeam = this.pulsarGroup.children[0] as THREE.Mesh;
+        if ((firstBeam.material as THREE.MeshBasicMaterial).opacity !== targetBeam) {
+            this.pulsarGroup.children.forEach(c => {
+                ((c as THREE.Mesh).material as THREE.MeshBasicMaterial).opacity = targetBeam;
+            });
+        }
         
-        this.neutronStarGroup.visible = opNs > 0.01 || opNsLines > 0.01;
+        const isVisible = this._opNs > 0.01 || this._opNsLines > 0.01;
+        if (this.neutronStarGroup.visible !== isVisible) {
+            this.neutronStarGroup.visible = isVisible;
+        }
     }
 
     show(): void {
@@ -109,16 +124,14 @@ export class RemnantPhase implements PhaseComponent {
     }
 
     dispose(): void {
+        // BOLT: Stop disposing shared global geometries. Only dispose local materials if unique.
         this.neutronStarGroup.children.forEach(c => {
-            if ((c as THREE.Mesh).geometry) (c as THREE.Mesh).geometry.dispose();
             if ((c as THREE.Mesh).material) ((c as THREE.Mesh).material as THREE.Material).dispose();
         });
         this.nsMagneticLines.children.forEach(c => {
-            if ((c as THREE.Mesh).geometry) (c as THREE.Mesh).geometry.dispose();
             if ((c as THREE.Mesh).material) ((c as THREE.Mesh).material as THREE.Material).dispose();
         });
         this.blackHoleGroup.children.forEach(c => {
-            if ((c as THREE.Mesh).geometry) (c as THREE.Mesh).geometry.dispose();
             if ((c as THREE.Mesh).material) ((c as THREE.Mesh).material as THREE.Material).dispose();
         });
         this.parent.remove(this.neutronStarGroup);

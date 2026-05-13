@@ -21,3 +21,7 @@
 ## 2025-05-16 - [ARIA Type Safety in React/TS]
 **Learning:** The project's type-checking (`tsc --noEmit`) is strict about ARIA attributes. Passing `aria-valuemin="0"` as a string causes a type mismatch in `DetailedHTMLProps` for `div` elements, as it expects a number.
 **Action:** Always use numeric literals (e.g., `aria-valuemin={0}`) for ARIA numeric attributes in JSX to avoid build failures in this repo's CI.
+
+## 2025-05-16 - [Keyboard Navigation for Custom Sliders]
+**Learning:** Custom slider components (implemented as divs with `role="slider"`) require explicit `tabIndex={0}` and keyboard event handlers (`onKeyDown`) to be accessible. In performance-sensitive Three.js apps where state updates are throttled or ref-driven, using direct DOM manipulation (`setAttribute`) for `aria-valuenow` and `aria-valuetext` ensures that screen readers remain synchronized with the visual state without triggering expensive React re-renders.
+**Action:** Always implement Arrow, Home, and End key support for custom sliders and synchronize ARIA attributes directly when using ref-based state management.

@@ -60,6 +60,7 @@ export function AetherGenesis() {
         onGlobalScrubStart={onGlobalScrubStart}
         onGlobalScrubMove={onGlobalScrubMove}
         onGlobalScrubEnd={onGlobalScrubEnd}
+        onKeyDown={(e) => onKeyDown(e, true)}
         resetCamera={resetCamera}
         performance={{
             tier: currentTier,
