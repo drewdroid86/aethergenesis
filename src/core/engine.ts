@@ -43,6 +43,7 @@ export class Engine {
         this.scene.add(new THREE.Points(starGeo, starMat));
 
         this.pipeline = new Pipeline(this.renderer, this.scene, this.camera);
+        this.nebulaSystem = new NebulaSystem(this.scene);
         
         const initialPhysics = { ...DEFAULT_CONSTANTS };
         this.createHeroStars(getNumStarsForTier(detectPerformanceTier()), initialPhysics);
@@ -96,4 +97,6 @@ export class Engine {
         this.renderer.dispose();
         this.scene.clear();
     }
+}
+ }
 }
