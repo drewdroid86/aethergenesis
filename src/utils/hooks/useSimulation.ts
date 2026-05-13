@@ -15,7 +15,6 @@ import {
 import { updateNumStars } from '../../constants/simulation';
 
 export function useSimulation(containerRef: React.RefObject<HTMLDivElement | null>) {
-    console.log('useSimulation hook initialized');
     const engineRef = useRef<Engine | null>(null);
     const controlsRef = useRef<OrbitControls | null>(null);
     const [selectedStar, setSelectedStar] = useState<HeroStarSystem | null>(null);
@@ -85,10 +84,14 @@ export function useSimulation(containerRef: React.RefObject<HTMLDivElement | nul
 
     const rebuildStarfieldGeometry = useCallback(() => {
         if (engineRef.current && engineRef.current.heroStars) {
-            console.log(`Rebuilding starfield geometry for tier: ${currentTierRef.current}`);
             if (engineRef.current && engineRef.current.scene) {
                 engineRef.current.heroStars.forEach(star => engineRef.current?.scene.remove(star));
                 engineRef.current.heroStars = []; 
+
+                engineRef.current.createHeroStars(
+                    getNumStarsForTier(currentTierRef.current),
+                    physicsRef.current
+                );
             }
         }
     }, [currentTier]); 

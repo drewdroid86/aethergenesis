@@ -1,12 +1,30 @@
+export type PerformanceTier = 'low' | 'medium' | 'high' | 'ultra';
+
 export const FPS_THRESHOLD = 30;
 export const CONSECUTIVE_FRAMES_THRESHOLD = 90; // Approx 3 seconds at 30fps
 
-export function detectPerformanceTier(): 'low' | 'medium' | 'high' | 'ultra' {
-    return 'medium';
+let onTierChangeCallback: ((tier: PerformanceTier) => void) | null = null;
+
+/**
+ * Detects the performance tier based on hardware concurrency and device pixel ratio.
+ * 
+ * Ultra: 8+ cores AND 2+ DPR
+ * High: 6+ cores
+ * Medium: 4+ cores
+ * Low: Otherwise
+ */
+export function detectPerformanceTier(): PerformanceTier {
+    const cores = navigator.hardwareConcurrency || 4;
+    const dpr = window.devicePixelRatio || 1;
+
+    if (cores >= 8 && dpr >= 2) return 'ultra';
+    if (cores >= 6) return 'high';
+    if (cores >= 4) return 'medium';
+    return 'low';
 }
 
-export function getNumStarsForTier(_tier: 'low' | 'medium' | 'high' | 'ultra'): number {
-    switch (_tier) {
+export function getNumStarsForTier(tier: PerformanceTier): number {
+    switch (tier) {
         case 'low': return 500;
         case 'medium': return 1000;
         case 'high': return 2000;
@@ -15,6 +33,9 @@ export function getNumStarsForTier(_tier: 'low' | 'medium' | 'high' | 'ultra'): 
     }
 }
 
-export function setOnTierChangeCallback(_callback: (tier: 'low' | 'medium' | 'high' | 'ultra') => void): void {
-    //
+/**
+ * Stores a callback to be executed when the performance tier changes.
+ */
+export function setOnTierChangeCallback(callback: (tier: PerformanceTier) => void): void {
+    onTierChangeCallback = callback;
 }
