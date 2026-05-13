@@ -133,9 +133,11 @@ export const InspectPanel: React.FC<InspectPanelProps> = ({
                     <span ref={uiRefs.age} className="text-white">-</span>
                 </div>
                 
-                <div className="mt-8 pt-6 border-t border-[rgba(126,184,255,0.1)]">
+                <div className="mt-8 pt-6 border-t border-[rgba(126,184,255,0.1)] group/timeline">
                     <div className="flex justify-between items-center mb-3">
-                        <span className="text-[10px] text-[#7EB8FF]/50 uppercase tracking-widest">Time Override</span>
+                        <span className="text-[10px] text-[#7EB8FF]/50 uppercase tracking-widest">
+                            Time Override <span className="opacity-0 group-hover/timeline:opacity-100 transition-opacity ml-1 text-[8px] text-[#C084FC] hidden sm:inline">[Arrows to Seek]</span>
+                        </span>
                         <div className="flex gap-2">
                             <button onClick={() => setIsPaused(true)} className="text-white/40 hover:text-white transition-colors focus-visible:ring-2 focus-visible:ring-[#C084FC] outline-none rounded" aria-label="Pause Simulation" title="Pause Simulation"><Pause size={12} /></button>
                             <button onClick={() => setIsPaused(false)} className="text-white/40 hover:text-white transition-colors focus-visible:ring-2 focus-visible:ring-[#C084FC] outline-none rounded" aria-label="Play Simulation" title="Play Simulation"><Play size={12} /></button>

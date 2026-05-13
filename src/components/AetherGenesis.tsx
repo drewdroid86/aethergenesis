@@ -28,6 +28,7 @@ export function AetherGenesis() {
     onGlobalScrubStart,
     onGlobalScrubMove,
     onGlobalScrubEnd,
+    onKeyDown,
     resetCamera
   } = useSimulation(mountRef);
 
@@ -80,6 +81,7 @@ export function AetherGenesis() {
             onScrubStart={onScrubStart}
             onScrubMove={onScrubMove}
             onScrubEnd={onScrubEnd}
+            onKeyDown={(e) => onKeyDown(e, false)}
             uiRefs={uiRefs}
         />
       )}
