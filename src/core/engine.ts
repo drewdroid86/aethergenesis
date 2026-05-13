@@ -24,8 +24,23 @@ export class Engine {
         this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
         this.renderer.setSize(window.innerWidth, window.innerHeight);
         this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-        this.renderer.setClearColor(0x000000, 1);
+        this.scene.background = new THREE.Color(0x050510);
+        this.renderer.setClearColor(0x050510, 1);
         container.appendChild(this.renderer.domElement);
+
+        const starGeo = new THREE.BufferGeometry();
+        const starMat = new THREE.PointsMaterial({ color: 0xffffff, size: 0.5, transparent: true, opacity: 0.8 });
+        const starVertices = [];
+        for (let i = 0; i < 3000; i++) {
+            const theta = Math.random() * Math.PI * 2;
+            const phi = Math.acos(2 * Math.random() - 1);
+            const x = 900 * Math.sin(phi) * Math.cos(theta);
+            const y = 900 * Math.sin(phi) * Math.sin(theta);
+            const z = 900 * Math.cos(phi);
+            starVertices.push(x, y, z);
+        }
+        starGeo.setAttribute('position', new THREE.Float32BufferAttribute(starVertices, 3));
+        this.scene.add(new THREE.Points(starGeo, starMat));
 
         this.pipeline = new Pipeline(this.renderer, this.scene, this.camera);
         

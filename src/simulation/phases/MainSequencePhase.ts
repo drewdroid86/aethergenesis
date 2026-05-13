@@ -54,8 +54,15 @@ export class MainSequencePhase implements PhaseComponent {
             GEOMETRIES.corona,
             new THREE.MeshBasicMaterial({ color: msColor, transparent: true, opacity: 0, blending: THREE.AdditiveBlending })
         );
+        const haloMesh = new THREE.Mesh(
+            GEOMETRIES.mainSeq,
+            new THREE.MeshBasicMaterial({ color: msColor, transparent: true, opacity: 0.1, side: THREE.BackSide, blending: THREE.AdditiveBlending })
+        );
+        haloMesh.scale.setScalar(this.baseRadius * 1.4);
+        
         this.mainSeqGroup.add(this.starMesh);
         this.mainSeqGroup.add(this.coronaMesh);
+        this.mainSeqGroup.add(haloMesh);
         this.parent.add(this.mainSeqGroup);
 
         // Habitable Zone
@@ -67,6 +74,8 @@ export class MainSequencePhase implements PhaseComponent {
         );
         this.hzMesh.scale.setScalar(hzRadius);
         this.hzMesh.rotation.x = Math.PI / 2;
+        this.hzMesh.rotation.y = Math.random() * Math.PI * 0.2;
+        this.hzMesh.rotation.z = Math.random() * Math.PI * 0.2;
         this.parent.add(this.hzMesh);
 
         // Planets
