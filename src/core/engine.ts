@@ -1,5 +1,4 @@
 import * as THREE from 'three';
-import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { HeroStarSystem } from '../rendering/systems/HeroStarSystem';
 import { PhysicsConstants, DEFAULT_CONSTANTS } from '../types/physics';
 import { detectPerformanceTier, getNumStarsForTier } from '../utils/performance';
@@ -10,7 +9,6 @@ export class Engine {
     scene: THREE.Scene;
     camera: THREE.PerspectiveCamera;
     renderer: THREE.WebGLRenderer;
-    controls: OrbitControls;
     pipeline: Pipeline;
     heroStars: HeroStarSystem[] = [];
     appTime: number = 0;
@@ -28,12 +26,6 @@ export class Engine {
         this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
         this.renderer.setClearColor(0x000000, 1);
         container.appendChild(this.renderer.domElement);
-
-        this.controls = new OrbitControls(this.camera, this.renderer.domElement);
-        this.controls.enableDamping = true;
-        this.controls.dampingFactor = 0.05;
-        this.controls.maxDistance = 600;
-        this.controls.minDistance = 2;
 
         this.pipeline = new Pipeline(this.renderer, this.scene, this.camera);
         
@@ -59,21 +51,19 @@ export class Engine {
 
         this.appTime += delta; 
 
-        this.controls.update();
-        
-        // Use pipeline for rendering with post-processing
-        this.pipeline.render(this.appTime);
-
         this.heroStars.forEach(star => {
             star.update(
                 delta, 
                 this.appTime,
                 this.camera.position, 
                 physics, 
-                selectedStar?.t, 
-                cosmicAge * 1000 
+                star === selectedStar ? selectedStar!.t : undefined, 
+                cosmicAge 
             );
         });
+
+        // Use pipeline for rendering with post-processing
+        this.pipeline.render(this.appTime);
     }
 
     resize(width: number, height: number) {
@@ -85,7 +75,6 @@ export class Engine {
 
     dispose() {
         this.pipeline.composer.dispose();
-        this.controls.dispose();
         if (this.container.contains(this.renderer.domElement)) {
             this.container.removeChild(this.renderer.domElement);
         }

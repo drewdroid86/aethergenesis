@@ -87,6 +87,11 @@ export function useSimulation(containerRef: React.RefObject<HTMLDivElement | nul
             if (engineRef.current && engineRef.current.scene) {
                 engineRef.current.heroStars.forEach(star => engineRef.current?.scene.remove(star));
                 engineRef.current.heroStars = []; 
+
+                engineRef.current.createHeroStars(
+                    getNumStarsForTier(currentTierRef.current),
+                    physicsRef.current
+                );
             }
         }
     }, [currentTier]); 
