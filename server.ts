@@ -9,19 +9,22 @@ dotenv.config();
 const app = express();
 const port = process.env.PORT || 3001;
 
+// Security: Defense in depth - minimize fingerprinting
+app.disable('x-powered-by');
+
 // Security: Trust proxy for correct IP detection in rate limiting (e.g., on Render)
 app.set('trust proxy', 1);
 
-app.use(express.json());
+// Security: Limit payload size to mitigate DoS risks
+app.use(express.json({ limit: '10kb' }));
 
 // Security: Set enhanced security headers
 app.use((_req, res, next) => {
   res.setHeader('X-Content-Type-Options', 'nosniff');
   res.setHeader('X-Frame-Options', 'DENY');
-  res.setHeader('X-XSS-Protection', '1; mode=block');
   res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
   res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
-  res.setHeader('Content-Security-Policy', "default-src 'self'; script-src 'self' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; connect-src 'self' ws:; img-src 'self' data:; font-src 'self';");
+  res.setHeader('Content-Security-Policy', "default-src 'self'; script-src 'self' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; connect-src 'self' ws:; img-src 'self' data:; font-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none';");
   next();
 });
 
@@ -109,7 +112,18 @@ app.post('/api/analyze', async (req, res) => {
       throw new Error('No response text from Gemini API');
     }
 
-    res.json(JSON.parse(response.text));
+    const data = JSON.parse(response.text);
+
+    // Security: Strict output sanitization - ensure only expected fields are returned
+    const sanitized = {
+      planet_name: String(data.planet_name || "Unknown"),
+      life_stage: Number(data.life_stage || 0),
+      dominant_species: String(data.dominant_species || "Unknown"),
+      civilization: String(data.civilization || "Unknown"),
+      biome: String(data.biome || "Unknown")
+    };
+
+    res.json(sanitized);
   } catch (error) {
     console.error('Gemini Analysis Error:', error);
     res.status(500).json({
