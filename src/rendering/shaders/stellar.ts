@@ -7,12 +7,12 @@ import subDisplacementVert from '../../shaders/subDisplacement.vert.glsl?raw';
 import lifeGlowVert from '../../shaders/lifeGlow.vert.glsl?raw';
 import lifeGlowFrag from '../../shaders/lifeGlow.frag.glsl?raw';
 import basicVert from '../../shaders/basic.vert.glsl?raw';
-import cinematicVert from '../../shaders/cinematic.vert.glsl?raw';
-import cinematicFrag from '../../shaders/cinematic.frag.glsl?raw';
 import particleVert from '../../shaders/particle.vert.glsl?raw';
 import particleFrag from '../../shaders/particle.frag.glsl?raw';
 import ejectaVert from '../../shaders/ejecta.vert.glsl?raw';
 import ejectaFrag from '../../shaders/ejecta.frag.glsl?raw';
+import cinematicVert from '../../shaders/cinematic.vert.glsl?raw';
+import cinematicFrag from '../../shaders/cinematic.frag.glsl?raw';
 
 export const starVertexShader = resolveIncludes(lifeGlowVert);
 export const starFragmentShader = resolveIncludes(lifeGlowFrag);
@@ -22,11 +22,11 @@ export const starSurfaceFS = resolveIncludes(starSurfaceFrag);
 export const displacementVS = resolveIncludes(displacementVert);
 export const subtleDisplacementVS = resolveIncludes(subDisplacementVert);
 export const basicVS = resolveIncludes(basicVert);
-
 export const particleVS = resolveIncludes(particleVert);
 export const particleFS = resolveIncludes(particleFrag);
 export const ejectaVS = resolveIncludes(ejectaVert);
 export const ejectaFS = resolveIncludes(ejectaFrag);
+
 
 export const CinematicPassShader = {
   uniforms: {

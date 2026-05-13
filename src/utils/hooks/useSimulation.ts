@@ -15,11 +15,14 @@ import {
 import { updateNumStars } from '../../constants/simulation';
 
 export function useSimulation(containerRef: React.RefObject<HTMLDivElement | null>) {
+    console.log('useSimulation hook initialized');
     const engineRef = useRef<Engine | null>(null);
     const controlsRef = useRef<OrbitControls | null>(null);
     const [selectedStar, setSelectedStar] = useState<HeroStarSystem | null>(null);
     const selectedStarRef = useRef<HeroStarSystem | null>(null);
     const [isPaused, setIsPaused] = useState(false);
+    const isPausedRef = useRef(isPaused);
+    useEffect(() => { isPausedRef.current = isPaused; }, [isPaused]);
     const [fatalError, setFatalError] = useState<string | null>(null);
     const isScrubbingRef = useRef(false);
 
@@ -119,6 +122,7 @@ export function useSimulation(containerRef: React.RefObject<HTMLDivElement | nul
 
     useEffect(() => {
         if (!containerRef.current) return;
+        if (engineRef.current) return; // Prevent double initialization
 
         try {
             const engine = new Engine(containerRef.current);
@@ -185,10 +189,10 @@ export function useSimulation(containerRef: React.RefObject<HTMLDivElement | nul
                 frameId = requestAnimationFrame(animate);
                 try {
                     const currentTime = performance.now();
-                    const delta = Math.min((currentTime - lastAnimationTime) / 1000, 0.05); 
+                    const delta = Math.max(0.001, Math.min((currentTime - lastAnimationTime) / 1000, 0.05)); 
                     lastAnimationTime = currentTime;
 
-                    fpsHistory.push(1000 / (delta * 1000)); 
+                    fpsHistory.push(1 / delta); 
                     if (fpsHistory.length > 60) fpsHistory.shift(); 
                     const currentFps = fpsHistory.reduce((sum, val) => sum + val, 0) / fpsHistory.length;
                     setFps(Math.round(currentFps));
@@ -220,13 +224,13 @@ export function useSimulation(containerRef: React.RefObject<HTMLDivElement | nul
                         if (hudRefs.globalSlider.current) {
                             hudRefs.globalSlider.current.setAttribute('aria-valuenow', cosmicAgeRef.current.toFixed(2));
                         }
-                        if (Math.floor(engine.appTime) !== Math.floor(engine.appTime - delta)) {
+                        if (Math.floor(engine.appTime * 2) !== Math.floor((engine.appTime - delta) * 2)) {
                             setCosmicAge(cosmicAgeRef.current);
                         }
                     }
 
-                    engine.isPaused = isPaused;
-                    engine.update(selectedStarRef.current, isScrubbingRef.current, physicsRef.current, cosmicAgeRef.current);
+                    engine.isPaused = isPausedRef.current;
+                    engine.update(delta, selectedStarRef.current, isScrubbingRef.current, physicsRef.current, cosmicAgeRef.current);
                     controls.update();
 
                     if (hudRefs.hudX.current) hudRefs.hudX.current.innerText = engine.camera.position.x.toFixed(4);
@@ -268,11 +272,12 @@ export function useSimulation(containerRef: React.RefObject<HTMLDivElement | nul
                     clearTimeout(tierDownIndicatorTimeoutRef.current);
                 }
                 engine.dispose();
+                engineRef.current = null;
             };
         } catch (err: any) {
             setFatalError(err.message);
         }
-    }, [isPaused, physics, cosmicAge, isPlayingCosmic, handleTierChange, rebuildStarfieldGeometry]); 
+    }, [handleTierChange, rebuildStarfieldGeometry]); 
 
     const handleScrub = (e: React.PointerEvent) => {
         if (!selectedStarRef.current || !isScrubbingRef.current) return;
