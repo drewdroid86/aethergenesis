@@ -155,8 +155,11 @@ export class HeroStarSystem extends THREE.Group implements PhysicalBody {
 
         this.isSupernovaFlashing = false;
 
-        if (this.phase === PHASES.NEBULA) {
-            this.nebulaPhase.update(delta, appTime, cameraPos, physics, this.t);
+        if (this.t < 0.05) {
+            this.phase = PHASES.NEBULA;
+            this.nebulaPhase.show();
+            this.nebulaPhase.update(delta, appTime, physics, cameraPos, this.t);
+            
             const normT = this.t / 0.05;
             this.currentTemp = 50 + normT * 1000;
             this.currentLum = normT * 0.1;
@@ -164,26 +167,37 @@ export class HeroStarSystem extends THREE.Group implements PhysicalBody {
         } else if (this.phase === PHASES.PROTOSTAR) {
             targetProto = 1;
             const normT = (this.t - 0.05) / 0.10;
-            if (normT < 0.8) this.nebulaPhase.updateAsSecondary(delta, appTime, cameraPos, normT);
-            this.protostarPhase.update(delta, appTime, cameraPos, physics, this.t);
+            
+            if (normT < 0.8) {
+                this.nebulaPhase.updateAsSecondary(delta, appTime, cameraPos, normT);
+            }
+
+            this.protostarPhase.show();
+            this.protostarPhase.update(delta, appTime, physics, cameraPos, this.t);
+            
             this.currentTemp = 1000 + normT * (this.tHeat - 1000);
             this.currentLum = normT * Math.pow(this.mass, 3.5);
 
         } else if (this.phase === PHASES.MAIN_SEQUENCE) {
             targetMain = 1;
-            this.mainSequencePhase.update(delta, appTime, cameraPos, physics, this.t);
+            this.mainSequencePhase.show();
+            this.mainSequencePhase.update(delta, appTime, physics, cameraPos, this.t);
+            
             this.currentTemp = this.tHeat;
             this.currentLum = Math.pow(this.mass, 3.5);
 
         } else if (this.phase === PHASES.RED_GIANT) {
             targetRed = 1;
-            this.redGiantPhase.update(delta, appTime, cameraPos, physics, this.t);
+            this.redGiantPhase.show();
+            this.redGiantPhase.update(delta, appTime, physics, cameraPos, this.t);
+            
             this.currentTemp = this.redGiantPhase.getCurrentTemp(this.t);
             this.currentLum = this.redGiantPhase.getCurrentLum(this.t, this.mass);
 
         } else if (this.phase === PHASES.SUPERNOVA) {
             targetSuper = 1;
-            this.supernovaPhase.update(delta, appTime, cameraPos, physics, this.t);
+            this.supernovaPhase.show();
+            this.supernovaPhase.update(delta, appTime, physics, cameraPos, this.t);
             this.isSupernovaFlashing = this.supernovaPhase.isFlashing;
             if (this.mass > 8) {
                 this.currentTemp = 100000;
@@ -193,7 +207,10 @@ export class HeroStarSystem extends THREE.Group implements PhysicalBody {
             }
 
         } else {
-            this.remnantPhase.update(delta, appTime, cameraPos, physics, this.t);
+            this.phase = PHASES.REMNANT;
+            this.remnantPhase.show();
+            this.remnantPhase.update(delta, appTime, physics, cameraPos, this.t);
+            
             if (this.mass > 15) {
                 this.currentTemp = 0;
                 this.currentLum = 0;
