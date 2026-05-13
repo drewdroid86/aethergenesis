@@ -123,7 +123,7 @@ export class HeroStarSystem extends THREE.Group implements PhysicalBody {
         if (this.t < 0.05) {
             this.phase = PHASES.NEBULA;
             this.nebulaPhase.show();
-            this.nebulaPhase.update(delta, appTime, cameraPos, physics, this.t);
+            this.nebulaPhase.update(delta, appTime, physics, cameraPos, this.t);
             
             const normT = this.t / 0.05;
             this.currentTemp = 50 + normT * 1000;
@@ -139,7 +139,7 @@ export class HeroStarSystem extends THREE.Group implements PhysicalBody {
             }
 
             this.protostarPhase.show();
-            this.protostarPhase.update(delta, appTime, cameraPos, physics, this.t);
+            this.protostarPhase.update(delta, appTime, physics, cameraPos, this.t);
             
             this.currentTemp = 1000 + normT * (this.tHeat - 1000);
             this.currentLum = normT * Math.pow(this.mass, 3.5);
@@ -148,7 +148,7 @@ export class HeroStarSystem extends THREE.Group implements PhysicalBody {
             this.phase = PHASES.MAIN_SEQUENCE;
             targetMain = 1;
             this.mainSequencePhase.show();
-            this.mainSequencePhase.update(delta, appTime, cameraPos, physics, this.t);
+            this.mainSequencePhase.update(delta, appTime, physics, cameraPos, this.t);
             
             this.currentTemp = this.tHeat;
             this.currentLum = Math.pow(this.mass, 3.5);
@@ -157,7 +157,7 @@ export class HeroStarSystem extends THREE.Group implements PhysicalBody {
             this.phase = PHASES.RED_GIANT;
             targetRed = 1;
             this.redGiantPhase.show();
-            this.redGiantPhase.update(delta, appTime, cameraPos, physics, this.t);
+            this.redGiantPhase.update(delta, appTime, physics, cameraPos, this.t);
             
             this.currentTemp = this.redGiantPhase.getCurrentTemp(this.t);
             this.currentLum = this.redGiantPhase.getCurrentLum(this.t, this.mass);
@@ -166,7 +166,7 @@ export class HeroStarSystem extends THREE.Group implements PhysicalBody {
             this.phase = PHASES.SUPERNOVA;
             targetSuper = 1;
             this.supernovaPhase.show();
-            this.supernovaPhase.update(delta, appTime, cameraPos, physics, this.t);
+            this.supernovaPhase.update(delta, appTime, physics, cameraPos, this.t);
             this.isSupernovaFlashing = this.supernovaPhase.isFlashing;
 
             if (this.mass > 8) {
@@ -179,7 +179,7 @@ export class HeroStarSystem extends THREE.Group implements PhysicalBody {
         } else {
             this.phase = PHASES.REMNANT;
             this.remnantPhase.show();
-            this.remnantPhase.update(delta, appTime, cameraPos, physics, this.t);
+            this.remnantPhase.update(delta, appTime, physics, cameraPos, this.t);
             
             if (this.mass > 15) {
                 this.currentTemp = 0;

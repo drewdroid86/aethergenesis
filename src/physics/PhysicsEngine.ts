@@ -1,5 +1,5 @@
-import { PhysicsConstants } from '../types/physics';
-import { DEFAULT_CONSTANTS } from '../types/physics'; // Import DEFAULT_CONSTANTS
+import * as THREE from 'three';
+import { PhysicsConstants, DEFAULT_CONSTANTS } from '../types/physics';
 
 export class PhysicsEngine {
     constants: PhysicsConstants = DEFAULT_CONSTANTS;
