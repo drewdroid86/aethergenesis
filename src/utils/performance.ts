@@ -27,8 +27,8 @@ export function getNumStarsForTier(tier: PerformanceTier): number {
     switch (tier) {
         case 'low': return 500;
         case 'medium': return 1000;
-        case 'high': return 2000;
-        case 'ultra': return 5000;
+        case 'high': return 800;
+        case 'ultra': return 1500;
         default: return 1000;
     }
 }
