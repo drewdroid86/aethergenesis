@@ -8,7 +8,7 @@ uniform float uTime;
 void main() {
     vNormal = normalize(normalMatrix * normal);
     vec3 p = position;
-    float d = noise_sin(p * 5.0 + uTime * 2.0) * 0.15;
+    float d = noise_sin(p * 5.0 + uTime * 2.0) * 0.04;
     p += normal * d;
     vLocalPosition = p;
     vWorldPosition = (modelMatrix * vec4(p, 1.0)).xyz;

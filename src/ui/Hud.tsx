@@ -1,5 +1,5 @@
-import React from 'react';
-import { Crosshair, Navigation, Pause, Play } from 'lucide-react';
+import React, { useState } from 'react';
+import { Check, Copy, Crosshair, Navigation, Pause, Play } from 'lucide-react';
 
 interface HudProps {
     uiRefs: {
@@ -16,7 +16,7 @@ interface HudProps {
     onGlobalScrubStart: (e: React.PointerEvent) => void;
     onGlobalScrubMove: (e: React.PointerEvent) => void;
     onGlobalScrubEnd: () => void;
-    onKeyDown: (e: React.KeyboardEvent) => void;
+    onKeyDown: (e: React.KeyboardEvent, isGlobal: boolean) => void;
     resetCamera: () => void;
     performance: {
         tier: string;
@@ -38,6 +38,20 @@ export const Hud: React.FC<HudProps> = ({
     resetCamera,
     performance
 }) => {
+    const [copied, setCopied] = useState(false);
+
+    const copyCoordinates = () => {
+        const x = uiRefs.hudX.current?.innerText || '0.0000';
+        const y = uiRefs.hudY.current?.innerText || '0.0000';
+        const z = uiRefs.hudZ.current?.innerText || '0.0000';
+        const coords = `X: ${x}, Y: ${y}, Z: ${z}`;
+
+        navigator.clipboard.writeText(coords).then(() => {
+            setCopied(true);
+            setTimeout(() => setCopied(false), 2000);
+        });
+    };
+
     return (
         <>
             {/* Top HUD */}
@@ -85,10 +99,20 @@ export const Hud: React.FC<HudProps> = ({
 
             {/* Bottom HUD */}
             <div className="absolute bottom-0 w-full p-8 flex justify-between items-end z-20 pointer-events-none">
-                <div className="font-mono text-[10px] text-[#7EB8FF]/60 space-y-1 border-l border-[#C084FC]/50 pl-4 bg-[rgba(8,8,20,0.4)] backdrop-blur-md py-3 pr-4 rounded-r border-y-0 border-r-0">
-                <div className="flex items-center gap-2 mb-2 pb-1 border-b border-[rgba(126,184,255,0.2)]">
-                    <span className="inline-block w-2 h-2 rounded-full bg-[#C084FC] animate-pulse shadow-[0_0_5px_#C084FC]" />
-                    <span className="uppercase tracking-widest text-[#7EB8FF]">Location</span>
+                <div className="font-mono text-[10px] text-[#7EB8FF]/60 space-y-1 border-l border-[#C084FC]/50 pl-4 bg-[rgba(8,8,20,0.4)] backdrop-blur-md py-3 pr-4 rounded-r border-y-0 border-r-0 pointer-events-auto">
+                <div className="flex items-center justify-between gap-4 mb-2 pb-1 border-b border-[rgba(126,184,255,0.2)]">
+                    <div className="flex items-center gap-2">
+                        <span className="inline-block w-2 h-2 rounded-full bg-[#C084FC] animate-pulse shadow-[0_0_5px_#C084FC]" />
+                        <span className="uppercase tracking-widest text-[#7EB8FF]">Location</span>
+                    </div>
+                    <button
+                        onClick={copyCoordinates}
+                        className="text-[#7EB8FF]/40 hover:text-white transition-colors focus-visible:ring-2 focus-visible:ring-[#C084FC] outline-none rounded"
+                        aria-label="Copy Coordinates"
+                        title="Copy Coordinates"
+                    >
+                        {copied ? <Check size={12} className="text-green-400" /> : <Copy size={12} />}
+                    </button>
                 </div>
                 <div className="text-white"><span className="text-[#7EB8FF]/70 mr-2">POS_X:</span><span ref={uiRefs.hudX}>0.0000</span></div>
                 <div className="text-white"><span className="text-[#7EB8FF]/70 mr-2">POS_Y:</span><span ref={uiRefs.hudY}>0.0000</span></div>
@@ -98,7 +122,9 @@ export const Hud: React.FC<HudProps> = ({
                 <div className="absolute left-1/2 -translate-x-1/2 flex flex-col items-center gap-4 w-1/3 pointer-events-auto">
                     <div className="w-full px-8 py-4 bg-[rgba(8,8,20,0.6)] backdrop-blur-2xl border border-[rgba(126,184,255,0.2)] rounded-2xl flex flex-col items-center group">
                         <div className="flex justify-between w-full items-center mb-3">
-                            <span className="text-[9px] uppercase tracking-widest text-[#7EB8FF]">Global Cosmic Age (Gyr)</span>
+                            <span className="text-[9px] uppercase tracking-widest text-[#7EB8FF]">
+                                Global Cosmic Age (Gyr) <span className="opacity-0 group-hover:opacity-100 transition-opacity ml-2 text-[8px] text-[#C084FC] hidden sm:inline">[Arrows to Seek]</span>
+                            </span>
                             <div className="flex gap-2">
                                 <button
                                     onClick={() => setIsPlayingCosmic(!isPlayingCosmic)}
@@ -124,7 +150,7 @@ export const Hud: React.FC<HudProps> = ({
                             onPointerMove={onGlobalScrubMove}
                             onPointerUp={onGlobalScrubEnd}
                             onPointerLeave={onGlobalScrubEnd}
-                            onKeyDown={onKeyDown}
+                            onKeyDown={(e) => onKeyDown(e, true)}
                         >
                             <div ref={uiRefs.globalTimelineFill} className="h-full bg-gradient-to-r from-[#7EB8FF] to-[#C084FC]" style={{width: `${(cosmicAge / 14.0) * 100}%`}}></div>
                             <div className="absolute inset-0 bg-white/20 opacity-0 group-hover:opacity-100 transition-opacity"></div>

@@ -10,7 +10,8 @@ import {
     getNumStarsForTier, 
     setOnTierChangeCallback,
     FPS_THRESHOLD,
-    CONSECUTIVE_FRAMES_THRESHOLD
+    CONSECUTIVE_FRAMES_THRESHOLD,
+    BANNER_DISPLAY_DURATION
 } from '../../utils/performance';
 import { updateNumStars } from '../../constants/simulation';
 
@@ -32,6 +33,7 @@ export function useSimulation(containerRef: React.RefObject<HTMLDivElement | nul
     const [showTierDownIndicator, setShowTierDownIndicator] = useState(false);
     const consecutiveFramesBelowThresholdRef = useRef(0);
     const tierDownIndicatorTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+    const hasDowngradedRef = useRef(false);
 
     // Physics Constants State
     const [physics, setPhysics] = useState<PhysicsConstants>({
@@ -102,14 +104,19 @@ export function useSimulation(containerRef: React.RefObject<HTMLDivElement | nul
             currentTierRef.current = newTier;
             setCurrentTier(newTier);
             updateNumStars(newTier); 
-            setShowTierDownIndicator(true); 
+            
+            const isDowngrade = ['low', 'medium', 'high', 'ultra'].indexOf(newTier) < ['low', 'medium', 'high', 'ultra'].indexOf(currentTierRef.current);
+            if (isDowngrade) {
+                hasDowngradedRef.current = true;
+                setShowTierDownIndicator(true); 
 
-            if (tierDownIndicatorTimeoutRef.current) {
-                clearTimeout(tierDownIndicatorTimeoutRef.current);
+                if (tierDownIndicatorTimeoutRef.current) {
+                    clearTimeout(tierDownIndicatorTimeoutRef.current);
+                }
+                tierDownIndicatorTimeoutRef.current = setTimeout(() => {
+                    setShowTierDownIndicator(false);
+                }, BANNER_DISPLAY_DURATION);
             }
-            tierDownIndicatorTimeoutRef.current = setTimeout(() => {
-                setShowTierDownIndicator(false);
-            }, 3000); 
 
             rebuildStarfieldGeometry();
         }
@@ -209,7 +216,7 @@ export function useSimulation(containerRef: React.RefObject<HTMLDivElement | nul
                     if (consecutiveFramesBelowThresholdRef.current >= CONSECUTIVE_FRAMES_THRESHOLD) {
                         const tiers: ('low' | 'medium' | 'high' | 'ultra')[] = ['low', 'medium', 'high', 'ultra'];
                         const currentTierIndex = tiers.indexOf(currentTierRef.current);
-                        if (currentTierIndex > 0) {
+                        if (currentTierIndex > 0 && !hasDowngradedRef.current) {
                             const newTier = tiers[currentTierIndex - 1];
                             handleTierChange(newTier);
                             consecutiveFramesBelowThresholdRef.current = 0; 
