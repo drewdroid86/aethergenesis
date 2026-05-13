@@ -101,5 +101,3 @@ export class Engine {
         this.scene.clear();
     }
 }
- }
-}
