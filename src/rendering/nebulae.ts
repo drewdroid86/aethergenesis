@@ -1,6 +1,9 @@
 import * as THREE from 'three';
 import { detectPerformanceTier } from '../utils/performance';
 
+// BOLT OPTIMIZATION: Reuse a single Vector3 to eliminate per-frame allocations during nebula updates.
+const _tempVec = new THREE.Vector3();
+
 function generateClusteredPositions(spread: number, count: number): Float32Array {
     const positions = new Float32Array(count * 3);
     const center = new THREE.Vector3(
@@ -93,7 +96,10 @@ export class NebulaSystem {
         const timeScale = deltaTime * 0.001;
         this.nebulae.forEach(group => {
             group.rotation.y += group.userData.rotationSpeed * timeScale * 100;
-            group.position.copy(group.userData.initialPosition).add(cameraPosition.clone().multiplyScalar(0.05));
+
+            // BOLT: Avoid .clone() to prevent garbage collection pressure
+            _tempVec.copy(cameraPosition).multiplyScalar(0.05);
+            group.position.copy(group.userData.initialPosition).add(_tempVec);
         });
     }
 }
