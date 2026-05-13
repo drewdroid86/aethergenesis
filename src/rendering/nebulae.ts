@@ -1,26 +1,22 @@
 import * as THREE from 'three';
 import { detectPerformanceTier } from '../utils/performance';
 
-function generateClusteredPositions(radius: number, count: number): Float32Array {
+function generateClusteredPositions(spread: number, count: number): Float32Array {
     const positions = new Float32Array(count * 3);
     const center = new THREE.Vector3(
-        (Math.random() - 0.5) * 500,
-        (Math.random() - 0.5) * 500,
-        (Math.random() - 0.5) * 500
+        (Math.random() - 0.5) * 1000,
+        (Math.random() - 0.5) * 1000,
+        (Math.random() - 0.5) * 1000
     );
 
     for (let i = 0; i < count; i++) {
-        const r = Math.random() * radius * 0.3;
+        const r = Math.random() * spread;
         const theta = Math.random() * Math.PI * 2;
         const phi = Math.acos(2 * Math.random() - 1);
         
-        const x = center.x + r * Math.sin(phi) * Math.cos(theta);
-        const y = center.y + r * Math.sin(phi) * Math.sin(theta);
-        const z = center.z + r * Math.cos(phi);
-        
-        positions[i * 3] = x;
-        positions[i * 3 + 1] = y;
-        positions[i * 3 + 2] = z;
+        positions[i * 3] = center.x + r * Math.sin(phi) * Math.cos(theta);
+        positions[i * 3 + 1] = center.y + r * Math.sin(phi) * Math.sin(theta);
+        positions[i * 3 + 2] = center.z + r * Math.cos(phi);
     }
     return positions;
 }
@@ -34,12 +30,12 @@ export class NebulaSystem {
         maxNebulae: 4,
         minRadius: 2000,
         maxRadius: 4000,
-        minParticles: 200,
-        maxParticles: 400,
-        baseSize: 300, 
-        opacity: 0.4,
-        colors: [0x800080, 0x0000FF, 0xFF00FF, 0x008080], // Deep purple, blue, magenta, teal
-        baseRotationSpeed: 0.0001,
+        minParticles: 300,
+        maxParticles: 600,
+        sizeRange: [12, 25],
+        opacity: 0.9,
+        colors: [0x6B46C0, 0x00FFFF, 0xFF00AA, 0x00FFAA],
+        rotationSpeedRange: [0.0001, 0.0005],
     };
 
     constructor(scene: THREE.Object3D) {
@@ -49,10 +45,10 @@ export class NebulaSystem {
 
     private initNebulae() {
         const tier = detectPerformanceTier();
-        const nebulaCount = tier === 'low' ? this.config.minNebulae : this.config.maxNebulae;
+        const count = tier === 'low' ? this.config.minNebulae : this.config.maxNebulae;
         const particles = tier === 'low' ? this.config.minParticles : this.config.maxParticles;
 
-        for (let i = 0; i < nebulaCount; i++) {
+        for (let i = 0; i < count; i++) {
             const nebulaGroup = new THREE.Group();
             
             const radius = THREE.MathUtils.lerp(this.config.minRadius, this.config.maxRadius, Math.random());
@@ -65,11 +61,11 @@ export class NebulaSystem {
             );
 
             const geometry = new THREE.BufferGeometry();
-            const positions = generateClusteredPositions(500, particles);
+            const positions = generateClusteredPositions(800, particles);
             geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
 
             const material = new THREE.PointsMaterial({
-                size: this.config.baseSize * (0.8 + Math.random() * 0.4),
+                size: THREE.MathUtils.lerp(this.config.sizeRange[0], this.config.sizeRange[1], Math.random()),
                 transparent: true,
                 opacity: this.config.opacity,
                 color: new THREE.Color(this.config.colors[i % this.config.colors.length]),
@@ -81,7 +77,11 @@ export class NebulaSystem {
             const points = new THREE.Points(geometry, material);
             nebulaGroup.add(points);
             
-            nebulaGroup.userData.rotationSpeed = this.config.baseRotationSpeed * (Math.random() - 0.5);
+            nebulaGroup.userData.rotationSpeed = THREE.MathUtils.lerp(
+                this.config.rotationSpeedRange[0], 
+                this.config.rotationSpeedRange[1], 
+                Math.random()
+            ) * (Math.random() > 0.5 ? 1 : -1);
             nebulaGroup.userData.initialPosition = nebulaGroup.position.clone();
             
             this.nebulae.push(nebulaGroup);
@@ -92,8 +92,7 @@ export class NebulaSystem {
     update(deltaTime: number, cameraPosition: THREE.Vector3) {
         const timeScale = deltaTime * 0.001;
         this.nebulae.forEach(group => {
-            group.rotation.y += group.userData.rotationSpeed * timeScale;
-            // Gentle parallax
+            group.rotation.y += group.userData.rotationSpeed * timeScale * 100;
             group.position.copy(group.userData.initialPosition).add(cameraPosition.clone().multiplyScalar(0.05));
         });
     }
