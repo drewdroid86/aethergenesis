@@ -36,8 +36,8 @@ export class NebulaSystem {
         maxRadius: 4000,
         minParticles: 200,
         maxParticles: 400,
-        baseSize: 150, 
-        opacity: 0.15,
+        baseSize: 300, 
+        opacity: 0.4,
         colors: [0x800080, 0x0000FF, 0xFF00FF, 0x008080], // Deep purple, blue, magenta, teal
         baseRotationSpeed: 0.0001,
     };
