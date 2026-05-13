@@ -26,8 +26,8 @@ export const GEOMETRIES = {
     supernovaRing: new THREE.TorusGeometry(1, 0.1, 16, 64),
     neutronStar: new THREE.SphereGeometry(0.1, 32, 32),
     pulsarBeam: (() => {
-        const geo = new THREE.ConeGeometry(0.2, 20, 16);
-        geo.translate(0, 10, 0);
+        const geo = new THREE.ConeGeometry(0.2, 1.5, 16);
+        geo.translate(0, 0.75, 0);
         return geo;
     })(),
     blackHoleCore: new THREE.SphereGeometry(0.5, 32, 32),
