@@ -26,20 +26,21 @@ export class NebulaSystem {
     private scene: THREE.Object3D;
 
     private config = {
-        minNebulae: 3,
-        maxNebulae: 4,
+        minNebulae: 5,
+        maxNebulae: 8,
         minRadius: 2000,
         maxRadius: 4000,
-        minParticles: 300,
-        maxParticles: 600,
-        sizeRange: [12, 25],
-        opacity: 0.9,
-        colors: [0x6B46C0, 0x00FFFF, 0xFF00AA, 0x00FFAA],
-        rotationSpeedRange: [0.0001, 0.0005],
+        minParticles: 800,
+        maxParticles: 1500,
+        sizeRange: [25, 50],
+        opacity: 0.8,
+        colors: [0x9B46FF, 0x00FFFF, 0xFF00FF, 0x00FF88],
+        rotationSpeedRange: [0.001, 0.003],
     };
 
     constructor(scene: THREE.Object3D) {
         this.scene = scene;
+        console.log('NebulaSystem: Initializing vibrant nebula clouds...');
         this.initNebulae();
     }
 

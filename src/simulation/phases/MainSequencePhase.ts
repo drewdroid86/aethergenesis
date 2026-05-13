@@ -70,7 +70,14 @@ export class MainSequencePhase implements PhaseComponent {
         const hzRadius = Math.max(4, Math.sqrt(lum) * 2.5);
         this.hzMesh = new THREE.Mesh(
             GEOMETRIES.habitableZone,
-            new THREE.MeshBasicMaterial({ color: 0x00ff88, transparent: true, opacity: 0.1, blending: THREE.AdditiveBlending })
+            new THREE.MeshPhongMaterial({ 
+                color: 0x00ff88, 
+                transparent: true, 
+                opacity: 0.3, 
+                shininess: 100,
+                emissive: 0x004422,
+                side: THREE.DoubleSide
+            })
         );
         this.hzMesh.scale.setScalar(hzRadius);
         this.hzMesh.rotation.x = Math.PI / 2;
