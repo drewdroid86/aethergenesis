@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { HeroStarSystem } from '../rendering/systems/HeroStarSystem';
 import { PhysicsConstants, DEFAULT_CONSTANTS } from '../types/physics';
 import { detectPerformanceTier, getNumStarsForTier } from '../utils/performance';
-
+import { NebulaSystem } from '../rendering/nebulae';
 import { Pipeline } from '../rendering/pipeline';
 
 export class Engine {
@@ -10,6 +10,7 @@ export class Engine {
     camera: THREE.PerspectiveCamera;
     renderer: THREE.WebGLRenderer;
     pipeline: Pipeline;
+    nebulaSystem: NebulaSystem;
     heroStars: HeroStarSystem[] = [];
     appTime: number = 0;
     isPaused: boolean = false;
@@ -77,6 +78,8 @@ export class Engine {
                 cosmicAge 
             );
         });
+
+        this.nebulaSystem.update(delta, this.camera.position);
 
         // Use pipeline for rendering with post-processing
         this.pipeline.render(this.appTime);
