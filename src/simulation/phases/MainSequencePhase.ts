@@ -49,6 +49,7 @@ export class MainSequencePhase implements PhaseComponent {
             transparent: true, blending: THREE.AdditiveBlending
         });
         this.starMesh = new THREE.Mesh(GEOMETRIES.mainSeq, this.starMat);
+        this.starMesh.scale.setScalar(this.baseRadius); // BOLT: Set scale once
         this.coronaMesh = new THREE.Mesh(
             GEOMETRIES.corona,
             new THREE.MeshBasicMaterial({ color: msColor, transparent: true, opacity: 0, blending: THREE.AdditiveBlending })
@@ -89,16 +90,14 @@ export class MainSequencePhase implements PhaseComponent {
         this.hide();
     }
 
-    update(delta: number, appTime: number, physics: PhysicsConstants, cameraPos: THREE.Vector3, t: number): void {
-        this.starMesh.scale.setScalar(this.baseRadius);
+    update(delta: number, appTime: number, cameraPos: THREE.Vector3, physics: PhysicsConstants, t: number): void {
+        // BOLT: Removed redundant scale assignment
         this.starMat.uniforms.uTime.value = appTime;
         this.starMat.uniforms.uHbar.value = physics.hbar || 1.0;
 
         this.planetsInfo.forEach(p => {
-            p.pivot.visible = true;
+            // BOLT: Removed redundant visibility and material assignments
             p.pivot.rotation.y += p.speed * delta;
-            (p.mesh.material as THREE.MeshStandardMaterial).color.setHex(0xaaaaaa);
-            (p.mesh.material as THREE.MeshStandardMaterial).emissive.setHex(0x000000);
         });
     }
 

@@ -9,6 +9,7 @@ export class NebulaPhase implements PhaseComponent {
     private nebulaMesh!: THREE.Mesh;
     private dustCloud!: THREE.Points;
     private parent!: THREE.Group;
+    private _matrixInitialized: boolean = false;
 
     init(parent: THREE.Group): void {
         this.parent = parent;
@@ -58,17 +59,24 @@ export class NebulaPhase implements PhaseComponent {
             })
         );
         this.parent.add(this.dustCloud);
-        
         this.hide();
     }
 
-    update(delta: number, appTime: number, physics: PhysicsConstants, cameraPos: THREE.Vector3, t: number): void {
+    update(delta: number, appTime: number, cameraPos: THREE.Vector3, physics: PhysicsConstants, t: number): void {
         const normT = t / 0.05;
         
         this.nebulaMat.uniforms.uTime.value = appTime;
         this.nebulaMat.uniforms.uCollapse.value = normT;
         this.nebulaMat.uniforms.uCameraPos.value.copy(cameraPos);
-        this.nebulaMat.uniforms.uInverseModelMatrix.value.copy(this.nebulaMesh.matrixWorld).invert();
+
+        // BOLT: Update inverse matrix only once after world matrix is ready
+        if (!this._matrixInitialized) {
+            this.nebulaMesh.updateMatrixWorld(true);
+            if (this.nebulaMesh.matrixWorld.determinant() !== 0) {
+                this.nebulaMat.uniforms.uInverseModelMatrix.value.copy(this.nebulaMesh.matrixWorld).invert();
+                this._matrixInitialized = true;
+            }
+        }
         
         this.dustCloud.rotation.y += delta * 0.2;
         (this.dustCloud.material as THREE.ShaderMaterial).uniforms.uAlpha.value = 1.0;
