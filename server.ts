@@ -3,6 +3,7 @@ import dotenv from 'dotenv';
 import { GoogleGenAI } from '@google/genai';
 import { fileURLToPath } from 'url';
 import path from 'path';
+import { rateLimit } from 'express-rate-limit';
 
 dotenv.config();
 
@@ -24,48 +25,27 @@ app.use((_req, res, next) => {
   res.setHeader('X-Frame-Options', 'DENY');
   res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
   res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
-  res.setHeader('Content-Security-Policy', "default-src 'self'; script-src 'self' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; connect-src 'self' ws:; img-src 'self' data:; font-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none';");
+  res.setHeader('Content-Security-Policy', "default-src 'self'; script-src 'self' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; connect-src 'self' ws:; img-src 'self' data:; font-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; upgrade-insecure-requests;");
   next();
 });
 
-// Security: Simple in-memory rate limiting for AI analysis
-const analysisLimitMap = new Map<string, number>();
-const RATE_LIMIT_WINDOW = 60 * 1000; // 1 minute
-const MAX_REQUESTS_PER_WINDOW = 5;
-const MAX_ENTRIES = 1000; // Memory protection
-
-// Periodic cleanup to prevent memory exhaustion
-setInterval(() => {
-  const now = Date.now();
-  for (const [ip, time] of analysisLimitMap.entries()) {
-    if (now - time > RATE_LIMIT_WINDOW) analysisLimitMap.delete(ip);
-  }
-}, RATE_LIMIT_WINDOW);
+// Security: Robust rate limiting for AI analysis
+const analysisLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minute
+  max: 5, // Limit each IP to 5 requests per windowMs
+  standardHeaders: true, // Return rate limit info in the `RateLimit-*` headers
+  legacyHeaders: false, // Disable the `X-RateLimit-*` headers
+  message: { error: 'Too many requests. Please slow down.' }
+});
 
 const apiKey = process.env.GEMINI_API_KEY;
 const ai = apiKey ? new GoogleGenAI({ apiKey }) : null;
 
-app.post('/api/analyze', async (req, res) => {
+app.post('/api/analyze', analysisLimiter, async (req, res) => {
   if (!ai) {
     // Security: Generic error message to avoid leaking server config
     return res.status(503).json({ error: 'Analysis service currently unavailable.' });
   }
-
-  // Security: Rate limiting by IP
-  const ip = req.ip || req.socket.remoteAddress || 'unknown';
-  const now = Date.now();
-  const lastRequestTime = analysisLimitMap.get(ip) || 0;
-
-  if (now - lastRequestTime < (RATE_LIMIT_WINDOW / MAX_REQUESTS_PER_WINDOW)) {
-    return res.status(429).json({ error: 'Too many requests. Please slow down.' });
-  }
-
-  // Memory protection: don't add new IPs if map is too large
-  if (analysisLimitMap.size >= MAX_ENTRIES && !analysisLimitMap.has(ip)) {
-    return res.status(503).json({ error: 'Server busy.' });
-  }
-
-  analysisLimitMap.set(ip, now);
 
   const { temp, mass, lum, age, phase, G, alpha } = req.body;
 
@@ -126,14 +106,8 @@ app.post('/api/analyze', async (req, res) => {
     res.json(sanitized);
   } catch (error) {
     console.error('Gemini Analysis Error:', error);
-    res.status(500).json({
-      planet_name: "Kerath-7",
-      life_stage: 4,
-      dominant_species: "Silicate Swarm",
-      civilization: "Post-Scarcity Hive",
-      biome: "Crystalline Deserts",
-      note: "Predictive fallback due to server error"
-    });
+    // Security: Return generic error without leaking expected data structures
+    res.status(500).json({ error: 'Deep scan failed. Please try again later.' });
   }
 });
 
