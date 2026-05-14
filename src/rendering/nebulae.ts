@@ -68,7 +68,8 @@ export class NebulaSystem {
 
             const geometry = new THREE.BufferGeometry();
             // Use the spread factor for positioning, making clouds softer and larger
-            const positions = generateClusteredPositions(this.config.spreadFactor, numParticles, nebulaCenter); 
+            // Fix: Pass (0,0,0) so particles are relative to group origin, avoiding double offset
+            const positions = generateClusteredPositions(this.config.spreadFactor, numParticles, new THREE.Vector3(0, 0, 0)); 
             geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
 
             const material = new THREE.PointsMaterial({
