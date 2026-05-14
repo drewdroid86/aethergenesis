@@ -84,42 +84,56 @@ export function useSimulation(containerRef: React.RefObject<HTMLDivElement | nul
         stellarSlider: useRef<HTMLDivElement>(null),
     };
 
-    const rebuildStarfieldGeometry = useCallback(() => {
-        if (engineRef.current && engineRef.current.heroStars) {
-            if (engineRef.current && engineRef.current.scene) {
-                engineRef.current.heroStars.forEach(star => engineRef.current?.scene.remove(star));
-                engineRef.current.heroStars = []; 
-
-                engineRef.current.createHeroStars(
-                    getNumStarsForTier(currentTierRef.current),
-                    physicsRef.current
-                );
+    const disposeStarSystem = (star: HeroStarSystem) => {
+        star.traverse((child) => {
+            if (child instanceof THREE.Mesh) {
+                child.geometry.dispose();
+                if (Array.isArray(child.material)) {
+                    child.material.forEach((material) => material.dispose());
+                } else if (child.material) {
+                    child.material.dispose();
+                }
             }
-        }
+        });
+    };
+
+    const rebuildStarfieldGeometry = useCallback(() => {
+        if (!engineRef.current || !engineRef.current.scene) return;
+
+        engineRef.current.heroStars.forEach((star) => {
+            engineRef.current?.scene.remove(star);
+            disposeStarSystem(star);
+        });
+        engineRef.current.heroStars = [];
+
+        engineRef.current.createHeroStars(
+            getNumStarsForTier(currentTierRef.current),
+            physicsRef.current
+        );
     }, [currentTier]); 
 
     const handleTierChange = useCallback((newTier: 'low' | 'medium' | 'high' | 'ultra') => {
-        if (newTier !== currentTierRef.current) {
-            console.log(`Tier changed: ${currentTierRef.current} -> ${newTier}`);
-            currentTierRef.current = newTier;
-            setCurrentTier(newTier);
-            updateNumStars(newTier); 
-            
-            const isDowngrade = ['low', 'medium', 'high', 'ultra'].indexOf(newTier) < ['low', 'medium', 'high', 'ultra'].indexOf(currentTierRef.current);
-            if (isDowngrade) {
-                hasDowngradedRef.current = true;
-                setShowTierDownIndicator(true); 
+        if (newTier === currentTierRef.current) return;
 
-                if (tierDownIndicatorTimeoutRef.current) {
-                    clearTimeout(tierDownIndicatorTimeoutRef.current);
-                }
-                tierDownIndicatorTimeoutRef.current = setTimeout(() => {
-                    setShowTierDownIndicator(false);
-                }, BANNER_DISPLAY_DURATION);
+        const previousTier = currentTierRef.current;
+        currentTierRef.current = newTier;
+        setCurrentTier(newTier);
+        updateNumStars(newTier);
+
+        const isDowngrade = ['low', 'medium', 'high', 'ultra'].indexOf(newTier) < ['low', 'medium', 'high', 'ultra'].indexOf(previousTier);
+        if (isDowngrade) {
+            hasDowngradedRef.current = true;
+            setShowTierDownIndicator(true); 
+
+            if (tierDownIndicatorTimeoutRef.current) {
+                clearTimeout(tierDownIndicatorTimeoutRef.current);
             }
-
-            rebuildStarfieldGeometry();
+            tierDownIndicatorTimeoutRef.current = setTimeout(() => {
+                setShowTierDownIndicator(false);
+            }, BANNER_DISPLAY_DURATION);
         }
+
+        rebuildStarfieldGeometry();
     }, [rebuildStarfieldGeometry]); 
 
     useEffect(() => {

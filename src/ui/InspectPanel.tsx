@@ -4,6 +4,15 @@ import { PHASE_NAMES } from '../core/constants';
 import { HeroStarSystem } from '../rendering/systems/HeroStarSystem';
 import { PhysicsConstants } from '../types/physics';
 
+interface GeminiAnalysisResult {
+    planet_name: string;
+    life_stage: number;
+    dominant_species: string;
+    civilization: string;
+    biome: string;
+    isFallback?: boolean;
+}
+
 interface InspectPanelProps {
     selectedStar: HeroStarSystem;
     setSelectedStar: (star: HeroStarSystem | null) => void;
@@ -38,7 +47,7 @@ export const InspectPanel: React.FC<InspectPanelProps> = ({
     uiRefs
 }) => {
     const [isAnalyzing, setIsAnalyzing] = useState(false);
-    const [geminiData, setGeminiData] = useState<any>(null);
+    const [geminiData, setGeminiData] = useState<GeminiAnalysisResult | null>(null);
     const [analysisFailed, setAnalysisFailed] = useState(false);
     const lastAnalysisTimeRef = useRef(0);
 
@@ -57,8 +66,8 @@ export const InspectPanel: React.FC<InspectPanelProps> = ({
                 lum: parseFloat(selectedStar.currentLum.toFixed(3)),
                 age: parseFloat(selectedStar.currentRealAge.toFixed(1)),
                 phase: PHASE_NAMES[selectedStar.phase],
-                G: physics.G.toFixed(2),
-                alpha: physics.alpha.toFixed(2)
+                G: physics.G,
+                alpha: physics.alpha
             };
 
             const response = await fetch('/api/analyze', {
@@ -69,7 +78,7 @@ export const InspectPanel: React.FC<InspectPanelProps> = ({
 
             if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
 
-            const data = await response.json();
+            const data = await response.json() as GeminiAnalysisResult;
             setGeminiData(data);
             setAnalysisFailed(false);
         } catch (err) {
