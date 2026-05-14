@@ -29,7 +29,7 @@ export function getNumStarsForTier(tier: PerformanceTier): number {
         case 'low': return 500;
         case 'medium': return 1000;
         case 'high': return 800;
-        case 'ultra': return 1500;
+        case 'ultra': return 1000;
         default: return 1000;
     }
 }
