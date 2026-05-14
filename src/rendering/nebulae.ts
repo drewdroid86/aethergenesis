@@ -25,8 +25,8 @@ export class NebulaSystem {
         maxNebulae: 4,
         minRadius: 2000, // Increased distance for background effect
         maxRadius: 5000,
-        minParticles: 150,
-        maxParticles: 400,
+        minParticles: 80,
+        maxParticles: 150,
         sizeRange: [8, 18], // Reduced particle size
         opacity: 0.25, // Lowered opacity for softness
         colors: [
@@ -50,7 +50,7 @@ export class NebulaSystem {
         // Adjust number of nebulae based on performance tier
         const numNebulae = tier === 'ultra' ? this.config.maxNebulae : (tier === 'low' ? 2 : THREE.MathUtils.lerp(this.config.minNebulae, this.config.maxNebulae, Math.random()));
         // Adjust particle count based on performance tier
-        const numParticles = tier === 'ultra' ? this.config.maxParticles : (tier === 'low' ? 100 : THREE.MathUtils.lerp(this.config.minParticles, this.config.maxParticles, Math.random()));
+        const numParticles = tier === 'ultra' ? this.config.maxParticles : (tier === 'low' ? this.config.minParticles : THREE.MathUtils.lerp(this.config.minParticles, this.config.maxParticles, Math.random()));
 
         for (let i = 0; i < numNebulae; i++) {
             const nebulaGroup = new THREE.Group();

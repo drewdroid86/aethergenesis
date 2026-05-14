@@ -26,11 +26,11 @@ export function detectPerformanceTier(): PerformanceTier {
 
 export function getNumStarsForTier(tier: PerformanceTier): number {
     switch (tier) {
-        case 'low': return 500;
-        case 'medium': return 1000;
-        case 'high': return 800;
-        case 'ultra': return 1000;
-        default: return 1000;
+        case 'low': return 100;
+        case 'medium': return 200;
+        case 'high': return 400;
+        case 'ultra': return 600;
+        default: return 400;
     }
 }
 

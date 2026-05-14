@@ -86,12 +86,13 @@ export class MainSequencePhase implements PhaseComponent {
         this.parent.add(this.hzMesh);
 
         // Planets
-        for(let i=0; i<4; i++) {
-            const dist = 3 + Math.random() * 8 + (i * 2); 
-            const pScale = 0.1 + Math.random()*0.15;
+        for(let i=0; i<2; i++) {
+            const dist = hzRadius * 1.2 + Math.random() * 8 + (i * 2); 
+            const pScale = 0.2 + Math.random() * 0.25;
+            const pColor = i === 0 ? 0x8899aa : 0xcc8855;
             const pMesh = new THREE.Mesh(
                 GEOMETRIES.planet,
-                new THREE.MeshStandardMaterial({color: 0xaaaaaa, roughness: 0.8})
+                new THREE.MeshBasicMaterial({color: pColor})
             );
             pMesh.scale.setScalar(pScale);
             pMesh.position.x = dist;
