@@ -26,9 +26,8 @@ export class RemnantPhase implements PhaseComponent {
         const nsMat = new THREE.MeshBasicMaterial({color: 0xaaccff, transparent: true, opacity: 0});
         this.pulsarGroup = new THREE.Group();
         const beamMat = new THREE.MeshBasicMaterial({ color: 0x00ffff, transparent: true, opacity: 0, blending: THREE.AdditiveBlending });
-        const beam1 = new THREE.Mesh(GEOMETRIES.pulsarBeam, beamMat);
-        const beam2 = new THREE.Mesh(GEOMETRIES.pulsarBeam, beamMat);
-        beam2.rotation.x = Math.PI;
+        const beam1 = new THREE.Mesh(GEOMETRIES.pulsarBeam1, beamMat);
+        const beam2 = new THREE.Mesh(GEOMETRIES.pulsarBeam2, beamMat);
         this.pulsarGroup.add(beam1);
         this.pulsarGroup.add(beam2);
         this.neutronStarGroup.add(new THREE.Mesh(GEOMETRIES.neutronStar, nsMat));
