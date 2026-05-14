@@ -1,18 +1,13 @@
 import * as THREE from 'three';
 import { detectPerformanceTier } from '../utils/performance';
 
-function generateClusteredPositions(spread: number, count: number): Float32Array {
+function generateClusteredPositions(spread: number, count: number, center: THREE.Vector3): Float32Array {
     const positions = new Float32Array(count * 3);
-    const center = new THREE.Vector3(
-        (Math.random() - 0.5) * 1000,
-        (Math.random() - 0.5) * 1000,
-        (Math.random() - 0.5) * 1000
-    );
-
     for (let i = 0; i < count; i++) {
+        // Using spherical distribution for more natural cloud shapes
         const r = Math.random() * spread;
-        const theta = Math.random() * Math.PI * 2;
-        const phi = Math.acos(2 * Math.random() - 1);
+        const phi = Math.acos(2 * Math.random() - 1); // Polar angle
+        const theta = Math.random() * Math.PI * 2; // Azimuthal angle
         
         positions[i * 3] = center.x + r * Math.sin(phi) * Math.cos(theta);
         positions[i * 3 + 1] = center.y + r * Math.sin(phi) * Math.sin(theta);
@@ -26,51 +21,54 @@ export class NebulaSystem {
     private scene: THREE.Object3D;
 
     private config = {
-        minNebulae: 4,
-        maxNebulae: 6,
-        minRadius: 800,
-        maxRadius: 2000,
-        minParticles: 1500,
-        maxParticles: 3000,
-        sizeRange: [40, 80],
-        opacity: 1.0, // Increased opacity for brightness
+        minNebulae: 3,
+        maxNebulae: 4,
+        minRadius: 2000, // Increased distance for background effect
+        maxRadius: 5000,
+        minParticles: 150,
+        maxParticles: 400,
+        sizeRange: [8, 18], // Reduced particle size
+        opacity: 0.6, // Lowered opacity for softness
         colors: [
-            new THREE.Color(0.6, 0.2, 1.0), // Purple
-            new THREE.Color(0.0, 0.8, 1.0), // Cyan
-            new THREE.Color(0.8, 0.1, 0.8), // Magenta
-            new THREE.Color(0.1, 0.9, 0.7), // Teal
-            new THREE.Color(1.0, 0.5, 0.0), // Orange (for variation)
-            new THREE.Color(0.9, 0.9, 0.9)  // White/Cyan for test (high intensity)
+            new THREE.Color(0.3, 0.1, 0.5), // Soft Purple
+            new THREE.Color(0.0, 0.4, 0.6), // Soft Cyan
+            new THREE.Color(0.4, 0.05, 0.4), // Soft Magenta
+            new THREE.Color(0.05, 0.4, 0.3), // Soft Teal
         ],
-        rotationSpeedRange: [0.003, 0.01], // Stronger rotation
+        rotationSpeedRange: [0.0001, 0.0005], // Subtle, slow rotation
+        spreadFactor: 1500, // Increased spread for softer, larger clouds
     };
 
     constructor(scene: THREE.Object3D) {
         this.scene = scene;
-        console.log('NebulaSystem: Initializing VIBRANT nebula clouds...');
+        console.log('NebulaSystem: Initializing subtle nebula clouds...');
         this.initNebulae();
     }
 
     private initNebulae() {
         const tier = detectPerformanceTier();
-        const numNebulae = tier === 'ultra' ? this.config.maxNebulae : (tier === 'low' ? this.config.minNebulae : THREE.MathUtils.lerp(this.config.minNebulae, this.config.maxNebulae, Math.random()));
-        const numParticles = tier === 'ultra' ? this.config.maxParticles : (tier === 'low' ? this.config.minParticles : THREE.MathUtils.lerp(this.config.minParticles, this.config.maxParticles, Math.random()));
+        // Adjust number of nebulae based on performance tier
+        const numNebulae = tier === 'ultra' ? this.config.maxNebulae : (tier === 'low' ? 2 : THREE.MathUtils.lerp(this.config.minNebulae, this.config.maxNebulae, Math.random()));
+        // Adjust particle count based on performance tier
+        const numParticles = tier === 'ultra' ? this.config.maxParticles : (tier === 'low' ? 100 : THREE.MathUtils.lerp(this.config.minParticles, this.config.maxParticles, Math.random()));
 
         for (let i = 0; i < numNebulae; i++) {
             const nebulaGroup = new THREE.Group();
             
+            // Position nebulae further out and with more spread
             const radius = THREE.MathUtils.lerp(this.config.minRadius, this.config.maxRadius, Math.random());
             const phi = Math.acos(2 * Math.random() - 1);
             const theta = Math.random() * Math.PI * 2;
-            nebulaGroup.position.set(
+            const nebulaCenter = new THREE.Vector3(
                 radius * Math.sin(phi) * Math.cos(theta),
                 radius * Math.sin(phi) * Math.sin(theta),
                 radius * Math.cos(phi)
             );
+            nebulaGroup.position.copy(nebulaCenter);
 
             const geometry = new THREE.BufferGeometry();
-            // Adjusted spread for potentially more clustered appearance within the larger radius
-            const positions = generateClusteredPositions(radius * 0.4, numParticles); 
+            // Use the spread factor for positioning, making clouds softer and larger
+            const positions = generateClusteredPositions(this.config.spreadFactor, numParticles, nebulaCenter); 
             geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
 
             const material = new THREE.PointsMaterial({
@@ -78,15 +76,15 @@ export class NebulaSystem {
                 transparent: true,
                 opacity: this.config.opacity,
                 color: this.config.colors[i % this.config.colors.length],
-                blending: THREE.AdditiveBlending,
-                sizeAttenuation: true, // Ensure size attenuation is enabled for depth perception
-                depthWrite: false, // Crucial for additive blending to layer correctly
+                blending: THREE.AdditiveBlending, // Keep additive for soft glow, but ensure opacity is low
+                sizeAttenuation: true, // Keep size attenuation for depth perception
+                depthWrite: false, // Crucial for additive blending and to avoid artifacts
             });
 
             const points = new THREE.Points(geometry, material);
             nebulaGroup.add(points);
             
-            // Stronger, more varied rotation
+            // Subtle, slow rotation
             nebulaGroup.userData.rotationSpeed = THREE.MathUtils.lerp(
                 this.config.rotationSpeedRange[0], 
                 this.config.rotationSpeedRange[1], 
@@ -102,11 +100,12 @@ export class NebulaSystem {
     update(deltaTime: number, cameraPosition: THREE.Vector3) {
         const timeScale = deltaTime * 0.001;
         this.nebulae.forEach(group => {
-            // Apply stronger, more noticeable rotation
-            group.rotation.y += group.userData.rotationSpeed * timeScale * 200; // Increased multiplier for noticeable rotation
+            // Apply subtle, slow rotation
+            group.rotation.y += group.userData.rotationSpeed * timeScale * 50; // Reduced multiplier for subtle rotation
             
-            // Position nebulae relative to camera but maintaining distance
-            // This helps them stay in view without seeming to move with the camera directly
+            // Distance-based fading: implemented indirectly via opacity and sizeAttenuation.
+            // For more explicit fading, one might adjust material.opacity based on distance to camera.
+            // The current positioning and low opacity already contribute to a sense of distance.
             group.position.copy(group.userData.initialPosition).add(cameraPosition.clone().multiplyScalar(0.05));
         });
     }
