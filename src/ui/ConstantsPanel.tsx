@@ -1,23 +1,10 @@
 import React, { useState } from 'react';
 import { Settings2, X, RotateCcw } from 'lucide-react';
-
-const DEFAULT_PHYSICS = {
-    G: 1.0,
-    alpha: 1.0,
-    lambda: 1.0,
-    c: 1.0,
-    hbar: 1.0
-};
+import { DEFAULT_CONSTANTS, PhysicsConstants } from '../types/physics';
 
 interface ConstantsPanelProps {
-    physics: {
-        G: number;
-        alpha: number;
-        lambda: number;
-        c: number;
-        hbar: number;
-    };
-    setPhysics: (physics: any) => void;
+    physics: PhysicsConstants;
+    setPhysics: React.Dispatch<React.SetStateAction<PhysicsConstants>>;
 }
 
 export const ConstantsPanel: React.FC<ConstantsPanelProps> = ({ physics, setPhysics }) => {
@@ -45,7 +32,7 @@ export const ConstantsPanel: React.FC<ConstantsPanelProps> = ({ physics, setPhys
                 </h2>
                 <div className="flex items-center gap-2">
                     <button
-                        onClick={() => setPhysics(DEFAULT_PHYSICS)}
+                        onClick={() => setPhysics(DEFAULT_CONSTANTS)}
                         className="text-[#7EB8FF]/50 hover:text-[#C084FC] transition-all focus-visible:ring-2 focus-visible:ring-[#C084FC] outline-none rounded p-1 group/reset"
                         aria-label="Reset to Defaults"
                         title="Reset to Defaults"
