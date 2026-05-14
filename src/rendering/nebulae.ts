@@ -28,7 +28,7 @@ export class NebulaSystem {
         minParticles: 150,
         maxParticles: 400,
         sizeRange: [8, 18], // Reduced particle size
-        opacity: 0.6, // Lowered opacity for softness
+        opacity: 0.25, // Lowered opacity for softness
         colors: [
             new THREE.Color(0.3, 0.1, 0.5), // Soft Purple
             new THREE.Color(0.0, 0.4, 0.6), // Soft Cyan
@@ -36,7 +36,7 @@ export class NebulaSystem {
             new THREE.Color(0.05, 0.4, 0.3), // Soft Teal
         ],
         rotationSpeedRange: [0.0001, 0.0005], // Subtle, slow rotation
-        spreadFactor: 1500, // Increased spread for softer, larger clouds
+        spreadFactor: 600, // Reduced spread for tighter clouds
     };
 
     constructor(scene: THREE.Object3D) {
