@@ -64,6 +64,7 @@ export class SupernovaPhase implements PhaseComponent {
 
     update(delta: number, appTime: number, cameraPos: THREE.Vector3, physics: PhysicsConstants, t: number): void {
         const normT = (t - 0.85) / 0.05;
+        if (!this.ejectaMat?.uniforms?.uColor) return;
         this.isFlashing = false;
         
         if (this.mass > 8) {
