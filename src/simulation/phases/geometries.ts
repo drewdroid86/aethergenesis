@@ -25,9 +25,14 @@ export const GEOMETRIES = {
     planet: new THREE.SphereGeometry(1, 16, 16),
     supernovaRing: new THREE.TorusGeometry(1, 0.1, 16, 64),
     neutronStar: new THREE.SphereGeometry(0.1, 32, 32),
-    pulsarBeam: (() => {
-        const geo = new THREE.ConeGeometry(0.2, 1.5, 16);
-        geo.translate(0, 0.75, 0);
+    pulsarBeam1: (() => {
+        const geo = new THREE.CylinderGeometry(0.02, 0.02, 3, 8);
+        geo.translate(0, 1.5, 0);
+        return geo;
+    })(),
+    pulsarBeam2: (() => {
+        const geo = new THREE.CylinderGeometry(0.02, 0.02, 3, 8);
+        geo.translate(0, -1.5, 0);
         return geo;
     })(),
     blackHoleCore: new THREE.SphereGeometry(0.5, 32, 32),
