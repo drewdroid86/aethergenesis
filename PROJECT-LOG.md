@@ -75,19 +75,18 @@ src/
 
 ---
 
-### v2.3 — Nebula Refinement + Infrastructure Cleanup
-**Date:** May 14, 2026
+### v2.4 — Bug Triage & Infrastructure Cleanup
+**Date:** May 15, 2026
 **AI:** Gemini CLI (executor)
-**Branch:** Committed to `main` (user request)
+**Branch:** docs/update-project-log
 
 **Changes:**
-- **Fixed critical nebula bug:** Resolved double-offset in `nebulae.ts` by passing `(0,0,0)` to `generateClusteredPositions`.
-- **Nebula tuning:** Refined opacity (0.25) and spreadFactor (600) for a subtle, atmospheric background that doesn't overwhelm the scene.
-- **Lighting fix:** Switched habitable zone rings to `MeshPhongMaterial` with emissive properties — they now correctly receive light from the central star.
-- **Remote Cleanup:** Deleted stale branches: `bolt-optimization-rendering-*`, `fix/performance-banner`, and `sentinel/harden-ai-proxy-*`.
-- **Visibility Overhaul:** Initially boosted nebulae for visibility, then toned them down to a balanced, "AAA" quality level once the positioning bug was resolved.
+- **Fixed State Death Spiral:** Added `cancelAnimationFrame` to the fatal error catch block in `useSimulation.ts` (PR #40).
+- **Infrastructure:** Moved `tsx` to runtime dependencies to support production server execution (PR #41).
+- **Cleanup:** Removed orphaned `src/shaders/cinematic.ts` dead code (PR #42).
+- **Automation:** Tested and verified MCP tool connectivity for documentation and GitHub integration.
 
-**State at end:** Nebulae are soft, distant, and correctly positioned. Star systems are fully lit and atmospheric. Repo is clean of stale branches.
+**State at end:** Critical loop bug resolved. Production dependencies corrected. Dead code pruned. Three PRs open and ready for review.
 
 ---
 
