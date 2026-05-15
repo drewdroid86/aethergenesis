@@ -287,10 +287,20 @@ export function useSimulation(containerRef: React.RefObject<HTMLDivElement | nul
             const handleResize = () => {
                 engine.resize(window.innerWidth, window.innerHeight);
             };
+
+            const handleGlobalKeyDown = (e: KeyboardEvent) => {
+                if (e.key === 'Escape') {
+                    selectedStarRef.current = null;
+                    setSelectedStar(null);
+                }
+            };
+
             window.addEventListener('resize', handleResize);
+            window.addEventListener('keydown', handleGlobalKeyDown);
 
             return () => {
                 window.removeEventListener('resize', handleResize);
+                window.removeEventListener('keydown', handleGlobalKeyDown);
                 window.removeEventListener('pointerdown', onPointerDown);
                 window.removeEventListener('pointermove', onPointerMove);
                 window.removeEventListener('pointerup', onPointerUp);
