@@ -24,7 +24,7 @@ app.use((_req, res, next) => {
   res.setHeader('X-Frame-Options', 'DENY');
   res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
   res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
-  res.setHeader('Content-Security-Policy', "default-src 'self'; script-src 'self' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; connect-src 'self' ws:; img-src 'self' data:; font-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; upgrade-insecure-requests;");
+  res.setHeader('Content-Security-Policy', "default-src 'self'; script-src 'self' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; connect-src 'self'; img-src 'self' data:; font-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; upgrade-insecure-requests;");
   res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
   res.setHeader('Cross-Origin-Opener-Policy', 'same-origin');
   res.setHeader('Cross-Origin-Resource-Policy', 'same-origin');
@@ -58,9 +58,12 @@ app.post('/api/analyze', async (req, res) => {
   const ip = req.ip || req.socket.remoteAddress || 'unknown';
   const now = Date.now();
   const lastRequestTime = analysisLimitMap.get(ip) || 0;
+  const minInterval = RATE_LIMIT_WINDOW / MAX_REQUESTS_PER_WINDOW;
 
-  if (now - lastRequestTime < (RATE_LIMIT_WINDOW / MAX_REQUESTS_PER_WINDOW)) {
-    return res.status(429).json({ error: 'Too many requests. Please slow down.' });
+  if (now - lastRequestTime < minInterval) {
+    const waitSec = Math.ceil((minInterval - (now - lastRequestTime)) / 1000);
+    res.setHeader('Retry-After', waitSec.toString());
+    return res.status(429).json({ error: `Too many requests. Please wait ${waitSec}s.` });
   }
 
   // Memory protection: don't add new IPs if map is too large
@@ -74,8 +77,8 @@ app.post('/api/analyze', async (req, res) => {
 
   // Security: Input validation and sanitization to prevent prompt injection and malformed requests
   const VALID_PHASES = [
-    "Nebula Formation", "Protostar Ignition", "Main Sequence",
-    "Red Giant", "Supernova", "Stellar Remnant"
+    "Nebula", "Protostar", "Main Sequence",
+    "Red Giant", "Supernova", "Remnant"
   ];
 
   const isValidNumber = (val: any) => typeof val === 'number' && !isNaN(val) && isFinite(val);
@@ -112,6 +115,7 @@ app.post('/api/analyze', async (req, res) => {
         systemInstruction: "You are an astrobiology analytical engine. Generate creative but scientifically cohesive species and civilizations based on the star's phase, temp, and constants.",
         responseMimeType: "application/json",
         responseSchema: schema,
+        maxOutputTokens: 256, // Security: Resource exhaustion protection
       }
     });
 
@@ -119,15 +123,20 @@ app.post('/api/analyze', async (req, res) => {
       throw new Error('No response text from Gemini API');
     }
 
-    const data = JSON.parse(response.text);
+    let data;
+    try {
+      data = JSON.parse(response.text);
+    } catch (parseError) {
+      throw new Error('Invalid JSON response from Gemini API');
+    }
 
-    // Security: Strict output sanitization - ensure only expected fields are returned
+    // Security: Strict output sanitization - ensure only expected fields are returned and clamped
     const sanitized = {
-      planet_name: String(data.planet_name || "Unknown"),
-      life_stage: Number(data.life_stage || 0),
-      dominant_species: String(data.dominant_species || "Unknown"),
-      civilization: String(data.civilization || "Unknown"),
-      biome: String(data.biome || "Unknown")
+      planet_name: String(data?.planet_name || "Unknown").substring(0, 50),
+      life_stage: Math.max(0, Math.min(10, Number(data?.life_stage || 0))),
+      dominant_species: String(data?.dominant_species || "Unknown").substring(0, 100),
+      civilization: String(data?.civilization || "Unknown").substring(0, 100),
+      biome: String(data?.biome || "Unknown").substring(0, 100)
     };
 
     res.json(sanitized);
