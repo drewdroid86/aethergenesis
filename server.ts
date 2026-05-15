@@ -24,7 +24,10 @@ app.use((_req, res, next) => {
   res.setHeader('X-Frame-Options', 'DENY');
   res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
   res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
-  res.setHeader('Content-Security-Policy', "default-src 'self'; script-src 'self' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; connect-src 'self' ws:; img-src 'self' data:; font-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none';");
+  res.setHeader('Content-Security-Policy', "default-src 'self'; script-src 'self' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; connect-src 'self' ws:; img-src 'self' data:; font-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; upgrade-insecure-requests;");
+  res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
+  res.setHeader('Cross-Origin-Opener-Policy', 'same-origin');
+  res.setHeader('Cross-Origin-Resource-Policy', 'same-origin');
   next();
 });
 
@@ -77,8 +80,12 @@ app.post('/api/analyze', async (req, res) => {
 
   const isValidNumber = (val: any) => typeof val === 'number' && !isNaN(val) && isFinite(val);
 
-  if (!isValidNumber(temp) || !isValidNumber(mass) || !isValidNumber(lum) ||
-      !isValidNumber(age) || !isValidNumber(G) || !isValidNumber(alpha) ||
+  if (!isValidNumber(temp) || temp <= 0 ||
+      !isValidNumber(mass) || mass <= 0 ||
+      !isValidNumber(lum) || lum < 0 ||
+      !isValidNumber(age) || age < 0 ||
+      !isValidNumber(G) || G <= 0 ||
+      !isValidNumber(alpha) || alpha <= 0 ||
       typeof phase !== 'string' || !VALID_PHASES.includes(phase)) {
     return res.status(400).json({ error: 'Invalid input parameters.' });
   }
@@ -124,16 +131,10 @@ app.post('/api/analyze', async (req, res) => {
     };
 
     res.json(sanitized);
-  } catch (error) {
-    console.error('Gemini Analysis Error:', error);
-    res.status(500).json({
-      planet_name: "Kerath-7",
-      life_stage: 4,
-      dominant_species: "Silicate Swarm",
-      civilization: "Post-Scarcity Hive",
-      biome: "Crystalline Deserts",
-      note: "Predictive fallback due to server error"
-    });
+  } catch (error: any) {
+    // Security: Log only essential error message, avoid leaking details
+    console.error('Gemini Analysis Error:', error?.message || 'Unknown error');
+    res.status(500).json({ error: 'Internal Server Error' });
   }
 });
 
