@@ -247,6 +247,7 @@ export function useSimulation(containerRef: React.RefObject<HTMLDivElement | nul
                         }
                         if (hudRefs.globalSlider.current) {
                             hudRefs.globalSlider.current.setAttribute('aria-valuenow', cosmicAgeRef.current.toFixed(2));
+                            hudRefs.globalSlider.current.setAttribute('aria-valuetext', `${cosmicAgeRef.current.toFixed(2)} Billion Years`);
                         }
                         if (Math.floor(engine.appTime * 2) !== Math.floor((engine.appTime - delta) * 2)) {
                             setCosmicAge(cosmicAgeRef.current);
@@ -273,6 +274,7 @@ export function useSimulation(containerRef: React.RefObject<HTMLDivElement | nul
                         if (uiRefs.timelineFill.current) uiRefs.timelineFill.current.style.width = `${perc}%`;
                         if (uiRefs.stellarSlider.current) {
                             uiRefs.stellarSlider.current.setAttribute('aria-valuenow', perc.toString());
+                            uiRefs.stellarSlider.current.setAttribute('aria-valuetext', `${perc}% of Stellar Lifecycle (${PHASE_NAMES[s.phase]})`);
                         }
                     }
                 } catch (err: any) {
@@ -310,7 +312,9 @@ export function useSimulation(containerRef: React.RefObject<HTMLDivElement | nul
         const x = Math.max(0, Math.min(e.clientX - rect.left, rect.width));
         const percentage = x / rect.width;
         selectedStarRef.current.t = percentage;
-        e.currentTarget.setAttribute('aria-valuenow', Math.round(percentage * 100).toString());
+        const perc = Math.round(percentage * 100);
+        e.currentTarget.setAttribute('aria-valuenow', perc.toString());
+        e.currentTarget.setAttribute('aria-valuetext', `${perc}% of Stellar Lifecycle (${PHASE_NAMES[selectedStarRef.current.phase]})`);
     };
 
     const handleGlobalScrub = (e: React.PointerEvent) => {
@@ -321,7 +325,9 @@ export function useSimulation(containerRef: React.RefObject<HTMLDivElement | nul
         const newAge = percentage * 14.0;
         setCosmicAge(newAge);
         cosmicAgeRef.current = newAge;
-        e.currentTarget.setAttribute('aria-valuenow', newAge.toFixed(2));
+        const formattedAge = newAge.toFixed(2);
+        e.currentTarget.setAttribute('aria-valuenow', formattedAge);
+        e.currentTarget.setAttribute('aria-valuetext', `${formattedAge} Billion Years`);
     };
 
     return {
@@ -374,11 +380,15 @@ export function useSimulation(containerRef: React.RefObject<HTMLDivElement | nul
                 let a = k==='Home'?0 : k==='End'?14 : cosmicAgeRef.current+(k==='ArrowLeft'?-0.1:0.1);
                 a = Math.max(0, Math.min(14, a));
                 setCosmicAge(a); cosmicAgeRef.current = a;
-                e.currentTarget.setAttribute('aria-valuenow', a.toFixed(2));
+                const formattedAge = a.toFixed(2);
+                e.currentTarget.setAttribute('aria-valuenow', formattedAge);
+                e.currentTarget.setAttribute('aria-valuetext', `${formattedAge} Billion Years`);
             } else if (selectedStarRef.current) {
                 let t = k==='Home'?0 : k==='End'?1 : selectedStarRef.current.t+(k==='ArrowLeft'?-0.01:0.01);
                 selectedStarRef.current.t = Math.max(0, Math.min(1, t));
-                e.currentTarget.setAttribute('aria-valuenow', Math.round(selectedStarRef.current.t * 100).toString());
+                const perc = Math.round(selectedStarRef.current.t * 100);
+                e.currentTarget.setAttribute('aria-valuenow', perc.toString());
+                e.currentTarget.setAttribute('aria-valuetext', `${perc}% of Stellar Lifecycle (${PHASE_NAMES[selectedStarRef.current.phase]})`);
             }
         },
         resetCamera: () => {

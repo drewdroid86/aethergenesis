@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Scan, Zap, Pause, Play, X } from 'lucide-react';
+import { Scan, Zap, Pause, Play, X, Copy, Check } from 'lucide-react';
 import { PHASE_NAMES } from '../core/constants';
 import { HeroStarSystem } from '../rendering/systems/HeroStarSystem';
 import { PhysicsConstants } from '../types/physics';
@@ -49,7 +49,36 @@ export const InspectPanel: React.FC<InspectPanelProps> = ({
     const [isAnalyzing, setIsAnalyzing] = useState(false);
     const [geminiData, setGeminiData] = useState<GeminiAnalysisResult | null>(null);
     const [analysisFailed, setAnalysisFailed] = useState(false);
+    const [copied, setCopied] = useState(false);
     const lastAnalysisTimeRef = useRef(0);
+
+    const copyTelemetry = () => {
+        const phase = uiRefs.phase.current?.innerText || '-';
+        const temp = uiRefs.temp.current?.innerText || '-';
+        const mass = uiRefs.mass.current?.innerText || '-';
+        const lum = uiRefs.lum.current?.innerText || '-';
+        const age = uiRefs.age.current?.innerText || '-';
+
+        let text = `Stellar Telemetry:
+Phase: ${phase}
+Temp: ${temp} K
+Mass: ${mass} M☉
+Luminosity: ${lum} L☉
+Age: ${age} Myr`;
+
+        if (geminiData) {
+            text += `\n\nAI Analysis:
+Planet: ${geminiData.planet_name}
+Biome: ${geminiData.biome}
+Species: ${geminiData.dominant_species} (Stage ${geminiData.life_stage})
+Civilization: ${geminiData.civilization}`;
+        }
+
+        navigator.clipboard.writeText(text).then(() => {
+            setCopied(true);
+            setTimeout(() => setCopied(false), 2000);
+        });
+    };
 
     const analyzeSystem = async () => {
         if (!selectedStar || isAnalyzing) return;
@@ -109,13 +138,23 @@ export const InspectPanel: React.FC<InspectPanelProps> = ({
                     <Scan size={20} className="text-[#C084FC]" />
                     <h2 className="text-sm font-bold tracking-widest uppercase text-white">Stellar Telemetry</h2>
                 </div>
-                <button
-                    onClick={() => setSelectedStar(null)}
-                    className="text-[#7EB8FF]/70 hover:text-white transition-colors focus-visible:ring-2 focus-visible:ring-[#C084FC] outline-none rounded"
-                    aria-label="Close Stellar Telemetry"
-                >
-                    <X size={20} />
-                </button>
+                <div className="flex items-center gap-2">
+                    <button
+                        onClick={copyTelemetry}
+                        className="text-[#7EB8FF]/70 hover:text-white transition-colors focus-visible:ring-2 focus-visible:ring-[#C084FC] outline-none rounded p-1"
+                        aria-label="Copy Telemetry"
+                        title="Copy Telemetry"
+                    >
+                        {copied ? <Check size={16} className="text-green-400" /> : <Copy size={16} />}
+                    </button>
+                    <button
+                        onClick={() => setSelectedStar(null)}
+                        className="text-[#7EB8FF]/70 hover:text-white transition-colors focus-visible:ring-2 focus-visible:ring-[#C084FC] outline-none rounded p-1"
+                        aria-label="Close Stellar Telemetry"
+                    >
+                        <X size={20} />
+                    </button>
+                </div>
             </div>
 
             <div className="space-y-4 font-mono text-xs">
