@@ -276,6 +276,7 @@ export function useSimulation(containerRef: React.RefObject<HTMLDivElement | nul
                         }
                     }
                 } catch (err: any) {
+                    cancelAnimationFrame(frameId);
                     setFatalError(err.message);
                 }
             };
