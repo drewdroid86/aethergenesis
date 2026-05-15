@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Scan, Zap, Pause, Play, X, Copy, Check } from 'lucide-react';
+import { Scan, Zap, Pause, Play, X, Copy, Check, Loader2 } from 'lucide-react';
 import { PHASE_NAMES } from '../core/constants';
 import { HeroStarSystem } from '../rendering/systems/HeroStarSystem';
 import { PhysicsConstants } from '../types/physics';
@@ -133,9 +133,9 @@ Civilization: ${geminiData.civilization}`;
 
     return (
         <div className="absolute right-8 top-1/2 -translate-y-1/2 w-[min(320px,85vw)] overflow-hidden bg-[rgba(14,14,28,0.7)] backdrop-blur-xl border border-[rgba(126,184,255,0.3)] rounded-2xl p-6 z-30 shadow-[0_0_30px_rgba(0,0,0,0.5)] transform transition-all pointer-events-auto">
-            <div className="flex items-center justify-between mb-6 pb-4 border-b border-[rgba(126,184,255,0.1)]">
+            <div className="flex items-center justify-between mb-6 pb-4 border-b border-[rgba(126,184,255,0.1)] group/header">
                 <div className="flex items-center gap-3">
-                    <Scan size={20} className="text-[#C084FC]" />
+                    <Scan size={20} className={`text-[#C084FC] ${isAnalyzing ? 'animate-pulse' : ''}`} />
                     <h2 className="text-sm font-bold tracking-widest uppercase text-white">Stellar Telemetry</h2>
                 </div>
                 <div className="flex items-center gap-2">
@@ -149,9 +149,11 @@ Civilization: ${geminiData.civilization}`;
                     </button>
                     <button
                         onClick={() => setSelectedStar(null)}
-                        className="text-[#7EB8FF]/70 hover:text-white transition-colors focus-visible:ring-2 focus-visible:ring-[#C084FC] outline-none rounded p-1"
+                        className="text-[#7EB8FF]/70 hover:text-white transition-colors focus-visible:ring-2 focus-visible:ring-[#C084FC] outline-none rounded p-1 flex items-center gap-1"
                         aria-label="Close Stellar Telemetry"
+                        title="Close [Esc]"
                     >
+                        <span className="text-[8px] text-[#C084FC] opacity-0 group-hover/header:opacity-100 transition-opacity hidden sm:inline">[Esc]</span>
                         <X size={20} />
                     </button>
                 </div>
@@ -218,9 +220,17 @@ Civilization: ${geminiData.civilization}`;
                     <button 
                         onClick={analyzeSystem}
                         disabled={isAnalyzing}
-                        className="w-full py-2 bg-[#C084FC]/20 hover:bg-[#C084FC]/40 text-[#C084FC] hover:text-white border border-[#C084FC]/30 rounded transition-colors text-[10px] uppercase tracking-widest disabled:opacity-50"
+                        aria-busy={isAnalyzing}
+                        className="w-full py-2 bg-[#C084FC]/20 hover:bg-[#C084FC]/40 text-[#C084FC] hover:text-white border border-[#C084FC]/30 rounded transition-all text-[10px] uppercase tracking-widest disabled:opacity-50 flex items-center justify-center gap-2"
                     >
-                        {isAnalyzing ? "Analyzing System..." : "Gemini AI: Deep Scan"}
+                        {isAnalyzing ? (
+                            <>
+                                <Loader2 size={14} className="animate-spin" />
+                                <span>Analyzing...</span>
+                            </>
+                        ) : (
+                            "Gemini AI: Deep Scan"
+                        )}
                     </button>
                     {geminiData && (
                         <div className="mt-4 p-3 bg-black/40 border border-[#7EB8FF]/20 rounded text-[10px] space-y-2">
