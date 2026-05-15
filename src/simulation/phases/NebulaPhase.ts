@@ -62,7 +62,7 @@ export class NebulaPhase implements PhaseComponent {
         this.hide();
     }
 
-    update(delta: number, appTime: number, cameraPos: THREE.Vector3, physics: PhysicsConstants, t: number): void {
+    update(delta: number, appTime: number, cameraPos: THREE.Vector3, physics: PhysicsConstants, t: number, lowDetail?: boolean): void {
         const normT = t / 0.05;
         
         this.nebulaMat.uniforms.uTime.value = appTime;

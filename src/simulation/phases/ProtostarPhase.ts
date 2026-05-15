@@ -44,7 +44,7 @@ export class ProtostarPhase implements PhaseComponent {
         this.hide();
     }
 
-    update(delta: number, appTime: number, cameraPos: THREE.Vector3, physics: PhysicsConstants, t: number): void {
+    update(delta: number, appTime: number, cameraPos: THREE.Vector3, physics: PhysicsConstants, t: number, lowDetail?: boolean): void {
         const normT = (t - 0.05) / 0.10;
         const introScale = this.baseRadius * (0.5 + normT * 0.5);
         this.protostarMesh.scale.setScalar(introScale);

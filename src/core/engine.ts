@@ -16,6 +16,9 @@ export class Engine {
     isPaused: boolean = false;
     container: HTMLElement;
 
+    private _frustum = new THREE.Frustum();
+    private _projScreenMatrix = new THREE.Matrix4();
+
     constructor(container: HTMLElement) {
         this.container = container;
         this.scene = new THREE.Scene();
@@ -68,6 +71,10 @@ export class Engine {
 
         this.appTime += delta; 
 
+        // BOLT: Global frame calculations
+        this._frustum.setFromProjectionMatrix(this._projScreenMatrix.multiplyMatrices(this.camera.projectionMatrix, this.camera.matrixWorldInverse));
+        const protostarFlicker = 0.8 + 0.2 * Math.sin(this.appTime * 20.0);
+
         this.heroStars.forEach(star => {
             star.update(
                 delta, 
@@ -75,7 +82,9 @@ export class Engine {
                 this.camera.position, 
                 physics, 
                 star === selectedStar ? selectedStar!.t : undefined, 
-                cosmicAge 
+                cosmicAge,
+                this._frustum,
+                protostarFlicker
             );
         });
 

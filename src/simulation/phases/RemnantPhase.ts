@@ -60,14 +60,16 @@ export class RemnantPhase implements PhaseComponent {
         this.hide();
     }
 
-    update(delta: number, appTime: number, cameraPos: THREE.Vector3, physics: PhysicsConstants, t: number): void {
+    update(delta: number, appTime: number, cameraPos: THREE.Vector3, physics: PhysicsConstants, t: number, lowDetail?: boolean): void {
         if (this.mass > 15) {
             this.blackHoleGroup.visible = true;
-            this.blackHoleGroup.rotation.y += delta;
+            if (!lowDetail) this.blackHoleGroup.rotation.y += delta;
             this.blackHoleGroup.rotation.z = Math.PI / 8;
         } else if (this.mass > 8) {
-            this.pulsarGroup.rotation.y += delta * 5.0;
-            this.nsMagneticLines.rotation.y += delta * 2.0;
+            if (!lowDetail) {
+                this.pulsarGroup.rotation.y += delta * 5.0;
+                this.nsMagneticLines.rotation.y += delta * 2.0;
+            }
         } else {
             this.pulsarGroup.visible = false;
             this.nsMagneticLines.visible = false;

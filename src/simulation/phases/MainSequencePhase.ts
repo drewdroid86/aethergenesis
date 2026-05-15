@@ -107,15 +107,17 @@ export class MainSequencePhase implements PhaseComponent {
         this.hide();
     }
 
-    update(delta: number, appTime: number, cameraPos: THREE.Vector3, physics: PhysicsConstants, t: number): void {
+    update(delta: number, appTime: number, cameraPos: THREE.Vector3, physics: PhysicsConstants, t: number, lowDetail?: boolean): void {
         // BOLT: Removed redundant scale assignment
         this.starMat.uniforms.uTime.value = appTime;
         this.starMat.uniforms.uHbar.value = physics.hbar || 1.0;
 
-        this.planetsInfo.forEach(p => {
-            // BOLT: Removed redundant visibility and material assignments
-            p.pivot.rotation.y += p.speed * delta;
-        });
+        if (!lowDetail) {
+            this.planetsInfo.forEach(p => {
+                // BOLT: Removed redundant visibility and material assignments
+                p.pivot.rotation.y += p.speed * delta;
+            });
+        }
     }
 
     setOpacity(opacity: number): void {
