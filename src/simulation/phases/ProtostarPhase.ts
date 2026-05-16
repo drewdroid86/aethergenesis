@@ -50,7 +50,10 @@ export class ProtostarPhase implements PhaseComponent {
         this.protostarMesh.scale.setScalar(introScale);
         
         this.protostarMat.uniforms.uTime.value = appTime;
-        this.protostarMat.uniforms.uHbar.value = physics.hbar || 1.0;
+        const hbar = physics.hbar ?? 1.0;
+        if (this.protostarMat.uniforms.uHbar.value !== hbar) {
+            this.protostarMat.uniforms.uHbar.value = hbar;
+        }
         this.protostarDisk.rotation.z += delta;
     }
 

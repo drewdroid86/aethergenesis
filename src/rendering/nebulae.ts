@@ -19,6 +19,7 @@ function generateClusteredPositions(spread: number, count: number, center: THREE
 export class NebulaSystem {
     private nebulae: THREE.Group[] = [];
     private scene: THREE.Object3D;
+    private _scratchVec = new THREE.Vector3();
 
     private config = {
         minNebulae: 3,
@@ -107,7 +108,7 @@ export class NebulaSystem {
             // Distance-based fading: implemented indirectly via opacity and sizeAttenuation.
             // For more explicit fading, one might adjust material.opacity based on distance to camera.
             // The current positioning and low opacity already contribute to a sense of distance.
-            group.position.copy(group.userData.initialPosition).add(cameraPosition.clone().multiplyScalar(0.05));
+            group.position.copy(group.userData.initialPosition).add(this._scratchVec.copy(cameraPosition).multiplyScalar(0.05));
         });
     }
 }
