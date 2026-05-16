@@ -22,9 +22,9 @@ app.use(express.json({ limit: '10kb' }));
 app.use((_req, res, next) => {
   res.setHeader('X-Content-Type-Options', 'nosniff');
   res.setHeader('X-Frame-Options', 'DENY');
-  res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
+  res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains; preload');
   res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
-  res.setHeader('Content-Security-Policy', "default-src 'self'; script-src 'self' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; connect-src 'self'; img-src 'self' data:; font-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; upgrade-insecure-requests;");
+  res.setHeader('Content-Security-Policy', "default-src 'self'; script-src 'self' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; connect-src 'self'; img-src 'self' data:; font-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; upgrade-insecure-requests; manifest-src 'self'; worker-src 'none';");
   res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
   res.setHeader('Cross-Origin-Opener-Policy', 'same-origin');
   res.setHeader('Cross-Origin-Resource-Policy', 'same-origin');
@@ -72,6 +72,11 @@ app.post('/api/analyze', async (req, res) => {
   }
 
   analysisLimitMap.set(ip, now);
+
+  // Security: Defense in depth - check body existence
+  if (!req.body || typeof req.body !== 'object') {
+    return res.status(400).json({ error: 'Invalid request body.' });
+  }
 
   const { temp, mass, lum, age, phase, G, alpha } = req.body;
 
@@ -156,6 +161,12 @@ if (process.env.NODE_ENV === 'production') {
     res.sendFile(path.join(distPath, 'index.html'));
   });
 }
+
+// Security: Global error handler to prevent leaking stack traces and ensure generic 500s
+app.use((err: any, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
+  console.error('Unhandled Server Error:', err?.message || 'Unknown error');
+  res.status(500).json({ error: 'Internal Server Error' });
+});
 
 app.listen(port, () => {
   console.log(`Server listening at http://localhost:${port}`);
