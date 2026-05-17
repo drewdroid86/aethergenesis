@@ -164,13 +164,13 @@ export class HeroStarSystem extends THREE.Group implements PhysicalBody {
 
         // BOLT: Culling & LOD Logic
         const isVisible = frustum ? frustum.containsPoint(this.position) : true;
-        const distSq = this.position.distanceToSquared(cameraPos);
-        const lowDetail = distSq > 160000; // > 400 units
-
         if (!isVisible && overrideT === undefined) {
             // Note: Phase transitions handled above, ensuring robustness when returning to screen
             return;
         }
+
+        const distSq = this.position.distanceToSquared(cameraPos);
+        const lowDetail = distSq > 160000; // > 400 units
 
         this.isSupernovaFlashing = false;
 

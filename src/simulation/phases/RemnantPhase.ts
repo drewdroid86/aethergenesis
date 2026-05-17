@@ -96,18 +96,20 @@ export class RemnantPhase implements PhaseComponent {
         const nextOpLines = stepOp(this._opNsLines, targetLines, speed);
         if (this._opNsLines !== nextOpLines) {
             this._opNsLines = nextOpLines;
-            this.nsMagneticLines.children.forEach(c => {
-                ((c as THREE.Mesh).material as THREE.MeshBasicMaterial).opacity = this._opNsLines;
-            });
+            const lines = this.nsMagneticLines.children;
+            for (let i = 0; i < lines.length; i++) {
+                ((lines[i] as THREE.Mesh).material as THREE.MeshBasicMaterial).opacity = this._opNsLines;
+            }
         }
 
         // Pulsar beams are either on or off for simplicity in opacity guarding
         const targetBeam = targetNs ? 0.6 : 0;
-        const firstBeam = this.pulsarGroup.children[0] as THREE.Mesh;
+        const beams = this.pulsarGroup.children;
+        const firstBeam = beams[0] as THREE.Mesh;
         if ((firstBeam.material as THREE.MeshBasicMaterial).opacity !== targetBeam) {
-            this.pulsarGroup.children.forEach(c => {
-                ((c as THREE.Mesh).material as THREE.MeshBasicMaterial).opacity = targetBeam;
-            });
+            for (let i = 0; i < beams.length; i++) {
+                ((beams[i] as THREE.Mesh).material as THREE.MeshBasicMaterial).opacity = targetBeam;
+            }
         }
         
         const isVisible = this._opNs > 0.01 || this._opNsLines > 0.01;
@@ -127,15 +129,21 @@ export class RemnantPhase implements PhaseComponent {
 
     dispose(): void {
         // BOLT: Stop disposing shared global geometries. Only dispose local materials if unique.
-        this.neutronStarGroup.children.forEach(c => {
-            if ((c as THREE.Mesh).material) ((c as THREE.Mesh).material as THREE.Material).dispose();
-        });
-        this.nsMagneticLines.children.forEach(c => {
-            if ((c as THREE.Mesh).material) ((c as THREE.Mesh).material as THREE.Material).dispose();
-        });
-        this.blackHoleGroup.children.forEach(c => {
-            if ((c as THREE.Mesh).material) ((c as THREE.Mesh).material as THREE.Material).dispose();
-        });
+        const nsChildren = this.neutronStarGroup.children;
+        for (let i = 0; i < nsChildren.length; i++) {
+            const c = nsChildren[i] as THREE.Mesh;
+            if (c.material) (c.material as THREE.Material).dispose();
+        }
+        const linesChildren = this.nsMagneticLines.children;
+        for (let i = 0; i < linesChildren.length; i++) {
+            const c = linesChildren[i] as THREE.Mesh;
+            if (c.material) (c.material as THREE.Material).dispose();
+        }
+        const bhChildren = this.blackHoleGroup.children;
+        for (let i = 0; i < bhChildren.length; i++) {
+            const c = bhChildren[i] as THREE.Mesh;
+            if (c.material) (c.material as THREE.Material).dispose();
+        }
         this.parent.remove(this.neutronStarGroup);
         this.parent.remove(this.blackHoleGroup);
     }
