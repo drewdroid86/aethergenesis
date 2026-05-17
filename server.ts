@@ -22,6 +22,7 @@ app.use(express.json({ limit: '10kb' }));
 app.use((_req, res, next) => {
   res.setHeader('X-Content-Type-Options', 'nosniff');
   res.setHeader('X-Frame-Options', 'DENY');
+  res.setHeader('X-XSS-Protection', '0');
   res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains; preload');
   res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
   res.setHeader('Content-Security-Policy', "default-src 'self'; script-src 'self' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; connect-src 'self'; img-src 'self' data:; font-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; upgrade-insecure-requests; manifest-src 'self'; worker-src 'none';");
@@ -35,7 +36,7 @@ app.use((_req, res, next) => {
 const analysisLimitMap = new Map<string, number>();
 const RATE_LIMIT_WINDOW = 60 * 1000; // 1 minute
 const MAX_REQUESTS_PER_WINDOW = 5;
-const MAX_ENTRIES = 1000; // Memory protection
+const MAX_ENTRIES = 10000; // Increased memory protection capacity
 
 // Periodic cleanup to prevent memory exhaustion
 setInterval(() => {
@@ -66,12 +67,16 @@ app.post('/api/analyze', async (req, res) => {
     return res.status(429).json({ error: `Too many requests. Please wait ${waitSec}s.` });
   }
 
-  // Memory protection: don't add new IPs if map is too large
+  // Memory protection: Evict oldest entry if map is full
   if (analysisLimitMap.size >= MAX_ENTRIES && !analysisLimitMap.has(ip)) {
-    return res.status(503).json({ error: 'Server busy.' });
+    const oldestKey = analysisLimitMap.keys().next().value;
+    if (oldestKey !== undefined) analysisLimitMap.delete(oldestKey);
   }
 
   analysisLimitMap.set(ip, now);
+
+  // Security: Prevent caching of AI-generated responses
+  res.setHeader('Cache-Control', 'no-store, max-age=0');
 
   // Security: Defense in depth - check body existence
   if (!req.body || typeof req.body !== 'object') {
@@ -86,14 +91,15 @@ app.post('/api/analyze', async (req, res) => {
     "Red Giant", "Supernova", "Remnant"
   ];
 
-  const isValidNumber = (val: any) => typeof val === 'number' && !isNaN(val) && isFinite(val);
+  const isValidNumber = (val: any, min: number, max: number) =>
+    typeof val === 'number' && !isNaN(val) && isFinite(val) && val >= min && val <= max;
 
-  if (!isValidNumber(temp) || temp <= 0 ||
-      !isValidNumber(mass) || mass <= 0 ||
-      !isValidNumber(lum) || lum < 0 ||
-      !isValidNumber(age) || age < 0 ||
-      !isValidNumber(G) || G <= 0 ||
-      !isValidNumber(alpha) || alpha <= 0 ||
+  if (!isValidNumber(temp, 1, 1000000) ||
+      !isValidNumber(mass, 0.01, 1000) ||
+      !isValidNumber(lum, 0, 1000000) ||
+      !isValidNumber(age, 0, 20000) ||
+      !isValidNumber(G, 0.01, 100) ||
+      !isValidNumber(alpha, 0.01, 100) ||
       typeof phase !== 'string' || !VALID_PHASES.includes(phase)) {
     return res.status(400).json({ error: 'Invalid input parameters.' });
   }

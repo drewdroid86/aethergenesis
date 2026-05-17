@@ -12,3 +12,8 @@
 **Vulnerability:** Potential for process crashes and stack trace leakage via unhandled asynchronous errors in Express routes.
 **Learning:** Even with individual try-catch blocks, missing a global error handler in Express can lead to the default error handler being used, which may expose environment details or crash the process. Furthermore, destructuring `req.body` without verifying its type can lead to unhandled type errors.
 **Prevention:** Always implement a four-argument global error middleware as the last step in the Express app. Perform explicit type checks on `req.body` before destructuring for defense-in-depth.
+
+## 2026-05-17 - Rate Limiter DoS and Input Bound Hardening
+**Vulnerability:** Potential for a permanent Denial of Service (DoS) for new users due to a fixed-size rate limiter without an eviction policy, and lack of upper bounds on numeric inputs.
+**Learning:** In-memory maps used for security (like rate limiting) must have a defined eviction policy (e.g., LRU or FIFO) to prevent "filling up" and blocking legitimate new traffic. Furthermore, input validation should not only check types but also enforce "reasonable" physical bounds to prevent unexpected model behavior or resource strain.
+**Prevention:** Always implement an eviction policy for in-memory security stores when they reach a maximum capacity. Enforce semantic upper and lower bounds on all numeric inputs as part of a defense-in-depth strategy.
