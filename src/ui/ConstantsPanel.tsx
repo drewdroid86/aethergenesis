@@ -14,11 +14,12 @@ export const ConstantsPanel: React.FC<ConstantsPanelProps> = ({ physics, setPhys
         return (
             <button 
                 onClick={() => setIsOpen(true)} 
-                className="absolute left-8 top-32 bg-[rgba(14,14,28,0.7)] backdrop-blur-xl border border-[rgba(126,184,255,0.3)] rounded-full p-4 z-30 shadow-[0_0_30px_rgba(0,0,0,0.5)] transform transition-all pointer-events-auto text-[#7EB8FF]/70 hover:text-white group focus-visible:ring-2 focus-visible:ring-[#C084FC] outline-none"
-                title="Open Physical Constants"
+                className="absolute left-8 top-32 bg-[rgba(14,14,28,0.7)] backdrop-blur-xl border border-[rgba(126,184,255,0.3)] rounded-full p-4 z-30 shadow-[0_0_30px_rgba(0,0,0,0.5)] transform transition-all pointer-events-auto text-[#7EB8FF]/70 hover:text-white group focus-visible:ring-2 focus-visible:ring-[#C084FC] outline-none flex flex-col items-center gap-1"
+                title="Open Physical Constants [C]"
                 aria-label="Open Physical Constants"
             >
                 <Settings2 size={24} className="group-hover:text-[#C084FC] transition-colors" />
+                <span className="text-[8px] text-[#C084FC] opacity-0 group-hover:opacity-100 transition-opacity hidden sm:inline">[C]</span>
             </button>
         );
     }
@@ -43,9 +44,9 @@ export const ConstantsPanel: React.FC<ConstantsPanelProps> = ({ physics, setPhys
                         onClick={() => setIsOpen(false)}
                         className="text-[#7EB8FF]/70 hover:text-white transition-colors focus-visible:ring-2 focus-visible:ring-[#C084FC] outline-none rounded p-1 flex items-center gap-1"
                         aria-label="Close Physical Constants"
-                        title="Close [Esc]"
+                        title="Close [C] or [Esc]"
                     >
-                        <span className="text-[8px] text-[#C084FC] opacity-0 group-hover/header:opacity-100 transition-opacity hidden sm:inline">[Esc]</span>
+                        <span className="text-[8px] text-[#C084FC] opacity-0 group-hover/header:opacity-100 transition-opacity hidden sm:inline">[C]</span>
                         <X size={20} />
                     </button>
                 </div>
