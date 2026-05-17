@@ -23,6 +23,9 @@ export function useSimulation(containerRef: React.RefObject<HTMLDivElement | nul
     const [isPaused, setIsPaused] = useState(false);
     const isPausedRef = useRef(isPaused);
     useEffect(() => { isPausedRef.current = isPaused; }, [isPaused]);
+    const [isConstantsOpen, setIsConstantsOpen] = useState(true);
+    const isConstantsOpenRef = useRef(isConstantsOpen);
+    useEffect(() => { isConstantsOpenRef.current = isConstantsOpen; }, [isConstantsOpen]);
     const [fatalError, setFatalError] = useState<string | null>(null);
     const isScrubbingRef = useRef(false);
 
@@ -290,8 +293,12 @@ export function useSimulation(containerRef: React.RefObject<HTMLDivElement | nul
 
             const handleGlobalKeyDown = (e: KeyboardEvent) => {
                 if (e.key === 'Escape') {
-                    selectedStarRef.current = null;
-                    setSelectedStar(null);
+                    if (selectedStarRef.current) {
+                        selectedStarRef.current = null;
+                        setSelectedStar(null);
+                    } else if (isConstantsOpenRef.current) {
+                        setIsConstantsOpen(false);
+                    }
                 }
             };
 
@@ -353,6 +360,8 @@ export function useSimulation(containerRef: React.RefObject<HTMLDivElement | nul
         uiRefs,
         physics,
         setPhysics,
+        isConstantsOpen,
+        setIsConstantsOpen,
         cosmicAge,
         setCosmicAge,
         isPlayingCosmic,
