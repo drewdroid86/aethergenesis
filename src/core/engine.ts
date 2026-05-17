@@ -75,7 +75,10 @@ export class Engine {
         this._frustum.setFromProjectionMatrix(this._projScreenMatrix.multiplyMatrices(this.camera.projectionMatrix, this.camera.matrixWorldInverse));
         const protostarFlicker = 0.8 + 0.2 * Math.sin(this.appTime * 20.0);
 
-        this.heroStars.forEach(star => {
+        const stars = this.heroStars;
+        const len = stars.length;
+        for (let i = 0; i < len; i++) {
+            const star = stars[i];
             star.update(
                 delta, 
                 this.appTime,
@@ -86,7 +89,7 @@ export class Engine {
                 this._frustum,
                 protostarFlicker
             );
-        });
+        }
 
         this.nebulaSystem.update(delta, this.camera.position);
 

@@ -106,6 +106,7 @@ export class HeroStarSystem extends THREE.Group implements PhysicalBody {
         let targetProto = 0, targetMain = 0, targetRed = 0, targetSuper = 0, targetNs = 0;
         const effG = Math.max(0.01, physics.G);
         const expL = Math.max(0.1, physics.lambda);
+        const hbar = physics.hbar ?? 1.0;
 
         // BOLT: Guarded scale update
         if (this._lastL !== expL) {
@@ -245,28 +246,46 @@ export class HeroStarSystem extends THREE.Group implements PhysicalBody {
         
         // BOLT: Optimize transition opacities with caching and guarded assignments
         const speed = delta * 4.0;
-        this._opP = stepOp(this._opP, targetProto, speed);
-        this.protostarPhase.setOpacity(targetProto > 0 ? this._opP * (flicker ?? 1.0) : this._opP);
-        if (this.protostarPhase.protostarGroup.visible !== this._opP > 0.01) {
-            this.protostarPhase.protostarGroup.visible = this._opP > 0.01;
+
+        // Protostar always needs update if visible because of flicker
+        const nextOpP = stepOp(this._opP, targetProto, speed);
+        if (nextOpP > 0.001 || this._opP > 0.001) {
+            this._opP = nextOpP;
+            this.protostarPhase.setOpacity(targetProto > 0 ? this._opP * (flicker ?? 1.0) : this._opP);
+            const visible = this._opP > 0.01;
+            if (this.protostarPhase.protostarGroup.visible !== visible) {
+                this.protostarPhase.protostarGroup.visible = visible;
+            }
         }
 
-        this._opM = stepOp(this._opM, targetMain, speed);
-        this.mainSequencePhase.setOpacity(this._opM);
-        if (this.mainSequencePhase.mainSeqGroup.visible !== this._opM > 0.01) {
-            this.mainSequencePhase.mainSeqGroup.visible = this._opM > 0.01;
+        const nextOpM = stepOp(this._opM, targetMain, speed);
+        if (this._opM !== nextOpM) {
+            this._opM = nextOpM;
+            this.mainSequencePhase.setOpacity(this._opM);
+            const visible = this._opM > 0.01;
+            if (this.mainSequencePhase.mainSeqGroup.visible !== visible) {
+                this.mainSequencePhase.mainSeqGroup.visible = visible;
+            }
         }
 
-        this._opR = stepOp(this._opR, targetRed, speed);
-        this.redGiantPhase.setOpacity(this._opR);
-        if (this.redGiantPhase.redGiantGroup.visible !== this._opR > 0.01) {
-            this.redGiantPhase.redGiantGroup.visible = this._opR > 0.01;
+        const nextOpR = stepOp(this._opR, targetRed, speed);
+        if (this._opR !== nextOpR) {
+            this._opR = nextOpR;
+            this.redGiantPhase.setOpacity(this._opR);
+            const visible = this._opR > 0.01;
+            if (this.redGiantPhase.redGiantGroup.visible !== visible) {
+                this.redGiantPhase.redGiantGroup.visible = visible;
+            }
         }
 
-        this._opS = stepOp(this._opS, targetSuper, speed);
-        this.supernovaPhase.setOpacity(this._opS);
-        if (this.supernovaPhase.supernovaGroup.visible !== this._opS > 0.01) {
-            this.supernovaPhase.supernovaGroup.visible = this._opS > 0.01;
+        const nextOpS = stepOp(this._opS, targetSuper, speed);
+        if (this._opS !== nextOpS) {
+            this._opS = nextOpS;
+            this.supernovaPhase.setOpacity(this._opS);
+            const visible = this._opS > 0.01;
+            if (this.supernovaPhase.supernovaGroup.visible !== visible) {
+                this.supernovaPhase.supernovaGroup.visible = visible;
+            }
         }
 
         this.remnantPhase.updateRemnantOpacity(delta, targetNs);

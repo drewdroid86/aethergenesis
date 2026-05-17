@@ -110,7 +110,10 @@ export class MainSequencePhase implements PhaseComponent {
     update(delta: number, appTime: number, cameraPos: THREE.Vector3, physics: PhysicsConstants, t: number, lowDetail?: boolean): void {
         // BOLT: Removed redundant scale assignment
         this.starMat.uniforms.uTime.value = appTime;
-        this.starMat.uniforms.uHbar.value = physics.hbar || 1.0;
+        const hbar = physics.hbar ?? 1.0;
+        if (this.starMat.uniforms.uHbar.value !== hbar) {
+            this.starMat.uniforms.uHbar.value = hbar;
+        }
 
         if (!lowDetail) {
             this.planetsInfo.forEach(p => {

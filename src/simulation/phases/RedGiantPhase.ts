@@ -51,7 +51,10 @@ export class RedGiantPhase implements PhaseComponent {
         this.redGiantMesh.scale.setScalar(giantScale);
         
         this.redGiantMat.uniforms.uTime.value = appTime;
-        this.redGiantMat.uniforms.uHbar.value = physics.hbar || 1.0;
+        const hbar = physics.hbar ?? 1.0;
+        if (this.redGiantMat.uniforms.uHbar.value !== hbar) {
+            this.redGiantMat.uniforms.uHbar.value = hbar;
+        }
 
         if (!lowDetail) {
             this.planetsInfo.forEach(p => {
