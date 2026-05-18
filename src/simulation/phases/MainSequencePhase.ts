@@ -125,8 +125,10 @@ export class MainSequencePhase implements PhaseComponent {
     }
 
     setOpacity(opacity: number): void {
-        this.starMat.uniforms.uOpacity.value = opacity;
-        (this.coronaMesh.material as THREE.MeshBasicMaterial).opacity = opacity * 0.3;
+        if (this.starMat.uniforms.uOpacity.value !== opacity) {
+            this.starMat.uniforms.uOpacity.value = opacity;
+            (this.coronaMesh.material as THREE.MeshBasicMaterial).opacity = opacity * 0.3;
+        }
     }
 
     show(): void {

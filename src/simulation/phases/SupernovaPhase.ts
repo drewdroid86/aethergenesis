@@ -95,7 +95,10 @@ export class SupernovaPhase implements PhaseComponent {
     }
 
     setOpacity(opacity: number): void {
-        (this.coreFlashMesh.material as THREE.MeshBasicMaterial).opacity = opacity;
+        const mat = this.coreFlashMesh.material as THREE.MeshBasicMaterial;
+        if (mat.opacity !== opacity) {
+            mat.opacity = opacity;
+        }
     }
 
     show(): void {

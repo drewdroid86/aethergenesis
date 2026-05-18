@@ -61,6 +61,7 @@ export function useSimulation(containerRef: React.RefObject<HTMLDivElement | nul
     const [isPlayingCosmic, setIsPlayingCosmic] = useState(true);
     const isPlayingCosmicRef = useRef(isPlayingCosmic);
     const isGlobalScrubbingRef = useRef(false);
+    const hitMeshesRef = useRef<THREE.Mesh[]>([]);
     useEffect(() => { cosmicAgeRef.current = cosmicAge; }, [cosmicAge]);
     useEffect(() => { isPlayingCosmicRef.current = isPlayingCosmic; }, [isPlayingCosmic]);
 
@@ -111,6 +112,9 @@ export function useSimulation(containerRef: React.RefObject<HTMLDivElement | nul
             getNumStarsForTier(currentTierRef.current),
             physicsRef.current
         );
+
+        // BOLT: Cache hit meshes for raycasting performance
+        hitMeshesRef.current = engineRef.current.heroStars.map(h => h.hitMesh);
     }, []); 
 
     const handleTierChange = useCallback((newTier: 'low' | 'medium' | 'high' | 'ultra') => {
@@ -149,6 +153,9 @@ export function useSimulation(containerRef: React.RefObject<HTMLDivElement | nul
             const engine = new Engine(containerRef.current);
             engineRef.current = engine;
 
+            // BOLT: Initial hit mesh cache
+            hitMeshesRef.current = engine.heroStars.map(h => h.hitMesh);
+
             const controls = new OrbitControls(engine.camera, engine.renderer.domElement);
             controls.enableDamping = true;
             controls.dampingFactor = 0.05;
@@ -179,8 +186,7 @@ export function useSimulation(containerRef: React.RefObject<HTMLDivElement | nul
                 mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
                 raycaster.setFromCamera(mouse, engine.camera);
 
-                const hitMeshes = engine.heroStars.map(h => h.hitMesh);
-                const intersects = raycaster.intersectObjects(hitMeshes);
+                const intersects = raycaster.intersectObjects(hitMeshesRef.current);
 
                 if (intersects.length > 0) {
                     const hit = intersects[0].object;

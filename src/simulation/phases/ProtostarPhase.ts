@@ -59,8 +59,10 @@ export class ProtostarPhase implements PhaseComponent {
     }
 
     setOpacity(opacity: number): void {
-        this.protostarMat.uniforms.uOpacity.value = opacity;
-        (this.protostarDisk.material as THREE.MeshBasicMaterial).opacity = opacity * STELLAR_CONSTANTS.VISUALS.PROTOSTAR_DISK_OPACITY;
+        if (this.protostarMat.uniforms.uOpacity.value !== opacity) {
+            this.protostarMat.uniforms.uOpacity.value = opacity;
+            (this.protostarDisk.material as THREE.MeshBasicMaterial).opacity = opacity * STELLAR_CONSTANTS.VISUALS.PROTOSTAR_DISK_OPACITY;
+        }
     }
 
     show(): void {
