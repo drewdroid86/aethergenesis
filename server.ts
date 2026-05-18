@@ -35,7 +35,7 @@ app.use((_req, res, next) => {
 const analysisLimitMap = new Map<string, number>();
 const RATE_LIMIT_WINDOW = 60 * 1000; // 1 minute
 const MAX_REQUESTS_PER_WINDOW = 5;
-const MAX_ENTRIES = 1000; // Memory protection
+const MAX_ENTRIES = 10000; // Memory protection
 
 // Periodic cleanup to prevent memory exhaustion
 setInterval(() => {
@@ -66,9 +66,10 @@ app.post('/api/analyze', async (req, res) => {
     return res.status(429).json({ error: `Too many requests. Please wait ${waitSec}s.` });
   }
 
-  // Memory protection: don't add new IPs if map is too large
+  // Memory protection: FIFO eviction if map is too large
   if (analysisLimitMap.size >= MAX_ENTRIES && !analysisLimitMap.has(ip)) {
-    return res.status(503).json({ error: 'Server busy.' });
+    const oldestKey = analysisLimitMap.keys().next().value;
+    if (oldestKey !== undefined) analysisLimitMap.delete(oldestKey);
   }
 
   analysisLimitMap.set(ip, now);
@@ -88,12 +89,12 @@ app.post('/api/analyze', async (req, res) => {
 
   const isValidNumber = (val: any) => typeof val === 'number' && !isNaN(val) && isFinite(val);
 
-  if (!isValidNumber(temp) || temp <= 0 ||
-      !isValidNumber(mass) || mass <= 0 ||
-      !isValidNumber(lum) || lum < 0 ||
-      !isValidNumber(age) || age < 0 ||
-      !isValidNumber(G) || G <= 0 ||
-      !isValidNumber(alpha) || alpha <= 0 ||
+  if (!isValidNumber(temp) || temp <= 0 || temp > 1000000 ||
+      !isValidNumber(mass) || mass <= 0 || mass > 1000 ||
+      !isValidNumber(lum) || lum < 0 || lum > 1000000 ||
+      !isValidNumber(age) || age < 0 || age > 20000 ||
+      !isValidNumber(G) || G <= 0 || G > 100 ||
+      !isValidNumber(alpha) || alpha <= 0 || alpha > 100 ||
       typeof phase !== 'string' || !VALID_PHASES.includes(phase)) {
     return res.status(400).json({ error: 'Invalid input parameters.' });
   }
@@ -144,6 +145,7 @@ app.post('/api/analyze', async (req, res) => {
       biome: String(data?.biome || "Unknown").substring(0, 100)
     };
 
+    res.setHeader('Cache-Control', 'no-store, max-age=0');
     res.json(sanitized);
   } catch (error: any) {
     // Security: Log only essential error message, avoid leaking details

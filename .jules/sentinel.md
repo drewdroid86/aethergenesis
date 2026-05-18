@@ -12,3 +12,8 @@
 **Vulnerability:** Potential for process crashes and stack trace leakage via unhandled asynchronous errors in Express routes.
 **Learning:** Even with individual try-catch blocks, missing a global error handler in Express can lead to the default error handler being used, which may expose environment details or crash the process. Furthermore, destructuring `req.body` without verifying its type can lead to unhandled type errors.
 **Prevention:** Always implement a four-argument global error middleware as the last step in the Express app. Perform explicit type checks on `req.body` before destructuring for defense-in-depth.
+
+## 2025-05-17 - FIFO Rate Limit Eviction and Input Bound Enforcement
+**Vulnerability:** Availability-based DoS via rate-limit map exhaustion and logic anomalies from unbounded numeric inputs.
+**Learning:** A fixed-size rate-limiting map without an eviction policy allows an attacker to permanently block new IPs once the map is full. Furthermore, missing upper bounds on physical parameters can lead to unpredictable LLM hallucinations or computational overhead.
+**Prevention:** Implement FIFO eviction for in-memory maps when they reach capacity. Enforce strict upper and lower bounds on all numeric inputs. Use "no-store" cache headers for dynamic AI responses to ensure data freshness and privacy.
