@@ -4,8 +4,6 @@ export const FPS_THRESHOLD = 25;
 export const CONSECUTIVE_FRAMES_THRESHOLD = 150; 
 export const BANNER_DISPLAY_DURATION = 3000;
 
-let onTierChangeCallback: ((tier: PerformanceTier) => void) | null = null;
-
 /**
  * Detects the performance tier based on hardware concurrency and device pixel ratio.
  * 
@@ -32,11 +30,4 @@ export function getNumStarsForTier(tier: PerformanceTier): number {
         case 'ultra': return 600;
         default: return 400;
     }
-}
-
-/**
- * Stores a callback to be executed when the performance tier changes.
- */
-export function setOnTierChangeCallback(callback: (tier: PerformanceTier) => void): void {
-    onTierChangeCallback = callback;
 }

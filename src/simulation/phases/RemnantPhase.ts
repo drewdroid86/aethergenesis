@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { PhaseComponent } from './types';
 import { PhysicsConstants } from '../../types/physics';
 import { GEOMETRIES } from './geometries';
+import { STELLAR_CONSTANTS } from '../../core/constants';
 
 export class RemnantPhase implements PhaseComponent {
     public neutronStarGroup!: THREE.Group;
@@ -61,11 +62,11 @@ export class RemnantPhase implements PhaseComponent {
     }
 
     update(delta: number, appTime: number, cameraPos: THREE.Vector3, physics: PhysicsConstants, t: number, lowDetail?: boolean): void {
-        if (this.mass > 15) {
+        if (this.mass > STELLAR_CONSTANTS.PHYSICS.MASS_THRESHOLD_BLACK_HOLE) {
             this.blackHoleGroup.visible = true;
             if (!lowDetail) this.blackHoleGroup.rotation.y += delta;
             this.blackHoleGroup.rotation.z = Math.PI / 8;
-        } else if (this.mass > 8) {
+        } else if (this.mass > STELLAR_CONSTANTS.PHYSICS.MASS_THRESHOLD_SUPERNOVA) {
             if (!lowDetail) {
                 this.pulsarGroup.rotation.y += delta * 5.0;
                 this.nsMagneticLines.rotation.y += delta * 2.0;
@@ -77,7 +78,7 @@ export class RemnantPhase implements PhaseComponent {
     }
 
     updateRemnantOpacity(delta: number, targetNs: number): void {
-        const speed = delta * 4.0;
+        const speed = delta * STELLAR_CONSTANTS.TRANSITIONS.DEFAULT_SPEED;
         const stepOp = (current: number, target: number) => {
             if (current < target) return Math.min(target, current + speed);
             if (current > target) return Math.max(target, current - speed);
@@ -109,7 +110,7 @@ export class RemnantPhase implements PhaseComponent {
             });
         }
         
-        const isVisible = this._opNs > 0.01 || this._opNsLines > 0.01;
+        const isVisible = this._opNs > STELLAR_CONSTANTS.TRANSITIONS.VISIBILITY_THRESHOLD || this._opNsLines > STELLAR_CONSTANTS.TRANSITIONS.VISIBILITY_THRESHOLD;
         if (this.neutronStarGroup.visible !== isVisible) {
             this.neutronStarGroup.visible = isVisible;
         }

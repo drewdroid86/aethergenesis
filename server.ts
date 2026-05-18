@@ -24,15 +24,31 @@ app.use((_req, res, next) => {
   res.setHeader('X-Frame-Options', 'DENY');
   res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
   res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
-  res.setHeader('Content-Security-Policy', "default-src 'self'; script-src 'self' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; connect-src 'self'; img-src 'self' data:; font-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; upgrade-insecure-requests;");
+  res.setHeader('Content-Security-Policy', "default-src 'self'; script-src 'self' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; connect-src 'self' ws: wss:; img-src 'self' data: https:; font-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; upgrade-insecure-requests;");
   res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
   res.setHeader('Cross-Origin-Opener-Policy', 'same-origin');
   res.setHeader('Cross-Origin-Resource-Policy', 'same-origin');
   next();
 });
 
+const allowedOrigins = (process.env.ALLOWED_ORIGINS || 'http://localhost:3000,http://localhost:5173').split(',');
+app.use((req, res, next) => { 
+    const origin = req.headers.origin; 
+    if (origin && allowedOrigins.includes(origin)) { 
+        res.setHeader('Access-Control-Allow-Origin', origin); 
+        res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS'); 
+        res.setHeader('Access-Control-Allow-Headers', 'Content-Type'); 
+    } 
+    if (req.method === 'OPTIONS') return res.sendStatus(204); 
+    next(); 
+});
+
 // Security: Simple in-memory rate limiting for AI analysis
-const analysisLimitMap = new Map<string, number>();
+interface RateLimitData {
+  count: number;
+  windowStart: number;
+}
+const analysisLimitMap = new Map<string, RateLimitData>();
 const RATE_LIMIT_WINDOW = 60 * 1000; // 1 minute
 const MAX_REQUESTS_PER_WINDOW = 5;
 const MAX_ENTRIES = 1000; // Memory protection
@@ -40,8 +56,8 @@ const MAX_ENTRIES = 1000; // Memory protection
 // Periodic cleanup to prevent memory exhaustion
 setInterval(() => {
   const now = Date.now();
-  for (const [ip, time] of analysisLimitMap.entries()) {
-    if (now - time > RATE_LIMIT_WINDOW) analysisLimitMap.delete(ip);
+  for (const [ip, data] of analysisLimitMap.entries()) {
+    if (now - data.windowStart > RATE_LIMIT_WINDOW) analysisLimitMap.delete(ip);
   }
 }, RATE_LIMIT_WINDOW);
 
@@ -57,21 +73,21 @@ app.post('/api/analyze', async (req, res) => {
   // Security: Rate limiting by IP
   const ip = req.ip || req.socket.remoteAddress || 'unknown';
   const now = Date.now();
-  const lastRequestTime = analysisLimitMap.get(ip) || 0;
-  const minInterval = RATE_LIMIT_WINDOW / MAX_REQUESTS_PER_WINDOW;
+  const record = analysisLimitMap.get(ip) || { count: 0, windowStart: now };
 
-  if (now - lastRequestTime < minInterval) {
-    const waitSec = Math.ceil((minInterval - (now - lastRequestTime)) / 1000);
+  if (now - record.windowStart > RATE_LIMIT_WINDOW) {
+    record.count = 0;
+    record.windowStart = now;
+  }
+
+  if (record.count >= MAX_REQUESTS_PER_WINDOW) {
+    const waitSec = Math.ceil((RATE_LIMIT_WINDOW - (now - record.windowStart)) / 1000);
     res.setHeader('Retry-After', waitSec.toString());
-    return res.status(429).json({ error: `Too many requests. Please wait ${waitSec}s.` });
+    return res.status(429).json({ error: 'Too many requests. Please wait ' + waitSec + 's.' });
   }
 
-  // Memory protection: don't add new IPs if map is too large
-  if (analysisLimitMap.size >= MAX_ENTRIES && !analysisLimitMap.has(ip)) {
-    return res.status(503).json({ error: 'Server busy.' });
-  }
-
-  analysisLimitMap.set(ip, now);
+  record.count++;
+  analysisLimitMap.set(ip, record);
 
   const { temp, mass, lum, age, phase, G, alpha } = req.body;
 

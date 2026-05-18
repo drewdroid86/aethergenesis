@@ -8,7 +8,7 @@ export default defineConfig(() => {
     plugins: [react(), tailwindcss()],
     resolve: {
       alias: {
-        '@': path.resolve(__dirname, '.'),
+        '@': path.resolve(__dirname, './src'),
       },
     },
     server: {
@@ -21,6 +21,17 @@ export default defineConfig(() => {
           changeOrigin: true,
         },
       },
+    },
+    build: {
+      rollupOptions: {
+        output: {
+          manualChunks: {
+            three: ['three'],
+            react: ['react', 'react-dom'],
+            postprocessing: ['three/addons/postprocessing/EffectComposer.js', 'three/addons/postprocessing/UnrealBloomPass.js']
+          }
+        }
+      }
     },
   };
 });

@@ -3,6 +3,7 @@ import { PhaseComponent } from './types';
 import { PhysicsConstants } from '../../types/physics';
 import { basicVS, nebulaFS, particleVS, particleFS } from '../../rendering/shaders/stellar';
 import { GEOMETRIES } from './geometries';
+import { STELLAR_CONSTANTS } from '../../core/constants';
 
 export class NebulaPhase implements PhaseComponent {
     private nebulaMat!: THREE.ShaderMaterial;
@@ -63,24 +64,19 @@ export class NebulaPhase implements PhaseComponent {
     }
 
     update(delta: number, appTime: number, cameraPos: THREE.Vector3, physics: PhysicsConstants, t: number, lowDetail?: boolean): void {
-        const normT = t / 0.05;
+        const normT = t / STELLAR_CONSTANTS.PHASE_BOUNDARIES.NEBULA_LIMIT;
         
         this.nebulaMat.uniforms.uTime.value = appTime;
         this.nebulaMat.uniforms.uCollapse.value = normT;
         this.nebulaMat.uniforms.uCameraPos.value.copy(cameraPos);
 
-        // BOLT: Update inverse matrix only once after world matrix is ready
-        if (!this._matrixInitialized) {
-            this.nebulaMesh.updateMatrixWorld(true);
-            if (this.nebulaMesh.matrixWorld.determinant() !== 0) {
-                this.nebulaMat.uniforms.uInverseModelMatrix.value.copy(this.nebulaMesh.matrixWorld).invert();
-                this._matrixInitialized = true;
-            }
-        }
+        // Update inverse matrix for local space calculations in the shader
+        this.nebulaMesh.updateMatrixWorld(true);
+        this.nebulaMat.uniforms.uInverseModelMatrix.value.copy(this.nebulaMesh.matrixWorld).invert();
         
-        this.dustCloud.rotation.y += delta * 0.2;
+        this.dustCloud.rotation.y += delta * STELLAR_CONSTANTS.VISUALS.NEBULA_DUST_ROTATION_SPEED;
         (this.dustCloud.material as THREE.ShaderMaterial).uniforms.uAlpha.value = 1.0;
-        this.dustCloud.scale.setScalar(1.0 - normT * 0.5);
+        this.dustCloud.scale.setScalar(1.0 - normT * STELLAR_CONSTANTS.VISUALS.NEBULA_DUST_SCALE_REDUCTION);
     }
 
     // Special update for when it's still visible during Protostar phase
@@ -88,9 +84,9 @@ export class NebulaPhase implements PhaseComponent {
         this.nebulaMesh.visible = true;
         this.nebulaMat.uniforms.uCollapse.value = 1.0;
         this.dustCloud.visible = true;
-        this.dustCloud.rotation.y += delta * 0.5;
-        (this.dustCloud.material as THREE.ShaderMaterial).uniforms.uAlpha.value = 1.0 - normT * 1.25;
-        this.dustCloud.scale.setScalar(0.5 - normT * 0.2);
+        this.dustCloud.rotation.y += delta * STELLAR_CONSTANTS.VISUALS.NEBULA_DUST_ROTATION_SPEED_SECONDARY;
+        (this.dustCloud.material as THREE.ShaderMaterial).uniforms.uAlpha.value = 1.0 - normT * STELLAR_CONSTANTS.VISUALS.NEBULA_DUST_ALPHA_REDUCTION;
+        this.dustCloud.scale.setScalar(STELLAR_CONSTANTS.VISUALS.NEBULA_DUST_SCALE_SECONDARY - normT * STELLAR_CONSTANTS.VISUALS.NEBULA_DUST_SCALE_SECONDARY_REDUCTION);
     }
 
     show(): void {

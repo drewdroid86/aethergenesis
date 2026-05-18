@@ -3,6 +3,7 @@ import { PhaseComponent } from './types';
 import { PhysicsConstants } from '../../types/physics';
 import { displacementVS, starSurfaceFS } from '../../rendering/shaders/stellar';
 import { GEOMETRIES } from './geometries';
+import { STELLAR_CONSTANTS } from '../../core/constants';
 
 export class ProtostarPhase implements PhaseComponent {
     public protostarGroup!: THREE.Group;
@@ -45,8 +46,8 @@ export class ProtostarPhase implements PhaseComponent {
     }
 
     update(delta: number, appTime: number, cameraPos: THREE.Vector3, physics: PhysicsConstants, t: number, lowDetail?: boolean): void {
-        const normT = (t - 0.05) / 0.10;
-        const introScale = this.baseRadius * (0.5 + normT * 0.5);
+        const normT = (t - STELLAR_CONSTANTS.PHASE_BOUNDARIES.PROTOSTAR_START) / STELLAR_CONSTANTS.PHASE_BOUNDARIES.PROTOSTAR_DURATION;
+        const introScale = this.baseRadius * (STELLAR_CONSTANTS.VISUALS.PROTOSTAR_INTRO_SCALE_MIN + normT * (1.0 - STELLAR_CONSTANTS.VISUALS.PROTOSTAR_INTRO_SCALE_MIN));
         this.protostarMesh.scale.setScalar(introScale);
         
         this.protostarMat.uniforms.uTime.value = appTime;
@@ -56,7 +57,7 @@ export class ProtostarPhase implements PhaseComponent {
 
     setOpacity(opacity: number): void {
         this.protostarMat.uniforms.uOpacity.value = opacity;
-        (this.protostarDisk.material as THREE.MeshBasicMaterial).opacity = opacity * 0.8;
+        (this.protostarDisk.material as THREE.MeshBasicMaterial).opacity = opacity * STELLAR_CONSTANTS.VISUALS.PROTOSTAR_DISK_OPACITY;
     }
 
     show(): void {

@@ -19,17 +19,18 @@ export function AetherGenesis() {
     cosmicAge,
     isPlayingCosmic,
     setIsPlayingCosmic,
-    currentTier,
-    fps,
-    showTierDownIndicator,
-    onScrubStart,
-    onScrubMove,
+    currentTier, 
+    fps, 
+    showTierDownIndicator, 
+    numHeroStars,
+    onScrubStart,    onScrubMove,
     onScrubEnd,
     onGlobalScrubStart,
     onGlobalScrubMove,
     onGlobalScrubEnd,
     onKeyDown,
-    resetCamera
+    resetCamera,
+    centerOnStar
   } = useSimulation(mountRef);
 
   if (fatalError) {
@@ -63,9 +64,10 @@ export function AetherGenesis() {
         onGlobalScrubEnd={onGlobalScrubEnd}
         onKeyDown={(e) => onKeyDown(e, true)}
         resetCamera={resetCamera}
+        centerOnStar={centerOnStar}
         performance={{
             tier: currentTier,
-            numStars: 0, // This could be improved if Engine exposed it
+            numStars: numHeroStars,
             fps: fps,
             showIndicator: showTierDownIndicator
         }}
