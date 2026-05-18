@@ -37,7 +37,7 @@ interface InspectPanelProps {
 export const InspectPanel: React.FC<InspectPanelProps> = ({
     selectedStar,
     setSelectedStar,
-    isPaused,
+    isPaused: _isPaused,
     setIsPaused,
     physics,
     onScrubStart,

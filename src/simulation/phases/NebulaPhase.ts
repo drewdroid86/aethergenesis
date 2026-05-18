@@ -10,7 +10,6 @@ export class NebulaPhase implements PhaseComponent {
     private nebulaMesh!: THREE.Mesh;
     private dustCloud!: THREE.Points;
     private parent!: THREE.Group;
-    private _matrixInitialized: boolean = false;
 
     init(parent: THREE.Group): void {
         this.parent = parent;
@@ -63,7 +62,7 @@ export class NebulaPhase implements PhaseComponent {
         this.hide();
     }
 
-    update(delta: number, appTime: number, cameraPos: THREE.Vector3, physics: PhysicsConstants, t: number, lowDetail?: boolean): void {
+    update(delta: number, appTime: number, cameraPos: THREE.Vector3, _physics: PhysicsConstants, t: number, _lowDetail?: boolean): void {
         const normT = t / STELLAR_CONSTANTS.PHASE_BOUNDARIES.NEBULA_LIMIT;
         
         this.nebulaMat.uniforms.uTime.value = appTime;
@@ -80,7 +79,7 @@ export class NebulaPhase implements PhaseComponent {
     }
 
     // Special update for when it's still visible during Protostar phase
-    updateAsSecondary(delta: number, appTime: number, cameraPos: THREE.Vector3, normT: number): void {
+    updateAsSecondary(delta: number, _appTime: number, _cameraPos: THREE.Vector3, normT: number): void {
         this.nebulaMesh.visible = true;
         this.nebulaMat.uniforms.uCollapse.value = 1.0;
         this.dustCloud.visible = true;
