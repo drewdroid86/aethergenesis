@@ -37,14 +37,14 @@ interface InspectPanelProps {
 export const InspectPanel: React.FC<InspectPanelProps> = ({
     selectedStar,
     setSelectedStar,
-    isPaused: _isPaused,
+    isPaused: _,
     setIsPaused,
     physics,
     onScrubStart,
     onScrubMove,
     onScrubEnd,
     onKeyDown,
-    uiRefs
+    uiRefs: { phase, temp, mass, age, lum, timelineFill, stellarSlider }
 }) => {
     const [isAnalyzing, setIsAnalyzing] = useState(false);
     const [geminiData, setGeminiData] = useState<GeminiAnalysisResult | null>(null);
@@ -54,18 +54,18 @@ export const InspectPanel: React.FC<InspectPanelProps> = ({
     const [isDragging, setIsDragging] = useState(false);
 
     const copyTelemetry = () => {
-        const phase = uiRefs.phase.current?.innerText || '-';
-        const temp = uiRefs.temp.current?.innerText || '-';
-        const mass = uiRefs.mass.current?.innerText || '-';
-        const lum = uiRefs.lum.current?.innerText || '-';
-        const age = uiRefs.age.current?.innerText || '-';
+        const phaseText = phase.current?.innerText || '-';
+        const tempText = temp.current?.innerText || '-';
+        const massText = mass.current?.innerText || '-';
+        const lumText = lum.current?.innerText || '-';
+        const ageText = age.current?.innerText || '-';
 
         let text = `Stellar Telemetry:
-Phase: ${phase}
-Temp: ${temp} K
-Mass: ${mass} M☉
-Luminosity: ${lum} L☉
-Age: ${age} Myr`;
+Phase: ${phaseText}
+Temp: ${tempText} K
+Mass: ${massText} M☉
+Luminosity: ${lumText} L☉
+Age: ${ageText} Myr`;
 
         if (geminiData) {
             text += `\n\nAI Analysis:
@@ -125,7 +125,7 @@ Civilization: ${geminiData.civilization}`;
             const data = await response.json() as GeminiAnalysisResult;
             setGeminiData(data);
             setAnalysisFailed(false);
-        } catch (err) {
+        } catch (_: unknown) {
             console.warn("Analysis unavailable - using predictive fallback.");
             setAnalysisFailed(true);
             setGeminiData({
@@ -144,7 +144,7 @@ Civilization: ${geminiData.civilization}`;
     useEffect(() => {
         setGeminiData(null);
         setAnalysisFailed(false);
-    }, [selectedStar]);
+    }, [selectedStar.physicsId]);
 
     return (
         <div className="absolute right-8 top-1/2 -translate-y-1/2 w-[min(320px,85vw)] overflow-hidden bg-[rgba(14,14,28,0.7)] backdrop-blur-xl border border-[rgba(126,184,255,0.3)] rounded-2xl p-6 z-30 shadow-[0_0_30px_rgba(0,0,0,0.5)] transform transition-all pointer-events-auto">
@@ -177,25 +177,25 @@ Civilization: ${geminiData.civilization}`;
             <div className="space-y-4 font-mono text-xs">
                 <div className="flex justify-between items-center">
                     <span className="text-[#7EB8FF]/70 uppercase tracking-wider">Phase</span>
-                    <span ref={uiRefs.phase} className="text-[#C084FC] font-bold text-right">-</span>
+                    <span ref={phase} className="text-[#C084FC] font-bold text-right">-</span>
                 </div>
                 <div className="flex justify-between items-center bg-white/5 p-2 rounded">
                     <span className="text-[#7EB8FF]/70 uppercase tracking-wider flex items-center gap-2">
                         <Zap size={14} /> Temp (K)
                     </span>
-                    <span ref={uiRefs.temp} className="text-white">-</span>
+                    <span ref={temp} className="text-white">-</span>
                 </div>
                 <div className="flex justify-between items-center">
                     <span className="text-[#7EB8FF]/70 uppercase tracking-wider">Mass (M☉)</span>
-                    <span ref={uiRefs.mass} className="text-white">-</span>
+                    <span ref={mass} className="text-white">-</span>
                 </div>
                 <div className="flex justify-between items-center bg-white/5 p-2 rounded">
                     <span className="text-[#7EB8FF]/70 uppercase tracking-wider">Luminosity (L☉)</span>
-                    <span ref={uiRefs.lum} className="text-white">-</span>
+                    <span ref={lum} className="text-white">-</span>
                 </div>
                 <div className="flex justify-between items-center">
                     <span className="text-[#7EB8FF]/70 uppercase tracking-wider">Age (Myr)</span>
-                    <span ref={uiRefs.age} className="text-white">-</span>
+                    <span ref={age} className="text-white">-</span>
                 </div>
                 
                 <div className="mt-8 pt-6 border-t border-[rgba(126,184,255,0.1)] group/timeline">
@@ -209,7 +209,7 @@ Civilization: ${geminiData.civilization}`;
                         </div>
                     </div>
                     <div 
-                        ref={uiRefs.stellarSlider}
+                        ref={stellarSlider}
                         role="slider" 
                         tabIndex={0} 
                         aria-label="Stellar lifecycle timeline" 
@@ -222,7 +222,7 @@ Civilization: ${geminiData.civilization}`;
                         onPointerLeave={handlePointerUp}
                         onKeyDown={onKeyDown}
                     >
-                        <div ref={uiRefs.timelineFill} className="h-full bg-gradient-to-r from-blue-500 via-fuchsia-500 to-red-500" style={{width: '0%'}}></div>
+                        <div ref={timelineFill} className="h-full bg-gradient-to-r from-blue-500 via-fuchsia-500 to-red-500" style={{width: '0%'}}></div>
                         <div className="absolute inset-0 bg-white/20 opacity-0 group-hover:opacity-100 transition-opacity"></div>
                     </div>
                     <div className="flex justify-between mt-2 text-[9px] text-[#7EB8FF]/40 uppercase tracking-widest">

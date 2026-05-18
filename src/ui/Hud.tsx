@@ -28,7 +28,7 @@ interface HudProps {
 }
 
 export const Hud: React.FC<HudProps> = ({ 
-    uiRefs, 
+    uiRefs: { hudX, hudY, hudZ, hudAge, globalTimelineFill, globalSlider },
     cosmicAge, 
     isPlayingCosmic, 
     setIsPlayingCosmic,
@@ -44,10 +44,10 @@ export const Hud: React.FC<HudProps> = ({
     const [isDragging, setIsDragging] = useState(false);
 
     const copyCoordinates = () => {
-        const x = uiRefs.hudX.current?.innerText || '0.0000';
-        const y = uiRefs.hudY.current?.innerText || '0.0000';
-        const z = uiRefs.hudZ.current?.innerText || '0.0000';
-        const coords = `X: ${x}, Y: ${y}, Z: ${z}`;
+        const xVal = hudX.current?.innerText || '0.0000';
+        const yVal = hudY.current?.innerText || '0.0000';
+        const zVal = hudZ.current?.innerText || '0.0000';
+        const coords = `X: ${xVal}, Y: ${yVal}, Z: ${zVal}`;
 
         navigator.clipboard.writeText(coords).then(() => {
             setCopied(true);
@@ -131,9 +131,9 @@ export const Hud: React.FC<HudProps> = ({
                         {copied ? <Check size={12} className="text-green-400" /> : <Copy size={12} />}
                     </button>
                 </div>
-                <div className="text-white"><span className="text-[#7EB8FF]/70 mr-2">POS_X:</span><span ref={uiRefs.hudX}>0.0000</span></div>
-                <div className="text-white"><span className="text-[#7EB8FF]/70 mr-2">POS_Y:</span><span ref={uiRefs.hudY}>0.0000</span></div>
-                <div className="text-white"><span className="text-[#7EB8FF]/70 mr-2">POS_Z:</span><span ref={uiRefs.hudZ}>0.0000</span></div>
+                <div className="text-white"><span className="text-[#7EB8FF]/70 mr-2">POS_X:</span><span ref={hudX}>0.0000</span></div>
+                <div className="text-white"><span className="text-[#7EB8FF]/70 mr-2">POS_Y:</span><span ref={hudY}>0.0000</span></div>
+                <div className="text-white"><span className="text-[#7EB8FF]/70 mr-2">POS_Z:</span><span ref={hudZ}>0.0000</span></div>
                 </div>
 
                 <div className="absolute left-1/2 -translate-x-1/2 flex flex-col items-center gap-4 w-1/3 pointer-events-auto">
@@ -155,7 +155,7 @@ export const Hud: React.FC<HudProps> = ({
                         </div>
                         
                         <div 
-                            ref={uiRefs.globalSlider}
+                            ref={globalSlider}
                             role="slider"
                             tabIndex={0}
                             aria-label="Global cosmic age timeline"
@@ -169,10 +169,10 @@ export const Hud: React.FC<HudProps> = ({
                             onPointerLeave={handlePointerUp}
                             onKeyDown={(e) => onKeyDown(e, true)}
                         >
-                            <div ref={uiRefs.globalTimelineFill} className="h-full bg-gradient-to-r from-[#7EB8FF] to-[#C084FC]" style={{width: `${(cosmicAge / 14.0) * 100}%`}}></div>
+                            <div ref={globalTimelineFill} className="h-full bg-gradient-to-r from-[#7EB8FF] to-[#C084FC]" style={{width: `${(cosmicAge / 14.0) * 100}%`}}></div>
                             <div className="absolute inset-0 bg-white/20 opacity-0 group-hover:opacity-100 transition-opacity"></div>
                         </div>
-                        <span className="font-mono text-2xl font-light tracking-wider mt-2" ref={uiRefs.hudAge}>{cosmicAge.toFixed(2)}</span>
+                        <span className="font-mono text-2xl font-light tracking-wider mt-2" ref={hudAge}>{cosmicAge.toFixed(2)}</span>
                     </div>
                     <p className="text-[10px] text-[#7EB8FF]/50 italic text-center pointer-events-none">"Scrub to T=0 to observe pre-stellar plasma state."</p>
                 </div>

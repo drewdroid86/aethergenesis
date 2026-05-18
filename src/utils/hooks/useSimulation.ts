@@ -31,6 +31,7 @@ export function useSimulation(containerRef: React.RefObject<HTMLDivElement | nul
     const [currentTier, setCurrentTier] = useState<'low' | 'medium' | 'high' | 'ultra'>('medium');
     const currentTierRef = useRef(currentTier);
     const [fps, setFps] = useState(0);
+    const [numHeroStars, setNumHeroStars] = useState(0);
     const [showTierDownIndicator, setShowTierDownIndicator] = useState(false);
     const consecutiveFramesBelowThresholdRef = useRef(0);
     const tierDownIndicatorTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -115,6 +116,7 @@ export function useSimulation(containerRef: React.RefObject<HTMLDivElement | nul
 
         // BOLT: Cache hit meshes for raycasting performance
         hitMeshesRef.current = engineRef.current.heroStars.map(h => h.hitMesh);
+        setNumHeroStars(engineRef.current.heroStars.length);
     }, []); 
 
     const handleTierChange = useCallback((newTier: 'low' | 'medium' | 'high' | 'ultra') => {
@@ -143,7 +145,7 @@ export function useSimulation(containerRef: React.RefObject<HTMLDivElement | nul
         const initialTier = detectPerformanceTier();
         currentTierRef.current = initialTier;
         setCurrentTier(initialTier);
-    }, [handleTierChange]); 
+    }, []);
 
     useEffect(() => {
         if (!containerRef.current) return;
@@ -155,6 +157,7 @@ export function useSimulation(containerRef: React.RefObject<HTMLDivElement | nul
 
             // BOLT: Initial hit mesh cache
             hitMeshesRef.current = engine.heroStars.map(h => h.hitMesh);
+            setNumHeroStars(engine.heroStars.length);
 
             const controls = new OrbitControls(engine.camera, engine.renderer.domElement);
             controls.enableDamping = true;
@@ -210,7 +213,7 @@ export function useSimulation(containerRef: React.RefObject<HTMLDivElement | nul
 
             let frameId: number;
             let lastAnimationTime = performance.now();
-            let fpsHistory: number[] = [];
+            const fpsHistory: number[] = [];
 
             const animate = () => {
                 frameId = requestAnimationFrame(animate);
@@ -320,7 +323,7 @@ export function useSimulation(containerRef: React.RefObject<HTMLDivElement | nul
                 engineRef.current = null;
             };
         } catch (err: any) {
-            setFatalError(err.message);
+            setFatalError(err?.message || 'Unknown error');
         }
     }, [handleTierChange, rebuildStarfieldGeometry]); 
 
@@ -370,7 +373,7 @@ export function useSimulation(containerRef: React.RefObject<HTMLDivElement | nul
         currentTier, 
         fps, 
         showTierDownIndicator, 
-        numHeroStars: engineRef.current?.heroStars.length ?? 0,
+        numHeroStars,
         onScrubStart: (e: React.PointerEvent) => {
             (e.currentTarget as HTMLDivElement).setPointerCapture(e.pointerId);
             isScrubbingRef.current = true;

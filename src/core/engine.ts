@@ -56,7 +56,7 @@ export class Engine {
         this.createHeroStars(getNumStarsForTier(detectPerformanceTier()), initialPhysics);
     }
 
-    createHeroStars(count: number, _physicsConstants: PhysicsConstants) {
+    createHeroStars(count: number, _physics: PhysicsConstants) {
         for (let i = 0; i < count; i++) {
             const star = new HeroStarSystem();
             star.position.set(
