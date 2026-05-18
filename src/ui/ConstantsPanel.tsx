@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Settings2, X, RotateCcw } from 'lucide-react';
+import { Settings2, X, RotateCcw, Copy, Check } from 'lucide-react';
 import { DEFAULT_CONSTANTS, PhysicsConstants } from '../types/physics';
 
 interface ConstantsPanelProps {
@@ -10,14 +10,31 @@ interface ConstantsPanelProps {
 }
 
 export const ConstantsPanel: React.FC<ConstantsPanelProps> = ({ physics, setPhysics, isOpen, setIsOpen }) => {
+    const [copied, setCopied] = useState(false);
+
+    const copyConfig = () => {
+        const text = `Physical Constants:
+G (Gravitation): ${physics.G.toFixed(2)}
+α (Fine-Structure): ${physics.alpha.toFixed(2)}
+Λ (Cosmological): ${physics.lambda.toFixed(2)}
+c (Speed of Light): ${physics.c.toFixed(2)}
+ħ (Planck): ${physics.hbar.toFixed(2)}`;
+
+        navigator.clipboard.writeText(text).then(() => {
+            setCopied(true);
+            setTimeout(() => setCopied(false), 2000);
+        });
+    };
+
     if (!isOpen) {
         return (
             <button 
                 onClick={() => setIsOpen(true)} 
-                className="absolute left-8 top-32 bg-[rgba(14,14,28,0.7)] backdrop-blur-xl border border-[rgba(126,184,255,0.3)] rounded-full p-4 z-30 shadow-[0_0_30px_rgba(0,0,0,0.5)] transform transition-all pointer-events-auto text-[#7EB8FF]/70 hover:text-white group focus-visible:ring-2 focus-visible:ring-[#C084FC] outline-none"
-                title="Open Physical Constants"
+                className="absolute left-8 top-32 bg-[rgba(14,14,28,0.7)] backdrop-blur-xl border border-[rgba(126,184,255,0.3)] rounded-full p-4 z-30 shadow-[0_0_30px_rgba(0,0,0,0.5)] transform transition-all pointer-events-auto text-[#7EB8FF]/70 hover:text-white group focus-visible:ring-2 focus-visible:ring-[#C084FC] outline-none relative"
+                title="Open Physical Constants [C]"
                 aria-label="Open Physical Constants"
             >
+                <span className="absolute -right-12 top-1/2 -translate-y-1/2 text-[8px] text-[#C084FC] opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap bg-black/80 px-2 py-1 rounded border border-[#C084FC]/30">[C]</span>
                 <Settings2 size={24} className="group-hover:text-[#C084FC] transition-colors" />
             </button>
         );
@@ -32,6 +49,14 @@ export const ConstantsPanel: React.FC<ConstantsPanelProps> = ({ physics, setPhys
                 </h2>
                 <div className="flex items-center gap-2">
                     <button
+                        onClick={copyConfig}
+                        className="text-[#7EB8FF]/50 hover:text-[#C084FC] transition-all focus-visible:ring-2 focus-visible:ring-[#C084FC] outline-none rounded p-1"
+                        aria-label="Copy Configuration"
+                        title="Copy Configuration"
+                    >
+                        {copied ? <Check size={16} className="text-green-400" /> : <Copy size={16} />}
+                    </button>
+                    <button
                         onClick={() => setPhysics(DEFAULT_CONSTANTS)}
                         className="text-[#7EB8FF]/50 hover:text-[#C084FC] transition-all focus-visible:ring-2 focus-visible:ring-[#C084FC] outline-none rounded p-1 group/reset"
                         aria-label="Reset to Defaults"
@@ -41,11 +66,11 @@ export const ConstantsPanel: React.FC<ConstantsPanelProps> = ({ physics, setPhys
                     </button>
                     <button
                         onClick={() => setIsOpen(false)}
-                        className="text-[#7EB8FF]/70 hover:text-white transition-colors focus-visible:ring-2 focus-visible:ring-[#C084FC] outline-none rounded p-1 flex items-center gap-1"
+                        className={`text-[#7EB8FF]/70 hover:text-white transition-colors focus-visible:ring-2 focus-visible:ring-[#C084FC] outline-none rounded p-1 flex items-center gap-1`}
                         aria-label="Close Physical Constants"
-                        title="Close [Esc]"
+                        title="Close [Esc / C]"
                     >
-                        <span className="text-[8px] text-[#C084FC] opacity-0 group-hover/header:opacity-100 transition-opacity hidden sm:inline">[Esc]</span>
+                        <span className="text-[8px] text-[#C084FC] opacity-0 group-hover/header:opacity-100 transition-opacity hidden sm:inline">[Esc / C]</span>
                         <X size={20} />
                     </button>
                 </div>

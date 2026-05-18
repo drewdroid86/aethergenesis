@@ -18,6 +18,8 @@ interface HudProps {
     onGlobalScrubEnd: () => void;
     onKeyDown: (e: React.KeyboardEvent, isGlobal: boolean) => void;
     resetCamera: () => void;
+    centerOnStar: () => void;
+    isStarSelected: boolean;
     performance: {
         tier: string;
         numStars: number;
@@ -36,6 +38,8 @@ export const Hud: React.FC<HudProps> = ({
     onGlobalScrubEnd,
     onKeyDown,
     resetCamera,
+    centerOnStar,
+    isStarSelected,
     performance
 }) => {
     const [copied, setCopied] = useState(false);
@@ -123,14 +127,14 @@ export const Hud: React.FC<HudProps> = ({
                     <div className="w-full px-8 py-4 bg-[rgba(8,8,20,0.6)] backdrop-blur-2xl border border-[rgba(126,184,255,0.2)] rounded-2xl flex flex-col items-center group">
                         <div className="flex justify-between w-full items-center mb-3">
                             <span className="text-[9px] uppercase tracking-widest text-[#7EB8FF]">
-                                Global Cosmic Age (Gyr) <span className="opacity-0 group-hover:opacity-100 transition-opacity ml-2 text-[8px] text-[#C084FC] hidden sm:inline">[Arrows to Seek]</span>
+                                Global Cosmic Age (Gyr) <span className="opacity-0 group-hover:opacity-100 transition-opacity ml-2 text-[8px] text-[#C084FC] hidden sm:inline">[Space to Toggle, Arrows to Seek]</span>
                             </span>
                             <div className="flex gap-2">
                                 <button
                                     onClick={() => setIsPlayingCosmic(!isPlayingCosmic)}
                                     className="text-white/40 hover:text-white transition-colors focus-visible:ring-2 focus-visible:ring-[#C084FC] outline-none rounded"
                                     aria-label={isPlayingCosmic ? "Pause cosmic simulation" : "Play cosmic simulation"}
-                                    title={isPlayingCosmic ? "Pause Cosmic Simulation" : "Play Cosmic Simulation"}
+                                    title={isPlayingCosmic ? "Pause Cosmic Simulation [Space]" : "Play Cosmic Simulation [Space]"}
                                 >
                                     {isPlayingCosmic ? <Pause size={14} /> : <Play size={14} />}
                                 </button>
@@ -161,19 +165,25 @@ export const Hud: React.FC<HudProps> = ({
                 </div>
 
                 <div className="flex flex-col items-end gap-2 text-right">
-                <div className="grid grid-cols-2 gap-2 pointer-events-auto">
+                <div className="grid grid-cols-2 gap-2 pointer-events-auto group/nav">
                     <button 
                         onClick={resetCamera}
-                        className="w-10 h-10 flex items-center justify-center bg-[rgba(8,8,20,0.6)] border border-[rgba(126,184,255,0.2)] rounded-md backdrop-blur-md transition-colors hover:bg-[rgba(126,184,255,0.1)] cursor-pointer focus-visible:ring-2 focus-visible:ring-[#C084FC] outline-none" 
-                        aria-label="Reset Camera" title="Reset Camera"
+                        className="w-10 h-10 flex items-center justify-center bg-[rgba(8,8,20,0.6)] border border-[rgba(126,184,255,0.2)] rounded-md backdrop-blur-md transition-colors hover:bg-[rgba(126,184,255,0.1)] cursor-pointer focus-visible:ring-2 focus-visible:ring-[#C084FC] outline-none relative group/btn"
+                        aria-label="Reset Camera" title="Reset Camera [R]"
                     >
-                    <Crosshair size={16} className="text-[#7EB8FF]" />
+                        <span className="absolute -top-8 left-1/2 -translate-x-1/2 text-[8px] text-[#C084FC] opacity-0 group-hover/btn:opacity-100 transition-opacity whitespace-nowrap bg-black/80 px-2 py-1 rounded border border-[#C084FC]/30">[R]</span>
+                        <Crosshair size={16} className="text-[#7EB8FF]" />
                     </button>
                     <button 
-                        className="w-10 h-10 flex items-center justify-center bg-[rgba(8,8,20,0.6)] border border-[rgba(126,184,255,0.2)] rounded-md backdrop-blur-md transition-colors hover:bg-[rgba(126,184,255,0.1)] cursor-not-allowed opacity-50 focus-visible:ring-2 focus-visible:ring-[#C084FC] outline-none" 
-                        aria-label="Center on Star" title="Center on Star"
+                        onClick={centerOnStar}
+                        disabled={!isStarSelected}
+                        className={`w-10 h-10 flex items-center justify-center bg-[rgba(8,8,20,0.6)] border border-[rgba(126,184,255,0.2)] rounded-md backdrop-blur-md transition-colors outline-none relative group/btn ${isStarSelected ? 'hover:bg-[rgba(126,184,255,0.1)] cursor-pointer focus-visible:ring-2 focus-visible:ring-[#C084FC]' : 'cursor-not-allowed opacity-50'}`}
+                        aria-label="Center on Star" title="Center on Star [F]"
                     >
-                    <Navigation size={16} className="text-[#C084FC]" />
+                        {isStarSelected && (
+                            <span className="absolute -top-8 left-1/2 -translate-x-1/2 text-[8px] text-[#C084FC] opacity-0 group-hover/btn:opacity-100 transition-opacity whitespace-nowrap bg-black/80 px-2 py-1 rounded border border-[#C084FC]/30">[F]</span>
+                        )}
+                        <Navigation size={16} className="text-[#C084FC]" />
                     </button>
                 </div>
                 <span className="text-[9px] uppercase tracking-widest text-[#7EB8FF]/60 mt-1">Stellar Raycasting Active</span>

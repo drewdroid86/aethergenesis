@@ -66,6 +66,18 @@ export function useSimulation(containerRef: React.RefObject<HTMLDivElement | nul
     useEffect(() => { cosmicAgeRef.current = cosmicAge; }, [cosmicAge]);
     useEffect(() => { isPlayingCosmicRef.current = isPlayingCosmic; }, [isPlayingCosmic]);
 
+    const centerOnStar = useCallback(() => {
+        if (selectedStarRef.current && engineRef.current && controlsRef.current) {
+            const system = selectedStarRef.current;
+            const controls = controlsRef.current;
+            const engine = engineRef.current;
+            const targetPos = system.position.clone();
+            const camOffset = engine.camera.position.clone().sub(controls.target).normalize().multiplyScalar(40);
+            engine.camera.position.copy(targetPos).add(camOffset);
+            controls.target.copy(targetPos);
+        }
+    }, []);
+
     // HUD & UI Refs
     const hudRefs = {
         hudX: useRef<HTMLSpanElement>(null),
@@ -193,11 +205,7 @@ export function useSimulation(containerRef: React.RefObject<HTMLDivElement | nul
                     const system = hit.parent as HeroStarSystem;
                     selectedStarRef.current = system;
                     setSelectedStar(system);
-
-                    const targetPos = system.position.clone();
-                    const camOffset = engine.camera.position.clone().sub(controls.target).normalize().multiplyScalar(40);
-                    engine.camera.position.copy(targetPos).add(camOffset);
-                    controls.target.copy(targetPos);
+                    centerOnStar();
                 } else {
                     selectedStarRef.current = null;
                     setSelectedStar(null);
@@ -292,12 +300,30 @@ export function useSimulation(containerRef: React.RefObject<HTMLDivElement | nul
             };
 
             const handleGlobalKeyDown = (e: KeyboardEvent) => {
+                const target = e.target as HTMLElement;
+                if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) {
+                    return;
+                }
+
                 if (e.key === 'Escape') {
                     if (selectedStarRef.current) {
                         selectedStarRef.current = null;
                         setSelectedStar(null);
                     } else if (isConstantsOpenRef.current) {
                         setIsConstantsOpen(false);
+                    }
+                } else if (e.key.toLowerCase() === 'r') {
+                    controlsRef.current?.reset();
+                } else if (e.key.toLowerCase() === 'c') {
+                    setIsConstantsOpen(!isConstantsOpenRef.current);
+                } else if (e.key.toLowerCase() === 'f') {
+                    centerOnStar();
+                } else if (e.key === ' ') {
+                    e.preventDefault();
+                    if (selectedStarRef.current) {
+                        setIsPaused(!isPausedRef.current);
+                    } else {
+                        setIsPlayingCosmic(!isPlayingCosmicRef.current);
                     }
                 }
             };
@@ -368,7 +394,9 @@ export function useSimulation(containerRef: React.RefObject<HTMLDivElement | nul
         setIsPlayingCosmic,
         currentTier, 
         fps, 
+        numStars: engineRef.current?.heroStars.length || 0,
         showTierDownIndicator, 
+        centerOnStar,
         onScrubStart: (e: React.PointerEvent) => {
             (e.currentTarget as HTMLDivElement).setPointerCapture(e.pointerId);
             isScrubbingRef.current = true;
