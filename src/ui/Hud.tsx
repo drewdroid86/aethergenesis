@@ -18,6 +18,7 @@ interface HudProps {
     onGlobalScrubEnd: () => void;
     onKeyDown: (e: React.KeyboardEvent, isGlobal: boolean) => void;
     resetCamera: () => void;
+    centerOnStar: () => void;
     performance: {
         tier: string;
         numStars: number;
@@ -36,9 +37,11 @@ export const Hud: React.FC<HudProps> = ({
     onGlobalScrubEnd,
     onKeyDown,
     resetCamera,
+    centerOnStar,
     performance
 }) => {
     const [copied, setCopied] = useState(false);
+    const [isDragging, setIsDragging] = useState(false);
 
     const copyCoordinates = () => {
         const x = uiRefs.hudX.current?.innerText || '0.0000';
@@ -50,6 +53,20 @@ export const Hud: React.FC<HudProps> = ({
             setCopied(true);
             setTimeout(() => setCopied(false), 2000);
         });
+    };
+
+    const handlePointerDown = (e: React.PointerEvent) => {
+        setIsDragging(true);
+        onGlobalScrubStart(e);
+    };
+
+    const handlePointerMove = (e: React.PointerEvent) => {
+        if (isDragging) onGlobalScrubMove(e);
+    };
+
+    const handlePointerUp = () => {
+        setIsDragging(false);
+        onGlobalScrubEnd();
     };
 
     return (
@@ -146,10 +163,10 @@ export const Hud: React.FC<HudProps> = ({
                             aria-valuemax={14}
                             aria-valuenow={parseFloat(cosmicAge.toFixed(2))}
                             className="w-full h-3 bg-white/10 rounded-full overflow-hidden cursor-ew-resize relative focus-visible:ring-2 focus-visible:ring-[#C084FC] outline-none"
-                            onPointerDown={onGlobalScrubStart}
-                            onPointerMove={onGlobalScrubMove}
-                            onPointerUp={onGlobalScrubEnd}
-                            onPointerLeave={onGlobalScrubEnd}
+                            onPointerDown={handlePointerDown}
+                            onPointerMove={handlePointerMove}
+                            onPointerUp={handlePointerUp}
+                            onPointerLeave={handlePointerUp}
                             onKeyDown={(e) => onKeyDown(e, true)}
                         >
                             <div ref={uiRefs.globalTimelineFill} className="h-full bg-gradient-to-r from-[#7EB8FF] to-[#C084FC]" style={{width: `${(cosmicAge / 14.0) * 100}%`}}></div>
@@ -170,7 +187,8 @@ export const Hud: React.FC<HudProps> = ({
                     <Crosshair size={16} className="text-[#7EB8FF]" />
                     </button>
                     <button 
-                        className="w-10 h-10 flex items-center justify-center bg-[rgba(8,8,20,0.6)] border border-[rgba(126,184,255,0.2)] rounded-md backdrop-blur-md transition-colors hover:bg-[rgba(126,184,255,0.1)] cursor-not-allowed opacity-50 focus-visible:ring-2 focus-visible:ring-[#C084FC] outline-none" 
+                        onClick={centerOnStar}
+                        className="w-10 h-10 flex items-center justify-center bg-[rgba(8,8,20,0.6)] border border-[rgba(126,184,255,0.2)] rounded-md backdrop-blur-md transition-colors hover:bg-[rgba(126,184,255,0.1)] cursor-pointer focus-visible:ring-2 focus-visible:ring-[#C084FC] outline-none" 
                         aria-label="Center on Star" title="Center on Star"
                     >
                     <Navigation size={16} className="text-[#C084FC]" />

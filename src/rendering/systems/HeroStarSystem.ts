@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { PHASES } from '../../core/constants';
+import { PHASES, STELLAR_CONSTANTS } from '../../core/constants';
 import { PhysicalBody } from '../../physics/types';
 import { PhysicsConstants } from '../../types/physics';
 import { NebulaPhase } from '../../simulation/phases/NebulaPhase';
@@ -9,8 +9,6 @@ import { RedGiantPhase } from '../../simulation/phases/RedGiantPhase';
 import { SupernovaPhase } from '../../simulation/phases/SupernovaPhase';
 import { RemnantPhase } from '../../simulation/phases/RemnantPhase';
 import { GEOMETRIES } from '../../simulation/phases/geometries';
-import { detectPerformanceTier, getNumStarsForTier, setOnTierChangeCallback } from '../../utils/performance';
-import { updateNumStars } from '../../constants/simulation';
 
 // BOLT: Module-level helper to avoid closure overhead
 const stepOp = (current: number, target: number, speed: number) => {
@@ -106,7 +104,6 @@ export class HeroStarSystem extends THREE.Group implements PhysicalBody {
         let targetProto = 0, targetMain = 0, targetRed = 0, targetSuper = 0, targetNs = 0;
         const effG = Math.max(0.01, physics.G);
         const expL = Math.max(0.1, physics.lambda);
-        const hbar = physics.hbar ?? 1.0;
 
         // BOLT: Guarded scale update
         if (this._lastL !== expL) {
@@ -165,7 +162,7 @@ export class HeroStarSystem extends THREE.Group implements PhysicalBody {
         // BOLT: Culling & LOD Logic
         const isVisible = frustum ? frustum.containsPoint(this.position) : true;
         const distSq = this.position.distanceToSquared(cameraPos);
-        const lowDetail = distSq > 160000; // > 400 units
+        const lowDetail = distSq > STELLAR_CONSTANTS.TRANSITIONS.FADE_THRESHOLD; 
 
         if (!isVisible && overrideT === undefined) {
             // Note: Phase transitions handled above, ensuring robustness when returning to screen
@@ -174,28 +171,28 @@ export class HeroStarSystem extends THREE.Group implements PhysicalBody {
 
         this.isSupernovaFlashing = false;
 
-        if (this.t < 0.05) {
+        if (this.t < STELLAR_CONSTANTS.PHASE_BOUNDARIES.NEBULA_LIMIT) {
             this.phase = PHASES.NEBULA;
             this.nebulaPhase.show();
             this.nebulaPhase.update(delta, appTime, cameraPos, physics, this.t, lowDetail);
             
-            const normT = this.t / 0.05;
-            this.currentTemp = 50 + normT * 1000;
-            this.currentLum = normT * 0.1;
+            const normT = this.t / STELLAR_CONSTANTS.PHASE_BOUNDARIES.NEBULA_LIMIT;
+            this.currentTemp = STELLAR_CONSTANTS.TEMPERATURES.NEBULA_START + normT * STELLAR_CONSTANTS.TEMPERATURES.NEBULA_MAX;
+            this.currentLum = normT * STELLAR_CONSTANTS.LUMINOSITY.NEBULA_MAX;
 
         } else if (this.phase === PHASES.PROTOSTAR) {
             targetProto = 1;
-            const normT = (this.t - 0.05) / 0.10;
+            const normT = (this.t - STELLAR_CONSTANTS.PHASE_BOUNDARIES.NEBULA_LIMIT) / STELLAR_CONSTANTS.PHASE_BOUNDARIES.PROTOSTAR_DURATION;
             
-            if (normT < 0.8) {
+            if (normT < STELLAR_CONSTANTS.PHASE_BOUNDARIES.NEBULA_SECONDARY_LIMIT) {
                 this.nebulaPhase.updateAsSecondary(delta, appTime, cameraPos, normT);
             }
 
             this.protostarPhase.show();
             this.protostarPhase.update(delta, appTime, cameraPos, physics, this.t, lowDetail);
             
-            this.currentTemp = 1000 + normT * (this.tHeat - 1000);
-            this.currentLum = normT * Math.pow(this.mass, 3.5);
+            this.currentTemp = STELLAR_CONSTANTS.TEMPERATURES.PROTOSTAR_START + normT * (this.tHeat - STELLAR_CONSTANTS.TEMPERATURES.PROTOSTAR_START);
+            this.currentLum = normT * Math.pow(this.mass, STELLAR_CONSTANTS.PHYSICS.MASS_LUMINOSITY_EXPONENT);
 
         } else if (this.phase === PHASES.MAIN_SEQUENCE) {
             targetMain = 1;
@@ -203,7 +200,7 @@ export class HeroStarSystem extends THREE.Group implements PhysicalBody {
             this.mainSequencePhase.update(delta, appTime, cameraPos, physics, this.t, lowDetail);
             
             this.currentTemp = this.tHeat;
-            this.currentLum = Math.pow(this.mass, 3.5);
+            this.currentLum = Math.pow(this.mass, STELLAR_CONSTANTS.PHYSICS.MASS_LUMINOSITY_EXPONENT);
 
         } else if (this.phase === PHASES.RED_GIANT) {
             targetRed = 1;
@@ -217,12 +214,12 @@ export class HeroStarSystem extends THREE.Group implements PhysicalBody {
             targetSuper = 1;
             this.supernovaPhase.show();
             this.supernovaPhase.update(delta, appTime, cameraPos, physics, this.t, lowDetail);
-            this.isSupernovaFlashing = this.supernovaPhase.isFlashing;
-            if (this.mass > 8) {
-                this.currentTemp = 100000;
-                this.currentLum = 100000;
+            this.isSupernovaFlashing = this.supernovaPhase?.isFlashing ?? false;
+            if (this.mass > STELLAR_CONSTANTS.PHYSICS.MASS_THRESHOLD_SUPERNOVA) {
+                this.currentTemp = STELLAR_CONSTANTS.TEMPERATURES.SUPERNOVA_HIGH_MASS;
+                this.currentLum = STELLAR_CONSTANTS.LUMINOSITY.SUPERNOVA_HIGH_MASS;
             } else {
-                this.currentTemp = 20000;
+                this.currentTemp = STELLAR_CONSTANTS.TEMPERATURES.SUPERNOVA_LOW_MASS;
             }
 
         } else {
@@ -230,62 +227,44 @@ export class HeroStarSystem extends THREE.Group implements PhysicalBody {
             this.remnantPhase.show();
             this.remnantPhase.update(delta, appTime, cameraPos, physics, this.t, lowDetail);
             
-            if (this.mass > 15) {
-                this.currentTemp = 0;
-                this.currentLum = 0;
-            } else if (this.mass > 8) {
+            if (this.mass > STELLAR_CONSTANTS.PHYSICS.MASS_THRESHOLD_BLACK_HOLE) {
+                this.currentTemp = STELLAR_CONSTANTS.TEMPERATURES.REMNANT_BH;
+                this.currentLum = STELLAR_CONSTANTS.LUMINOSITY.REMNANT_BH;
+            } else if (this.mass > STELLAR_CONSTANTS.PHYSICS.MASS_THRESHOLD_SUPERNOVA) {
                 targetNs = 1;
-                this.currentTemp = 500000;
-                this.currentLum = 0.5;
+                this.currentTemp = STELLAR_CONSTANTS.TEMPERATURES.REMNANT_NS_HIGH_MASS;
+                this.currentLum = STELLAR_CONSTANTS.LUMINOSITY.REMNANT_NS_HIGH_MASS;
             } else {
                 targetNs = 1;
-                this.currentTemp = 100000;
-                this.currentLum = 0.1;
+                this.currentTemp = STELLAR_CONSTANTS.TEMPERATURES.REMNANT_NS_LOW_MASS;
+                this.currentLum = STELLAR_CONSTANTS.LUMINOSITY.REMNANT_NS_LOW_MASS;
             }
         }
         
         // BOLT: Optimize transition opacities with caching and guarded assignments
-        const speed = delta * 4.0;
-
-        // Protostar always needs update if visible because of flicker
-        const nextOpP = stepOp(this._opP, targetProto, speed);
-        if (nextOpP > 0.001 || this._opP > 0.001) {
-            this._opP = nextOpP;
-            this.protostarPhase.setOpacity(targetProto > 0 ? this._opP * (flicker ?? 1.0) : this._opP);
-            const visible = this._opP > 0.01;
-            if (this.protostarPhase.protostarGroup.visible !== visible) {
-                this.protostarPhase.protostarGroup.visible = visible;
-            }
+        const speed = delta * STELLAR_CONSTANTS.TRANSITIONS.DEFAULT_SPEED;
+        this._opP = stepOp(this._opP, targetProto, speed);
+        this.protostarPhase.setOpacity(targetProto > 0 ? this._opP * (flicker ?? 1.0) : this._opP);
+        if (this.protostarPhase.protostarGroup.visible !== this._opP > STELLAR_CONSTANTS.TRANSITIONS.VISIBILITY_THRESHOLD) {
+            this.protostarPhase.protostarGroup.visible = this._opP > STELLAR_CONSTANTS.TRANSITIONS.VISIBILITY_THRESHOLD;
         }
 
-        const nextOpM = stepOp(this._opM, targetMain, speed);
-        if (this._opM !== nextOpM) {
-            this._opM = nextOpM;
-            this.mainSequencePhase.setOpacity(this._opM);
-            const visible = this._opM > 0.01;
-            if (this.mainSequencePhase.mainSeqGroup.visible !== visible) {
-                this.mainSequencePhase.mainSeqGroup.visible = visible;
-            }
+        this._opM = stepOp(this._opM, targetMain, speed);
+        this.mainSequencePhase.setOpacity(this._opM);
+        if (this.mainSequencePhase.mainSeqGroup.visible !== this._opM > STELLAR_CONSTANTS.TRANSITIONS.VISIBILITY_THRESHOLD) {
+            this.mainSequencePhase.mainSeqGroup.visible = this._opM > STELLAR_CONSTANTS.TRANSITIONS.VISIBILITY_THRESHOLD;
         }
 
-        const nextOpR = stepOp(this._opR, targetRed, speed);
-        if (this._opR !== nextOpR) {
-            this._opR = nextOpR;
-            this.redGiantPhase.setOpacity(this._opR);
-            const visible = this._opR > 0.01;
-            if (this.redGiantPhase.redGiantGroup.visible !== visible) {
-                this.redGiantPhase.redGiantGroup.visible = visible;
-            }
+        this._opR = stepOp(this._opR, targetRed, speed);
+        this.redGiantPhase.setOpacity(this._opR);
+        if (this.redGiantPhase.redGiantGroup.visible !== this._opR > STELLAR_CONSTANTS.TRANSITIONS.VISIBILITY_THRESHOLD) {
+            this.redGiantPhase.redGiantGroup.visible = this._opR > STELLAR_CONSTANTS.TRANSITIONS.VISIBILITY_THRESHOLD;
         }
 
-        const nextOpS = stepOp(this._opS, targetSuper, speed);
-        if (this._opS !== nextOpS) {
-            this._opS = nextOpS;
-            this.supernovaPhase.setOpacity(this._opS);
-            const visible = this._opS > 0.01;
-            if (this.supernovaPhase.supernovaGroup.visible !== visible) {
-                this.supernovaPhase.supernovaGroup.visible = visible;
-            }
+        this._opS = stepOp(this._opS, targetSuper, speed);
+        this.supernovaPhase.setOpacity(this._opS);
+        if (this.supernovaPhase.supernovaGroup.visible !== this._opS > STELLAR_CONSTANTS.TRANSITIONS.VISIBILITY_THRESHOLD) {
+            this.supernovaPhase.supernovaGroup.visible = this._opS > STELLAR_CONSTANTS.TRANSITIONS.VISIBILITY_THRESHOLD;
         }
 
         this.remnantPhase.updateRemnantOpacity(delta, targetNs);
