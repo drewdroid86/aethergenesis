@@ -1,8 +1,17 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Scan, Zap, Pause, Play, X } from 'lucide-react';
+import { Scan, Zap, Pause, Play, X, Copy, Check, Loader2 } from 'lucide-react';
 import { PHASE_NAMES } from '../core/constants';
 import { HeroStarSystem } from '../rendering/systems/HeroStarSystem';
 import { PhysicsConstants } from '../types/physics';
+
+interface GeminiAnalysisResult {
+    planet_name: string;
+    life_stage: number;
+    dominant_species: string;
+    civilization: string;
+    biome: string;
+    isFallback?: boolean;
+}
 
 interface InspectPanelProps {
     selectedStar: HeroStarSystem;
@@ -38,9 +47,58 @@ export const InspectPanel: React.FC<InspectPanelProps> = ({
     uiRefs
 }) => {
     const [isAnalyzing, setIsAnalyzing] = useState(false);
-    const [geminiData, setGeminiData] = useState<any>(null);
+    const [geminiData, setGeminiData] = useState<GeminiAnalysisResult | null>(null);
     const [analysisFailed, setAnalysisFailed] = useState(false);
+    const [copied, setCopied] = useState(false);
     const lastAnalysisTimeRef = useRef(0);
+    const [isDragging, setIsDragging] = useState(false);
+
+    useEffect(() => {
+        setGeminiData(null);
+        setAnalysisFailed(false);
+    }, [selectedStar]);
+
+    const copyTelemetry = () => {
+        const phase = uiRefs.phase.current?.innerText || '-';
+        const temp = uiRefs.temp.current?.innerText || '-';
+        const mass = uiRefs.mass.current?.innerText || '-';
+        const lum = uiRefs.lum.current?.innerText || '-';
+        const age = uiRefs.age.current?.innerText || '-';
+
+        let text = `Stellar Telemetry:
+Phase: ${phase}
+Temp: ${temp} K
+Mass: ${mass} M☉
+Luminosity: ${lum} L☉
+Age: ${age} Myr`;
+
+        if (geminiData) {
+            text += `\n\nAI Analysis:
+Planet: ${geminiData.planet_name}
+Biome: ${geminiData.biome}
+Species: ${geminiData.dominant_species} (Stage ${geminiData.life_stage})
+Civilization: ${geminiData.civilization}`;
+        }
+
+        navigator.clipboard.writeText(text).then(() => {
+            setCopied(true);
+            setTimeout(() => setCopied(false), 2000);
+        });
+    };
+
+    const handlePointerDown = (e: React.PointerEvent) => {
+        setIsDragging(true);
+        onScrubStart(e);
+    };
+
+    const handlePointerMove = (e: React.PointerEvent) => {
+        if (isDragging) onScrubMove(e);
+    };
+
+    const handlePointerUp = () => {
+        setIsDragging(false);
+        onScrubEnd();
+    };
 
     const analyzeSystem = async () => {
         if (!selectedStar || isAnalyzing) return;
@@ -57,8 +115,8 @@ export const InspectPanel: React.FC<InspectPanelProps> = ({
                 lum: parseFloat(selectedStar.currentLum.toFixed(3)),
                 age: parseFloat(selectedStar.currentRealAge.toFixed(1)),
                 phase: PHASE_NAMES[selectedStar.phase],
-                G: physics.G.toFixed(2),
-                alpha: physics.alpha.toFixed(2)
+                G: physics.G,
+                alpha: physics.alpha
             };
 
             const response = await fetch('/api/analyze', {
@@ -69,10 +127,10 @@ export const InspectPanel: React.FC<InspectPanelProps> = ({
 
             if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
 
-            const data = await response.json();
+            const data = await response.json() as GeminiAnalysisResult;
             setGeminiData(data);
             setAnalysisFailed(false);
-        } catch (err) {
+        } catch {
             console.warn("Analysis unavailable - using predictive fallback.");
             setAnalysisFailed(true);
             setGeminiData({
@@ -88,25 +146,33 @@ export const InspectPanel: React.FC<InspectPanelProps> = ({
         }
     };
 
-    useEffect(() => {
-        setGeminiData(null);
-        setAnalysisFailed(false);
-    }, [selectedStar]);
 
     return (
         <div className="absolute right-8 top-1/2 -translate-y-1/2 w-[min(320px,85vw)] overflow-hidden bg-[rgba(14,14,28,0.7)] backdrop-blur-xl border border-[rgba(126,184,255,0.3)] rounded-2xl p-6 z-30 shadow-[0_0_30px_rgba(0,0,0,0.5)] transform transition-all pointer-events-auto">
-            <div className="flex items-center justify-between mb-6 pb-4 border-b border-[rgba(126,184,255,0.1)]">
+            <div className="flex items-center justify-between mb-6 pb-4 border-b border-[rgba(126,184,255,0.1)] group/header">
                 <div className="flex items-center gap-3">
-                    <Scan size={20} className="text-[#C084FC]" />
+                    <Scan size={20} className={`text-[#C084FC] ${isAnalyzing ? 'animate-pulse' : ''}`} />
                     <h2 className="text-sm font-bold tracking-widest uppercase text-white">Stellar Telemetry</h2>
                 </div>
-                <button
-                    onClick={() => setSelectedStar(null)}
-                    className="text-[#7EB8FF]/70 hover:text-white transition-colors focus-visible:ring-2 focus-visible:ring-[#C084FC] outline-none rounded"
-                    aria-label="Close Stellar Telemetry"
-                >
-                    <X size={20} />
-                </button>
+                <div className="flex items-center gap-2">
+                    <button
+                        onClick={copyTelemetry}
+                        className="text-[#7EB8FF]/70 hover:text-white transition-colors focus-visible:ring-2 focus-visible:ring-[#C084FC] outline-none rounded p-1"
+                        aria-label="Copy Telemetry"
+                        title="Copy Telemetry"
+                    >
+                        {copied ? <Check size={16} className="text-green-400" /> : <Copy size={16} />}
+                    </button>
+                    <button
+                        onClick={() => setSelectedStar(null)}
+                        className="text-[#7EB8FF]/70 hover:text-white transition-colors focus-visible:ring-2 focus-visible:ring-[#C084FC] outline-none rounded p-1 flex items-center gap-1"
+                        aria-label="Close Stellar Telemetry"
+                        title="Close [Esc]"
+                    >
+                        <span className="text-[8px] text-[#C084FC] opacity-0 group-hover/header:opacity-100 transition-opacity hidden sm:inline">[Esc]</span>
+                        <X size={20} />
+                    </button>
+                </div>
             </div>
 
             <div className="space-y-4 font-mono text-xs">
@@ -151,10 +217,10 @@ export const InspectPanel: React.FC<InspectPanelProps> = ({
                         aria-valuemin={0} 
                         aria-valuemax={100}
                         className="w-full h-2 bg-white/10 rounded-full overflow-hidden cursor-ew-resize relative group focus-visible:ring-2 focus-visible:ring-[#C084FC] outline-none"
-                        onPointerDown={onScrubStart}
-                        onPointerMove={onScrubMove}
-                        onPointerUp={onScrubEnd}
-                        onPointerLeave={onScrubEnd}
+                        onPointerDown={handlePointerDown}
+                        onPointerMove={handlePointerMove}
+                        onPointerUp={handlePointerUp}
+                        onPointerLeave={handlePointerUp}
                         onKeyDown={onKeyDown}
                     >
                         <div ref={uiRefs.timelineFill} className="h-full bg-gradient-to-r from-blue-500 via-fuchsia-500 to-red-500" style={{width: '0%'}}></div>
@@ -170,9 +236,17 @@ export const InspectPanel: React.FC<InspectPanelProps> = ({
                     <button 
                         onClick={analyzeSystem}
                         disabled={isAnalyzing}
-                        className="w-full py-2 bg-[#C084FC]/20 hover:bg-[#C084FC]/40 text-[#C084FC] hover:text-white border border-[#C084FC]/30 rounded transition-colors text-[10px] uppercase tracking-widest disabled:opacity-50"
+                        aria-busy={isAnalyzing}
+                        className="w-full py-2 bg-[#C084FC]/20 hover:bg-[#C084FC]/40 text-[#C084FC] hover:text-white border border-[#C084FC]/30 rounded transition-all text-[10px] uppercase tracking-widest disabled:opacity-50 flex items-center justify-center gap-2"
                     >
-                        {isAnalyzing ? "Analyzing System..." : "Gemini AI: Deep Scan"}
+                        {isAnalyzing ? (
+                            <>
+                                <Loader2 size={14} className="animate-spin" />
+                                <span>Analyzing...</span>
+                            </>
+                        ) : (
+                            "Gemini AI: Deep Scan"
+                        )}
                     </button>
                     {geminiData && (
                         <div className="mt-4 p-3 bg-black/40 border border-[#7EB8FF]/20 rounded text-[10px] space-y-2">

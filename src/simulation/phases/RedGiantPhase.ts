@@ -4,6 +4,7 @@ import { PhysicsConstants } from '../../types/physics';
 import { basicVS, starSurfaceFS } from '../../rendering/shaders/stellar';
 import { GEOMETRIES } from './geometries';
 import { PlanetInfo } from './MainSequencePhase';
+import { STELLAR_CONSTANTS } from '../../core/constants';
 
 export class RedGiantPhase implements PhaseComponent {
     public redGiantGroup!: THREE.Group;
@@ -53,30 +54,32 @@ export class RedGiantPhase implements PhaseComponent {
         this.redGiantMat.uniforms.uTime.value = _appTime;
         this.redGiantMat.uniforms.uHbar.value = physics.hbar || 1.0;
 
-        this.planetsInfo.forEach(p => {
-            p.pivot.visible = true;
-            p.pivot.rotation.y += p.speed * delta;
-            if (p.dist < giantScale * 1.2) {
-                const dmg = Math.max(0, 1.0 - (p.dist - giantScale) / (giantScale * 0.2));
-                (p.mesh.material as THREE.MeshStandardMaterial).color.setHex(0x222222);
-                (p.mesh.material as THREE.MeshStandardMaterial).emissive.setHex(0xffaa00);
-                (p.mesh.material as THREE.MeshStandardMaterial).emissiveIntensity = dmg;
-                p.mesh.scale.setScalar(Math.max(0.01, 1.0 - dmg));
-            } else {
-                p.mesh.scale.setScalar(1.0);
-                (p.mesh.material as THREE.MeshStandardMaterial).emissiveIntensity = 0;
-            }
-        });
+        if (!lowDetail) {
+            this.planetsInfo.forEach(p => {
+                p.pivot.visible = true;
+                p.pivot.rotation.y += p.speed * delta;
+                if (p.dist < giantScale * STELLAR_CONSTANTS.VISUALS.RED_GIANT_PLANET_DMG_RADIUS) {
+                    const dmg = Math.max(0, 1.0 - (p.dist - giantScale) / (giantScale * STELLAR_CONSTANTS.VISUALS.RED_GIANT_PLANET_BURN_RADIUS));
+                    (p.mesh.material as THREE.MeshStandardMaterial).color.setHex(0x222222);
+                    (p.mesh.material as THREE.MeshStandardMaterial).emissive.setHex(0xffaa00);
+                    (p.mesh.material as THREE.MeshStandardMaterial).emissiveIntensity = dmg;
+                    p.mesh.scale.setScalar(Math.max(0.01, 1.0 - dmg));
+                } else {
+                    p.mesh.scale.setScalar(1.0);
+                    (p.mesh.material as THREE.MeshStandardMaterial).emissiveIntensity = 0;
+                }
+            });
+        }
     }
 
     getCurrentTemp(t: number): number {
-        const normT = (t - 0.70) / 0.15;
-        return this.tHeat - normT * (this.tHeat - 3000);
+        const normT = (t - STELLAR_CONSTANTS.PHASE_BOUNDARIES.RED_GIANT_START) / STELLAR_CONSTANTS.PHASE_BOUNDARIES.RED_GIANT_DURATION;
+        return this.tHeat - normT * (this.tHeat - STELLAR_CONSTANTS.TEMPERATURES.RED_GIANT_TARGET);
     }
 
     getCurrentLum(t: number, mass: number): number {
-        const normT = (t - 0.70) / 0.15;
-        return Math.pow(mass, 3.5) * (1.0 + normT * 5.0);
+        const normT = (t - STELLAR_CONSTANTS.PHASE_BOUNDARIES.RED_GIANT_START) / STELLAR_CONSTANTS.PHASE_BOUNDARIES.RED_GIANT_DURATION;
+        return Math.pow(mass, STELLAR_CONSTANTS.PHYSICS.MASS_LUMINOSITY_EXPONENT) * (1.0 + normT * 5.0);
     }
 
     setOpacity(opacity: number): void {

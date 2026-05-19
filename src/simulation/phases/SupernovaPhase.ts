@@ -3,6 +3,7 @@ import { PhaseComponent } from './types';
 import { PhysicsConstants } from '../../types/physics';
 import { GEOMETRIES } from './geometries';
 import { ejectaVS, ejectaFS } from '../../rendering/shaders/stellar';
+import { STELLAR_CONSTANTS } from '../../core/constants';
 
 export class SupernovaPhase implements PhaseComponent {
     public supernovaGroup!: THREE.Group;
@@ -66,11 +67,11 @@ export class SupernovaPhase implements PhaseComponent {
         const normT = (t - 0.85) / 0.05;
         this.isFlashing = false;
         
-        if (this.mass > 8) {
-            if (normT < 0.1) this.isFlashing = true;
+        if (this.mass > STELLAR_CONSTANTS.PHYSICS.MASS_THRESHOLD_SUPERNOVA) {
+            if (normT < STELLAR_CONSTANTS.VISUALS.SUPERNOVA_FLASH_DURATION) this.isFlashing = true;
 
             this.snRing.visible = true;
-            this.snRing.scale.setScalar(1.0 + normT * 60.0);
+            this.snRing.scale.setScalar(1.0 + normT * STELLAR_CONSTANTS.VISUALS.SUPERNOVA_RING_SCALE_HIGH_MASS);
             (this.snRing.material as THREE.MeshBasicMaterial).opacity = 1.0 - Math.pow(normT, 2);
             
             this.ejectaMesh.visible = true;
@@ -80,12 +81,12 @@ export class SupernovaPhase implements PhaseComponent {
             this.coreFlashMesh.scale.setScalar(this.baseRadius * 7.0 * (1.0 - normT));
         } else {
             this.snRing.visible = true;
-            this.snRing.scale.setScalar(1.0 + normT * 20.0);
+            this.snRing.scale.setScalar(1.0 + normT * STELLAR_CONSTANTS.VISUALS.SUPERNOVA_RING_SCALE_LOW_MASS);
             (this.snRing.material as THREE.MeshBasicMaterial).opacity = 0.5 * (1.0 - normT);
             (this.snRing.material as THREE.MeshBasicMaterial).color.setHex(0x00ffaa);
             
             this.ejectaMesh.visible = true;
-            this.ejectaMat.uniforms.uExp.value = normT * 0.5;
+            this.ejectaMat.uniforms.uExp.value = normT * STELLAR_CONSTANTS.VISUALS.SUPERNOVA_EJECTA_EXP_SPEED;
             this.ejectaMat.uniforms.uColor.value.setHex(0x00ffaa);
 
             this.coreFlashMesh.scale.setScalar(this.baseRadius * (1.0 - normT * 0.8));

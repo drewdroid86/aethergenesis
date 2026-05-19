@@ -3,6 +3,7 @@ import { PhaseComponent } from './types';
 import { PhysicsConstants } from '../../types/physics';
 import { displacementVS, starSurfaceFS } from '../../rendering/shaders/stellar';
 import { GEOMETRIES } from './geometries';
+import { STELLAR_CONSTANTS } from '../../core/constants';
 
 export class ProtostarPhase implements PhaseComponent {
     public protostarGroup!: THREE.Group;
@@ -56,7 +57,7 @@ export class ProtostarPhase implements PhaseComponent {
 
     setOpacity(opacity: number): void {
         this.protostarMat.uniforms.uOpacity.value = opacity;
-        (this.protostarDisk.material as THREE.MeshBasicMaterial).opacity = opacity * 0.8;
+        (this.protostarDisk.material as THREE.MeshBasicMaterial).opacity = opacity * STELLAR_CONSTANTS.VISUALS.PROTOSTAR_DISK_OPACITY;
     }
 
     show(): void {

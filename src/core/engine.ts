@@ -16,6 +16,11 @@ export class Engine {
     isPaused: boolean = false;
     container: HTMLElement;
 
+    private _frustum = new THREE.Frustum();
+    private _projScreenMatrix = new THREE.Matrix4();
+    private _backgroundStarGeo: THREE.BufferGeometry;
+    private _backgroundStarMat: THREE.PointsMaterial;
+
     constructor(container: HTMLElement) {
         this.container = container;
         this.scene = new THREE.Scene();
@@ -23,14 +28,15 @@ export class Engine {
         this.camera.position.z = 5;
 
         this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
+        this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2)); // BOLT: Clamp to 2 for performance
         this.renderer.setSize(window.innerWidth, window.innerHeight);
         this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
         this.scene.background = new THREE.Color(0x050510);
         this.renderer.setClearColor(0x050510, 1);
         container.appendChild(this.renderer.domElement);
 
-        const starGeo = new THREE.BufferGeometry();
-        const starMat = new THREE.PointsMaterial({ color: 0xffffff, size: 0.5, transparent: true, opacity: 0.8 });
+        this._backgroundStarGeo = new THREE.BufferGeometry();
+        this._backgroundStarMat = new THREE.PointsMaterial({ color: 0xffffff, size: 0.5, transparent: true, opacity: 0.8 });
         const starVertices = [];
         for (let i = 0; i < 3000; i++) {
             const theta = Math.random() * Math.PI * 2;
@@ -40,8 +46,8 @@ export class Engine {
             const z = 900 * Math.cos(phi);
             starVertices.push(x, y, z);
         }
-        starGeo.setAttribute('position', new THREE.Float32BufferAttribute(starVertices, 3));
-        this.scene.add(new THREE.Points(starGeo, starMat));
+        this._backgroundStarGeo.setAttribute('position', new THREE.Float32BufferAttribute(starVertices, 3));
+        this.scene.add(new THREE.Points(this._backgroundStarGeo, this._backgroundStarMat));
 
         this.pipeline = new Pipeline(this.renderer, this.scene, this.camera);
         this.nebulaSystem = new NebulaSystem(this.scene);
@@ -66,22 +72,31 @@ export class Engine {
     update(delta: number, selectedStar: HeroStarSystem | null, __isScrubbing: boolean, physics: PhysicsConstants, cosmicAge: number) {
         if (this.isPaused) return;
 
-        this.appTime += delta; 
+        // BOLT: Global frame calculations
+        this._frustum.setFromProjectionMatrix(this._projScreenMatrix.multiplyMatrices(this.camera.projectionMatrix, this.camera.matrixWorldInverse));
+        const protostarFlicker = 0.8 + 0.2 * Math.sin(this.appTime * 20.0);
 
-        this.heroStars.forEach(star => {
+        const stars = this.heroStars;
+        const len = stars.length;
+        for (let i = 0; i < len; i++) {
+            const star = stars[i];
             star.update(
-                delta, 
+                this.isPaused ? 0 : delta, 
                 this.appTime,
                 this.camera.position, 
                 physics, 
                 star === selectedStar ? selectedStar!.t : undefined, 
-                cosmicAge 
+                cosmicAge,
+                this._frustum,
+                protostarFlicker
             );
-        });
+        }
 
-        this.nebulaSystem.update(delta, this.camera.position);
+        if (!this.isPaused) {
+            this.nebulaSystem.update(delta, this.camera.position);
+        }
 
-        // Use pipeline for rendering with post-processing
+        // Use pipeline for rendering with post-processing - still render when paused for camera movement
         this.pipeline.render(this.appTime);
     }
 
@@ -98,6 +113,23 @@ export class Engine {
             this.container.removeChild(this.renderer.domElement);
         }
         this.renderer.dispose();
+
+        this.heroStars.forEach(star => {
+            star.traverse((child) => {
+                if (child instanceof THREE.Mesh) {
+                    child.geometry.dispose();
+                    if (Array.isArray(child.material)) {
+                        child.material.forEach(mat => mat.dispose());
+                    } else {
+                        child.material.dispose();
+                    }
+                }
+            });
+        });
+        this._backgroundStarGeo.dispose();
+        this._backgroundStarMat.dispose();
+        this.heroStars = [];
+
         this.scene.clear();
     }
 }

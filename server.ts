@@ -22,14 +22,33 @@ app.use(express.json({ limit: '10kb' }));
 app.use((_req, res, next) => {
   res.setHeader('X-Content-Type-Options', 'nosniff');
   res.setHeader('X-Frame-Options', 'DENY');
-  res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
+  res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains; preload');
   res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
-  res.setHeader('Content-Security-Policy', "default-src 'self'; script-src 'self' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; connect-src 'self' ws:; img-src 'self' data:; font-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none';");
+  res.setHeader('Content-Security-Policy', "default-src 'self'; script-src 'self' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; connect-src 'self' ws: wss:; img-src 'self' data: https:; font-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; upgrade-insecure-requests;");
+  res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
+  res.setHeader('Cross-Origin-Opener-Policy', 'same-origin');
+  res.setHeader('Cross-Origin-Resource-Policy', 'same-origin');
   next();
 });
 
+const allowedOrigins = (process.env.ALLOWED_ORIGINS || 'http://localhost:3000,http://localhost:5173').split(',');
+app.use((req, res, next) => { 
+    const origin = req.headers.origin; 
+    if (origin && allowedOrigins.includes(origin)) { 
+        res.setHeader('Access-Control-Allow-Origin', origin); 
+        res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS'); 
+        res.setHeader('Access-Control-Allow-Headers', 'Content-Type'); 
+    } 
+    if (req.method === 'OPTIONS') return res.sendStatus(204); 
+    next(); 
+});
+
 // Security: Simple in-memory rate limiting for AI analysis
-const analysisLimitMap = new Map<string, number>();
+interface RateLimitData {
+  count: number;
+  windowStart: number;
+}
+const analysisLimitMap = new Map<string, RateLimitData>();
 const RATE_LIMIT_WINDOW = 60 * 1000; // 1 minute
 const MAX_REQUESTS_PER_WINDOW = 5;
 const _MAX_ENTRIES = 1000; // Memory protection
@@ -37,8 +56,8 @@ const _MAX_ENTRIES = 1000; // Memory protection
 // Periodic cleanup to prevent memory exhaustion
 setInterval(() => {
   const now = Date.now();
-  for (const [ip, time] of analysisLimitMap.entries()) {
-    if (now - time > RATE_LIMIT_WINDOW) analysisLimitMap.delete(ip);
+  for (const [ip, data] of analysisLimitMap.entries()) {
+    if (now - data.windowStart > RATE_LIMIT_WINDOW) analysisLimitMap.delete(ip);
   }
 }, RATE_LIMIT_WINDOW);
 
@@ -54,10 +73,11 @@ app.post('/api/analyze', async (req, res) => {
   // Security: Rate limiting by IP
   const ip = req.ip || req.socket.remoteAddress || 'unknown';
   const now = Date.now();
-  const lastRequestTime = analysisLimitMap.get(ip) || 0;
+  const record = analysisLimitMap.get(ip) || { count: 0, windowStart: now };
 
-  if (now - lastRequestTime < (RATE_LIMIT_WINDOW / MAX_REQUESTS_PER_WINDOW)) {
-    return res.status(429).json({ error: 'Too many requests. Please slow down.' });
+  if (now - record.windowStart > RATE_LIMIT_WINDOW) {
+    record.count = 0;
+    record.windowStart = now;
   }
 
   // Memory protection: don't add new IPs if map is too large
@@ -65,20 +85,37 @@ app.post('/api/analyze', async (req, res) => {
     return res.status(503).json({ error: 'Server busy.' });
   }
 
-  analysisLimitMap.set(ip, now);
+  record.count++;
+
+  // Security: FIFO eviction to prevent memory exhaustion if MAX_ENTRIES is reached
+  if (!analysisLimitMap.has(ip) && analysisLimitMap.size >= MAX_ENTRIES) {
+    const firstKey = analysisLimitMap.keys().next().value;
+    if (firstKey !== undefined) analysisLimitMap.delete(firstKey);
+  }
+  analysisLimitMap.set(ip, record);
+
+  // Security: Primary defense-in-depth check to ensure req.body exists
+  if (!req.body || typeof req.body !== 'object') {
+    return res.status(400).json({ error: 'Invalid request body.' });
+  }
 
   const { temp, mass, lum, age, phase, G, alpha } = req.body;
 
   // Security: Input validation and sanitization to prevent prompt injection and malformed requests
   const VALID_PHASES = [
-    "Nebula Formation", "Protostar Ignition", "Main Sequence",
-    "Red Giant", "Supernova", "Stellar Remnant"
+    "Nebula", "Protostar", "Main Sequence",
+    "Red Giant", "Supernova", "Remnant"
   ];
 
   const isValidNumber = (val: any) => typeof val === 'number' && !isNaN(val) && isFinite(val);
 
-  if (!isValidNumber(temp) || !isValidNumber(mass) || !isValidNumber(lum) ||
-      !isValidNumber(age) || !isValidNumber(G) || !isValidNumber(alpha) ||
+  // Security: Enforce physical bounds to prevent anomalous AI generations or DoS via extreme inputs
+  if (!isValidNumber(temp) || temp <= 0 || temp > 1000000 ||
+      !isValidNumber(mass) || mass <= 0 || mass > 1000 ||
+      !isValidNumber(lum) || lum < 0 || lum > 1000000 ||
+      !isValidNumber(age) || age < 0 || age > 20000 ||
+      !isValidNumber(G) || G <= 0 || G > 100 ||
+      !isValidNumber(alpha) || alpha <= 0 || alpha > 100 ||
       typeof phase !== 'string' || !VALID_PHASES.includes(phase)) {
     return res.status(400).json({ error: 'Invalid input parameters.' });
   }
@@ -105,6 +142,7 @@ app.post('/api/analyze', async (req, res) => {
         systemInstruction: "You are an astrobiology analytical engine. Generate creative but scientifically cohesive species and civilizations based on the star's phase, temp, and constants.",
         responseMimeType: "application/json",
         responseSchema: schema,
+        maxOutputTokens: 256, // Security: Resource exhaustion protection
       }
     });
 
@@ -112,28 +150,27 @@ app.post('/api/analyze', async (req, res) => {
       throw new Error('No response text from Gemini API');
     }
 
-    const data = JSON.parse(response.text);
+    let data;
+    try {
+      data = JSON.parse(response.text);
+    } catch (parseError) {
+      throw new Error('Invalid JSON response from Gemini API');
+    }
 
-    // Security: Strict output sanitization - ensure only expected fields are returned
+    // Security: Strict output sanitization - ensure only expected fields are returned and clamped
     const sanitized = {
-      planet_name: String(data.planet_name || "Unknown"),
-      life_stage: Number(data.life_stage || 0),
-      dominant_species: String(data.dominant_species || "Unknown"),
-      civilization: String(data.civilization || "Unknown"),
-      biome: String(data.biome || "Unknown")
+      planet_name: String(data?.planet_name || "Unknown").substring(0, 50),
+      life_stage: Math.max(0, Math.min(10, Number(data?.life_stage || 0))),
+      dominant_species: String(data?.dominant_species || "Unknown").substring(0, 100),
+      civilization: String(data?.civilization || "Unknown").substring(0, 100),
+      biome: String(data?.biome || "Unknown").substring(0, 100)
     };
 
     res.json(sanitized);
-  } catch (error) {
-    console.error('Gemini Analysis Error:', error);
-    res.status(500).json({
-      planet_name: "Kerath-7",
-      life_stage: 4,
-      dominant_species: "Silicate Swarm",
-      civilization: "Post-Scarcity Hive",
-      biome: "Crystalline Deserts",
-      note: "Predictive fallback due to server error"
-    });
+  } catch (error: any) {
+    // Security: Log only essential error message, avoid leaking details
+    console.error('Gemini Analysis Error:', error?.message || 'Unknown error');
+    res.status(500).json({ error: 'Internal Server Error' });
   }
 });
 
@@ -146,6 +183,12 @@ if (process.env.NODE_ENV === 'production') {
     res.sendFile(path.join(distPath, 'index.html'));
   });
 }
+
+// Security: Global error handler to prevent information leakage and ensure secure failure
+app.use((err: any, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
+  console.error('Unhandled Server Error:', err?.message || 'Unknown error');
+  res.status(500).json({ error: 'Internal Server Error' });
+});
 
 app.listen(port, () => {
   console.log(`Server listening at http://localhost:${port}`);
