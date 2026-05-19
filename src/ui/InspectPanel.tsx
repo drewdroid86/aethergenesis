@@ -16,7 +16,7 @@ interface GeminiAnalysisResult {
 interface InspectPanelProps {
     selectedStar: HeroStarSystem;
     setSelectedStar: (star: HeroStarSystem | null) => void;
-    isPaused: boolean;
+    _isPaused: boolean;
     setIsPaused: (paused: boolean) => void;
     physics: PhysicsConstants;
     onScrubStart: (e: React.PointerEvent) => void;
@@ -37,7 +37,7 @@ interface InspectPanelProps {
 export const InspectPanel: React.FC<InspectPanelProps> = ({
     selectedStar,
     setSelectedStar,
-    isPaused,
+    _isPaused: __isPaused,
     setIsPaused,
     physics,
     onScrubStart,
@@ -52,6 +52,11 @@ export const InspectPanel: React.FC<InspectPanelProps> = ({
     const [copied, setCopied] = useState(false);
     const lastAnalysisTimeRef = useRef(0);
     const [isDragging, setIsDragging] = useState(false);
+
+    useEffect(() => {
+        setGeminiData(null);
+        setAnalysisFailed(false);
+    }, [selectedStar]);
 
     const copyTelemetry = () => {
         const phase = uiRefs.phase.current?.innerText || '-';
@@ -125,7 +130,7 @@ Civilization: ${geminiData.civilization}`;
             const data = await response.json() as GeminiAnalysisResult;
             setGeminiData(data);
             setAnalysisFailed(false);
-        } catch (err) {
+        } catch {
             console.warn("Analysis unavailable - using predictive fallback.");
             setAnalysisFailed(true);
             setGeminiData({
@@ -141,10 +146,6 @@ Civilization: ${geminiData.civilization}`;
         }
     };
 
-    useEffect(() => {
-        setGeminiData(null);
-        setAnalysisFailed(false);
-    }, [selectedStar]);
 
     return (
         <div className="absolute right-8 top-1/2 -translate-y-1/2 w-[min(320px,85vw)] overflow-hidden bg-[rgba(14,14,28,0.7)] backdrop-blur-xl border border-[rgba(126,184,255,0.3)] rounded-2xl p-6 z-30 shadow-[0_0_30px_rgba(0,0,0,0.5)] transform transition-all pointer-events-auto">

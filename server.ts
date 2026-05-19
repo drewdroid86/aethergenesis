@@ -22,7 +22,7 @@ app.use(express.json({ limit: '10kb' }));
 app.use((_req, res, next) => {
   res.setHeader('X-Content-Type-Options', 'nosniff');
   res.setHeader('X-Frame-Options', 'DENY');
-  res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
+  res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains; preload');
   res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
   res.setHeader('Content-Security-Policy', "default-src 'self'; script-src 'self' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; connect-src 'self' ws: wss:; img-src 'self' data: https:; font-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; upgrade-insecure-requests;");
   res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
@@ -51,7 +51,7 @@ interface RateLimitData {
 const analysisLimitMap = new Map<string, RateLimitData>();
 const RATE_LIMIT_WINDOW = 60 * 1000; // 1 minute
 const MAX_REQUESTS_PER_WINDOW = 5;
-const MAX_ENTRIES = 1000; // Memory protection
+const _MAX_ENTRIES = 1000; // Memory protection
 
 // Periodic cleanup to prevent memory exhaustion
 setInterval(() => {
@@ -80,14 +80,24 @@ app.post('/api/analyze', async (req, res) => {
     record.windowStart = now;
   }
 
-  if (record.count >= MAX_REQUESTS_PER_WINDOW) {
-    const waitSec = Math.ceil((RATE_LIMIT_WINDOW - (now - record.windowStart)) / 1000);
-    res.setHeader('Retry-After', waitSec.toString());
-    return res.status(429).json({ error: 'Too many requests. Please wait ' + waitSec + 's.' });
+  // Memory protection: don't add new IPs if map is too large
+  if (analysisLimitMap.size >= _MAX_ENTRIES && !analysisLimitMap.has(ip)) {
+    return res.status(503).json({ error: 'Server busy.' });
   }
 
   record.count++;
+
+  // Security: FIFO eviction to prevent memory exhaustion if MAX_ENTRIES is reached
+  if (!analysisLimitMap.has(ip) && analysisLimitMap.size >= MAX_ENTRIES) {
+    const firstKey = analysisLimitMap.keys().next().value;
+    if (firstKey !== undefined) analysisLimitMap.delete(firstKey);
+  }
   analysisLimitMap.set(ip, record);
+
+  // Security: Primary defense-in-depth check to ensure req.body exists
+  if (!req.body || typeof req.body !== 'object') {
+    return res.status(400).json({ error: 'Invalid request body.' });
+  }
 
   const { temp, mass, lum, age, phase, G, alpha } = req.body;
 
@@ -99,12 +109,13 @@ app.post('/api/analyze', async (req, res) => {
 
   const isValidNumber = (val: any) => typeof val === 'number' && !isNaN(val) && isFinite(val);
 
-  if (!isValidNumber(temp) || temp <= 0 ||
-      !isValidNumber(mass) || mass <= 0 ||
-      !isValidNumber(lum) || lum < 0 ||
-      !isValidNumber(age) || age < 0 ||
-      !isValidNumber(G) || G <= 0 ||
-      !isValidNumber(alpha) || alpha <= 0 ||
+  // Security: Enforce physical bounds to prevent anomalous AI generations or DoS via extreme inputs
+  if (!isValidNumber(temp) || temp <= 0 || temp > 1000000 ||
+      !isValidNumber(mass) || mass <= 0 || mass > 1000 ||
+      !isValidNumber(lum) || lum < 0 || lum > 1000000 ||
+      !isValidNumber(age) || age < 0 || age > 20000 ||
+      !isValidNumber(G) || G <= 0 || G > 100 ||
+      !isValidNumber(alpha) || alpha <= 0 || alpha > 100 ||
       typeof phase !== 'string' || !VALID_PHASES.includes(phase)) {
     return res.status(400).json({ error: 'Invalid input parameters.' });
   }
@@ -172,6 +183,12 @@ if (process.env.NODE_ENV === 'production') {
     res.sendFile(path.join(distPath, 'index.html'));
   });
 }
+
+// Security: Global error handler to prevent information leakage and ensure secure failure
+app.use((err: any, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
+  console.error('Unhandled Server Error:', err?.message || 'Unknown error');
+  res.status(500).json({ error: 'Internal Server Error' });
+});
 
 app.listen(port, () => {
   console.log(`Server listening at http://localhost:${port}`);

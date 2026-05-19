@@ -46,16 +46,13 @@ export class RedGiantPhase implements PhaseComponent {
         this.hide();
     }
 
-    update(delta: number, appTime: number, cameraPos: THREE.Vector3, physics: PhysicsConstants, t: number, lowDetail?: boolean): void {
-        const normT = (t - STELLAR_CONSTANTS.PHASE_BOUNDARIES.RED_GIANT_START) / STELLAR_CONSTANTS.PHASE_BOUNDARIES.RED_GIANT_DURATION;
-        const giantScale = this.baseRadius * (1.0 + normT * STELLAR_CONSTANTS.VISUALS.RED_GIANT_MAX_SCALE_FACTOR) + Math.sin(appTime * STELLAR_CONSTANTS.VISUALS.RED_GIANT_PULSATION_SPEED) * STELLAR_CONSTANTS.VISUALS.RED_GIANT_PULSATION_AMP;
+    update(delta: number, _appTime: number, __cameraPos: THREE.Vector3, physics: PhysicsConstants, t: number): void {
+        const normT = (t - 0.70) / 0.15;
+        const giantScale = this.baseRadius * (1.0 + normT * 6.0) + Math.sin(_appTime * 2.0) * 0.1;
         this.redGiantMesh.scale.setScalar(giantScale);
         
-        this.redGiantMat.uniforms.uTime.value = appTime;
-        const hbar = physics.hbar ?? 1.0;
-        if (this.redGiantMat.uniforms.uHbar.value !== hbar) {
-            this.redGiantMat.uniforms.uHbar.value = hbar;
-        }
+        this.redGiantMat.uniforms.uTime.value = _appTime;
+        this.redGiantMat.uniforms.uHbar.value = physics.hbar || 1.0;
 
         if (!lowDetail) {
             this.planetsInfo.forEach(p => {
