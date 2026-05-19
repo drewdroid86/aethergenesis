@@ -26,6 +26,7 @@ export function useSimulation(containerRef: React.RefObject<HTMLDivElement | nul
     useEffect(() => { isConstantsOpenRef.current = isConstantsOpen; }, [isConstantsOpen]);
     const [fatalError, setFatalError] = useState<string | null>(null);
     const isScrubbingRef = useRef(false);
+    const hitMeshesRef = useRef<THREE.Object3D[]>([]);
 
     // Performance State
     const [currentTier, setCurrentTier] = useState<'low' | 'medium' | 'high' | 'ultra'>('medium');
@@ -148,6 +149,7 @@ export function useSimulation(containerRef: React.RefObject<HTMLDivElement | nul
         try {
             const engine = new Engine(containerRef.current);
             engineRef.current = engine;
+            hitMeshesRef.current = engine.heroStars.map(h => (h as any).hitMesh);
 
             const controls = new OrbitControls(engine.camera, engine.renderer.domElement);
             controls.enableDamping = true;
@@ -169,6 +171,15 @@ export function useSimulation(containerRef: React.RefObject<HTMLDivElement | nul
             const onPointerMove = (e: PointerEvent) => {
                 if (Math.abs(e.clientX - mouseDownPos.x) > 5 || Math.abs(e.clientY - mouseDownPos.y) > 5) {
                     isDragging = true;
+                }
+
+                // Hover affordance
+                mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
+                mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
+                raycaster.setFromCamera(mouse, engine.camera);
+                const intersects = raycaster.intersectObjects(hitMeshesRef.current);
+                if (containerRef.current) {
+                    containerRef.current.style.cursor = intersects.length > 0 ? 'pointer' : 'crosshair';
                 }
             };
 
@@ -287,6 +298,8 @@ export function useSimulation(containerRef: React.RefObject<HTMLDivElement | nul
             };
 
             const handleGlobalKeyDown = (e: KeyboardEvent) => {
+                if (document.activeElement?.tagName === 'INPUT' || document.activeElement?.tagName === 'TEXTAREA') return;
+
                 if (e.key === 'Escape') {
                     if (selectedStarRef.current) {
                         selectedStarRef.current = null;
@@ -294,6 +307,13 @@ export function useSimulation(containerRef: React.RefObject<HTMLDivElement | nul
                     } else if (isConstantsOpenRef.current) {
                         setIsConstantsOpen(false);
                     }
+                } else if (e.key === ' ') {
+                    e.preventDefault();
+                    setIsPlayingCosmic(!isPlayingCosmicRef.current);
+                } else if (e.key.toLowerCase() === 'r') {
+                    controlsRef.current?.reset();
+                } else if (e.key.toLowerCase() === 'c') {
+                    setIsConstantsOpen(!isConstantsOpenRef.current);
                 }
             };
 
