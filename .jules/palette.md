@@ -8,3 +8,7 @@
 ## 2025-05-14 - Hover-Revealed Shortcuts & 3D Affordance
 **Learning:** Hover-revealed keyboard hints (using Tailwind's `group-hover`) provide excellent discoverability for power users without cluttering the persistent UI for casual observers. In 3D environments, standard UI expectations are often suspended, so visual cursor affordance (changing to 'pointer' on hover) is critical for indicating that 3D entities are interactive.
 **Action:** Implement `group-hover` hints for non-obvious shortcuts and prioritize cursor state synchronization with raycasting results in all interactive 3D views.
+
+## 2025-05-22 - Enhanced Confirmation & Accessible Hints
+**Learning:** Combining immediate visual feedback (icon swap) with a dynamic text label transition (e.g., "Copy" -> "Copied!") within a hover hint provides a highly clear "double confirmation" for invisible actions like clipboard copying. Additionally, while `text-[8px]` fits a "HUD" aesthetic, it fails accessibility standards for legibility; `text-[10px]` is the minimum viable size for secondary labels in this design system.
+**Action:** Use icon swaps paired with text transitions for action confirmation, and never drop below `10px` for readable UI hints.

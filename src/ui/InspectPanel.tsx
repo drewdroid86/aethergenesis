@@ -156,10 +156,13 @@ Civilization: ${geminiData.civilization}`;
                 <div className="flex items-center gap-2">
                     <button
                         onClick={copyTelemetry}
-                        className="text-[#7EB8FF]/70 hover:text-white transition-colors focus-visible:ring-2 focus-visible:ring-[#C084FC] outline-none rounded p-1"
+                        className="text-[#7EB8FF]/70 hover:text-white transition-colors focus-visible:ring-2 focus-visible:ring-[#C084FC] outline-none rounded p-1 relative group/copy"
                         aria-label="Copy Telemetry"
                         title="Copy Telemetry"
                     >
+                        <span className="absolute -top-6 right-0 text-[10px] text-[#C084FC] opacity-0 group-hover/copy:opacity-100 transition-opacity whitespace-nowrap hidden sm:inline">
+                            {copied ? "Copied!" : "Copy"}
+                        </span>
                         {copied ? <Check size={16} className="text-green-400" /> : <Copy size={16} />}
                     </button>
                     <button
@@ -201,7 +204,7 @@ Civilization: ${geminiData.civilization}`;
                 <div className="mt-8 pt-6 border-t border-[rgba(126,184,255,0.1)] group/timeline">
                     <div className="flex justify-between items-center mb-3">
                         <span className="text-[10px] text-[#7EB8FF]/50 uppercase tracking-widest">
-                            Time Override <span className="opacity-0 group-hover/timeline:opacity-100 transition-opacity ml-1 text-[8px] text-[#C084FC] hidden sm:inline">[Arrows to Seek]</span>
+                            Time Override <span className="opacity-0 group-hover/timeline:opacity-100 transition-opacity ml-1 text-[10px] text-[#C084FC] hidden sm:inline">[Arrows to Seek]</span>
                         </span>
                         <div className="flex gap-2">
                             <button onClick={() => setIsPaused(true)} className="text-white/40 hover:text-white transition-colors focus-visible:ring-2 focus-visible:ring-[#C084FC] outline-none rounded" aria-label="Pause Simulation" title="Pause Simulation"><Pause size={12} /></button>

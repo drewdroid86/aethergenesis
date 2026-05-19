@@ -86,6 +86,16 @@ export function useSimulation(containerRef: React.RefObject<HTMLDivElement | nul
         stellarSlider: useRef<HTMLDivElement>(null),
     };
 
+    const centerOnStar = useCallback(() => {
+        if (selectedStarRef.current && controlsRef.current && engineRef.current) {
+            const targetPos = selectedStarRef.current.position.clone();
+            const camOffset = engineRef.current.camera.position.clone().sub(controlsRef.current.target).normalize().multiplyScalar(40);
+            engineRef.current.camera.position.copy(targetPos).add(camOffset);
+            controlsRef.current.target.copy(targetPos);
+            controlsRef.current.update();
+        }
+    }, []);
+
     const disposeStarSystem = (star: HeroStarSystem) => {
         star.traverse((child) => {
             if (child instanceof THREE.Mesh) {
@@ -314,6 +324,8 @@ export function useSimulation(containerRef: React.RefObject<HTMLDivElement | nul
                     controlsRef.current?.reset();
                 } else if (e.key.toLowerCase() === 'c') {
                     setIsConstantsOpen(!isConstantsOpenRef.current);
+                } else if (e.key.toLowerCase() === 'f') {
+                    centerOnStar();
                 }
             };
 
@@ -336,7 +348,7 @@ export function useSimulation(containerRef: React.RefObject<HTMLDivElement | nul
         } catch (err: any) {
             setFatalError(err.message);
         }
-    }, [handleTierChange, rebuildStarfieldGeometry]); 
+    }, [handleTierChange, rebuildStarfieldGeometry, centerOnStar]);
 
     const handleScrub = (e: React.PointerEvent) => {
         if (!selectedStarRef.current || !isScrubbingRef.current) return;
@@ -429,14 +441,6 @@ export function useSimulation(containerRef: React.RefObject<HTMLDivElement | nul
         resetCamera: () => {
             controlsRef.current?.reset();
         },
-        centerOnStar: () => {
-            if (selectedStarRef.current && controlsRef.current && engineRef.current) {
-                const targetPos = selectedStarRef.current.position.clone();
-                const camOffset = engineRef.current.camera.position.clone().sub(controlsRef.current.target).normalize().multiplyScalar(40);
-                engineRef.current.camera.position.copy(targetPos).add(camOffset);
-                controlsRef.current.target.copy(targetPos);
-                controlsRef.current.update();
-            }
-        }
+        centerOnStar
     };
 }

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { Settings2, X, RotateCcw } from 'lucide-react';
 import { DEFAULT_CONSTANTS, PhysicsConstants } from '../types/physics';
 
@@ -34,10 +34,11 @@ export const ConstantsPanel: React.FC<ConstantsPanelProps> = ({ physics, setPhys
                 <div className="flex items-center gap-2">
                     <button
                         onClick={() => setPhysics(DEFAULT_CONSTANTS)}
-                        className="text-[#7EB8FF]/50 hover:text-[#C084FC] transition-all focus-visible:ring-2 focus-visible:ring-[#C084FC] outline-none rounded p-1 group/reset"
+                        className="text-[#7EB8FF]/50 hover:text-[#C084FC] transition-all focus-visible:ring-2 focus-visible:ring-[#C084FC] outline-none rounded p-1 group/reset relative"
                         aria-label="Reset to Defaults"
                         title="Reset to Defaults"
                     >
+                        <span className="absolute -top-6 right-0 text-[10px] text-[#C084FC] opacity-0 group-hover/reset:opacity-100 transition-opacity whitespace-nowrap hidden sm:inline">Reset</span>
                         <RotateCcw size={16} className="group-hover/reset:rotate-[-45deg] transition-transform" />
                     </button>
                     <button
