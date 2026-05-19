@@ -101,7 +101,10 @@ export class NebulaSystem {
 
     update(deltaTime: number, cameraPosition: THREE.Vector3) {
         const timeScale = deltaTime * 0.001;
-        this.nebulae.forEach(group => {
+        const nebulae = this.nebulae;
+        const nLen = nebulae.length;
+        for (let i = 0; i < nLen; i++) {
+            const group = nebulae[i];
             // Apply subtle, slow rotation
             group.rotation.y += group.userData.rotationSpeed * timeScale * 50; // Reduced multiplier for subtle rotation
             
@@ -109,6 +112,6 @@ export class NebulaSystem {
             // For more explicit fading, one might adjust material.opacity based on distance to camera.
             // The current positioning and low opacity already contribute to a sense of distance.
             group.position.copy(group.userData.initialPosition).add(this._scratchVec.copy(cameraPosition).multiplyScalar(0.05));
-        });
+        }
     }
 }

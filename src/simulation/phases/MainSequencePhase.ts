@@ -117,10 +117,12 @@ export class MainSequencePhase implements PhaseComponent {
         }
 
         if (!lowDetail) {
-            this.planetsInfo.forEach(p => {
+            const planets = this.planetsInfo;
+            const pLen = planets.length;
+            for (let i = 0; i < pLen; i++) {
                 // BOLT: Removed redundant visibility and material assignments
-                p.pivot.rotation.y += p.speed * delta;
-            });
+                planets[i].pivot.rotation.y += planets[i].speed * delta;
+            }
         }
     }
 
@@ -132,13 +134,19 @@ export class MainSequencePhase implements PhaseComponent {
     show(): void {
         this.mainSeqGroup.visible = true;
         this.hzMesh.visible = true;
-        this.planetsInfo.forEach(p => p.pivot.visible = true);
+        const planets = this.planetsInfo;
+        for (let i = 0; i < planets.length; i++) {
+            planets[i].pivot.visible = true;
+        }
     }
 
     hide(): void {
         this.mainSeqGroup.visible = false;
         this.hzMesh.visible = false;
-        this.planetsInfo.forEach(p => p.pivot.visible = false);
+        const planets = this.planetsInfo;
+        for (let i = 0; i < planets.length; i++) {
+            planets[i].pivot.visible = false;
+        }
     }
 
     dispose(): void {
@@ -148,11 +156,12 @@ export class MainSequencePhase implements PhaseComponent {
         (this.coronaMesh.material as THREE.Material).dispose();
         this.hzMesh.geometry.dispose();
         (this.hzMesh.material as THREE.Material).dispose();
-        this.planetsInfo.forEach(p => {
-            p.mesh.geometry.dispose();
-            (p.mesh.material as THREE.Material).dispose();
-            this.parent.remove(p.pivot);
-        });
+        const planets = this.planetsInfo;
+        for (let i = 0; i < planets.length; i++) {
+            planets[i].mesh.geometry.dispose();
+            (planets[i].mesh.material as THREE.Material).dispose();
+            this.parent.remove(planets[i].pivot);
+        }
         this.parent.remove(this.mainSeqGroup);
         this.parent.remove(this.hzMesh);
     }

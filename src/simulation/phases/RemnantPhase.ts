@@ -15,6 +15,12 @@ export class RemnantPhase implements PhaseComponent {
     private _opNs: number = 0;
     private _opNsLines: number = 0;
 
+    // BOLT: Store shared materials to avoid iterating children in hot update path
+    private nsMat!: THREE.MeshBasicMaterial;
+    private beamMat!: THREE.MeshBasicMaterial;
+    private tubeMat!: THREE.MeshBasicMaterial;
+    private bhDiskMat!: THREE.MeshBasicMaterial;
+
     constructor(mass: number) {
         this.mass = mass;
     }
@@ -22,22 +28,28 @@ export class RemnantPhase implements PhaseComponent {
     init(parent: THREE.Group): void {
         this.parent = parent;
 
+        // BOLT: Initialize shared materials
+        this.nsMat = new THREE.MeshBasicMaterial({color: 0xaaccff, transparent: true, opacity: 0});
+        this.beamMat = new THREE.MeshBasicMaterial({ color: 0x00ffff, transparent: true, opacity: 0, blending: THREE.AdditiveBlending });
+        this.tubeMat = new THREE.MeshBasicMaterial({color: 0xaaccff, transparent: true, opacity: 0, blending: THREE.AdditiveBlending});
+        this.bhDiskMat = new THREE.MeshBasicMaterial({
+            color: 0xff8800, transparent: true, opacity: 0.8, blending: THREE.AdditiveBlending
+        });
+
         // Neutron Star
         this.neutronStarGroup = new THREE.Group();
-        const nsMat = new THREE.MeshBasicMaterial({color: 0xaaccff, transparent: true, opacity: 0});
         this.pulsarGroup = new THREE.Group();
-        const beamMat = new THREE.MeshBasicMaterial({ color: 0x00ffff, transparent: true, opacity: 0, blending: THREE.AdditiveBlending });
-        const beam1 = new THREE.Mesh(GEOMETRIES.pulsarBeam1, beamMat);
-        const beam2 = new THREE.Mesh(GEOMETRIES.pulsarBeam2, beamMat);
+        const beam1 = new THREE.Mesh(GEOMETRIES.pulsarBeam1, this.beamMat);
+        const beam2 = new THREE.Mesh(GEOMETRIES.pulsarBeam2, this.beamMat);
         this.pulsarGroup.add(beam1);
         this.pulsarGroup.add(beam2);
-        this.neutronStarGroup.add(new THREE.Mesh(GEOMETRIES.neutronStar, nsMat));
+        this.neutronStarGroup.add(new THREE.Mesh(GEOMETRIES.neutronStar, this.nsMat));
         this.neutronStarGroup.add(this.pulsarGroup);
         
         const nsMagGroup = new THREE.Group();
-        const tubeMat = new THREE.MeshBasicMaterial({color: 0xaaccff, transparent: true, opacity: 0, blending: THREE.AdditiveBlending});
-        for(const tubeGeo of GEOMETRIES.magneticTubes) {
-            nsMagGroup.add(new THREE.Mesh(tubeGeo, tubeMat));
+        const tubes = GEOMETRIES.magneticTubes;
+        for (let i = 0; i < tubes.length; i++) {
+            nsMagGroup.add(new THREE.Mesh(tubes[i], this.tubeMat));
         }
         
         this.nsMagneticLines = nsMagGroup;
@@ -50,10 +62,7 @@ export class RemnantPhase implements PhaseComponent {
             GEOMETRIES.blackHoleCore,
             new THREE.MeshBasicMaterial({ color: 0x000000 })
         );
-        const diskMat = new THREE.MeshBasicMaterial({ 
-            color: 0xff8800, transparent: true, opacity: 0.8, blending: THREE.AdditiveBlending
-        });
-        const diskMesh = new THREE.Mesh(GEOMETRIES.blackHoleDisk, diskMat);
+        const diskMesh = new THREE.Mesh(GEOMETRIES.blackHoleDisk, this.bhDiskMat);
         this.blackHoleGroup.add(bhCore);
         this.blackHoleGroup.add(diskMesh);
         this.parent.add(this.blackHoleGroup);
@@ -88,26 +97,20 @@ export class RemnantPhase implements PhaseComponent {
         const nextOpNs = stepOp(this._opNs, targetNs);
         if (this._opNs !== nextOpNs) {
             this._opNs = nextOpNs;
-            const nsMeshMat = (this.neutronStarGroup.children[0] as THREE.Mesh).material as THREE.MeshBasicMaterial;
-            nsMeshMat.opacity = this._opNs;
+            this.nsMat.opacity = this._opNs;
         }
 
         const targetLines = targetNs ? 0.3 : 0;
         const nextOpLines = stepOp(this._opNsLines, targetLines);
         if (this._opNsLines !== nextOpLines) {
             this._opNsLines = nextOpLines;
-            this.nsMagneticLines.children.forEach(c => {
-                ((c as THREE.Mesh).material as THREE.MeshBasicMaterial).opacity = this._opNsLines;
-            });
+            this.tubeMat.opacity = this._opNsLines;
         }
 
         // Pulsar beams are either on or off for simplicity in opacity guarding
         const targetBeam = targetNs ? 0.6 : 0;
-        const firstBeam = this.pulsarGroup.children[0] as THREE.Mesh;
-        if ((firstBeam.material as THREE.MeshBasicMaterial).opacity !== targetBeam) {
-            this.pulsarGroup.children.forEach(c => {
-                ((c as THREE.Mesh).material as THREE.MeshBasicMaterial).opacity = targetBeam;
-            });
+        if (this.beamMat.opacity !== targetBeam) {
+            this.beamMat.opacity = targetBeam;
         }
         
         const isVisible = this._opNs > STELLAR_CONSTANTS.TRANSITIONS.VISIBILITY_THRESHOLD || this._opNsLines > STELLAR_CONSTANTS.TRANSITIONS.VISIBILITY_THRESHOLD;
@@ -126,16 +129,16 @@ export class RemnantPhase implements PhaseComponent {
     }
 
     dispose(): void {
-        // BOLT: Stop disposing shared global geometries. Only dispose local materials if unique.
-        this.neutronStarGroup.children.forEach(c => {
-            if ((c as THREE.Mesh).material) ((c as THREE.Mesh).material as THREE.Material).dispose();
-        });
-        this.nsMagneticLines.children.forEach(c => {
-            if ((c as THREE.Mesh).material) ((c as THREE.Mesh).material as THREE.Material).dispose();
-        });
-        this.blackHoleGroup.children.forEach(c => {
-            if ((c as THREE.Mesh).material) ((c as THREE.Mesh).material as THREE.Material).dispose();
-        });
+        // BOLT: Only dispose local materials. Shared geometries are managed globally.
+        this.nsMat.dispose();
+        this.beamMat.dispose();
+        this.tubeMat.dispose();
+        this.bhDiskMat.dispose();
+
+        // Dispose bhCore material which is created inline
+        const bhCore = this.blackHoleGroup.children[0] as THREE.Mesh;
+        if (bhCore && bhCore.material) (bhCore.material as THREE.Material).dispose();
+
         this.parent.remove(this.neutronStarGroup);
         this.parent.remove(this.blackHoleGroup);
     }
