@@ -51,7 +51,7 @@ interface RateLimitData {
 const analysisLimitMap = new Map<string, RateLimitData>();
 const RATE_LIMIT_WINDOW = 60 * 1000; // 1 minute
 const MAX_REQUESTS_PER_WINDOW = 5;
-const MAX_ENTRIES = 1000; // Memory protection
+const _MAX_ENTRIES = 1000; // Memory protection
 
 // Periodic cleanup to prevent memory exhaustion
 setInterval(() => {

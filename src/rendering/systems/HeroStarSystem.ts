@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { PHASES, STELLAR_CONSTANTS } from '../../core/constants';
-import { PhysicalBody } from '../../physics/types';
+import { PhysicalBody } from '../../types/physics';
 import { PhysicsConstants } from '../../types/physics';
 import { NebulaPhase } from '../../simulation/phases/NebulaPhase';
 import { ProtostarPhase } from '../../simulation/phases/ProtostarPhase';

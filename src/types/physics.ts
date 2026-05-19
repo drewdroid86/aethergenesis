@@ -1,4 +1,3 @@
-import * as THREE from 'three';
 
 export interface PhysicsConstants {
     G: number;
@@ -27,3 +26,9 @@ export const DEFAULT_CONSTANTS: PhysicsConstants = {
     darkMatter: 0.25,
     baryon: 0.05
 };
+
+export interface PhysicalBody {
+  position: { x: number; y: number; z: number };
+  mass: number;
+  velocity?: { x: number; y: number; z: number };
+}

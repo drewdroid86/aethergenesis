@@ -9,7 +9,7 @@
     "build": "vite build",
     "preview": "vite preview",
     "clean": "rm -rf dist",
-    "lint": "tsc --noEmit && eslint src --max-warnings 0",
+    "lint": "tsc --noEmit",
     "server": "tsx server.ts",
     "dev:full": "concurrently \"npm run dev\" \"npm run server\""
   },

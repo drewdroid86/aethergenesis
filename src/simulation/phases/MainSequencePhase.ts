@@ -108,7 +108,7 @@ export class MainSequencePhase implements PhaseComponent {
         this.hide();
     }
 
-    update(delta: number, appTime: number, cameraPos: THREE.Vector3, physics: PhysicsConstants, t: number, lowDetail?: boolean): void {
+    update(delta: number, appTime: number, _cameraPos: THREE.Vector3, physics: PhysicsConstants, _t: number, lowDetail?: boolean): void {
         // BOLT: Removed redundant scale assignment
         this.starMat.uniforms.uTime.value = appTime;
         const hbar = physics.hbar ?? 1.0;

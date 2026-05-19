@@ -56,7 +56,7 @@ export class Engine {
         this.createHeroStars(getNumStarsForTier(detectPerformanceTier()), initialPhysics);
     }
 
-    createHeroStars(count: number, physicsConstants: PhysicsConstants) {
+    createHeroStars(count: number, _physicsConstants: PhysicsConstants) {
         for (let i = 0; i < count; i++) {
             const star = new HeroStarSystem();
             star.position.set(
@@ -69,7 +69,7 @@ export class Engine {
         }
     }
 
-    update(delta: number, selectedStar: HeroStarSystem | null, isScrubbing: boolean, physics: PhysicsConstants, cosmicAge: number) {
+    update(delta: number, selectedStar: HeroStarSystem | null, _isScrubbing: boolean, physics: PhysicsConstants, cosmicAge: number) {
         if (!this.isPaused) {
             this.appTime += delta; 
         }
