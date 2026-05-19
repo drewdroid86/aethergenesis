@@ -154,6 +154,13 @@ export function useSimulation(containerRef: React.RefObject<HTMLDivElement | nul
             controls.dampingFactor = 0.05;
             controls.maxDistance = 600;
             controls.minDistance = 2;
+            controls.enablePan = true;
+            controls.enableZoom = true;
+            controls.enableTouch = true;
+            controls.touches = {
+                ONE: THREE.TOUCH.ROTATE,
+                TWO: THREE.TOUCH.DOLLY_PAN
+            };
             controlsRef.current = controls;
 
             const raycaster = new THREE.Raycaster();
@@ -176,6 +183,7 @@ export function useSimulation(containerRef: React.RefObject<HTMLDivElement | nul
                 if (isDragging || e.button !== 0) return;
 
                 mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
+                mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
                 mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
                 raycaster.setFromCamera(mouse, engine.camera);
 

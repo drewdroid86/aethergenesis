@@ -2,6 +2,7 @@ uniform float uTime;
 uniform vec3 uColor;
 uniform float uTurbulence;
 uniform float uOpacity;
+uniform float uHbar;
 
 varying vec3 vLocalPosition;
 varying vec3 vWorldPosition;
@@ -15,6 +16,13 @@ void main() {
     float noiseVal = (n1 + n2) * 0.5;
     
     vec3 finalColor = mix(uColor * 0.5, uColor * 1.5, noiseVal);
+    
+    // Quantum foam effect
+    if (uHbar > 1.5) {
+        float foam = sin(vLocalPosition.x * 500.0) * sin(vLocalPosition.y * 500.0) * sin(vLocalPosition.z * 500.0);
+        float foamMod = (uHbar - 1.5) * 0.5;
+        finalColor += foam * foamMod * uColor;
+    }
     
     // Limb darkening
     float intensity = max(0.0, dot(vNormal, vec3(0.0, 0.0, 1.0)));

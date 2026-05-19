@@ -80,8 +80,15 @@ export class Engine {
 
         const stars = this.heroStars;
         const len = stars.length;
+        
+        // H0 Expansion drift
+        const expansionRate = 1 + (physics.H0 - 1) * 0.00001 * (this.isPaused ? 0 : delta * 60);
+
         for (let i = 0; i < len; i++) {
             const star = stars[i];
+            if (physics.H0 !== 1.0) {
+                star.position.multiplyScalar(expansionRate);
+            }
             star.update(
                 this.isPaused ? 0 : delta, 
                 this.appTime,

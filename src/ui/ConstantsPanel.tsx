@@ -161,6 +161,28 @@ export const ConstantsPanel: React.FC<ConstantsPanelProps> = ({ physics, setPhys
                     />
                     <p id="desc-hbar" className="text-[9px] text-[#7EB8FF]/50 mt-1">ħ ↑ quantum foam visible</p>
                 </div>
+                {/* H0 */}
+                <div className="group/slider">
+                    <div className="flex justify-between text-[#7EB8FF] mb-2">
+                        <label htmlFor="slider-h0">
+                            Hubble Constant (H₀) <span className="opacity-0 group-hover/slider:opacity-100 transition-opacity ml-1 text-[8px] text-[#C084FC] hidden sm:inline">[Arrows to Adjust]</span>
+                        </label>
+                        <span>{physics.H0.toFixed(2)}</span>
+                    </div>
+                    <input
+                        id="slider-h0"
+                        type="range"
+                        min="0.1"
+                        max="3.0"
+                        step="0.1"
+                        value={physics.H0}
+                        aria-describedby="desc-h0"
+                        aria-valuetext={`Hubble constant: ${physics.H0.toFixed(2)}`}
+                        onChange={e => setPhysics({...physics, H0: parseFloat(e.target.value)})}
+                        className="w-full accent-[#C084FC] cursor-pointer focus-visible:ring-2 focus-visible:ring-[#C084FC] rounded-lg outline-none"
+                    />
+                    <p id="desc-h0" className="text-[9px] text-[#7EB8FF]/50 mt-1">H₀ ↑ universe expands · H₀ ↓ universe contracts</p>
+                </div>
             </div>
         </div>
     );
