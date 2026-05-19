@@ -77,6 +77,7 @@ export function AetherGenesis() {
 
       {selectedStar && (
         <InspectPanel 
+            key={selectedStar.physicsId}
             selectedStar={selectedStar}
             setSelectedStar={setSelectedStar}
             isPaused={isPaused}

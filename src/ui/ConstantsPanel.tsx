@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { Settings2, X, RotateCcw } from 'lucide-react';
 import { DEFAULT_CONSTANTS, PhysicsConstants } from '../types/physics';
 
