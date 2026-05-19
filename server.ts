@@ -32,7 +32,7 @@ app.use((_req, res, next) => {
 const analysisLimitMap = new Map<string, number>();
 const RATE_LIMIT_WINDOW = 60 * 1000; // 1 minute
 const MAX_REQUESTS_PER_WINDOW = 5;
-const MAX_ENTRIES = 1000; // Memory protection
+const _MAX_ENTRIES = 1000; // Memory protection
 
 // Periodic cleanup to prevent memory exhaustion
 setInterval(() => {
@@ -61,7 +61,7 @@ app.post('/api/analyze', async (req, res) => {
   }
 
   // Memory protection: don't add new IPs if map is too large
-  if (analysisLimitMap.size >= MAX_ENTRIES && !analysisLimitMap.has(ip)) {
+  if (analysisLimitMap.size >= _MAX_ENTRIES && !analysisLimitMap.has(ip)) {
     return res.status(503).json({ error: 'Server busy.' });
   }
 
