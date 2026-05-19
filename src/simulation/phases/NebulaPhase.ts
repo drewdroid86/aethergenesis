@@ -9,7 +9,7 @@ export class NebulaPhase implements PhaseComponent {
     private nebulaMesh!: THREE.Mesh;
     private dustCloud!: THREE.Points;
     private parent!: THREE.Group;
-    private ___matrixInitialized: boolean = false;
+    private ____matrixInitialized: boolean = false;
 
     init(parent: THREE.Group): void {
         this.parent = parent;
@@ -70,11 +70,11 @@ export class NebulaPhase implements PhaseComponent {
         this.nebulaMat.uniforms.uCameraPos.value.copy(_cameraPos);
 
         // BOLT: Update inverse matrix only once after world matrix is ready
-        if (!this.___matrixInitialized) {
+        if (!this.____matrixInitialized) {
             this.nebulaMesh.updateMatrixWorld(true);
             if (this.nebulaMesh.matrixWorld.determinant() !== 0) {
                 this.nebulaMat.uniforms.uInverseModelMatrix.value.copy(this.nebulaMesh.matrixWorld).invert();
-                this.___matrixInitialized = true;
+                this.____matrixInitialized = true;
             }
         }
         
