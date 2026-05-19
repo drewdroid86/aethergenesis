@@ -12,6 +12,7 @@ export class Pipeline {
 
     constructor(renderer: THREE.WebGLRenderer, scene: THREE.Scene, camera: THREE.PerspectiveCamera) {
         this.composer = new EffectComposer(renderer);
+        this.composer.setPixelRatio(renderer.getPixelRatio());
 
         const renderPass = new RenderPass(scene, camera);
         this.composer.addPass(renderPass);

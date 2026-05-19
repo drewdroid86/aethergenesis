@@ -8,12 +8,10 @@ import { PhysicsConstants } from '../../types/physics';
 import { 
     detectPerformanceTier, 
     getNumStarsForTier, 
-    setOnTierChangeCallback,
     FPS_THRESHOLD,
     CONSECUTIVE_FRAMES_THRESHOLD,
     BANNER_DISPLAY_DURATION
 } from '../../utils/performance';
-import { updateNumStars } from '../../constants/simulation';
 
 export function useSimulation(containerRef: React.RefObject<HTMLDivElement | null>) {
     const engineRef = useRef<Engine | null>(null);
@@ -37,7 +35,7 @@ export function useSimulation(containerRef: React.RefObject<HTMLDivElement | nul
     const [showTierDownIndicator, setShowTierDownIndicator] = useState(false);
     const consecutiveFramesBelowThresholdRef = useRef(0);
     const tierDownIndicatorTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-    const hasDowngradedRef = useRef(false);
+    const lastDowngradeTimeRef = useRef(0);
 
     // Physics Constants State
     const [physics, setPhysics] = useState<PhysicsConstants>({
@@ -114,8 +112,7 @@ export function useSimulation(containerRef: React.RefObject<HTMLDivElement | nul
             getNumStarsForTier(currentTierRef.current),
             physicsRef.current
         );
-        hitMeshesRef.current = engineRef.current.heroStars.map(h => (h as any).hitMesh);
-    }, [currentTier]); 
+    }, []); 
 
     const handleTierChange = useCallback((newTier: 'low' | 'medium' | 'high' | 'ultra') => {
         if (newTier === currentTierRef.current) return;
@@ -123,11 +120,9 @@ export function useSimulation(containerRef: React.RefObject<HTMLDivElement | nul
         const previousTier = currentTierRef.current;
         currentTierRef.current = newTier;
         setCurrentTier(newTier);
-        updateNumStars(newTier);
 
         const isDowngrade = ['low', 'medium', 'high', 'ultra'].indexOf(newTier) < ['low', 'medium', 'high', 'ultra'].indexOf(previousTier);
         if (isDowngrade) {
-            hasDowngradedRef.current = true;
             setShowTierDownIndicator(true); 
 
             if (tierDownIndicatorTimeoutRef.current) {
@@ -142,11 +137,9 @@ export function useSimulation(containerRef: React.RefObject<HTMLDivElement | nul
     }, [rebuildStarfieldGeometry]); 
 
     useEffect(() => {
-        setOnTierChangeCallback(handleTierChange);
         const initialTier = detectPerformanceTier();
         currentTierRef.current = initialTier;
         setCurrentTier(initialTier);
-        updateNumStars(initialTier);
     }, [handleTierChange]); 
 
     useEffect(() => {
@@ -197,7 +190,8 @@ export function useSimulation(containerRef: React.RefObject<HTMLDivElement | nul
                 mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
                 raycaster.setFromCamera(mouse, engine.camera);
 
-                const intersects = raycaster.intersectObjects(hitMeshesRef.current);
+                const hitMeshes = engine.heroStars.map(h => h.hitMesh);
+                const intersects = raycaster.intersectObjects(hitMeshes);
 
                 if (intersects.length > 0) {
                     const hit = intersects[0].object;
@@ -244,9 +238,10 @@ export function useSimulation(containerRef: React.RefObject<HTMLDivElement | nul
                     if (consecutiveFramesBelowThresholdRef.current >= CONSECUTIVE_FRAMES_THRESHOLD) {
                         const tiers: ('low' | 'medium' | 'high' | 'ultra')[] = ['low', 'medium', 'high', 'ultra'];
                         const currentTierIndex = tiers.indexOf(currentTierRef.current);
-                        if (currentTierIndex > 0 && !hasDowngradedRef.current) {
+                        if (currentTierIndex > 0 && (performance.now() - lastDowngradeTimeRef.current > 10000)) {
                             const newTier = tiers[currentTierIndex - 1];
                             handleTierChange(newTier);
+                            lastDowngradeTimeRef.current = performance.now();
                             consecutiveFramesBelowThresholdRef.current = 0; 
                         }
                     }
@@ -389,6 +384,7 @@ export function useSimulation(containerRef: React.RefObject<HTMLDivElement | nul
         currentTier, 
         fps, 
         showTierDownIndicator, 
+        numHeroStars: engineRef.current?.heroStars.length ?? 0,
         onScrubStart: (e: React.PointerEvent) => {
             (e.currentTarget as HTMLDivElement).setPointerCapture(e.pointerId);
             isScrubbingRef.current = true;
@@ -432,6 +428,15 @@ export function useSimulation(containerRef: React.RefObject<HTMLDivElement | nul
         },
         resetCamera: () => {
             controlsRef.current?.reset();
+        },
+        centerOnStar: () => {
+            if (selectedStarRef.current && controlsRef.current && engineRef.current) {
+                const targetPos = selectedStarRef.current.position.clone();
+                const camOffset = engineRef.current.camera.position.clone().sub(controlsRef.current.target).normalize().multiplyScalar(40);
+                engineRef.current.camera.position.copy(targetPos).add(camOffset);
+                controlsRef.current.target.copy(targetPos);
+                controlsRef.current.update();
+            }
         }
     };
 }

@@ -51,6 +51,7 @@ export const InspectPanel: React.FC<InspectPanelProps> = ({
     const [analysisFailed, setAnalysisFailed] = useState(false);
     const [copied, setCopied] = useState(false);
     const lastAnalysisTimeRef = useRef(0);
+    const [isDragging, setIsDragging] = useState(false);
 
     const copyTelemetry = () => {
         const phase = uiRefs.phase.current?.innerText || '-';
@@ -78,6 +79,20 @@ Civilization: ${geminiData.civilization}`;
             setCopied(true);
             setTimeout(() => setCopied(false), 2000);
         });
+    };
+
+    const handlePointerDown = (e: React.PointerEvent) => {
+        setIsDragging(true);
+        onScrubStart(e);
+    };
+
+    const handlePointerMove = (e: React.PointerEvent) => {
+        if (isDragging) onScrubMove(e);
+    };
+
+    const handlePointerUp = () => {
+        setIsDragging(false);
+        onScrubEnd();
     };
 
     const analyzeSystem = async () => {
@@ -201,10 +216,10 @@ Civilization: ${geminiData.civilization}`;
                         aria-valuemin={0} 
                         aria-valuemax={100}
                         className="w-full h-2 bg-white/10 rounded-full overflow-hidden cursor-ew-resize relative group focus-visible:ring-2 focus-visible:ring-[#C084FC] outline-none"
-                        onPointerDown={onScrubStart}
-                        onPointerMove={onScrubMove}
-                        onPointerUp={onScrubEnd}
-                        onPointerLeave={onScrubEnd}
+                        onPointerDown={handlePointerDown}
+                        onPointerMove={handlePointerMove}
+                        onPointerUp={handlePointerUp}
+                        onPointerLeave={handlePointerUp}
                         onKeyDown={onKeyDown}
                     >
                         <div ref={uiRefs.timelineFill} className="h-full bg-gradient-to-r from-blue-500 via-fuchsia-500 to-red-500" style={{width: '0%'}}></div>

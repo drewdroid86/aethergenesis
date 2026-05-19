@@ -4,6 +4,7 @@ import { PhysicsConstants } from '../../types/physics';
 import { basicVS, starSurfaceFS } from '../../rendering/shaders/stellar';
 import { GEOMETRIES } from './geometries';
 import { PlanetInfo } from './MainSequencePhase';
+import { STELLAR_CONSTANTS } from '../../core/constants';
 
 export class RedGiantPhase implements PhaseComponent {
     public redGiantGroup!: THREE.Group;
@@ -46,8 +47,8 @@ export class RedGiantPhase implements PhaseComponent {
     }
 
     update(delta: number, appTime: number, cameraPos: THREE.Vector3, physics: PhysicsConstants, t: number, lowDetail?: boolean): void {
-        const normT = (t - 0.70) / 0.15;
-        const giantScale = this.baseRadius * (1.0 + normT * 6.0) + Math.sin(appTime * 2.0) * 0.1;
+        const normT = (t - STELLAR_CONSTANTS.PHASE_BOUNDARIES.RED_GIANT_START) / STELLAR_CONSTANTS.PHASE_BOUNDARIES.RED_GIANT_DURATION;
+        const giantScale = this.baseRadius * (1.0 + normT * STELLAR_CONSTANTS.VISUALS.RED_GIANT_MAX_SCALE_FACTOR) + Math.sin(appTime * STELLAR_CONSTANTS.VISUALS.RED_GIANT_PULSATION_SPEED) * STELLAR_CONSTANTS.VISUALS.RED_GIANT_PULSATION_AMP;
         this.redGiantMesh.scale.setScalar(giantScale);
         
         this.redGiantMat.uniforms.uTime.value = appTime;
@@ -60,8 +61,8 @@ export class RedGiantPhase implements PhaseComponent {
             this.planetsInfo.forEach(p => {
                 p.pivot.visible = true;
                 p.pivot.rotation.y += p.speed * delta;
-                if (p.dist < giantScale * 1.2) {
-                    const dmg = Math.max(0, 1.0 - (p.dist - giantScale) / (giantScale * 0.2));
+                if (p.dist < giantScale * STELLAR_CONSTANTS.VISUALS.RED_GIANT_PLANET_DMG_RADIUS) {
+                    const dmg = Math.max(0, 1.0 - (p.dist - giantScale) / (giantScale * STELLAR_CONSTANTS.VISUALS.RED_GIANT_PLANET_BURN_RADIUS));
                     (p.mesh.material as THREE.MeshStandardMaterial).color.setHex(0x222222);
                     (p.mesh.material as THREE.MeshStandardMaterial).emissive.setHex(0xffaa00);
                     (p.mesh.material as THREE.MeshStandardMaterial).emissiveIntensity = dmg;
@@ -75,13 +76,13 @@ export class RedGiantPhase implements PhaseComponent {
     }
 
     getCurrentTemp(t: number): number {
-        const normT = (t - 0.70) / 0.15;
-        return this.tHeat - normT * (this.tHeat - 3000);
+        const normT = (t - STELLAR_CONSTANTS.PHASE_BOUNDARIES.RED_GIANT_START) / STELLAR_CONSTANTS.PHASE_BOUNDARIES.RED_GIANT_DURATION;
+        return this.tHeat - normT * (this.tHeat - STELLAR_CONSTANTS.TEMPERATURES.RED_GIANT_TARGET);
     }
 
     getCurrentLum(t: number, mass: number): number {
-        const normT = (t - 0.70) / 0.15;
-        return Math.pow(mass, 3.5) * (1.0 + normT * 5.0);
+        const normT = (t - STELLAR_CONSTANTS.PHASE_BOUNDARIES.RED_GIANT_START) / STELLAR_CONSTANTS.PHASE_BOUNDARIES.RED_GIANT_DURATION;
+        return Math.pow(mass, STELLAR_CONSTANTS.PHYSICS.MASS_LUMINOSITY_EXPONENT) * (1.0 + normT * 5.0);
     }
 
     setOpacity(opacity: number): void {

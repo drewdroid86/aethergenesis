@@ -3,6 +3,7 @@ import { PhaseComponent } from './types';
 import { PhysicsConstants } from '../../types/physics';
 import { subtleDisplacementVS, starSurfaceFS } from '../../rendering/shaders/stellar';
 import { GEOMETRIES } from './geometries';
+import { STELLAR_CONSTANTS } from '../../core/constants';
 
 export interface PlanetInfo {
     pivot: THREE.Group;
@@ -33,8 +34,8 @@ export class MainSequencePhase implements PhaseComponent {
         this.mainSeqGroup = new THREE.Group();
         
         let msColor = 0xffaa44; 
-        if (this.mass > 8) msColor = 0x99aaff; 
-        else if (this.mass > 2) msColor = 0xffffdd; 
+        if (this.mass > STELLAR_CONSTANTS.PHYSICS.MASS_THRESHOLD_SUPERNOVA) msColor = 0x99aaff; 
+        else if (this.mass > STELLAR_CONSTANTS.PHYSICS.MASS_THRESHOLD_INTERMEDIATE) msColor = 0xffffdd; 
         
         this.starMat = new THREE.ShaderMaterial({
             vertexShader: subtleDisplacementVS,
@@ -58,7 +59,7 @@ export class MainSequencePhase implements PhaseComponent {
             GEOMETRIES.mainSeq,
             new THREE.MeshBasicMaterial({ color: msColor, transparent: true, opacity: 0.1, side: THREE.BackSide, blending: THREE.AdditiveBlending })
         );
-        haloMesh.scale.setScalar(this.baseRadius * 1.4);
+        haloMesh.scale.setScalar(this.baseRadius * STELLAR_CONSTANTS.VISUALS.HALO_SCALE_FACTOR);
         
         this.mainSeqGroup.add(this.starMesh);
         this.mainSeqGroup.add(this.coronaMesh);
@@ -66,8 +67,8 @@ export class MainSequencePhase implements PhaseComponent {
         this.parent.add(this.mainSeqGroup);
 
         // Habitable Zone
-        const lum = Math.pow(this.mass, 3.5);
-        const hzRadius = Math.max(4, Math.sqrt(lum) * 2.5);
+        const lum = Math.pow(this.mass, STELLAR_CONSTANTS.PHYSICS.MASS_LUMINOSITY_EXPONENT);
+        const hzRadius = Math.max(STELLAR_CONSTANTS.VISUALS.HZ_RADIUS_BASE, Math.sqrt(lum) * STELLAR_CONSTANTS.VISUALS.HZ_LUM_FACTOR);
         this.hzMesh = new THREE.Mesh(
             GEOMETRIES.habitableZone,
             new THREE.MeshPhongMaterial({ 
@@ -87,12 +88,12 @@ export class MainSequencePhase implements PhaseComponent {
 
         // Planets
         for(let i=0; i<2; i++) {
-            const dist = hzRadius * 1.2 + Math.random() * 8 + (i * 2); 
+            const dist = hzRadius * STELLAR_CONSTANTS.VISUALS.PLANET_HZ_DIST_FACTOR + Math.random() * 8 + (i * 2); 
             const pScale = 0.2 + Math.random() * 0.25;
             const pColor = i === 0 ? 0x8899aa : 0xcc8855;
             const pMesh = new THREE.Mesh(
                 GEOMETRIES.planet,
-                new THREE.MeshBasicMaterial({color: pColor})
+                new THREE.MeshStandardMaterial({color: pColor, roughness: 0.8, metalness: 0.2})
             );
             pMesh.scale.setScalar(pScale);
             pMesh.position.x = dist;
