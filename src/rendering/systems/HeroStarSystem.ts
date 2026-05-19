@@ -33,7 +33,7 @@ export class HeroStarSystem extends THREE.Group implements PhysicalBody {
     private _opM: number = 0;
     private _opR: number = 0;
     private _opS: number = 0;
-    private __opNs: number = 0;
+    private ___opNs: number = 0;
 
     private nebulaPhase: NebulaPhase;
     private protostarPhase: ProtostarPhase;

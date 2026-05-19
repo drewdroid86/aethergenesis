@@ -81,7 +81,7 @@ export class RemnantPhase implements PhaseComponent {
         this.hide();
     }
 
-    update(delta: number, _appTime: number, _cameraPos: THREE.Vector3, _physics: PhysicsConstants, _t: number): void {
+    update(delta: number, __appTime: number, ___cameraPos: THREE.Vector3, _physics: PhysicsConstants, _t: number): void {
         if (this.mass > 15) {
             this.blackHoleGroup.visible = true;
             this.blackHoleGroup.rotation.y += delta;

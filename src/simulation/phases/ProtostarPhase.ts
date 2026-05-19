@@ -44,12 +44,12 @@ export class ProtostarPhase implements PhaseComponent {
         this.hide();
     }
 
-    update(delta: number, appTime: number, _cameraPos: THREE.Vector3, physics: PhysicsConstants, t: number): void {
+    update(delta: number, _appTime: number, __cameraPos: THREE.Vector3, physics: PhysicsConstants, t: number): void {
         const normT = (t - 0.05) / 0.10;
         const introScale = this.baseRadius * (0.5 + normT * 0.5);
         this.protostarMesh.scale.setScalar(introScale);
         
-        this.protostarMat.uniforms.uTime.value = appTime;
+        this.protostarMat.uniforms.uTime.value = _appTime;
         this.protostarMat.uniforms.uHbar.value = physics.hbar || 1.0;
         this.protostarDisk.rotation.z += delta;
     }

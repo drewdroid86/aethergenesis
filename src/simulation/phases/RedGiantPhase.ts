@@ -45,12 +45,12 @@ export class RedGiantPhase implements PhaseComponent {
         this.hide();
     }
 
-    update(delta: number, appTime: number, _cameraPos: THREE.Vector3, physics: PhysicsConstants, t: number): void {
+    update(delta: number, _appTime: number, __cameraPos: THREE.Vector3, physics: PhysicsConstants, t: number): void {
         const normT = (t - 0.70) / 0.15;
-        const giantScale = this.baseRadius * (1.0 + normT * 6.0) + Math.sin(appTime * 2.0) * 0.1;
+        const giantScale = this.baseRadius * (1.0 + normT * 6.0) + Math.sin(_appTime * 2.0) * 0.1;
         this.redGiantMesh.scale.setScalar(giantScale);
         
-        this.redGiantMat.uniforms.uTime.value = appTime;
+        this.redGiantMat.uniforms.uTime.value = _appTime;
         this.redGiantMat.uniforms.uHbar.value = physics.hbar || 1.0;
 
         this.planetsInfo.forEach(p => {

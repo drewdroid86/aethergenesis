@@ -63,7 +63,7 @@ export class Engine {
         }
     }
 
-    update(delta: number, selectedStar: HeroStarSystem | null, _isScrubbing: boolean, physics: PhysicsConstants, cosmicAge: number) {
+    update(delta: number, selectedStar: HeroStarSystem | null, __isScrubbing: boolean, physics: PhysicsConstants, cosmicAge: number) {
         if (this.isPaused) return;
 
         this.appTime += delta; 
