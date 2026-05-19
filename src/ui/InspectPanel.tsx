@@ -16,7 +16,7 @@ interface GeminiAnalysisResult {
 interface InspectPanelProps {
     selectedStar: HeroStarSystem;
     setSelectedStar: (star: HeroStarSystem | null) => void;
-    isPaused: boolean;
+    _isPaused: boolean;
     setIsPaused: (paused: boolean) => void;
     physics: PhysicsConstants;
     onScrubStart: (e: React.PointerEvent) => void;
@@ -37,6 +37,7 @@ interface InspectPanelProps {
 export const InspectPanel: React.FC<InspectPanelProps> = ({
     selectedStar,
     setSelectedStar,
+    _isPaused: __isPaused,
     setIsPaused,
     physics,
     onScrubStart,

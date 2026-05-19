@@ -18,6 +18,7 @@ export class MainSequencePhase implements PhaseComponent {
     public starMesh!: THREE.Mesh;
     public coronaMesh!: THREE.Mesh;
     public hzMesh!: THREE.Mesh;
+    public starLight!: THREE.PointLight;
     public planetsInfo: PlanetInfo[] = [];
     
     private parent!: THREE.Group;
@@ -64,6 +65,11 @@ export class MainSequencePhase implements PhaseComponent {
         this.mainSeqGroup.add(this.starMesh);
         this.mainSeqGroup.add(this.coronaMesh);
         this.mainSeqGroup.add(haloMesh);
+
+        // Star Light for planets
+        this.starLight = new THREE.PointLight(msColor, 2, 50);
+        this.mainSeqGroup.add(this.starLight);
+
         this.parent.add(this.mainSeqGroup);
 
         // Habitable Zone
@@ -87,13 +93,16 @@ export class MainSequencePhase implements PhaseComponent {
         this.parent.add(this.hzMesh);
 
         // Planets
-        for(let i=0; i<2; i++) {
-            const dist = hzRadius * STELLAR_CONSTANTS.VISUALS.PLANET_HZ_DIST_FACTOR + Math.random() * 8 + (i * 2); 
-            const pScale = 0.2 + Math.random() * 0.25;
-            const pColor = i === 0 ? 0x8899aa : 0xcc8855;
+        const pColors = [0xff8844, 0x667788, 0xd2b48c, 0x8899aa];
+        for(let i=0; i<4; i++) {
+            const dist = 3 + Math.random() * 8 + (i * 2); 
+            const pScale = (0.1 + Math.random()*0.15) * 3;
             const pMesh = new THREE.Mesh(
                 GEOMETRIES.planet,
-                new THREE.MeshStandardMaterial({color: pColor, roughness: 0.8, metalness: 0.2})
+                new THREE.MeshPhongMaterial({
+                    color: pColors[i % pColors.length],
+                    shininess: 10
+                })
             );
             pMesh.scale.setScalar(pScale);
             pMesh.position.x = dist;
@@ -108,7 +117,7 @@ export class MainSequencePhase implements PhaseComponent {
         this.hide();
     }
 
-    update(delta: number, appTime: number, _cameraPos: THREE.Vector3, physics: PhysicsConstants, _t: number, lowDetail?: boolean): void {
+    update(delta: number, appTime: number, ___cameraPos: THREE.Vector3, physics: PhysicsConstants, _t: number): void {
         // BOLT: Removed redundant scale assignment
         this.starMat.uniforms.uTime.value = appTime;
         const hbar = physics.hbar ?? 1.0;
@@ -148,6 +157,7 @@ export class MainSequencePhase implements PhaseComponent {
         (this.coronaMesh.material as THREE.Material).dispose();
         this.hzMesh.geometry.dispose();
         (this.hzMesh.material as THREE.Material).dispose();
+        this.starLight.dispose();
         this.planetsInfo.forEach(p => {
             p.mesh.geometry.dispose();
             (p.mesh.material as THREE.Material).dispose();

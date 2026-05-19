@@ -10,6 +10,8 @@ export class NebulaPhase implements PhaseComponent {
     private nebulaMesh!: THREE.Mesh;
     private dustCloud!: THREE.Points;
     private parent!: THREE.Group;
+    private ____matrixInitialized: boolean = false;
+
     init(parent: THREE.Group): void {
         this.parent = parent;
 
@@ -61,16 +63,21 @@ export class NebulaPhase implements PhaseComponent {
         this.hide();
     }
 
-    update(delta: number, appTime: number, cameraPos: THREE.Vector3, _physics: PhysicsConstants, t: number, _lowDetail?: boolean): void {
-        const normT = t / STELLAR_CONSTANTS.PHASE_BOUNDARIES.NEBULA_LIMIT;
+    update(delta: number, _appTime: number, _cameraPos: THREE.Vector3, _physics: PhysicsConstants, t: number): void {
+        const normT = t / 0.05;
         
-        this.nebulaMat.uniforms.uTime.value = appTime;
+        this.nebulaMat.uniforms.uTime.value = _appTime;
         this.nebulaMat.uniforms.uCollapse.value = normT;
-        this.nebulaMat.uniforms.uCameraPos.value.copy(cameraPos);
+        this.nebulaMat.uniforms.uCameraPos.value.copy(_cameraPos);
 
-        // Update inverse matrix for local space calculations in the shader
-        this.nebulaMesh.updateMatrixWorld(true);
-        this.nebulaMat.uniforms.uInverseModelMatrix.value.copy(this.nebulaMesh.matrixWorld).invert();
+        // BOLT: Update inverse matrix only once after world matrix is ready
+        if (!this.____matrixInitialized) {
+            this.nebulaMesh.updateMatrixWorld(true);
+            if (this.nebulaMesh.matrixWorld.determinant() !== 0) {
+                this.nebulaMat.uniforms.uInverseModelMatrix.value.copy(this.nebulaMesh.matrixWorld).invert();
+                this.____matrixInitialized = true;
+            }
+        }
         
         this.dustCloud.rotation.y += delta * STELLAR_CONSTANTS.VISUALS.NEBULA_DUST_ROTATION_SPEED;
         (this.dustCloud.material as THREE.ShaderMaterial).uniforms.uAlpha.value = 1.0;
@@ -78,7 +85,7 @@ export class NebulaPhase implements PhaseComponent {
     }
 
     // Special update for when it's still visible during Protostar phase
-    updateAsSecondary(delta: number, _appTime: number, _cameraPos: THREE.Vector3, normT: number): void {
+    updateAsSecondary(delta: number, __appTime: number, __cameraPos: THREE.Vector3, normT: number): void {
         this.nebulaMesh.visible = true;
         this.nebulaMat.uniforms.uCollapse.value = 1.0;
         this.dustCloud.visible = true;

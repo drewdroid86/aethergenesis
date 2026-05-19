@@ -45,16 +45,13 @@ export class ProtostarPhase implements PhaseComponent {
         this.hide();
     }
 
-    update(delta: number, appTime: number, _cameraPos: THREE.Vector3, physics: PhysicsConstants, t: number, _lowDetail?: boolean): void {
-        const normT = (t - STELLAR_CONSTANTS.PHASE_BOUNDARIES.PROTOSTAR_START) / STELLAR_CONSTANTS.PHASE_BOUNDARIES.PROTOSTAR_DURATION;
-        const introScale = this.baseRadius * (STELLAR_CONSTANTS.VISUALS.PROTOSTAR_INTRO_SCALE_MIN + normT * (1.0 - STELLAR_CONSTANTS.VISUALS.PROTOSTAR_INTRO_SCALE_MIN));
+    update(delta: number, _appTime: number, __cameraPos: THREE.Vector3, physics: PhysicsConstants, t: number): void {
+        const normT = (t - 0.05) / 0.10;
+        const introScale = this.baseRadius * (0.5 + normT * 0.5);
         this.protostarMesh.scale.setScalar(introScale);
         
-        this.protostarMat.uniforms.uTime.value = appTime;
-        const hbar = physics.hbar ?? 1.0;
-        if (this.protostarMat.uniforms.uHbar.value !== hbar) {
-            this.protostarMat.uniforms.uHbar.value = hbar;
-        }
+        this.protostarMat.uniforms.uTime.value = _appTime;
+        this.protostarMat.uniforms.uHbar.value = physics.hbar || 1.0;
         this.protostarDisk.rotation.z += delta;
     }
 

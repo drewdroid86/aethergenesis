@@ -69,10 +69,8 @@ export class Engine {
         }
     }
 
-    update(delta: number, selectedStar: HeroStarSystem | null, _isScrubbing: boolean, physics: PhysicsConstants, cosmicAge: number) {
-        if (!this.isPaused) {
-            this.appTime += delta; 
-        }
+    update(delta: number, selectedStar: HeroStarSystem | null, __isScrubbing: boolean, physics: PhysicsConstants, cosmicAge: number) {
+        if (this.isPaused) return;
 
         // BOLT: Global frame calculations
         this._frustum.setFromProjectionMatrix(this._projScreenMatrix.multiplyMatrices(this.camera.projectionMatrix, this.camera.matrixWorldInverse));

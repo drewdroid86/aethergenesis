@@ -51,7 +51,7 @@ interface RateLimitData {
 const analysisLimitMap = new Map<string, RateLimitData>();
 const RATE_LIMIT_WINDOW = 60 * 1000; // 1 minute
 const MAX_REQUESTS_PER_WINDOW = 5;
-const MAX_ENTRIES = 1000; // Memory protection
+const _MAX_ENTRIES = 1000; // Memory protection
 
 // Periodic cleanup to prevent memory exhaustion
 setInterval(() => {
@@ -80,10 +80,9 @@ app.post('/api/analyze', async (req, res) => {
     record.windowStart = now;
   }
 
-  if (record.count >= MAX_REQUESTS_PER_WINDOW) {
-    const waitSec = Math.ceil((RATE_LIMIT_WINDOW - (now - record.windowStart)) / 1000);
-    res.setHeader('Retry-After', waitSec.toString());
-    return res.status(429).json({ error: 'Too many requests. Please wait ' + waitSec + 's.' });
+  // Memory protection: don't add new IPs if map is too large
+  if (analysisLimitMap.size >= _MAX_ENTRIES && !analysisLimitMap.has(ip)) {
+    return res.status(503).json({ error: 'Server busy.' });
   }
 
   record.count++;

@@ -56,13 +56,34 @@ export class RemnantPhase implements PhaseComponent {
         const diskMesh = new THREE.Mesh(GEOMETRIES.blackHoleDisk, diskMat);
         this.blackHoleGroup.add(bhCore);
         this.blackHoleGroup.add(diskMesh);
+
+        // Inner hot ring
+        const innerRingMat = new THREE.MeshBasicMaterial({
+            color: 0xff4400, transparent: true, opacity: 0.4, blending: THREE.AdditiveBlending
+        });
+        const innerRing = new THREE.Mesh(GEOMETRIES.blackHoleDisk, innerRingMat);
+        innerRing.scale.setScalar(2.2 / 1.5);
+        this.blackHoleGroup.add(innerRing);
+
+        // Outer cool ring
+        const outerRingMat = new THREE.MeshBasicMaterial({
+            color: 0x4488ff, transparent: true, opacity: 0.2, blending: THREE.AdditiveBlending
+        });
+        const outerRing = new THREE.Mesh(GEOMETRIES.blackHoleDisk, outerRingMat);
+        outerRing.scale.setScalar(3.0 / 1.5);
+        this.blackHoleGroup.add(outerRing);
+
+        // Black Hole Light
+        const bhLight = new THREE.PointLight(0xff6600, 2, 20);
+        this.blackHoleGroup.add(bhLight);
+
         this.parent.add(this.blackHoleGroup);
         
         this.hide();
     }
 
-    update(delta: number, _appTime: number, _cameraPos: THREE.Vector3, _physics: PhysicsConstants, _t: number, lowDetail?: boolean): void {
-        if (this.mass > STELLAR_CONSTANTS.PHYSICS.MASS_THRESHOLD_BLACK_HOLE) {
+    update(delta: number, __appTime: number, ___cameraPos: THREE.Vector3, _physics: PhysicsConstants, _t: number): void {
+        if (this.mass > 15) {
             this.blackHoleGroup.visible = true;
             if (!lowDetail) this.blackHoleGroup.rotation.y += delta;
             this.blackHoleGroup.rotation.z = Math.PI / 8;
@@ -135,6 +156,7 @@ export class RemnantPhase implements PhaseComponent {
         });
         this.blackHoleGroup.children.forEach(c => {
             if ((c as THREE.Mesh).material) ((c as THREE.Mesh).material as THREE.Material).dispose();
+            if ((c as any).dispose) (c as any).dispose();
         });
         this.parent.remove(this.neutronStarGroup);
         this.parent.remove(this.blackHoleGroup);
