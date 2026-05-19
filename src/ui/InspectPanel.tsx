@@ -37,7 +37,7 @@ interface InspectPanelProps {
 export const InspectPanel: React.FC<InspectPanelProps> = ({
     selectedStar,
     setSelectedStar,
-    isPaused: _,
+    isPaused: _isPaused,
     setIsPaused,
     physics,
     onScrubStart,
@@ -125,7 +125,7 @@ Civilization: ${geminiData.civilization}`;
             const data = await response.json() as GeminiAnalysisResult;
             setGeminiData(data);
             setAnalysisFailed(false);
-        } catch (_: unknown) {
+        } catch (_err: unknown) {
             console.warn("Analysis unavailable - using predictive fallback.");
             setAnalysisFailed(true);
             setGeminiData({

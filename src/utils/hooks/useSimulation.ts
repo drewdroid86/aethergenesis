@@ -28,7 +28,7 @@ export function useSimulation(containerRef: React.RefObject<HTMLDivElement | nul
     const isScrubbingRef = useRef(false);
 
     // Performance State
-    const [currentTier, setCurrentTier] = useState<'low' | 'medium' | 'high' | 'ultra'>('medium');
+    const [currentTier, setCurrentTier] = useState<'low' | 'medium' | 'high' | 'ultra'>(() => detectPerformanceTier());
     const currentTierRef = useRef(currentTier);
     const [fps, setFps] = useState(0);
     const [numHeroStars, setNumHeroStars] = useState(0);
@@ -141,11 +141,6 @@ export function useSimulation(containerRef: React.RefObject<HTMLDivElement | nul
         rebuildStarfieldGeometry();
     }, [rebuildStarfieldGeometry]); 
 
-    useEffect(() => {
-        const initialTier = detectPerformanceTier();
-        currentTierRef.current = initialTier;
-        setCurrentTier(initialTier);
-    }, []);
 
     useEffect(() => {
         if (!containerRef.current) return;
@@ -284,9 +279,9 @@ export function useSimulation(containerRef: React.RefObject<HTMLDivElement | nul
                             uiRefs.stellarSlider.current.setAttribute('aria-valuetext', `${perc}% of Stellar Lifecycle (${PHASE_NAMES[s.phase]})`);
                         }
                     }
-                } catch (err: any) {
+                } catch (err: unknown) {
                     cancelAnimationFrame(frameId);
-                    setFatalError(err.message);
+                    setFatalError(err instanceof Error ? err.message : 'Unknown error');
                 }
             };
             animate();
@@ -322,8 +317,8 @@ export function useSimulation(containerRef: React.RefObject<HTMLDivElement | nul
                 engine.dispose();
                 engineRef.current = null;
             };
-        } catch (err: any) {
-            setFatalError(err?.message || 'Unknown error');
+        } catch (err: unknown) {
+            setFatalError(err instanceof Error ? err.message : 'Unknown error');
         }
     }, [handleTierChange, rebuildStarfieldGeometry]); 
 
@@ -408,8 +403,8 @@ export function useSimulation(containerRef: React.RefObject<HTMLDivElement | nul
                 e.currentTarget.setAttribute('aria-valuenow', formattedAge);
                 e.currentTarget.setAttribute('aria-valuetext', `${formattedAge} Billion Years`);
             } else if (selectedStarRef.current) {
-                let t = k==='Home'?0 : k==='End'?1 : selectedStarRef.current.t+(k==='ArrowLeft'?-0.01:0.01);
-                selectedStarRef.current.t = Math.max(0, Math.min(1, t));
+                const tVal = k==='Home'?0 : k==='End'?1 : selectedStarRef.current.t+(k==='ArrowLeft'?-0.01:0.01);
+                selectedStarRef.current.t = Math.max(0, Math.min(1, tVal));
                 const perc = Math.round(selectedStarRef.current.t * 100);
                 e.currentTarget.setAttribute('aria-valuenow', perc.toString());
                 e.currentTarget.setAttribute('aria-valuetext', `${perc}% of Stellar Lifecycle (${PHASE_NAMES[selectedStarRef.current.phase]})`);
