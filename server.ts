@@ -22,7 +22,7 @@ app.use(express.json({ limit: '10kb' }));
 app.use((_req, res, next) => {
   res.setHeader('X-Content-Type-Options', 'nosniff');
   res.setHeader('X-Frame-Options', 'DENY');
-  res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
+  res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains; preload');
   res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
   res.setHeader('Content-Security-Policy', "default-src 'self'; script-src 'self' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; connect-src 'self' ws: wss:; img-src 'self' data: https:; font-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; upgrade-insecure-requests;");
   res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
@@ -51,7 +51,7 @@ interface RateLimitData {
 const analysisLimitMap = new Map<string, RateLimitData>();
 const RATE_LIMIT_WINDOW = 60 * 1000; // 1 minute
 const MAX_REQUESTS_PER_WINDOW = 5;
-const MAX_ENTRIES = 1000; // Memory protection
+const MAX_ENTRIES = 10000; // Memory protection
 
 // Periodic cleanup to prevent memory exhaustion
 setInterval(() => {
@@ -87,7 +87,22 @@ app.post('/api/analyze', async (req, res) => {
   }
 
   record.count++;
+
+  // Security: FIFO eviction to strictly enforce MAX_ENTRIES memory limit
+  if (analysisLimitMap.size >= MAX_ENTRIES && !analysisLimitMap.has(ip)) {
+    const firstKey = analysisLimitMap.keys().next().value;
+    if (firstKey !== undefined) analysisLimitMap.delete(firstKey);
+  }
+
   analysisLimitMap.set(ip, record);
+
+  // Security: Prevent sensitive AI data caching
+  res.setHeader('Cache-Control', 'no-store, max-age=0');
+
+  // Security: Primary defense-in-depth check for req.body
+  if (!req.body || typeof req.body !== 'object') {
+    return res.status(400).json({ error: 'Malformed request body.' });
+  }
 
   const { temp, mass, lum, age, phase, G, alpha } = req.body;
 
