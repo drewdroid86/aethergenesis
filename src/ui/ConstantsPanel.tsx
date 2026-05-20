@@ -5,21 +5,26 @@ import { DEFAULT_CONSTANTS, PhysicsConstants } from '../types/physics';
 interface ConstantsPanelProps {
     physics: PhysicsConstants;
     setPhysics: React.Dispatch<React.SetStateAction<PhysicsConstants>>;
+    isOpen: boolean;
+    setIsOpen: (open: boolean) => void;
 }
 
-export const ConstantsPanel: React.FC<ConstantsPanelProps> = ({ physics, setPhysics }) => {
-    const [isOpen, setIsOpen] = useState(true);
-
+export const ConstantsPanel: React.FC<ConstantsPanelProps> = ({ physics, setPhysics, isOpen, setIsOpen }) => {
     if (!isOpen) {
         return (
-            <button 
-                onClick={() => setIsOpen(true)} 
-                className="absolute left-8 top-32 bg-[rgba(14,14,28,0.7)] backdrop-blur-xl border border-[rgba(126,184,255,0.3)] rounded-full p-4 z-30 shadow-[0_0_30px_rgba(0,0,0,0.5)] transform transition-all pointer-events-auto text-[#7EB8FF]/70 hover:text-white group focus-visible:ring-2 focus-visible:ring-[#C084FC] outline-none"
-                title="Open Physical Constants"
-                aria-label="Open Physical Constants"
-            >
-                <Settings2 size={24} className="group-hover:text-[#C084FC] transition-colors" />
-            </button>
+            <div className="absolute left-8 top-32 group/const">
+                <button
+                    onClick={() => setIsOpen(true)}
+                    className="bg-[rgba(14,14,28,0.7)] backdrop-blur-xl border border-[rgba(126,184,255,0.3)] rounded-full p-4 z-30 shadow-[0_0_30px_rgba(0,0,0,0.5)] transform transition-all pointer-events-auto text-[#7EB8FF]/70 hover:text-white group focus-visible:ring-2 focus-visible:ring-[#C084FC] outline-none"
+                    title="Open Physical Constants [C]"
+                    aria-label="Open Physical Constants"
+                >
+                    <Settings2 size={24} className="group-hover:text-[#C084FC] transition-colors" />
+                </button>
+                <span className="absolute -top-6 left-1/2 -translate-x-1/2 text-[10px] text-[#C084FC] opacity-0 group-hover/const:opacity-100 transition-opacity pointer-events-none whitespace-nowrap">
+                    [C] Constants
+                </span>
+            </div>
         );
     }
 
@@ -31,21 +36,32 @@ export const ConstantsPanel: React.FC<ConstantsPanelProps> = ({ physics, setPhys
                     Constants
                 </h2>
                 <div className="flex items-center gap-2">
-                    <button
-                        onClick={() => setPhysics(DEFAULT_CONSTANTS)}
-                        className="text-[#7EB8FF]/50 hover:text-[#C084FC] transition-all focus-visible:ring-2 focus-visible:ring-[#C084FC] outline-none rounded p-1 group/reset"
-                        aria-label="Reset to Defaults"
-                        title="Reset to Defaults"
-                    >
-                        <RotateCcw size={16} className="group-hover/reset:rotate-[-45deg] transition-transform" />
-                    </button>
-                    <button
-                        onClick={() => setIsOpen(false)}
-                        className="text-[#7EB8FF]/70 hover:text-white transition-colors focus-visible:ring-2 focus-visible:ring-[#C084FC] outline-none rounded p-1"
-                        aria-label="Close Physical Constants"
-                    >
-                        <X size={20} />
-                    </button>
+                    <div className="relative group/reset">
+                        <button
+                            onClick={() => setPhysics(DEFAULT_CONSTANTS)}
+                            className="text-[#7EB8FF]/50 hover:text-[#C084FC] transition-all focus-visible:ring-2 focus-visible:ring-[#C084FC] outline-none rounded p-1"
+                            aria-label="Reset to Defaults"
+                            title="Reset to Defaults"
+                        >
+                            <RotateCcw size={16} className="group-hover:rotate-[-45deg] transition-transform" />
+                        </button>
+                        <span className="absolute -top-6 left-1/2 -translate-x-1/2 text-[10px] text-[#C084FC] opacity-0 group-hover/reset:opacity-100 transition-opacity pointer-events-none whitespace-nowrap">
+                            Reset
+                        </span>
+                    </div>
+                    <div className="relative group/close">
+                        <button
+                            onClick={() => setIsOpen(false)}
+                            className="text-[#7EB8FF]/70 hover:text-white transition-colors focus-visible:ring-2 focus-visible:ring-[#C084FC] outline-none rounded p-1"
+                            aria-label="Close Physical Constants"
+                            title="Close Constants [C]"
+                        >
+                            <X size={20} />
+                        </button>
+                        <span className="absolute -top-6 left-1/2 -translate-x-1/2 text-[10px] text-[#C084FC] opacity-0 group-hover/close:opacity-100 transition-opacity pointer-events-none whitespace-nowrap">
+                            [C]
+                        </span>
+                    </div>
                 </div>
             </div>
             <div className="space-y-4 text-xs font-mono">

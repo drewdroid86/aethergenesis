@@ -154,14 +154,19 @@ Civilization: ${geminiData.civilization}`;
                     <h2 className="text-sm font-bold tracking-widest uppercase text-white">Stellar Telemetry</h2>
                 </div>
                 <div className="flex items-center gap-2">
-                    <button
-                        onClick={copyTelemetry}
-                        className="text-[#7EB8FF]/70 hover:text-white transition-colors focus-visible:ring-2 focus-visible:ring-[#C084FC] outline-none rounded p-1"
-                        aria-label="Copy Telemetry"
-                        title="Copy Telemetry"
-                    >
-                        {copied ? <Check size={16} className="text-green-400" /> : <Copy size={16} />}
-                    </button>
+                    <div className="relative group/copy">
+                        <button
+                            onClick={copyTelemetry}
+                            className="text-[#7EB8FF]/70 hover:text-white transition-colors focus-visible:ring-2 focus-visible:ring-[#C084FC] outline-none rounded p-1"
+                            aria-label="Copy Telemetry"
+                            title="Copy Telemetry"
+                        >
+                            {copied ? <Check size={16} className="text-green-400" /> : <Copy size={16} />}
+                        </button>
+                        <span className="absolute -top-6 left-1/2 -translate-x-1/2 text-[10px] text-[#C084FC] opacity-0 group-hover/copy:opacity-100 transition-opacity pointer-events-none whitespace-nowrap">
+                            {copied ? 'Copied!' : 'Copy'}
+                        </span>
+                    </div>
                     <button
                         onClick={() => setSelectedStar(null)}
                         className="text-[#7EB8FF]/70 hover:text-white transition-colors focus-visible:ring-2 focus-visible:ring-[#C084FC] outline-none rounded p-1 flex items-center gap-1"
@@ -248,7 +253,7 @@ Civilization: ${geminiData.civilization}`;
                         )}
                     </button>
                     {geminiData && (
-                        <div className="mt-4 p-3 bg-black/40 border border-[#7EB8FF]/20 rounded text-[10px] space-y-2">
+                        <div className="mt-4 p-3 bg-black/40 border border-[#7EB8FF]/20 rounded text-[10px] space-y-2" aria-live="polite">
                             <div className="text-white"><span className="text-[#7EB8FF]/70">Planet:</span> {geminiData.planet_name}</div>
                             <div className="text-white"><span className="text-[#7EB8FF]/70">Biome:</span> {geminiData.biome}</div>
                             <div className="text-white"><span className="text-[#7EB8FF]/70">Species:</span> {geminiData.dominant_species} (Stage {geminiData.life_stage})</div>

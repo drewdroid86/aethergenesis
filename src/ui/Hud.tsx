@@ -122,14 +122,19 @@ export const Hud: React.FC<HudProps> = ({
                         <span className="inline-block w-2 h-2 rounded-full bg-[#C084FC] animate-pulse shadow-[0_0_5px_#C084FC]" />
                         <span className="uppercase tracking-widest text-[#7EB8FF]">Location</span>
                     </div>
-                    <button
-                        onClick={copyCoordinates}
-                        className="text-[#7EB8FF]/40 hover:text-white transition-colors focus-visible:ring-2 focus-visible:ring-[#C084FC] outline-none rounded"
-                        aria-label="Copy Coordinates"
-                        title="Copy Coordinates"
-                    >
-                        {copied ? <Check size={12} className="text-green-400" /> : <Copy size={12} />}
-                    </button>
+                    <div className="relative group/copy">
+                        <button
+                            onClick={copyCoordinates}
+                            className="text-[#7EB8FF]/40 hover:text-white transition-colors focus-visible:ring-2 focus-visible:ring-[#C084FC] outline-none rounded p-1"
+                            aria-label="Copy Coordinates"
+                            title="Copy Coordinates"
+                        >
+                            {copied ? <Check size={12} className="text-green-400" /> : <Copy size={12} />}
+                        </button>
+                        <span className="absolute -top-6 left-1/2 -translate-x-1/2 text-[10px] text-[#C084FC] opacity-0 group-hover/copy:opacity-100 transition-opacity pointer-events-none whitespace-nowrap">
+                            {copied ? 'Copied!' : 'Copy'}
+                        </span>
+                    </div>
                 </div>
                 <div className="text-white"><span className="text-[#7EB8FF]/70 mr-2">POS_X:</span><span ref={uiRefs.hudX}>0.0000</span></div>
                 <div className="text-white"><span className="text-[#7EB8FF]/70 mr-2">POS_Y:</span><span ref={uiRefs.hudY}>0.0000</span></div>
@@ -142,15 +147,18 @@ export const Hud: React.FC<HudProps> = ({
                             <span className="text-[9px] uppercase tracking-widest text-[#7EB8FF]">
                                 Global Cosmic Age (Gyr) <span className="opacity-0 group-hover:opacity-100 transition-opacity ml-2 text-[8px] text-[#C084FC] hidden sm:inline">[Arrows to Seek]</span>
                             </span>
-                            <div className="flex gap-2">
+                            <div className="flex gap-2 relative group/play">
                                 <button
                                     onClick={() => setIsPlayingCosmic(!isPlayingCosmic)}
-                                    className="text-white/40 hover:text-white transition-colors focus-visible:ring-2 focus-visible:ring-[#C084FC] outline-none rounded"
+                                    className="text-white/40 hover:text-white transition-colors focus-visible:ring-2 focus-visible:ring-[#C084FC] outline-none rounded p-1"
                                     aria-label={isPlayingCosmic ? "Pause cosmic simulation" : "Play cosmic simulation"}
-                                    title={isPlayingCosmic ? "Pause Cosmic Simulation" : "Play Cosmic Simulation"}
+                                    title={isPlayingCosmic ? "Pause Cosmic Simulation [Space]" : "Play Cosmic Simulation [Space]"}
                                 >
                                     {isPlayingCosmic ? <Pause size={14} /> : <Play size={14} />}
                                 </button>
+                                <span className="absolute -top-6 left-1/2 -translate-x-1/2 text-[10px] text-[#C084FC] opacity-0 group-hover/play:opacity-100 transition-opacity pointer-events-none whitespace-nowrap">
+                                    [Space]
+                                </span>
                             </div>
                         </div>
                         
@@ -179,20 +187,30 @@ export const Hud: React.FC<HudProps> = ({
 
                 <div className="flex flex-col items-end gap-2 text-right">
                 <div className="grid grid-cols-2 gap-2 pointer-events-auto">
-                    <button 
-                        onClick={resetCamera}
-                        className="w-10 h-10 flex items-center justify-center bg-[rgba(8,8,20,0.6)] border border-[rgba(126,184,255,0.2)] rounded-md backdrop-blur-md transition-colors hover:bg-[rgba(126,184,255,0.1)] cursor-pointer focus-visible:ring-2 focus-visible:ring-[#C084FC] outline-none" 
-                        aria-label="Reset Camera" title="Reset Camera"
-                    >
-                    <Crosshair size={16} className="text-[#7EB8FF]" />
-                    </button>
-                    <button 
-                        onClick={centerOnStar}
-                        className="w-10 h-10 flex items-center justify-center bg-[rgba(8,8,20,0.6)] border border-[rgba(126,184,255,0.2)] rounded-md backdrop-blur-md transition-colors hover:bg-[rgba(126,184,255,0.1)] cursor-pointer focus-visible:ring-2 focus-visible:ring-[#C084FC] outline-none" 
-                        aria-label="Center on Star" title="Center on Star"
-                    >
-                    <Navigation size={16} className="text-[#C084FC]" />
-                    </button>
+                    <div className="relative group/reset">
+                        <button
+                            onClick={resetCamera}
+                            className="w-10 h-10 flex items-center justify-center bg-[rgba(8,8,20,0.6)] border border-[rgba(126,184,255,0.2)] rounded-md backdrop-blur-md transition-colors hover:bg-[rgba(126,184,255,0.1)] cursor-pointer focus-visible:ring-2 focus-visible:ring-[#C084FC] outline-none"
+                            aria-label="Reset Camera" title="Reset Camera [R]"
+                        >
+                        <Crosshair size={16} className="text-[#7EB8FF]" />
+                        </button>
+                        <span className="absolute -top-8 left-1/2 -translate-x-1/2 text-[10px] text-[#C084FC] opacity-0 group-hover/reset:opacity-100 transition-opacity pointer-events-none whitespace-nowrap">
+                            [R] Reset
+                        </span>
+                    </div>
+                    <div className="relative group/focus">
+                        <button
+                            onClick={centerOnStar}
+                            className="w-10 h-10 flex items-center justify-center bg-[rgba(8,8,20,0.6)] border border-[rgba(126,184,255,0.2)] rounded-md backdrop-blur-md transition-colors hover:bg-[rgba(126,184,255,0.1)] cursor-pointer focus-visible:ring-2 focus-visible:ring-[#C084FC] outline-none"
+                            aria-label="Center on Star" title="Center on Star [F]"
+                        >
+                        <Navigation size={16} className="text-[#C084FC]" />
+                        </button>
+                        <span className="absolute -top-8 left-1/2 -translate-x-1/2 text-[10px] text-[#C084FC] opacity-0 group-hover/focus:opacity-100 transition-opacity pointer-events-none whitespace-nowrap">
+                            [F] Focus
+                        </span>
+                    </div>
                 </div>
                 <span className="text-[9px] uppercase tracking-widest text-[#7EB8FF]/60 mt-1">Stellar Raycasting Active</span>
                 </div>

@@ -27,6 +27,7 @@ export function useSimulation(containerRef: React.RefObject<HTMLDivElement | nul
     // Performance State
     const [currentTier, setCurrentTier] = useState<'low' | 'medium' | 'high' | 'ultra'>('medium');
     const currentTierRef = useRef(currentTier);
+    const [isConstantsOpen, setIsConstantsOpen] = useState(true);
     const [fps, setFps] = useState(0);
     const [showTierDownIndicator, setShowTierDownIndicator] = useState(false);
     const consecutiveFramesBelowThresholdRef = useRef(0);
@@ -284,9 +285,35 @@ export function useSimulation(containerRef: React.RefObject<HTMLDivElement | nul
             };
 
             const handleGlobalKeyDown = (e: KeyboardEvent) => {
+                const target = e.target as HTMLElement;
+                if (
+                    target.tagName === 'INPUT' ||
+                    target.tagName === 'TEXTAREA' ||
+                    target.isContentEditable ||
+                    target.getAttribute('role') === 'slider'
+                ) {
+                    return;
+                }
+
                 if (e.key === 'Escape') {
                     selectedStarRef.current = null;
                     setSelectedStar(null);
+                    setIsConstantsOpen(false);
+                } else if (e.key === ' ') {
+                    e.preventDefault();
+                    setIsPlayingCosmic(prev => !prev);
+                } else if (e.key.toLowerCase() === 'r') {
+                    controlsRef.current?.reset();
+                } else if (e.key.toLowerCase() === 'f') {
+                    if (selectedStarRef.current && controlsRef.current && engineRef.current) {
+                        const targetPos = selectedStarRef.current.position.clone();
+                        const camOffset = engineRef.current.camera.position.clone().sub(controlsRef.current.target).normalize().multiplyScalar(40);
+                        engineRef.current.camera.position.copy(targetPos).add(camOffset);
+                        controlsRef.current.target.copy(targetPos);
+                        controlsRef.current.update();
+                    }
+                } else if (e.key.toLowerCase() === 'c') {
+                    setIsConstantsOpen(prev => !prev);
                 }
             };
 
@@ -352,6 +379,8 @@ export function useSimulation(containerRef: React.RefObject<HTMLDivElement | nul
         setCosmicAge,
         isPlayingCosmic,
         setIsPlayingCosmic,
+        isConstantsOpen,
+        setIsConstantsOpen,
         currentTier, 
         fps, 
         showTierDownIndicator, 
