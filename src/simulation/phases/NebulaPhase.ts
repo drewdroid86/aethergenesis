@@ -11,6 +11,7 @@ export class NebulaPhase implements PhaseComponent {
     private dustCloud!: THREE.Points;
     private parent!: THREE.Group;
     private _matrixInitialized: boolean = false;
+    private _lastMatrixWorld: THREE.Matrix4 = new THREE.Matrix4();
 
     init(parent: THREE.Group): void {
         this.parent = parent;
@@ -63,16 +64,21 @@ export class NebulaPhase implements PhaseComponent {
         this.hide();
     }
 
-    update(delta: number, appTime: number, cameraPos: THREE.Vector3, physics: PhysicsConstants, t: number, lowDetail?: boolean): void {
+    update(delta: number, appTime: number, cameraPos: THREE.Vector3, _physics: PhysicsConstants, t: number, _lowDetail?: boolean): void {
         const normT = t / STELLAR_CONSTANTS.PHASE_BOUNDARIES.NEBULA_LIMIT;
         
         this.nebulaMat.uniforms.uTime.value = appTime;
         this.nebulaMat.uniforms.uCollapse.value = normT;
         this.nebulaMat.uniforms.uCameraPos.value.copy(cameraPos);
 
-        // Update inverse matrix for local space calculations in the shader
+        // BOLT: Guard uInverseModelMatrix inversion to only occur when the matrix actually changes.
+        // For stars that don't move or scale frequently, this reclaims significant CPU cycles.
         this.nebulaMesh.updateMatrixWorld(true);
-        this.nebulaMat.uniforms.uInverseModelMatrix.value.copy(this.nebulaMesh.matrixWorld).invert();
+        if (!this._matrixInitialized || !this._lastMatrixWorld.equals(this.nebulaMesh.matrixWorld)) {
+            this.nebulaMat.uniforms.uInverseModelMatrix.value.copy(this.nebulaMesh.matrixWorld).invert();
+            this._lastMatrixWorld.copy(this.nebulaMesh.matrixWorld);
+            this._matrixInitialized = true;
+        }
         
         this.dustCloud.rotation.y += delta * STELLAR_CONSTANTS.VISUALS.NEBULA_DUST_ROTATION_SPEED;
         (this.dustCloud.material as THREE.ShaderMaterial).uniforms.uAlpha.value = 1.0;

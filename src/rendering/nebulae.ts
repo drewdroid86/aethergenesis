@@ -16,6 +16,9 @@ function generateClusteredPositions(spread: number, count: number, center: THREE
     return positions;
 }
 
+// BOLT: Reuse persistent scratch objects to minimize garbage collection pressure
+const _SCRATCH_V3 = new THREE.Vector3();
+
 export class NebulaSystem {
     private nebulae: THREE.Group[] = [];
     private scene: THREE.Object3D;
@@ -100,14 +103,15 @@ export class NebulaSystem {
 
     update(deltaTime: number, cameraPosition: THREE.Vector3) {
         const timeScale = deltaTime * 0.001;
-        this.nebulae.forEach(group => {
+        // BOLT: Use standard for loop to reduce closure allocation and function invocation overhead
+        for (let i = 0; i < this.nebulae.length; i++) {
+            const group = this.nebulae[i];
             // Apply subtle, slow rotation
             group.rotation.y += group.userData.rotationSpeed * timeScale * 50; // Reduced multiplier for subtle rotation
             
-            // Distance-based fading: implemented indirectly via opacity and sizeAttenuation.
-            // For more explicit fading, one might adjust material.opacity based on distance to camera.
-            // The current positioning and low opacity already contribute to a sense of distance.
-            group.position.copy(group.userData.initialPosition).add(cameraPosition.clone().multiplyScalar(0.05));
-        });
+            // BOLT: Use scratch Vector3 to eliminate per-frame object allocations
+            _SCRATCH_V3.copy(cameraPosition).multiplyScalar(0.05);
+            group.position.copy(group.userData.initialPosition).add(_SCRATCH_V3);
+        }
     }
 }

@@ -240,28 +240,42 @@ export class HeroStarSystem extends THREE.Group {
             }
         }
         
-        // BOLT: Optimize transition opacities with caching and guarded assignments
+        // BOLT: Optimize transition opacities with caching and guarded assignments to avoid redundant uniform writes
         const speed = delta * STELLAR_CONSTANTS.TRANSITIONS.DEFAULT_SPEED;
-        this._opP = stepOp(this._opP, targetProto, speed);
-        this.protostarPhase.setOpacity(targetProto > 0 ? this._opP * (flicker ?? 1.0) : this._opP);
+
+        const nextOpP = stepOp(this._opP, targetProto, speed);
+        const targetOpP = targetProto > 0 ? nextOpP * (flicker ?? 1.0) : nextOpP;
+        if (this._opP !== nextOpP || (targetProto > 0 && flicker !== undefined)) {
+            this.protostarPhase.setOpacity(targetOpP);
+            this._opP = nextOpP;
+        }
         if (this.protostarPhase.protostarGroup.visible !== this._opP > STELLAR_CONSTANTS.TRANSITIONS.VISIBILITY_THRESHOLD) {
             this.protostarPhase.protostarGroup.visible = this._opP > STELLAR_CONSTANTS.TRANSITIONS.VISIBILITY_THRESHOLD;
         }
 
-        this._opM = stepOp(this._opM, targetMain, speed);
-        this.mainSequencePhase.setOpacity(this._opM);
+        const nextOpM = stepOp(this._opM, targetMain, speed);
+        if (this._opM !== nextOpM) {
+            this.mainSequencePhase.setOpacity(nextOpM);
+            this._opM = nextOpM;
+        }
         if (this.mainSequencePhase.mainSeqGroup.visible !== this._opM > STELLAR_CONSTANTS.TRANSITIONS.VISIBILITY_THRESHOLD) {
             this.mainSequencePhase.mainSeqGroup.visible = this._opM > STELLAR_CONSTANTS.TRANSITIONS.VISIBILITY_THRESHOLD;
         }
 
-        this._opR = stepOp(this._opR, targetRed, speed);
-        this.redGiantPhase.setOpacity(this._opR);
+        const nextOpR = stepOp(this._opR, targetRed, speed);
+        if (this._opR !== nextOpR) {
+            this.redGiantPhase.setOpacity(nextOpR);
+            this._opR = nextOpR;
+        }
         if (this.redGiantPhase.redGiantGroup.visible !== this._opR > STELLAR_CONSTANTS.TRANSITIONS.VISIBILITY_THRESHOLD) {
             this.redGiantPhase.redGiantGroup.visible = this._opR > STELLAR_CONSTANTS.TRANSITIONS.VISIBILITY_THRESHOLD;
         }
 
-        this._opS = stepOp(this._opS, targetSuper, speed);
-        this.supernovaPhase.setOpacity(this._opS);
+        const nextOpS = stepOp(this._opS, targetSuper, speed);
+        if (this._opS !== nextOpS) {
+            this.supernovaPhase.setOpacity(nextOpS);
+            this._opS = nextOpS;
+        }
         if (this.supernovaPhase.supernovaGroup.visible !== this._opS > STELLAR_CONSTANTS.TRANSITIONS.VISIBILITY_THRESHOLD) {
             this.supernovaPhase.supernovaGroup.visible = this._opS > STELLAR_CONSTANTS.TRANSITIONS.VISIBILITY_THRESHOLD;
         }

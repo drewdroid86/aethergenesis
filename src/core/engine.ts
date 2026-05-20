@@ -56,7 +56,7 @@ export class Engine {
         this.createHeroStars(getNumStarsForTier(detectPerformanceTier()), initialPhysics);
     }
 
-    createHeroStars(count: number, physicsConstants: PhysicsConstants) {
+    createHeroStars(count: number, _physicsConstants: PhysicsConstants) {
         for (let i = 0; i < count; i++) {
             const star = new HeroStarSystem();
             star.position.set(
@@ -78,7 +78,9 @@ export class Engine {
         this._frustum.setFromProjectionMatrix(this._projScreenMatrix.multiplyMatrices(this.camera.projectionMatrix, this.camera.matrixWorldInverse));
         const protostarFlicker = 0.8 + 0.2 * Math.sin(this.appTime * 20.0);
 
-        this.heroStars.forEach(star => {
+        // BOLT: Use standard for loop to reduce closure allocation and function invocation overhead in high-frequency (60fps) loop
+        for (let i = 0; i < this.heroStars.length; i++) {
+            const star = this.heroStars[i];
             star.update(
                 this.isPaused ? 0 : delta, 
                 this.appTime,
@@ -89,7 +91,7 @@ export class Engine {
                 this._frustum,
                 protostarFlicker
             );
-        });
+        }
 
         if (!this.isPaused) {
             this.nebulaSystem.update(delta, this.camera.position);
