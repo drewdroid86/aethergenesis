@@ -1,6 +1,5 @@
 import * as THREE from 'three';
 import { PHASES, STELLAR_CONSTANTS } from '../../core/constants';
-import { PhysicalBody } from '../../types/physics';
 import { PhysicsConstants } from '../../types/physics';
 import { NebulaPhase } from '../../simulation/phases/NebulaPhase';
 import { ProtostarPhase } from '../../simulation/phases/ProtostarPhase';
@@ -26,7 +25,7 @@ const getPhaseForT = (t: number): number => {
     return PHASES.REMNANT;
 };
 
-export class HeroStarSystem extends THREE.Group implements PhysicalBody {
+export class HeroStarSystem extends THREE.Group {
     physicsId: string;
     velocity: THREE.Vector3 = new THREE.Vector3();
     acceleration: THREE.Vector3 = new THREE.Vector3();
