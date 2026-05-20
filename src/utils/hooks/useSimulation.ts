@@ -3,6 +3,7 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { Engine } from '../../core/engine';
 import { HeroStarSystem } from '../../rendering/systems/HeroStarSystem';
+import { NebulaSystem } from '../../rendering/systems/NebulaSystem';
 import { PHASE_NAMES } from '../../core/constants';
 import { PhysicsConstants } from '../../types/physics';
 import { 
@@ -15,6 +16,7 @@ import {
 
 export function useSimulation(containerRef: React.RefObject<HTMLDivElement | null>) {
     const engineRef = useRef<Engine | null>(null);
+    const nebulaSystemRef = useRef<NebulaSystem | null>(null);
     const controlsRef = useRef<OrbitControls | null>(null);
     const [selectedStar, setSelectedStar] = useState<HeroStarSystem | null>(null);
     const selectedStarRef = useRef<HeroStarSystem | null>(null);
@@ -146,6 +148,9 @@ export function useSimulation(containerRef: React.RefObject<HTMLDivElement | nul
             const engine = new Engine(containerRef.current);
             engineRef.current = engine;
 
+            const nebulaSystem = new NebulaSystem(engine.scene);
+            nebulaSystemRef.current = nebulaSystem;
+
             const controls = new OrbitControls(engine.camera, engine.renderer.domElement);
             controls.enableDamping = true;
             controls.dampingFactor = 0.05;
@@ -251,6 +256,11 @@ export function useSimulation(containerRef: React.RefObject<HTMLDivElement | nul
 
                     engine.isPaused = isPausedRef.current;
                     engine.update(delta, selectedStarRef.current, isScrubbingRef.current, physicsRef.current, cosmicAgeRef.current);
+                    
+                    if (nebulaSystemRef.current) {
+                        nebulaSystemRef.current.update(delta, engine.appTime);
+                    }
+
                     controls.update();
 
                     if (hudRefs.hudX.current) hudRefs.hudX.current.innerText = engine.camera.position.x.toFixed(4);
@@ -303,6 +313,12 @@ export function useSimulation(containerRef: React.RefObject<HTMLDivElement | nul
                 if (tierDownIndicatorTimeoutRef.current) {
                     clearTimeout(tierDownIndicatorTimeoutRef.current);
                 }
+
+                if (nebulaSystemRef.current) {
+                    nebulaSystemRef.current.dispose();
+                    nebulaSystemRef.current = null;
+                }
+
                 engine.dispose();
                 engineRef.current = null;
             };
