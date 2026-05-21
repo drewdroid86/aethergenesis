@@ -20,6 +20,7 @@ export function useSimulation(containerRef: React.RefObject<HTMLDivElement | nul
     const controlsRef = useRef<OrbitControls | null>(null);
     const [selectedStar, setSelectedStar] = useState<HeroStarSystem | null>(null);
     const selectedStarRef = useRef<HeroStarSystem | null>(null);
+    const [isConstantsOpen, setIsConstantsOpen] = useState(false);
     const [isPaused, setIsPaused] = useState(false);
     const isPausedRef = useRef(isPaused);
     useEffect(() => { isPausedRef.current = isPaused; }, [isPaused]);
@@ -319,9 +320,16 @@ export function useSimulation(containerRef: React.RefObject<HTMLDivElement | nul
             };
 
             const handleGlobalKeyDown = (e: KeyboardEvent) => {
+                const target = e.target as HTMLElement;
+                if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) return;
+
                 if (e.key === 'Escape') {
                     selectedStarRef.current = null;
                     setSelectedStar(null);
+                    setIsConstantsOpen(false);
+                } else if (e.key.toLowerCase() === 'c' && !e.ctrlKey && !e.metaKey && !e.altKey) {
+                    e.preventDefault();
+                    setIsConstantsOpen(prev => !prev);
                 }
             };
 
@@ -382,6 +390,8 @@ export function useSimulation(containerRef: React.RefObject<HTMLDivElement | nul
             selectedStarRef.current = s;
             setSelectedStar(s);
         },
+        isConstantsOpen,
+        setIsConstantsOpen,
         isPaused,
         setIsPaused,
         fatalError,

@@ -5,19 +5,20 @@ import { DEFAULT_CONSTANTS, PhysicsConstants } from '../types/physics';
 interface ConstantsPanelProps {
     physics: PhysicsConstants;
     setPhysics: React.Dispatch<React.SetStateAction<PhysicsConstants>>;
+    isOpen: boolean;
+    setIsOpen: (open: boolean) => void;
 }
 
-export const ConstantsPanel: React.FC<ConstantsPanelProps> = ({ physics, setPhysics }) => {
-    const [isOpen, setIsOpen] = useState(true);
-
+export const ConstantsPanel: React.FC<ConstantsPanelProps> = ({ physics, setPhysics, isOpen, setIsOpen }) => {
     if (!isOpen) {
         return (
             <button 
                 onClick={() => setIsOpen(true)} 
                 className="absolute left-8 top-32 bg-[rgba(14,14,28,0.7)] backdrop-blur-xl border border-[rgba(126,184,255,0.3)] rounded-full p-4 z-30 shadow-[0_0_30px_rgba(0,0,0,0.5)] transform transition-all pointer-events-auto text-[#7EB8FF]/70 hover:text-white group focus-visible:ring-2 focus-visible:ring-[#C084FC] outline-none"
-                title="Open Physical Constants"
+                title="Open Physical Constants [C]"
                 aria-label="Open Physical Constants"
             >
+                <span className="absolute -right-2 -top-2 text-[8px] text-[#C084FC] bg-[#1a1a2e] border border-[#C084FC]/30 rounded px-1 opacity-0 group-hover:opacity-100 transition-opacity">[C]</span>
                 <Settings2 size={24} className="group-hover:text-[#C084FC] transition-colors" />
             </button>
         );
@@ -30,7 +31,7 @@ export const ConstantsPanel: React.FC<ConstantsPanelProps> = ({ physics, setPhys
                     <Settings2 size={20} className="text-[#C084FC]" />
                     Constants
                 </h2>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 group/header">
                     <button
                         onClick={() => setPhysics(DEFAULT_CONSTANTS)}
                         className="text-[#7EB8FF]/50 hover:text-[#C084FC] transition-all focus-visible:ring-2 focus-visible:ring-[#C084FC] outline-none rounded p-1 group/reset"
@@ -41,9 +42,11 @@ export const ConstantsPanel: React.FC<ConstantsPanelProps> = ({ physics, setPhys
                     </button>
                     <button
                         onClick={() => setIsOpen(false)}
-                        className="text-[#7EB8FF]/70 hover:text-white transition-colors focus-visible:ring-2 focus-visible:ring-[#C084FC] outline-none rounded p-1"
+                        className="text-[#7EB8FF]/70 hover:text-white transition-colors focus-visible:ring-2 focus-visible:ring-[#C084FC] outline-none rounded p-1 flex items-center gap-1"
                         aria-label="Close Physical Constants"
+                        title="Close [Esc]"
                     >
+                        <span className="text-[8px] text-[#C084FC] opacity-0 group-hover/header:opacity-100 transition-opacity hidden sm:inline">[Esc]</span>
                         <X size={20} />
                     </button>
                 </div>
