@@ -121,8 +121,8 @@ aethergenesis/
 
 ### 🟡 PATs Still Not Rotated — DO THIS FIRST
 Both exposed tokens still sitting open:
-- `ghp_RAMELaEK...` (likely expired)
-- `ghp_o3nVFW...` (in `~/.gemini/settings.json`)
+- `ghp_REDACTED`
+- `ghp_REDACTED`
 Go to: GitHub Settings → Developer Settings → Personal Access Tokens
 Revoke both. Generate new one. Update `~/.gemini/settings.json`.
 

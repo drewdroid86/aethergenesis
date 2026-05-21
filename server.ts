@@ -65,6 +65,11 @@ const apiKey = process.env.GEMINI_API_KEY;
 const ai = apiKey ? new GoogleGenAI({ apiKey }) : null;
 
 app.post('/api/analyze', async (req, res) => {
+  // Security: Ensure body exists and is an object before processing
+  if (!req.body || typeof req.body !== 'object') {
+    return res.status(400).json({ error: 'Invalid request body.' });
+  }
+
   if (!ai) {
     // Security: Generic error message to avoid leaking server config
     return res.status(503).json({ error: 'Analysis service currently unavailable.' });
@@ -87,6 +92,13 @@ app.post('/api/analyze', async (req, res) => {
   }
 
   record.count++;
+
+  // Security: Prevent memory exhaustion by capping the rate limit map size
+  if (!analysisLimitMap.has(ip) && analysisLimitMap.size >= MAX_ENTRIES) {
+    const oldestKey = analysisLimitMap.keys().next().value;
+    if (oldestKey !== undefined) analysisLimitMap.delete(oldestKey);
+  }
+
   analysisLimitMap.set(ip, record);
 
   const { temp, mass, lum, age, phase, G, alpha } = req.body;
@@ -155,6 +167,8 @@ app.post('/api/analyze', async (req, res) => {
       biome: String(data?.biome || "Unknown").substring(0, 100)
     };
 
+    // Security: Prevent caching of AI-generated analysis
+    res.setHeader('Cache-Control', 'no-store, max-age=0');
     res.json(sanitized);
   } catch (error: any) {
     // Security: Log only essential error message, avoid leaking details
@@ -172,6 +186,12 @@ if (process.env.NODE_ENV === 'production') {
     res.sendFile(path.join(distPath, 'index.html'));
   });
 }
+
+// Security: Global error handler to catch unhandled errors and prevent implementation leakage
+app.use((err: any, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
+  console.error('Unhandled Server Error:', err?.message || 'Unknown error');
+  res.status(500).json({ error: 'Internal Server Error' });
+});
 
 app.listen(port, () => {
   console.log(`Server listening at http://localhost:${port}`);
