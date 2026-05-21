@@ -72,22 +72,22 @@ export class SupernovaPhase implements PhaseComponent {
             if (normT < STELLAR_CONSTANTS.VISUALS.SUPERNOVA_FLASH_DURATION) this.isFlashing = true;
 
             this.snRing.visible = true;
-            this.snRing.scale.setScalar(1.0 + normT * STELLAR_CONSTANTS.VISUALS.SUPERNOVA_RING_SCALE_HIGH_MASS);
+            this.snRing.scale.setScalar((1.0 + normT * STELLAR_CONSTANTS.VISUALS.SUPERNOVA_RING_SCALE_HIGH_MASS) * (physics.strongForce || 1.0));
             (this.snRing.material as THREE.MeshBasicMaterial).opacity = 1.0 - Math.pow(normT, 2);
             
             this.ejectaMesh.visible = true;
-            this.ejectaMat.uniforms.uExp.value = normT;
+            this.ejectaMat.uniforms.uExp.value = normT * (physics.strongForce || 1.0);
             this.ejectaMat.uniforms.uColor.value.setHex(normT < 0.2 ? 0xffffff : 0xff4411);
 
             this.coreFlashMesh.scale.setScalar(this.baseRadius * 7.0 * (1.0 - normT));
         } else {
             this.snRing.visible = true;
-            this.snRing.scale.setScalar(1.0 + normT * STELLAR_CONSTANTS.VISUALS.SUPERNOVA_RING_SCALE_LOW_MASS);
+            this.snRing.scale.setScalar((1.0 + normT * STELLAR_CONSTANTS.VISUALS.SUPERNOVA_RING_SCALE_LOW_MASS) * (physics.strongForce || 1.0));
             (this.snRing.material as THREE.MeshBasicMaterial).opacity = 0.5 * (1.0 - normT);
             (this.snRing.material as THREE.MeshBasicMaterial).color.setHex(0x00ffaa);
             
             this.ejectaMesh.visible = true;
-            this.ejectaMat.uniforms.uExp.value = normT * STELLAR_CONSTANTS.VISUALS.SUPERNOVA_EJECTA_EXP_SPEED;
+            this.ejectaMat.uniforms.uExp.value = normT * STELLAR_CONSTANTS.VISUALS.SUPERNOVA_EJECTA_EXP_SPEED * (physics.strongForce || 1.0);
             this.ejectaMat.uniforms.uColor.value.setHex(0x00ffaa);
 
             this.coreFlashMesh.scale.setScalar(this.baseRadius * (1.0 - normT * 0.8));

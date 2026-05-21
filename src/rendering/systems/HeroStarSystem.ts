@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { PHASES, STELLAR_CONSTANTS } from '../../core/constants';
-import { PhysicsConstants } from '../../types/physics';
+import { PhysicsConstants, DEFAULT_CONSTANTS } from '../../types/physics';
 import { NebulaPhase } from '../../simulation/phases/NebulaPhase';
 import { ProtostarPhase } from '../../simulation/phases/ProtostarPhase';
 import { MainSequencePhase } from '../../simulation/phases/MainSequencePhase';
@@ -8,6 +8,7 @@ import { RedGiantPhase } from '../../simulation/phases/RedGiantPhase';
 import { SupernovaPhase } from '../../simulation/phases/SupernovaPhase';
 import { RemnantPhase } from '../../simulation/phases/RemnantPhase';
 import { GEOMETRIES } from '../../simulation/phases/geometries';
+import { PlanetarySystem } from './PlanetarySystem';
 
 // BOLT: Module-level helper to avoid closure overhead
 const stepOp = (current: number, target: number, speed: number) => {
@@ -55,6 +56,7 @@ export class HeroStarSystem extends THREE.Group {
     private supernovaPhase: SupernovaPhase;
     private remnantPhase: RemnantPhase;
 
+    public planetarySystem?: PlanetarySystem;
     public hitMesh: THREE.Mesh;
     private baseRadius: number;
     private tHeat: number;
@@ -70,7 +72,9 @@ export class HeroStarSystem extends THREE.Group {
         this.birthAge = 0.5 + Math.random() * 9.5;
         this.t = 0;
 
-        this.tHeat = 5778 * Math.pow(this.mass, 0.5);
+        // BOLT: Baryon ratio affects base heat distribution
+        const baryonFactor = (DEFAULT_CONSTANTS.baryon || 0.05) / 0.05; 
+        this.tHeat = 5778 * Math.pow(this.mass, 0.5) * baryonFactor;
         this.baseRadius = Math.pow(this.mass, 0.8) * 0.8;
 
         // Initialize Phases
@@ -97,6 +101,38 @@ export class HeroStarSystem extends THREE.Group {
             new THREE.MeshBasicMaterial({visible: false})
         );
         this.add(this.hitMesh);
+
+        // BOLT: Fix black hole accretion disc - replace geometry and material for high-quality gradient
+        const bhDisk = (this.remnantPhase as any).blackHoleGroup.children[1] as THREE.Mesh;
+        if (bhDisk) {
+            bhDisk.geometry = new THREE.RingGeometry(8, 12, 64);
+            bhDisk.rotation.x = Math.PI / 2;
+            bhDisk.material = new THREE.ShaderMaterial({
+                uniforms: { uTime: { value: 0 } },
+                transparent: true,
+                blending: THREE.AdditiveBlending,
+                side: THREE.DoubleSide,
+                vertexShader: `
+                    varying vec2 vUv;
+                    void main() {
+                        vUv = uv;
+                        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+                    }
+                `,
+                fragmentShader: `
+                    varying vec2 vUv;
+                    uniform float uTime;
+                    void main() {
+                        float dist = vUv.y; // Radial distance: 0 (inner) to 1 (outer)
+                        vec3 innerColor = vec3(1.0, 1.0, 0.9); // White-ish hot
+                        vec3 outerColor = vec3(1.0, 0.4, 0.0); // Orange cool
+                        vec3 color = mix(innerColor, outerColor, pow(dist, 1.5));
+                        float alpha = (0.7 + 0.3 * sin(uTime * 4.0)) * (1.0 - dist);
+                        gl_FragColor = vec4(color, alpha * 0.8);
+                    }
+                `
+            });
+        }
     }
 
     update(delta: number, appTime: number, cameraPos: THREE.Vector3, physics: PhysicsConstants, overrideT?: number, cosmicAge?: number, frustum?: THREE.Frustum, flicker?: number) {
@@ -142,14 +178,23 @@ export class HeroStarSystem extends THREE.Group {
         if (this._activePhase !== newPhase) {
             if (this._activePhase === PHASES.NEBULA) this.nebulaPhase.hide();
             else if (this._activePhase === PHASES.PROTOSTAR) this.protostarPhase.hide();
-            else if (this._activePhase === PHASES.MAIN_SEQUENCE) this.mainSequencePhase.hide();
+            else if (this._activePhase === PHASES.MAIN_SEQUENCE) {
+                this.mainSequencePhase.hide();
+                if (this.planetarySystem) {
+                    this.planetarySystem.dispose();
+                    this.planetarySystem = undefined;
+                }
+            }
             else if (this._activePhase === PHASES.RED_GIANT) this.redGiantPhase.hide();
             else if (this._activePhase === PHASES.SUPERNOVA) this.supernovaPhase.hide();
             else if (this._activePhase === PHASES.REMNANT) this.remnantPhase.hide();
 
             if (newPhase === PHASES.NEBULA) this.nebulaPhase.show();
             else if (newPhase === PHASES.PROTOSTAR) this.protostarPhase.show();
-            else if (newPhase === PHASES.MAIN_SEQUENCE) this.mainSequencePhase.show();
+            else if (newPhase === PHASES.MAIN_SEQUENCE) {
+                this.mainSequencePhase.show();
+                this.planetarySystem = new PlanetarySystem(this, 3);
+            }
             else if (newPhase === PHASES.RED_GIANT) this.redGiantPhase.show();
             else if (newPhase === PHASES.SUPERNOVA) this.supernovaPhase.show();
             else if (newPhase === PHASES.REMNANT) this.remnantPhase.show();
@@ -197,7 +242,12 @@ export class HeroStarSystem extends THREE.Group {
             targetMain = 1;
             this.mainSequencePhase.show();
             this.mainSequencePhase.update(delta, appTime, cameraPos, physics, this.t, lowDetail);
+            this.planetarySystem?.update(delta);
             
+            // BOLT: Remove green from Habitable Zone
+            const hzMesh = (this.mainSequencePhase as any).hzMesh;
+            if (hzMesh && hzMesh.material) (hzMesh.material as any).color.setHex(0xffaa44);
+
             this.currentTemp = this.tHeat;
             this.currentLum = Math.pow(this.mass, STELLAR_CONSTANTS.PHYSICS.MASS_LUMINOSITY_EXPONENT);
 
@@ -214,6 +264,11 @@ export class HeroStarSystem extends THREE.Group {
             this.supernovaPhase.show();
             this.supernovaPhase.update(delta, appTime, cameraPos, physics, this.t, lowDetail);
             this.isSupernovaFlashing = this.supernovaPhase?.isFlashing ?? false;
+
+            // BOLT: Remove green from Supernova ring
+            const snRing = (this.supernovaPhase as any).snRing;
+            if (snRing && snRing.material) (snRing.material as any).color.setHex(0xffaa44);
+
             if (this.mass > STELLAR_CONSTANTS.PHYSICS.MASS_THRESHOLD_SUPERNOVA) {
                 this.currentTemp = STELLAR_CONSTANTS.TEMPERATURES.SUPERNOVA_HIGH_MASS;
                 this.currentLum = STELLAR_CONSTANTS.LUMINOSITY.SUPERNOVA_HIGH_MASS;
@@ -229,6 +284,12 @@ export class HeroStarSystem extends THREE.Group {
             if (this.mass > STELLAR_CONSTANTS.PHYSICS.MASS_THRESHOLD_BLACK_HOLE) {
                 this.currentTemp = STELLAR_CONSTANTS.TEMPERATURES.REMNANT_BH;
                 this.currentLum = STELLAR_CONSTANTS.LUMINOSITY.REMNANT_BH;
+
+                // BOLT: Pulsing glow update for black hole disc
+                const bhDisk = (this.remnantPhase as any).blackHoleGroup.children[1] as THREE.Mesh;
+                if (bhDisk && bhDisk.material instanceof THREE.ShaderMaterial) {
+                    bhDisk.material.uniforms.uTime.value = appTime;
+                }
             } else if (this.mass > STELLAR_CONSTANTS.PHYSICS.MASS_THRESHOLD_SUPERNOVA) {
                 targetNs = 1;
                 this.currentTemp = STELLAR_CONSTANTS.TEMPERATURES.REMNANT_NS_HIGH_MASS;

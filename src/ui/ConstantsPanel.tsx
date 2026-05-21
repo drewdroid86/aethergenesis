@@ -48,7 +48,7 @@ export const ConstantsPanel: React.FC<ConstantsPanelProps> = ({ physics, setPhys
                     </button>
                 </div>
             </div>
-            <div className="space-y-4 text-xs font-mono">
+            <div className="space-y-4 text-xs font-mono max-h-[60vh] overflow-y-auto pr-2 custom-scrollbar">
                 {/* G Slider */}
                 <div>
                     <div className="flex justify-between text-[#7EB8FF] mb-2">
@@ -143,6 +143,97 @@ export const ConstantsPanel: React.FC<ConstantsPanelProps> = ({ physics, setPhys
                         className="w-full accent-[#C084FC] cursor-pointer"
                     />
                     <p id="desc-hbar" className="text-[9px] text-[#7EB8FF]/50 mt-1">ħ ↑ quantum foam visible</p>
+                </div>
+
+                {/* Softening */}
+                <div>
+                    <div className="flex justify-between text-[#7EB8FF] mb-2">
+                        <label htmlFor="slider-softening">Softening (ε)</label>
+                        <span>{physics.softening.toFixed(2)}</span>
+                    </div>
+                    <input
+                        id="slider-softening"
+                        type="range"
+                        min="0.01"
+                        max="1.0"
+                        step="0.01"
+                        value={physics.softening}
+                        onChange={e => setPhysics({...physics, softening: parseFloat(e.target.value)})}
+                        className="w-full accent-[#C084FC] cursor-pointer"
+                    />
+                    <p className="text-[9px] text-[#7EB8FF]/50 mt-1">Repulsion radius between close stars</p>
+                </div>
+                {/* Strong Force */}
+                <div>
+                    <div className="flex justify-between text-[#7EB8FF] mb-2">
+                        <label htmlFor="slider-strong">Strong Force</label>
+                        <span>{physics.strongForce.toFixed(2)}</span>
+                    </div>
+                    <input
+                        id="slider-strong"
+                        type="range"
+                        min="0.1"
+                        max="5.0"
+                        step="0.1"
+                        value={physics.strongForce}
+                        onChange={e => setPhysics({...physics, strongForce: parseFloat(e.target.value)})}
+                        className="w-full accent-[#C084FC] cursor-pointer"
+                    />
+                    <p className="text-[9px] text-[#7EB8FF]/50 mt-1">Supernova explosion radius</p>
+                </div>
+                {/* Weak Force */}
+                <div>
+                    <div className="flex justify-between text-[#7EB8FF] mb-2">
+                        <label htmlFor="slider-weak">Weak Force</label>
+                        <span>{physics.weakForce.toFixed(2)}</span>
+                    </div>
+                    <input
+                        id="slider-weak"
+                        type="range"
+                        min="0.1"
+                        max="5.0"
+                        step="0.1"
+                        value={physics.weakForce}
+                        onChange={e => setPhysics({...physics, weakForce: parseFloat(e.target.value)})}
+                        className="w-full accent-[#C084FC] cursor-pointer"
+                    />
+                    <p className="text-[9px] text-[#7EB8FF]/50 mt-1">Neutron star spin rate</p>
+                </div>
+                {/* Dark Matter */}
+                <div>
+                    <div className="flex justify-between text-[#7EB8FF] mb-2">
+                        <label htmlFor="slider-dm">Dark Matter</label>
+                        <span>{physics.darkMatter.toFixed(2)}</span>
+                    </div>
+                    <input
+                        id="slider-dm"
+                        type="range"
+                        min="0.0"
+                        max="1.0"
+                        step="0.05"
+                        value={physics.darkMatter}
+                        onChange={e => setPhysics({...physics, darkMatter: parseFloat(e.target.value)})}
+                        className="w-full accent-[#C084FC] cursor-pointer"
+                    />
+                    <p className="text-[9px] text-[#7EB8FF]/50 mt-1">Background star density</p>
+                </div>
+                {/* Baryon */}
+                <div>
+                    <div className="flex justify-between text-[#7EB8FF] mb-2">
+                        <label htmlFor="slider-baryon">Baryon Ratio</label>
+                        <span>{physics.baryon.toFixed(3)}</span>
+                    </div>
+                    <input
+                        id="slider-baryon"
+                        type="range"
+                        min="0.01"
+                        max="0.2"
+                        step="0.01"
+                        value={physics.baryon}
+                        onChange={e => setPhysics({...physics, baryon: parseFloat(e.target.value)})}
+                        className="w-full accent-[#C084FC] cursor-pointer"
+                    />
+                    <p className="text-[9px] text-[#7EB8FF]/50 mt-1">Star color temperature distribution</p>
                 </div>
             </div>
         </div>

@@ -23,7 +23,9 @@ export function AetherGenesis() {
     fps, 
     showTierDownIndicator, 
     numHeroStars,
-    onScrubStart,    onScrubMove,
+    currentSeed,
+    onScrubStart,
+    onScrubMove,
     onScrubEnd,
     onGlobalScrubStart,
     onGlobalScrubMove,
@@ -71,6 +73,7 @@ export function AetherGenesis() {
             fps: fps,
             showIndicator: showTierDownIndicator
         }}
+        currentSeed={currentSeed}
       />
 
       {selectedStar && (

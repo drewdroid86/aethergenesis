@@ -25,6 +25,7 @@ interface HudProps {
         fps: number;
         showIndicator: boolean;
     };
+    currentSeed: string;
 }
 
 export const Hud: React.FC<HudProps> = ({ 
@@ -38,9 +39,11 @@ export const Hud: React.FC<HudProps> = ({
     onKeyDown,
     resetCamera,
     centerOnStar,
-    performance
+    performance,
+    currentSeed
 }) => {
     const [copied, setCopied] = useState(false);
+    const [shareCopied, setShareCopied] = useState(false);
     const [isDragging, setIsDragging] = useState(false);
 
     const copyCoordinates = () => {
@@ -52,6 +55,15 @@ export const Hud: React.FC<HudProps> = ({
         navigator.clipboard.writeText(coords).then(() => {
             setCopied(true);
             setTimeout(() => setCopied(false), 2000);
+        });
+    };
+
+    const shareUniverse = () => {
+        const url = new URL(window.location.href);
+        url.searchParams.set('seed', currentSeed);
+        navigator.clipboard.writeText(url.toString()).then(() => {
+            setShareCopied(true);
+            setTimeout(() => setShareCopied(false), 2000);
         });
     };
 
@@ -85,10 +97,15 @@ export const Hud: React.FC<HudProps> = ({
                 </span>
                 </div>
                 
-                <div className="flex items-center gap-12 bg-[rgba(8,8,20,0.6)] backdrop-blur-md border border-[rgba(126,184,255,0.2)] rounded-full px-6 py-3">
+                <div className="flex items-center gap-8 bg-[rgba(8,8,20,0.6)] backdrop-blur-md border border-[rgba(126,184,255,0.2)] rounded-full px-6 py-3">
                 <div className="flex flex-col items-center">
                     <span className="text-[9px] uppercase tracking-widest text-[#7EB8FF]">Background Mass</span>
                     <span className="font-mono text-sm">{performance.numStars.toLocaleString()} <span className="text-[#C084FC]">★</span></span>
+                </div>
+                <div className="w-[1px] h-6 bg-[rgba(126,184,255,0.2)]"></div>
+                <div className="flex flex-col items-center">
+                    <span className="text-[9px] uppercase tracking-widest text-[#7EB8FF]">Universe ID</span>
+                    <span className="font-mono text-sm uppercase text-indigo-300">{currentSeed.substring(0, 8)}</span>
                 </div>
                 <div className="w-[1px] h-6 bg-[rgba(126,184,255,0.2)]"></div>
                 <div className="flex flex-col items-center">
@@ -143,6 +160,15 @@ export const Hud: React.FC<HudProps> = ({
                                 Global Cosmic Age (Gyr) <span className="opacity-0 group-hover:opacity-100 transition-opacity ml-2 text-[8px] text-[#C084FC] hidden sm:inline">[Arrows to Seek]</span>
                             </span>
                             <div className="flex gap-2">
+                                <button
+                                    onClick={shareUniverse}
+                                    className="flex items-center gap-1.5 px-3 py-1 bg-[#C084FC]/10 border border-[#C084FC]/30 rounded-full text-[9px] uppercase tracking-wider text-[#C084FC] hover:bg-[#C084FC]/20 transition-colors pointer-events-auto"
+                                    aria-label="Share current universe seed"
+                                    title="Copy Universe Seed URL"
+                                >
+                                    {shareCopied ? <Check size={10} /> : <Copy size={10} />}
+                                    {shareCopied ? "Copied" : "Share Universe"}
+                                </button>
                                 <button
                                     onClick={() => setIsPlayingCosmic(!isPlayingCosmic)}
                                     className="text-white/40 hover:text-white transition-colors focus-visible:ring-2 focus-visible:ring-[#C084FC] outline-none rounded"

@@ -5,7 +5,7 @@ import { Engine } from '../../core/engine';
 import { HeroStarSystem } from '../../rendering/systems/HeroStarSystem';
 import { NebulaSystem } from '../../rendering/systems/NebulaSystem';
 import { PHASE_NAMES } from '../../core/constants';
-import { PhysicsConstants } from '../../types/physics';
+import { PhysicsConstants, DEFAULT_CONSTANTS } from '../../types/physics';
 import { 
     detectPerformanceTier, 
     getNumStarsForTier, 
@@ -35,19 +35,44 @@ export function useSimulation(containerRef: React.RefObject<HTMLDivElement | nul
     const tierDownIndicatorTimeoutRef = useRef<NodeJS.Timeout | null>(null);
     const lastDowngradeTimeRef = useRef(0);
 
+    // Universe Seed Logic
+    const encodeSeed = useCallback((p: PhysicsConstants): string => {
+        const values = [
+            p.G, p.alpha, p.strongForce, p.weakForce,
+            p.lambda, p.c, p.hbar, p.darkMatter,
+            p.baryon, p.H0, p.softening
+        ];
+        return btoa(JSON.stringify(values.map(v => parseFloat((v || 0).toFixed(4)))));
+    }, []);
+
+    const decodeSeed = useCallback((seed: string): PhysicsConstants => {
+        try {
+            const values = JSON.parse(atob(seed));
+            return {
+                G: values[0] ?? 1.0, 
+                alpha: values[1] ?? 1.0, 
+                strongForce: values[2] ?? 1.0, 
+                weakForce: values[3] ?? 1.0,
+                lambda: values[4] ?? 1.0, 
+                c: values[5] ?? 1.0, 
+                hbar: values[6] ?? 1.0, 
+                darkMatter: values[7] ?? 0.25,
+                baryon: values[8] ?? 0.05, 
+                H0: values[9] ?? 0.01, 
+                softening: values[10] ?? 0.1
+            };
+        } catch (e) {
+            console.error("Failed to decode seed:", e);
+            return DEFAULT_CONSTANTS;
+        }
+    }, []);
+
     // Physics Constants State
-    const [physics, setPhysics] = useState<PhysicsConstants>({
-        G: 1.0,
-        alpha: 1.0,
-        strongForce: 1.0,
-        weakForce: 1.0,
-        lambda: 1.0,
-        c: 1.0,
-        hbar: 1.0,
-        darkMatter: 0.25,
-        baryon: 0.05,
-        H0: 0.01,
-        softening: 0.1
+    const [physics, setPhysics] = useState<PhysicsConstants>(() => {
+        const params = new URLSearchParams(window.location.search);
+        const seed = params.get('seed');
+        if (seed) return decodeSeed(seed);
+        return DEFAULT_CONSTANTS;
     });
     const physicsRef = useRef(physics);
     useEffect(() => { 
@@ -413,6 +438,7 @@ export function useSimulation(containerRef: React.RefObject<HTMLDivElement | nul
                 e.currentTarget.setAttribute('aria-valuetext', `${perc}% of Stellar Lifecycle (${PHASE_NAMES[selectedStarRef.current.phase]})`);
             }
         },
+        currentSeed: encodeSeed(physics),
         resetCamera: () => {
             controlsRef.current?.reset();
         },

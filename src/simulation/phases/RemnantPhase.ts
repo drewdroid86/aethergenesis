@@ -68,8 +68,8 @@ export class RemnantPhase implements PhaseComponent {
             this.blackHoleGroup.rotation.z = Math.PI / 8;
         } else if (this.mass > STELLAR_CONSTANTS.PHYSICS.MASS_THRESHOLD_SUPERNOVA) {
             if (!lowDetail) {
-                this.pulsarGroup.rotation.y += delta * 5.0;
-                this.nsMagneticLines.rotation.y += delta * 2.0;
+                this.pulsarGroup.rotation.y += delta * 5.0 * (physics.weakForce || 1.0);
+                this.nsMagneticLines.rotation.y += delta * 2.0 * (physics.weakForce || 1.0);
             }
         } else {
             this.pulsarGroup.visible = false;

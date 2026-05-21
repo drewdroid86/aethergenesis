@@ -1,120 +1,248 @@
 import * as THREE from 'three';
-import { GEOMETRIES } from '../../simulation/phases/geometries';
+import { PHASES } from '../../core/constants';
 
 /**
  * BOLT: PlanetarySystem manages a collection of orbital bodies
- * utilizing Keplerian orbit approximations around a central star.
+ * utilizing InstancedMesh for performance and custom Shaders for visual variety.
  */
+
+const PLANET_VS = `
+attribute float planetType;
+attribute float planetSeed;
+varying vec2 vUv;
+varying vec3 vNormal;
+varying vec3 vPosition;
+varying float vType;
+varying float vSeed;
+varying vec3 vLightDir;
+
+void main() {
+    vUv = uv;
+    vType = planetType;
+    vSeed = planetSeed;
+    vPosition = position;
+    
+    // Transform normal and position for lighting
+    vec4 worldPos = instanceMatrix * vec4(position, 1.0);
+    vNormal = normalize(mat3(instanceMatrix) * normal);
+    vLightDir = normalize(-worldPos.xyz); // Light comes from star at local (0,0,0)
+    
+    gl_Position = projectionMatrix * modelViewMatrix * worldPos;
+}
+`;
+
+const PLANET_FS = `
+uniform float uTime;
+varying vec3 vNormal;
+varying vec3 vPosition;
+varying float vType;
+varying float vSeed;
+varying vec3 vLightDir;
+
+// Simplex 3D Noise by Ashima Arts
+vec4 permute(vec4 x){return mod(((x*34.0)+1.0)*x, 289.0);}
+vec4 taylorInvSqrt(vec4 r){return 1.79284291400159 - 0.85373472095314 * r;}
+float snoise(vec3 v){ 
+  const vec2  C = vec2(1.0/6.0, 1.0/3.0) ;
+  const vec4  D = vec4(0.0, 0.5, 1.0, 2.0);
+  vec3 i  = floor(v + dot(v, C.yyy) );
+  vec3 x0 =   v - i + dot(i, C.xxx) ;
+  vec3 g = step(x0.yzx, x0.xyz);
+  vec3 l = 1.0 - g;
+  vec3 i1 = min( g.xyz, l.zxy );
+  vec3 i2 = max( g.xyz, l.zxy );
+  vec3 x1 = x0 - i1 + 1.0 * C.xxx;
+  vec3 x2 = x0 - i2 + 2.0 * C.xxx;
+  vec3 x3 = x0 - D.yyy;
+  i = mod(i, 289.0 ); 
+  vec4 p = permute( permute( permute( 
+             i.z + vec4(0.0, i1.z, i2.z, 1.0 ))
+           + i.y + vec4(0.0, i1.y, i2.y, 1.0 )) 
+           + i.x + vec4(0.0, i1.x, i2.x, 1.0 ));
+  float n_ = 1.0/7.0;
+  vec3  ns = n_ * D.wyz - D.xzx;
+  vec4 j = p - 49.0 * floor(p * ns.z *ns.z);
+  vec4 x_ = floor(j * ns.z);
+  vec4 y_ = floor(j - 7.0 * x_ );
+  vec4 x = x_ *ns.x + ns.yyyy;
+  vec4 y = y_ *ns.x + ns.yyyy;
+  vec4 h = 1.0 - abs(x) - abs(y);
+  vec4 b0 = vec4( x.xy, y.xy );
+  vec4 b1 = vec4( x.zw, y.zw );
+  vec4 s0 = floor(b0)*2.0 + 1.0;
+  vec4 s1 = floor(b1)*2.0 + 1.0;
+  vec4 sh = -step(h, vec4(0.0));
+  vec4 a0 = b0.xzyw + s0.xzyw*sh.xxyy ;
+  vec4 a1 = b1.xzyw + s1.xzyw*sh.zzww ;
+  vec3 p0 = vec3(a0.xy,h.x);
+  vec3 p1 = vec3(a0.zw,h.y);
+  vec3 p2 = vec3(a1.xy,h.z);
+  vec3 p3 = vec3(a1.zw,h.w);
+  vec4 norm = taylorInvSqrt(vec4(dot(p0,p0), dot(p1,p1), dot(p2, p2), dot(p3,p3)));
+  p0 *= norm.x;
+  p1 *= norm.y;
+  p2 *= norm.z;
+  p3 *= norm.w;
+  vec4 m = max(0.6 - vec4(dot(x0,x0), dot(x1,x1), dot(x2,x2), dot(x3,x3)), 0.0);
+  m = m * m;
+  return 42.0 * dot( m*m, vec4( dot(p0,x0), dot(p1,x1), 
+                                dot(p2,x2), dot(p3,x3) ) );
+}
+
+void main() {
+    vec3 color = vec3(0.0);
+    float type = floor(vType + 0.5);
+    vec3 p = vPosition * 2.5 + vSeed + uTime * 0.1;
+    float n = snoise(p);
+
+    if (type == 0.0) { // Rocky
+        color = mix(vec3(0.4, 0.35, 0.3), vec3(0.6, 0.6, 0.6), n);
+        color *= 1.0 - 0.2 * abs(snoise(p * 6.0)); // Crater-like noise
+    } else if (type == 1.0) { // Gas Giant
+        float bands = snoise(vec3(0.0, vPosition.y * 10.0, 0.0) + vSeed);
+        color = mix(vec3(0.8, 0.5, 0.2), vec3(0.95, 0.9, 0.8), bands * 0.5 + 0.5);
+        color = mix(color, vec3(0.7, 0.5, 0.4), snoise(p * 1.5) * 0.2);
+    } else if (type == 2.0) { // Ice
+        color = mix(vec3(0.75, 0.9, 1.0), vec3(1.0, 1.0, 1.0), n);
+        float cracks = abs(snoise(p * 4.0));
+        if (cracks > 0.75) color = mix(color, vec3(0.5, 0.75, 0.95), (cracks - 0.75) * 2.0);
+    } else if (type == 3.0) { // Lava
+        color = vec3(0.12, 0.08, 0.08);
+        float lava = snoise(p * 2.5 + uTime * 0.2);
+        if (lava > 0.4) color = mix(color, vec3(1.0, 0.35, 0.0), (lava - 0.4) * 4.0);
+    } else if (type == 4.0) { // Ocean
+        color = mix(vec3(0.0, 0.1, 0.5), vec3(0.0, 0.25, 0.65), n);
+        float clouds = snoise(p * 2.0 + uTime * 0.5);
+        color = mix(color, vec3(1.0, 1.0, 1.0), smoothstep(0.45, 0.75, clouds));
+    } else if (type == 5.0) { // Desert
+        color = mix(vec3(0.9, 0.5, 0.2), vec3(0.7, 0.3, 0.1), n);
+        float dunes = snoise(vec3(vPosition.x * 18.0, vPosition.y * 2.0, vPosition.z * 18.0));
+        color *= 0.88 + 0.12 * dunes;
+    } else if (type == 6.0) { // Jungle
+        color = mix(vec3(0.05, 0.35, 0.05), vec3(0.1, 0.55, 0.1), n);
+        float water = snoise(p * 1.5);
+        if (water < -0.2) color = vec3(0.0, 0.25, 0.5);
+    }
+
+    // Lighting
+    float diff = max(dot(vNormal, vLightDir), 0.1);
+    gl_FragColor = vec4(color * diff, 1.0);
+}
+`;
+
 export class PlanetarySystem {
+    private instancedMesh: THREE.InstancedMesh;
     private bodies: {
-        mesh: THREE.Mesh;
         semiMajorAxis: number;
         eccentricity: number;
         inclination: number;
         speed: number;
         angle: number;
+        scale: number;
+        type: number;
+        seed: number;
     }[] = [];
     
     private group: THREE.Group;
     private parent: THREE.Object3D;
+    private material: THREE.ShaderMaterial;
 
-    constructor(star: THREE.Object3D, count?: number) {
+    constructor(star: THREE.Object3D) {
         this.parent = star;
         this.group = new THREE.Group();
         this.parent.add(this.group);
 
-        const numBodies = count ?? (3 + Math.floor(Math.random() * 3)); // Spawns 3-5 bodies
-        this.initBodies(numBodies);
-    }
+        // Maximum 2 planets per star
+        const numBodies = 1 + Math.floor(Math.random() * 2); 
+        
+        const geometry = new THREE.SphereGeometry(1, 16, 16);
+        this.material = new THREE.ShaderMaterial({
+            uniforms: {
+                uTime: { value: 0 }
+            },
+            vertexShader: PLANET_VS,
+            fragmentShader: PLANET_FS
+        });
 
-    private initBodies(count: number): void {
-        for (let i = 0; i < count; i++) {
-            // Keplerian orbital elements (simplified for visual representation)
-            const semiMajorAxis = 8 + i * 6 + Math.random() * 4;
-            const eccentricity = Math.random() * 0.12; // Mostly circular orbits
-            const inclination = (Math.random() - 0.5) * 0.3; // Slight orbital tilt
+        this.instancedMesh = new THREE.InstancedMesh(geometry, this.material, numBodies);
+        
+        // Add instance attributes for planet variation
+        const types = new Float32Array(numBodies);
+        const seeds = new Float32Array(numBodies);
+        
+        for (let i = 0; i < numBodies; i++) {
+            types[i] = Math.floor(Math.random() * 7); // 7 types: 0 to 6
+            seeds[i] = Math.random() * 1000.0;
             
-            // Orbital speed approximation based on distance (v proportional to 1/sqrt(r))
-            const speed = (0.4 + Math.random() * 0.4) / Math.sqrt(semiMajorAxis);
-            const initialAngle = Math.random() * Math.PI * 2;
-
-            const pScale = 0.2 + Math.random() * 0.3;
-            // Generate distinct colors for planets
-            const pColor = new THREE.Color().setHSL(Math.random(), 0.5, 0.4);
-
-            const mesh = new THREE.Mesh(
-                GEOMETRIES.planet,
-                new THREE.MeshStandardMaterial({
-                    color: pColor,
-                    roughness: 0.7,
-                    metalness: 0.3,
-                    emissive: pColor.clone().multiplyScalar(0.05)
-                })
-            );
-            mesh.scale.setScalar(pScale);
-            
-            this.group.add(mesh);
-
             this.bodies.push({
-                mesh,
-                semiMajorAxis,
-                eccentricity,
-                inclination,
-                speed,
-                angle: initialAngle
+                semiMajorAxis: 10 + i * 8 + Math.random() * 5,
+                eccentricity: Math.random() * 0.08,
+                inclination: (Math.random() - 0.5) * 0.3,
+                speed: (0.2 + Math.random() * 0.2) / Math.sqrt(10 + i * 8),
+                angle: Math.random() * Math.PI * 2,
+                scale: 1.5 + Math.random() * 2.0,
+                type: types[i],
+                seed: seeds[i]
             });
         }
+        
+        geometry.setAttribute('planetType', new THREE.InstancedBufferAttribute(types, 1));
+        geometry.setAttribute('planetSeed', new THREE.InstancedBufferAttribute(seeds, 1));
+        
+        this.group.add(this.instancedMesh);
     }
 
     /**
-     * Update orbits using Keplerian position approximation:
-     * r = a(1 - e^2) / (1 + e * cos(theta))
+     * Update orbits and instance matrices.
+     * Only renders planets for stars in MainSequence phase.
      */
     update(delta: number): void {
+        const star = this.parent as any;
+        
+        // Visibility check based on stellar phase
+        if (star.phase !== PHASES.MAIN_SEQUENCE) {
+            this.group.visible = false;
+            return;
+        }
+        this.group.visible = true;
+        
+        this.material.uniforms.uTime.value += delta;
+        
+        const matrix = new THREE.Matrix4();
+        const posV = new THREE.Vector3();
+        const scaleV = new THREE.Vector3();
+        const rotQ = new THREE.Quaternion();
+
         for (let i = 0; i < this.bodies.length; i++) {
             const b = this.bodies[i];
             b.angle += b.speed * delta;
             
-            // Keplerian polar distance formula
+            // Keplerian position approximation
             const r = b.semiMajorAxis * (1 - b.eccentricity * b.eccentricity) / (1 + b.eccentricity * Math.cos(b.angle));
-            
-            // Convert polar to Cartesian (base plane XZ)
             const x = r * Math.cos(b.angle);
             const z = r * Math.sin(b.angle);
             
-            // Apply rotation for inclination (tilting the XZ plane around the X axis)
             const sinI = Math.sin(b.inclination);
             const cosI = Math.cos(b.inclination);
             
-            // Rotation around X-axis for inclination:
-            // x' = x
-            // y' = y * cos(i) - z * sin(i) -> since y is 0: y' = -z * sin(i)
-            // z' = y * sin(i) + z * cos(i) -> since y is 0: z' = z * cos(i)
-            b.mesh.position.set(
-                x,
-                -z * sinI,
-                z * cosI
-            );
-
-            // Subtle self-rotation for the planet
-            b.mesh.rotation.y += delta * 0.5;
+            posV.set(x, -z * sinI, z * cosI);
+            scaleV.setScalar(b.scale);
+            
+            // Subtle self-rotation for visual appeal
+            rotQ.setFromAxisAngle(new THREE.Vector3(0, 1, 0), b.angle * 0.2 + b.seed);
+            
+            matrix.compose(posV, rotQ, scaleV);
+            this.instancedMesh.setMatrixAt(i, matrix);
         }
+        this.instancedMesh.instanceMatrix.needsUpdate = true;
     }
 
     /**
-     * Cleans up GPU resources and removes the system from the star.
+     * GPU cleanup.
      */
     dispose(): void {
-        for (let i = 0; i < this.bodies.length; i++) {
-            const b = this.bodies[i];
-            b.mesh.geometry.dispose();
-            if (Array.isArray(b.mesh.material)) {
-                b.mesh.material.forEach(m => m.dispose());
-            } else {
-                b.mesh.material.dispose();
-            }
-        }
-        
+        this.instancedMesh.geometry.dispose();
+        this.material.dispose();
         if (this.group.parent) {
             this.group.parent.remove(this.group);
         }

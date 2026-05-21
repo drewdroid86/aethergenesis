@@ -74,11 +74,50 @@ export class Engine {
             this.appTime += delta; 
         }
 
+        // Dark Matter affects background star visibility
+        this._backgroundStarMat.opacity = 0.1 + (physics.darkMatter || 0) * 2.0;
+
+        // Repulsion physics using softening
+        const softening = physics.softening || 0.1;
+        if (!this.isPaused && !isScrubbing) {
+            for (let i = 0; i < this.heroStars.length; i++) {
+                for (let j = i + 1; j < this.heroStars.length; j++) {
+                    const s1 = this.heroStars[i];
+                    const s2 = this.heroStars[j];
+                    const dx = s1.position.x - s2.position.x;
+                    const dy = s1.position.y - s2.position.y;
+                    const dz = s1.position.z - s2.position.z;
+                    const distSq = dx*dx + dy*dy + dz*dz;
+                    const minDist = 20 * softening; 
+                    if (distSq < minDist * minDist && distSq > 0.01) {
+                        const dist = Math.sqrt(distSq);
+                        const force = (minDist - dist) / minDist * delta * 30;
+                        const fx = (dx / dist) * force;
+                        const fy = (dy / dist) * force;
+                        const fz = (dz / dist) * force;
+                        s1.velocity.x += fx;
+                        s1.velocity.y += fy;
+                        s1.velocity.z += fz;
+                        s2.velocity.x -= fx;
+                        s2.velocity.y -= fy;
+                        s2.velocity.z -= fz;
+                    }
+                }
+            }
+        }
+
         // BOLT: Global frame calculations
         this._frustum.setFromProjectionMatrix(this._projScreenMatrix.multiplyMatrices(this.camera.projectionMatrix, this.camera.matrixWorldInverse));
         const protostarFlicker = 0.8 + 0.2 * Math.sin(this.appTime * 20.0);
 
         this.heroStars.forEach(star => {
+            if (!this.isPaused && !isScrubbing) {
+                star.position.x += star.velocity.x * delta;
+                star.position.y += star.velocity.y * delta;
+                star.position.z += star.velocity.z * delta;
+                star.velocity.multiplyScalar(0.97); // Damping
+            }
+
             star.update(
                 this.isPaused ? 0 : delta, 
                 this.appTime,

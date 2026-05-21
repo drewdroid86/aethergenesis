@@ -75,18 +75,25 @@ src/
 
 ---
 
-### v2.4 — Bug Triage & Infrastructure Cleanup
-**Date:** May 15, 2026
+### v2.5 — Phase 2 Stellar Genesis Wiring
+**Date:** May 20, 2026
 **AI:** Gemini CLI (executor)
-**Branch:** docs/update-project-log
+**Branch:** main
 
 **Changes:**
-- **Fixed State Death Spiral:** Added `cancelAnimationFrame` to the fatal error catch block in `useSimulation.ts` (PR #40).
-- **Infrastructure:** Moved `tsx` to runtime dependencies to support production server execution (PR #41).
-- **Cleanup:** Removed orphaned `src/shaders/cinematic.ts` dead code (PR #42).
-- **Automation:** Tested and verified MCP tool connectivity for documentation and GitHub integration.
+- **PlanetarySystem Wiring:** Integrated `PlanetarySystem` into `HeroStarSystem.ts`. Systems are now spawned on MainSequence entry and disposed on exit.
+- **Universe Seeds:** Implemented base64 encoding/decoding for `PhysicsConstants`. Added ?seed= URL parameter support and "Share Universe" functionality in `Hud.tsx`.
+- **Live Physics Constants:** Wired 5 previously dead constants into the simulation:
+    - `softening` → Now drives inter-stellar repulsion physics in `Engine.ts`.
+    - `strongForce` → Controls supernova explosion radius and ejecta speed in `SupernovaPhase.ts`.
+    - `weakForce` → Controls pulsar and magnetic field rotation speed in `RemnantPhase.ts`.
+    - `darkMatter` → Live-adjusts background starfield visibility/density.
+    - `baryon` → Affects base stellar temperature distribution in `HeroStarSystem.ts`.
+- **UI Enhancements:**
+    - `Hud.tsx`: Added Universe ID display and Share button.
+    - `ConstantsPanel.tsx`: Added sliders for all 11 physics constants with a scrollable container.
 
-**State at end:** Critical loop bug resolved. Production dependencies corrected. Dead code pruned. Three PRs open and ready for review.
+**State at end:** Phase 2 structural wiring complete. Universe sharing active. Inter-stellar repulsion active.
 
 ---
 
@@ -102,10 +109,10 @@ src/
 
 ## NEXT PRIORITIES
 
-1. **Wire GEMINI DEEP SCAN button** — `InspectPanel.tsx` has the button, needs API call
-2. **Deploy to Render** — `render.yaml` exists, just needs env vars + trigger
-3. **Update README** launch link once deployed
-4. **Cinematic Post-Processing pass** — further refine bloom and color grading for AAA feel
+1. **Black Hole Gravitational Lensing** — Add post-processing warp effect for high-mass remnants.
+2. **Wire GEMINI DEEP SCAN button** — `InspectPanel.tsx` has the button, needs API call.
+3. **Deploy to Render** — `render.yaml` exists, just needs env vars + trigger.
+4. **Cinematic Post-Processing pass** — further refine bloom and color grading.
 
 
 ---
