@@ -130,6 +130,13 @@ void main() {
 }
 `;
 
+// BOLT: Persistent scratch objects to avoid per-frame allocations and GC pressure
+const _tempMatrix = new THREE.Matrix4();
+const _tempPos = new THREE.Vector3();
+const _tempScale = new THREE.Vector3();
+const _tempQuat = new THREE.Quaternion();
+const _tempAxis = new THREE.Vector3(0, 1, 0);
+
 export class PlanetarySystem {
     private instancedMesh: THREE.InstancedMesh;
     private bodies: {
@@ -208,11 +215,7 @@ export class PlanetarySystem {
         
         this.material.uniforms.uTime.value += delta;
         
-        const matrix = new THREE.Matrix4();
-        const posV = new THREE.Vector3();
-        const scaleV = new THREE.Vector3();
-        const rotQ = new THREE.Quaternion();
-
+        // BOLT: Using persistent scratch objects instead of per-frame new allocations
         for (let i = 0; i < this.bodies.length; i++) {
             const b = this.bodies[i];
             b.angle += b.speed * delta;
@@ -225,14 +228,14 @@ export class PlanetarySystem {
             const sinI = Math.sin(b.inclination);
             const cosI = Math.cos(b.inclination);
             
-            posV.set(x, -z * sinI, z * cosI);
-            scaleV.setScalar(b.scale);
+            _tempPos.set(x, -z * sinI, z * cosI);
+            _tempScale.setScalar(b.scale);
             
             // Subtle self-rotation for visual appeal
-            rotQ.setFromAxisAngle(new THREE.Vector3(0, 1, 0), b.angle * 0.2 + b.seed);
+            _tempQuat.setFromAxisAngle(_tempAxis, b.angle * 0.2 + b.seed);
             
-            matrix.compose(posV, rotQ, scaleV);
-            this.instancedMesh.setMatrixAt(i, matrix);
+            _tempMatrix.compose(_tempPos, _tempQuat, _tempScale);
+            this.instancedMesh.setMatrixAt(i, _tempMatrix);
         }
         this.instancedMesh.instanceMatrix.needsUpdate = true;
     }

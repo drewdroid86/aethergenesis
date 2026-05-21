@@ -80,21 +80,34 @@ export class Engine {
         // Repulsion physics using softening
         const softening = physics.softening || 0.1;
         if (!this.isPaused && !isScrubbing) {
+            // BOLT: Pre-calculate threshold for repulsion
+            const minDist = 20 * softening;
+            const minDistSq = minDist * minDist;
+
             for (let i = 0; i < this.heroStars.length; i++) {
+                const s1 = this.heroStars[i];
                 for (let j = i + 1; j < this.heroStars.length; j++) {
-                    const s1 = this.heroStars[i];
                     const s2 = this.heroStars[j];
                     const dx = s1.position.x - s2.position.x;
+                    // BOLT: Early exit check for x-axis
+                    if (Math.abs(dx) > minDist) continue;
+
                     const dy = s1.position.y - s2.position.y;
+                    // BOLT: Early exit check for y-axis
+                    if (Math.abs(dy) > minDist) continue;
+
                     const dz = s1.position.z - s2.position.z;
+                    // BOLT: Early exit check for z-axis
+                    if (Math.abs(dz) > minDist) continue;
+
                     const distSq = dx*dx + dy*dy + dz*dz;
-                    const minDist = 20 * softening; 
-                    if (distSq < minDist * minDist && distSq > 0.01) {
+                    if (distSq < minDistSq && distSq > 0.01) {
                         const dist = Math.sqrt(distSq);
                         const force = (minDist - dist) / minDist * delta * 30;
-                        const fx = (dx / dist) * force;
-                        const fy = (dy / dist) * force;
-                        const fz = (dz / dist) * force;
+                        const invDistForce = force / dist;
+                        const fx = dx * invDistForce;
+                        const fy = dy * invDistForce;
+                        const fz = dz * invDistForce;
                         s1.velocity.x += fx;
                         s1.velocity.y += fy;
                         s1.velocity.z += fz;
@@ -110,7 +123,9 @@ export class Engine {
         this._frustum.setFromProjectionMatrix(this._projScreenMatrix.multiplyMatrices(this.camera.projectionMatrix, this.camera.matrixWorldInverse));
         const protostarFlicker = 0.8 + 0.2 * Math.sin(this.appTime * 20.0);
 
-        this.heroStars.forEach(star => {
+        // BOLT: Replaced .forEach with for-loop to reduce closure overhead in high-frequency update
+        for (let i = 0; i < this.heroStars.length; i++) {
+            const star = this.heroStars[i];
             if (!this.isPaused && !isScrubbing) {
                 star.position.x += star.velocity.x * delta;
                 star.position.y += star.velocity.y * delta;
@@ -128,7 +143,7 @@ export class Engine {
                 this._frustum,
                 protostarFlicker
             );
-        });
+        }
 
         if (!this.isPaused) {
             this.nebulaSystem.update(delta, this.camera.position);
