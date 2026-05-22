@@ -193,7 +193,7 @@ export class HeroStarSystem extends THREE.Group {
             else if (newPhase === PHASES.PROTOSTAR) this.protostarPhase.show();
             else if (newPhase === PHASES.MAIN_SEQUENCE) {
                 this.mainSequencePhase.show();
-                this.planetarySystem = new PlanetarySystem(this, 3);
+                this.planetarySystem = new PlanetarySystem(this);
             }
             else if (newPhase === PHASES.RED_GIANT) this.redGiantPhase.show();
             else if (newPhase === PHASES.SUPERNOVA) this.supernovaPhase.show();

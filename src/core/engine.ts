@@ -78,18 +78,24 @@ export class Engine {
         this._backgroundStarMat.opacity = 0.1 + (physics.darkMatter || 0) * 2.0;
 
         // Repulsion physics using softening
-        const softening = physics.softening || 0.1;
         if (!this.isPaused && !isScrubbing) {
+            const softening = physics.softening || 0.1;
+            const minDist = 20 * softening;
+            const minDistSq = minDist * minDist;
+
             for (let i = 0; i < this.heroStars.length; i++) {
                 for (let j = i + 1; j < this.heroStars.length; j++) {
                     const s1 = this.heroStars[i];
                     const s2 = this.heroStars[j];
                     const dx = s1.position.x - s2.position.x;
+                    if (Math.abs(dx) > minDist) continue;
                     const dy = s1.position.y - s2.position.y;
+                    if (Math.abs(dy) > minDist) continue;
                     const dz = s1.position.z - s2.position.z;
+                    if (Math.abs(dz) > minDist) continue;
+
                     const distSq = dx*dx + dy*dy + dz*dz;
-                    const minDist = 20 * softening; 
-                    if (distSq < minDist * minDist && distSq > 0.01) {
+                    if (distSq < minDistSq && distSq > 0.01) {
                         const dist = Math.sqrt(distSq);
                         const force = (minDist - dist) / minDist * delta * 30;
                         const fx = (dx / dist) * force;
@@ -110,7 +116,8 @@ export class Engine {
         this._frustum.setFromProjectionMatrix(this._projScreenMatrix.multiplyMatrices(this.camera.projectionMatrix, this.camera.matrixWorldInverse));
         const protostarFlicker = 0.8 + 0.2 * Math.sin(this.appTime * 20.0);
 
-        this.heroStars.forEach(star => {
+        for (let i = 0; i < this.heroStars.length; i++) {
+            const star = this.heroStars[i];
             if (!this.isPaused && !isScrubbing) {
                 star.position.x += star.velocity.x * delta;
                 star.position.y += star.velocity.y * delta;
@@ -128,7 +135,7 @@ export class Engine {
                 this._frustum,
                 protostarFlicker
             );
-        });
+        }
 
         if (!this.isPaused) {
             this.nebulaSystem.update(delta, this.camera.position);
