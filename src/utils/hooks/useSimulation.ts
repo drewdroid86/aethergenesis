@@ -319,9 +319,29 @@ export function useSimulation(containerRef: React.RefObject<HTMLDivElement | nul
             };
 
             const handleGlobalKeyDown = (e: KeyboardEvent) => {
+                if (document.activeElement?.tagName === 'INPUT' || document.activeElement?.tagName === 'TEXTAREA') return;
+                if (e.ctrlKey || e.metaKey || e.altKey) return;
+
                 if (e.key === 'Escape') {
                     selectedStarRef.current = null;
                     setSelectedStar(null);
+                } else if (e.key === ' ') {
+                    e.preventDefault();
+                    if (selectedStarRef.current) {
+                        setIsPaused(prev => !prev);
+                    } else {
+                        setIsPlayingCosmic(prev => !prev);
+                    }
+                } else if (e.key === 'r' || e.key === 'R') {
+                    controlsRef.current?.reset();
+                } else if (e.key === 'f' || e.key === 'F') {
+                    if (selectedStarRef.current && controlsRef.current && engineRef.current) {
+                        const targetPos = selectedStarRef.current.position.clone();
+                        const camOffset = engineRef.current.camera.position.clone().sub(controlsRef.current.target).normalize().multiplyScalar(40);
+                        engineRef.current.camera.position.copy(targetPos).add(camOffset);
+                        controlsRef.current.target.copy(targetPos);
+                        controlsRef.current.update();
+                    }
                 }
             };
 

@@ -154,19 +154,22 @@ Civilization: ${geminiData.civilization}`;
                     <h2 className="text-sm font-bold tracking-widest uppercase text-white">Stellar Telemetry</h2>
                 </div>
                 <div className="flex items-center gap-2">
-                    <button
-                        onClick={copyTelemetry}
-                        className="text-[#7EB8FF]/70 hover:text-white transition-colors focus-visible:ring-2 focus-visible:ring-[#C084FC] outline-none rounded p-1"
-                        aria-label="Copy Telemetry"
-                        title="Copy Telemetry"
-                    >
-                        {copied ? <Check size={16} className="text-green-400" /> : <Copy size={16} />}
-                    </button>
+                    <div className="relative group/copy">
+                        <span className="absolute -top-8 left-1/2 -translate-x-1/2 px-2 py-1 bg-indigo-900/80 rounded text-[9px] text-[#C084FC] opacity-0 group-hover/copy:opacity-100 transition-opacity whitespace-nowrap pointer-events-none border border-[#C084FC]/30">
+                            {copied ? 'Copied!' : 'Copy'}
+                        </span>
+                        <button
+                            onClick={copyTelemetry}
+                            className="text-[#7EB8FF]/70 hover:text-white transition-colors focus-visible:ring-2 focus-visible:ring-[#C084FC] outline-none rounded p-1"
+                            aria-label="Copy Telemetry"
+                        >
+                            {copied ? <Check size={16} className="text-green-400" /> : <Copy size={16} />}
+                        </button>
+                    </div>
                     <button
                         onClick={() => setSelectedStar(null)}
                         className="text-[#7EB8FF]/70 hover:text-white transition-colors focus-visible:ring-2 focus-visible:ring-[#C084FC] outline-none rounded p-1 flex items-center gap-1"
                         aria-label="Close Stellar Telemetry"
-                        title="Close [Esc]"
                     >
                         <span className="text-[8px] text-[#C084FC] opacity-0 group-hover/header:opacity-100 transition-opacity hidden sm:inline">[Esc]</span>
                         <X size={20} />
@@ -204,8 +207,14 @@ Civilization: ${geminiData.civilization}`;
                             Time Override <span className="opacity-0 group-hover/timeline:opacity-100 transition-opacity ml-1 text-[8px] text-[#C084FC] hidden sm:inline">[Arrows to Seek]</span>
                         </span>
                         <div className="flex gap-2">
-                            <button onClick={() => setIsPaused(true)} className="text-white/40 hover:text-white transition-colors focus-visible:ring-2 focus-visible:ring-[#C084FC] outline-none rounded" aria-label="Pause Simulation" title="Pause Simulation"><Pause size={12} /></button>
-                            <button onClick={() => setIsPaused(false)} className="text-white/40 hover:text-white transition-colors focus-visible:ring-2 focus-visible:ring-[#C084FC] outline-none rounded" aria-label="Play Simulation" title="Play Simulation"><Play size={12} /></button>
+                            <button onClick={() => setIsPaused(true)} className="text-white/40 hover:text-white transition-colors focus-visible:ring-2 focus-visible:ring-[#C084FC] outline-none rounded flex items-center gap-1 group/pause" aria-label="Pause Simulation">
+                                <span className="text-[8px] text-[#C084FC] opacity-0 group-hover/pause:opacity-100 transition-opacity hidden sm:inline">[Space]</span>
+                                <Pause size={12} />
+                            </button>
+                            <button onClick={() => setIsPaused(false)} className="text-white/40 hover:text-white transition-colors focus-visible:ring-2 focus-visible:ring-[#C084FC] outline-none rounded flex items-center gap-1 group/play" aria-label="Play Simulation">
+                                <span className="text-[8px] text-[#C084FC] opacity-0 group-hover/play:opacity-100 transition-opacity hidden sm:inline">[Space]</span>
+                                <Play size={12} />
+                            </button>
                         </div>
                     </div>
                     <div 
