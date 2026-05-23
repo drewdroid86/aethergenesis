@@ -71,8 +71,11 @@ export class NebulaPhase implements PhaseComponent {
         this.nebulaMat.uniforms.uCameraPos.value.copy(cameraPos);
 
         // Update inverse matrix for local space calculations in the shader
-        this.nebulaMesh.updateMatrixWorld(true);
-        this.nebulaMat.uniforms.uInverseModelMatrix.value.copy(this.nebulaMesh.matrixWorld).invert();
+        if (!this._matrixInitialized || this.nebulaMesh.matrixWorldNeedsUpdate) {
+            this.nebulaMesh.updateMatrixWorld(true);
+            this.nebulaMat.uniforms.uInverseModelMatrix.value.copy(this.nebulaMesh.matrixWorld).invert();
+            this._matrixInitialized = true;
+        }
         
         this.dustCloud.rotation.y += delta * STELLAR_CONSTANTS.VISUALS.NEBULA_DUST_ROTATION_SPEED;
         (this.dustCloud.material as THREE.ShaderMaterial).uniforms.uAlpha.value = 1.0;

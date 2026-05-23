@@ -58,6 +58,7 @@ export class HeroStarSystem extends THREE.Group {
 
     public planetarySystem?: PlanetarySystem;
     public hitMesh: THREE.Mesh;
+    private bhDiskMaterial: THREE.ShaderMaterial | null = null;
     private baseRadius: number;
     private tHeat: number;
     private birthAge: number;
@@ -105,9 +106,11 @@ export class HeroStarSystem extends THREE.Group {
         // BOLT: Fix black hole accretion disc - replace geometry and material for high-quality gradient
         const bhDisk = (this.remnantPhase as any).blackHoleGroup.children[1] as THREE.Mesh;
         if (bhDisk) {
+            if (bhDisk.geometry) bhDisk.geometry.dispose();
+            if (bhDisk.material instanceof THREE.Material) bhDisk.material.dispose();
             bhDisk.geometry = new THREE.RingGeometry(8, 12, 64);
             bhDisk.rotation.x = Math.PI / 2;
-            bhDisk.material = new THREE.ShaderMaterial({
+            this.bhDiskMaterial = new THREE.ShaderMaterial({
                 uniforms: { uTime: { value: 0 } },
                 transparent: true,
                 blending: THREE.AdditiveBlending,
@@ -132,6 +135,7 @@ export class HeroStarSystem extends THREE.Group {
                     }
                 `
             });
+            bhDisk.material = this.bhDiskMaterial;
         }
     }
 
@@ -194,9 +198,15 @@ export class HeroStarSystem extends THREE.Group {
             else if (newPhase === PHASES.MAIN_SEQUENCE) {
                 this.mainSequencePhase.show();
                 this.planetarySystem = new PlanetarySystem(this);
+                const hzMesh = (this.mainSequencePhase as any).hzMesh;
+                if (hzMesh.material) (hzMesh.material as any).color.setHex(0xffaa44);
             }
             else if (newPhase === PHASES.RED_GIANT) this.redGiantPhase.show();
-            else if (newPhase === PHASES.SUPERNOVA) this.supernovaPhase.show();
+            else if (newPhase === PHASES.SUPERNOVA) {
+                this.supernovaPhase.show();
+                if (this.supernovaPhase.snRing.material) 
+                    (this.supernovaPhase.snRing.material as THREE.MeshBasicMaterial).color.setHex(0xffaa44);
+            }
             else if (newPhase === PHASES.REMNANT) this.remnantPhase.show();
 
             this._activePhase = newPhase;
@@ -244,10 +254,6 @@ export class HeroStarSystem extends THREE.Group {
             this.mainSequencePhase.update(delta, appTime, cameraPos, physics, this.t, lowDetail);
             this.planetarySystem?.update(delta);
             
-            // BOLT: Remove green from Habitable Zone
-            const hzMesh = (this.mainSequencePhase as any).hzMesh;
-            if (hzMesh && hzMesh.material) (hzMesh.material as any).color.setHex(0xffaa44);
-
             this.currentTemp = this.tHeat;
             this.currentLum = Math.pow(this.mass, STELLAR_CONSTANTS.PHYSICS.MASS_LUMINOSITY_EXPONENT);
 
@@ -264,10 +270,6 @@ export class HeroStarSystem extends THREE.Group {
             this.supernovaPhase.show();
             this.supernovaPhase.update(delta, appTime, cameraPos, physics, this.t, lowDetail);
             this.isSupernovaFlashing = this.supernovaPhase?.isFlashing ?? false;
-
-            // BOLT: Remove green from Supernova ring
-            const snRing = (this.supernovaPhase as any).snRing;
-            if (snRing && snRing.material) (snRing.material as any).color.setHex(0xffaa44);
 
             if (this.mass > STELLAR_CONSTANTS.PHYSICS.MASS_THRESHOLD_SUPERNOVA) {
                 this.currentTemp = STELLAR_CONSTANTS.TEMPERATURES.SUPERNOVA_HIGH_MASS;
@@ -286,10 +288,7 @@ export class HeroStarSystem extends THREE.Group {
                 this.currentLum = STELLAR_CONSTANTS.LUMINOSITY.REMNANT_BH;
 
                 // BOLT: Pulsing glow update for black hole disc
-                const bhDisk = (this.remnantPhase as any).blackHoleGroup.children[1] as THREE.Mesh;
-                if (bhDisk && bhDisk.material instanceof THREE.ShaderMaterial) {
-                    bhDisk.material.uniforms.uTime.value = appTime;
-                }
+                if (this.bhDiskMaterial) this.bhDiskMaterial.uniforms.uTime.value = appTime;
             } else if (this.mass > STELLAR_CONSTANTS.PHYSICS.MASS_THRESHOLD_SUPERNOVA) {
                 targetNs = 1;
                 this.currentTemp = STELLAR_CONSTANTS.TEMPERATURES.REMNANT_NS_HIGH_MASS;
