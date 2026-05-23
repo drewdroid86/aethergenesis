@@ -12,6 +12,7 @@ export function AetherGenesis() {
     isPaused,
     setIsPaused,
     fatalError,
+    setFatalError,
     hudRefs,
     uiRefs,
     physics,
@@ -34,23 +35,6 @@ export function AetherGenesis() {
     resetCamera,
     centerOnStar
   } = useSimulation(mountRef);
-
-  if (fatalError) {
-    return (
-      <div className="w-full h-screen bg-black flex items-center justify-center text-red-500 font-mono p-8">
-        <div className="max-w-md text-center">
-          <h1 className="text-2xl font-bold mb-4">CRITICAL SIMULATION ERROR</h1>
-          <p className="text-sm opacity-80">{fatalError}</p>
-          <button 
-            onClick={() => window.location.reload()}
-            className="mt-8 px-6 py-2 border border-red-500 hover:bg-red-500 hover:text-white transition-colors uppercase tracking-widest text-xs"
-          >
-            Reset Engine
-          </button>
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div className="relative w-full h-screen bg-[#020205] overflow-hidden flex flex-col font-sans text-white select-none">

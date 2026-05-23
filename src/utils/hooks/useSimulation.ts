@@ -308,8 +308,8 @@ export function useSimulation(containerRef: React.RefObject<HTMLDivElement | nul
                         }
                     }
                 } catch (err: any) {
-                    cancelAnimationFrame(frameId);
-                    setFatalError(err.message);
+                    console.error('[AetherGenesis] Render loop error:', err);
+                    setFatalError((prev) => prev || (err.message || 'Unknown render error'));
                 }
             };
             animate();
@@ -385,6 +385,7 @@ export function useSimulation(containerRef: React.RefObject<HTMLDivElement | nul
         isPaused,
         setIsPaused,
         fatalError,
+        setFatalError,
         hudRefs,
         uiRefs,
         physics,

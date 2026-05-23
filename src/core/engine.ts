@@ -2,7 +2,6 @@ import * as THREE from 'three';
 import { HeroStarSystem } from '../rendering/systems/HeroStarSystem';
 import { PhysicsConstants, DEFAULT_CONSTANTS } from '../types/physics';
 import { detectPerformanceTier, getNumStarsForTier } from '../utils/performance';
-import { NebulaSystem } from '../rendering/nebulae';
 import { Pipeline } from '../rendering/pipeline';
 
 export class Engine {
@@ -10,7 +9,6 @@ export class Engine {
     camera: THREE.PerspectiveCamera;
     renderer: THREE.WebGLRenderer;
     pipeline: Pipeline;
-    nebulaSystem: NebulaSystem;
     heroStars: HeroStarSystem[] = [];
     appTime: number = 0;
     isPaused: boolean = false;
@@ -24,7 +22,7 @@ export class Engine {
     constructor(container: HTMLElement) {
         this.container = container;
         this.scene = new THREE.Scene();
-        this.camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+        this.camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 2000);
         this.camera.position.z = 5;
 
         this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
@@ -50,7 +48,6 @@ export class Engine {
         this.scene.add(new THREE.Points(this._backgroundStarGeo, this._backgroundStarMat));
 
         this.pipeline = new Pipeline(this.renderer, this.scene, this.camera);
-        this.nebulaSystem = new NebulaSystem(this.scene);
         
         const initialPhysics = { ...DEFAULT_CONSTANTS };
         this.createHeroStars(getNumStarsForTier(detectPerformanceTier()), initialPhysics);
@@ -129,10 +126,6 @@ export class Engine {
                 protostarFlicker
             );
         });
-
-        if (!this.isPaused) {
-            this.nebulaSystem.update(delta, this.camera.position);
-        }
 
         // Use pipeline for rendering with post-processing - still render when paused for camera movement
         this.pipeline.render(this.appTime);
