@@ -22,7 +22,7 @@ app.use(express.json({ limit: '10kb' }));
 app.use((_req, res, next) => {
   res.setHeader('X-Content-Type-Options', 'nosniff');
   res.setHeader('X-Frame-Options', 'DENY');
-  res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
+  res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains; preload');
   res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
   res.setHeader('Content-Security-Policy', "default-src 'self'; script-src 'self' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; connect-src 'self' ws: wss:; img-src 'self' data: https:; font-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; upgrade-insecure-requests;");
   res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
@@ -87,7 +87,18 @@ app.post('/api/analyze', async (req, res) => {
   }
 
   record.count++;
+
+  // Security: Enforce MAX_ENTRIES to prevent memory exhaustion DoS
+  if (!analysisLimitMap.has(ip) && analysisLimitMap.size >= MAX_ENTRIES) {
+    const firstKey = analysisLimitMap.keys().next().value;
+    if (firstKey !== undefined) analysisLimitMap.delete(firstKey);
+  }
   analysisLimitMap.set(ip, record);
+
+  // Security: Ensure req.body exists before destructuring
+  if (!req.body || typeof req.body !== 'object') {
+    return res.status(400).json({ error: 'Malformed request body.' });
+  }
 
   const { temp, mass, lum, age, phase, G, alpha } = req.body;
 
@@ -172,6 +183,12 @@ if (process.env.NODE_ENV === 'production') {
     res.sendFile(path.join(distPath, 'index.html'));
   });
 }
+
+// Security: Global error handler to prevent implementation detail leakage
+app.use((err: any, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
+  console.error('[Fatal Error]:', err?.message || 'Unknown error');
+  res.status(500).json({ error: 'Internal Server Error' });
+});
 
 app.listen(port, () => {
   console.log(`Server listening at http://localhost:${port}`);
