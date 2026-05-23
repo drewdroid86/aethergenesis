@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { motion, AnimatePresence } from "motion/react";
 import { Scan, Zap, Pause, Play, X, Copy, Check, Loader2 } from 'lucide-react';
 import { PHASE_NAMES } from '../core/constants';
 import { HeroStarSystem } from '../rendering/systems/HeroStarSystem';
@@ -247,19 +248,30 @@ Civilization: ${geminiData.civilization}`;
                             "Gemini AI: Deep Scan"
                         )}
                     </button>
-                    {geminiData && (
-                        <div className="mt-4 p-3 bg-black/40 border border-[#7EB8FF]/20 rounded text-[10px] space-y-2">
-                            <div className="text-white"><span className="text-[#7EB8FF]/70">Planet:</span> {geminiData.planet_name}</div>
-                            <div className="text-white"><span className="text-[#7EB8FF]/70">Biome:</span> {geminiData.biome}</div>
-                            <div className="text-white"><span className="text-[#7EB8FF]/70">Species:</span> {geminiData.dominant_species} (Stage {geminiData.life_stage})</div>
-                            <div className="text-white"><span className="text-[#7EB8FF]/70">Civilization:</span> {geminiData.civilization}</div>
-                            {analysisFailed && (
-                              <p className="text-[9px] text-yellow-400/70 mt-3 italic">
-                                ⚠ Predictive fallback — AI scan unavailable
-                              </p>
-                            )}
-                        </div>
-                    )}
+                    <AnimatePresence>
+                        {geminiData && (
+                            <motion.div
+                                initial={{ opacity: 0, y: 10, filter: 'blur(10px)' }}
+                                animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
+                                exit={{ opacity: 0, y: -10, filter: 'blur(10px)' }}
+                                transition={{ duration: 0.5, ease: "easeOut" }}
+                                role="region"
+                                aria-live="polite"
+                                aria-label="AI System Analysis"
+                                className="mt-4 p-3 bg-black/40 border border-[#7EB8FF]/20 rounded text-[10px] space-y-2"
+                            >
+                                <div className="text-white"><span className="text-[#7EB8FF]/70">Planet:</span> {geminiData.planet_name}</div>
+                                <div className="text-white"><span className="text-[#7EB8FF]/70">Biome:</span> {geminiData.biome}</div>
+                                <div className="text-white"><span className="text-[#7EB8FF]/70">Species:</span> {geminiData.dominant_species} (Stage {geminiData.life_stage})</div>
+                                <div className="text-white"><span className="text-[#7EB8FF]/70">Civilization:</span> {geminiData.civilization}</div>
+                                {analysisFailed && (
+                                <p className="text-[9px] text-yellow-400/70 mt-3 italic">
+                                    ⚠ Predictive fallback — AI scan unavailable
+                                </p>
+                                )}
+                            </motion.div>
+                        )}
+                    </AnimatePresence>
                 </div>
             </div>
         </div>
