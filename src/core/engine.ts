@@ -74,19 +74,28 @@ export class Engine {
         // Dark Matter affects background star visibility
         this._backgroundStarMat.opacity = 0.1 + (physics.darkMatter || 0) * 2.0;
 
-        // Repulsion physics using softening
+        // BOLT: Repulsion physics using softening - Optimized with hoisting and Manhattan pruning
         const softening = physics.softening || 0.1;
+        const minDist = 20 * softening;
+        const minDistSq = minDist * minDist;
+
         if (!this.isPaused && !isScrubbing) {
             for (let i = 0; i < this.heroStars.length; i++) {
+                const s1 = this.heroStars[i];
                 for (let j = i + 1; j < this.heroStars.length; j++) {
-                    const s1 = this.heroStars[i];
                     const s2 = this.heroStars[j];
+
                     const dx = s1.position.x - s2.position.x;
+                    if (dx > minDist || dx < -minDist) continue; // Manhattan prune X
+
                     const dy = s1.position.y - s2.position.y;
+                    if (dy > minDist || dy < -minDist) continue; // Manhattan prune Y
+
                     const dz = s1.position.z - s2.position.z;
+                    if (dz > minDist || dz < -minDist) continue; // Manhattan prune Z
+
                     const distSq = dx*dx + dy*dy + dz*dz;
-                    const minDist = 20 * softening; 
-                    if (distSq < minDist * minDist && distSq > 0.01) {
+                    if (distSq < minDistSq && distSq > 0.01) {
                         const dist = Math.sqrt(distSq);
                         const force = (minDist - dist) / minDist * delta * 30;
                         const fx = (dx / dist) * force;
@@ -107,7 +116,9 @@ export class Engine {
         this._frustum.setFromProjectionMatrix(this._projScreenMatrix.multiplyMatrices(this.camera.projectionMatrix, this.camera.matrixWorldInverse));
         const protostarFlicker = 0.8 + 0.2 * Math.sin(this.appTime * 20.0);
 
-        this.heroStars.forEach(star => {
+        // BOLT: Using standard for loop to avoid closure overhead in hot path
+        for (let i = 0; i < this.heroStars.length; i++) {
+            const star = this.heroStars[i];
             if (!this.isPaused && !isScrubbing) {
                 star.position.x += star.velocity.x * delta;
                 star.position.y += star.velocity.y * delta;
@@ -125,7 +136,7 @@ export class Engine {
                 this._frustum,
                 protostarFlicker
             );
-        });
+        }
 
         // Use pipeline for rendering with post-processing - still render when paused for camera movement
         this.pipeline.render(this.appTime);
@@ -145,18 +156,21 @@ export class Engine {
         }
         this.renderer.dispose();
 
-        this.heroStars.forEach(star => {
-            star.traverse((child) => {
+        // BOLT: Use standard for loops for efficient cleanup
+        for (let i = 0; i < this.heroStars.length; i++) {
+            this.heroStars[i].traverse((child) => {
                 if (child instanceof THREE.Mesh) {
                     child.geometry.dispose();
                     if (Array.isArray(child.material)) {
-                        child.material.forEach(mat => mat.dispose());
+                        for (let j = 0; j < child.material.length; j++) {
+                            child.material[j].dispose();
+                        }
                     } else {
                         child.material.dispose();
                     }
                 }
             });
-        });
+        }
         this._backgroundStarGeo.dispose();
         this._backgroundStarMat.dispose();
         this.heroStars = [];
