@@ -77,21 +77,34 @@ export class Engine {
         // Repulsion physics using softening
         const softening = physics.softening || 0.1;
         if (!this.isPaused && !isScrubbing) {
+            const minDist = 20 * softening;
+            const minDistSq = minDist * minDist;
+
             for (let i = 0; i < this.heroStars.length; i++) {
+                const s1 = this.heroStars[i];
+                const p1 = s1.position;
+
                 for (let j = i + 1; j < this.heroStars.length; j++) {
-                    const s1 = this.heroStars[i];
                     const s2 = this.heroStars[j];
-                    const dx = s1.position.x - s2.position.x;
-                    const dy = s1.position.y - s2.position.y;
-                    const dz = s1.position.z - s2.position.z;
+                    const p2 = s2.position;
+
+                    const dx = p1.x - p2.x;
+                    if (Math.abs(dx) > minDist) continue; // Manhattan pruning
+
+                    const dy = p1.y - p2.y;
+                    if (Math.abs(dy) > minDist) continue;
+
+                    const dz = p1.z - p2.z;
+                    if (Math.abs(dz) > minDist) continue;
+
                     const distSq = dx*dx + dy*dy + dz*dz;
-                    const minDist = 20 * softening; 
-                    if (distSq < minDist * minDist && distSq > 0.01) {
+                    if (distSq < minDistSq && distSq > 0.01) {
                         const dist = Math.sqrt(distSq);
                         const force = (minDist - dist) / minDist * delta * 30;
-                        const fx = (dx / dist) * force;
-                        const fy = (dy / dist) * force;
-                        const fz = (dz / dist) * force;
+                        const invDist = 1.0 / dist;
+                        const fx = dx * invDist * force;
+                        const fy = dy * invDist * force;
+                        const fz = dz * invDist * force;
                         s1.velocity.x += fx;
                         s1.velocity.y += fy;
                         s1.velocity.z += fz;
@@ -107,7 +120,8 @@ export class Engine {
         this._frustum.setFromProjectionMatrix(this._projScreenMatrix.multiplyMatrices(this.camera.projectionMatrix, this.camera.matrixWorldInverse));
         const protostarFlicker = 0.8 + 0.2 * Math.sin(this.appTime * 20.0);
 
-        this.heroStars.forEach(star => {
+        for (let i = 0; i < this.heroStars.length; i++) {
+            const star = this.heroStars[i];
             if (!this.isPaused && !isScrubbing) {
                 star.position.x += star.velocity.x * delta;
                 star.position.y += star.velocity.y * delta;
@@ -125,10 +139,10 @@ export class Engine {
                 this._frustum,
                 protostarFlicker
             );
-        });
+        }
 
         // Use pipeline for rendering with post-processing - still render when paused for camera movement
-        this.pipeline.render(this.appTime);
+        this.pipeline.render(this.appTime, delta);
     }
 
     resize(width: number, height: number) {
@@ -145,18 +159,20 @@ export class Engine {
         }
         this.renderer.dispose();
 
-        this.heroStars.forEach(star => {
-            star.traverse((child) => {
+        for (let i = 0; i < this.heroStars.length; i++) {
+            this.heroStars[i].traverse((child) => {
                 if (child instanceof THREE.Mesh) {
                     child.geometry.dispose();
                     if (Array.isArray(child.material)) {
-                        child.material.forEach(mat => mat.dispose());
+                        for (let j = 0; j < child.material.length; j++) {
+                            child.material[j].dispose();
+                        }
                     } else {
                         child.material.dispose();
                     }
                 }
             });
-        });
+        }
         this._backgroundStarGeo.dispose();
         this._backgroundStarMat.dispose();
         this.heroStars = [];
