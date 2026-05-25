@@ -21,9 +21,9 @@ export class Pipeline {
             new THREE.Vector2(window.innerWidth, window.innerHeight), 
             1.6, 0.4, 0.1
         );
-        this.bloomPass.strength = 1.2;
-        this.bloomPass.radius = 0.6;
-        this.bloomPass.threshold = 0.2;
+        this.bloomPass.strength = 1.6;
+        this.bloomPass.radius = 0.75;
+        this.bloomPass.threshold = 0.08;
         this.composer.addPass(this.bloomPass);
 
         this.cinematicPass = new ShaderPass(CinematicPassShader);

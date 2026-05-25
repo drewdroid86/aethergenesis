@@ -66,7 +66,14 @@ export class HeroStarSystem extends THREE.Group {
     constructor() {
         super();
         this.physicsId = THREE.MathUtils.generateUUID();
-        this.mass = Math.random() > 0.8 ? 8 + Math.random() * 12 : 0.5 + Math.random() * 3;
+        const roll = Math.random();
+        if (roll > 0.82) {
+            this.mass = 8 + Math.random() * 12;         // Massive stars 18%
+        } else if (roll < 0.06) {
+            this.mass = 0.08 + Math.random() * 0.22;    // Brown dwarfs 6%
+        } else {
+            this.mass = 0.4 + Math.random() * 3;        // Main sequence 76%
+        }
         this.lifespanReal = 10000 * Math.pow(this.mass, -2.5);
         this.loopDuration = 40 + Math.random() * 20; 
         

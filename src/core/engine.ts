@@ -29,6 +29,9 @@ export class Engine {
         this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2)); // BOLT: Clamp to 2 for performance
         this.renderer.setSize(window.innerWidth, window.innerHeight);
         this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
+        this.renderer.toneMappingExposure = 1.2;
+        this.renderer.shadowMap.enabled = false;
+        this.renderer.outputColorSpace = THREE.SRGBColorSpace;
         this.scene.background = new THREE.Color(0x050510);
         this.renderer.setClearColor(0x050510, 1);
         container.appendChild(this.renderer.domElement);

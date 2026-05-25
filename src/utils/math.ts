@@ -1,14 +1,13 @@
 import * as THREE from 'three';
 
-// BOLT OPTIMIZATION: Reuse a single Color object and pre-calculated constants to eliminate 50,000 allocations per setup.
-const _SHARED_COLOR = new THREE.Color();
-export function getStellarColor() {
-  const r = Math.random();
-  if (r < 0.00003) return _SHARED_COLOR.setHex(0x9db4ff);
-  if (r < 0.0013) return _SHARED_COLOR.setHex(0xa2b9ff);
-  if (r < 0.0073) return _SHARED_COLOR.setHex(0xffffff);
-  if (r < 0.0373) return _SHARED_COLOR.setHex(0xfff4ea);
-  if (r < 0.1133) return _SHARED_COLOR.setHex(0xffd2a1);
-  if (r < 0.2343) return _SHARED_COLOR.setHex(0xffa351);
-  return _SHARED_COLOR.setHex(0xff4422);
+export function getStellarColor(index: number): THREE.Color {
+  const roll = Math.random();
+  // Realistic stellar distribution by spectral class
+  if (roll < 0.0003) return new THREE.Color(0.6, 0.7, 1.0);      // O — blue-white
+  if (roll < 0.003)  return new THREE.Color(0.7, 0.8, 1.0);       // B — blue
+  if (roll < 0.006)  return new THREE.Color(0.9, 0.95, 1.0);      // A — white
+  if (roll < 0.03)   return new THREE.Color(1.0, 0.97, 0.85);     // F — yellow-white
+  if (roll < 0.12)   return new THREE.Color(1.0, 0.9, 0.6);       // G — yellow (Sun-like)
+  if (roll < 0.24)   return new THREE.Color(1.0, 0.7, 0.3);       // K — orange
+  return new THREE.Color(1.0, 0.35, 0.15);                         // M — red dwarf (majority)
 }

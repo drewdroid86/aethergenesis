@@ -232,6 +232,7 @@ export function useSimulation(containerRef: React.RefObject<HTMLDivElement | nul
             let frameId: number;
             let lastAnimationTime = performance.now();
             let fpsHistory: number[] = [];
+            let lastFpsUpdateTime = 0;
 
             const animate = () => {
                 frameId = requestAnimationFrame(animate);
@@ -243,7 +244,10 @@ export function useSimulation(containerRef: React.RefObject<HTMLDivElement | nul
                     fpsHistory.push(1 / delta); 
                     if (fpsHistory.length > 60) fpsHistory.shift(); 
                     const currentFps = fpsHistory.reduce((sum, val) => sum + val, 0) / fpsHistory.length;
-                    setFps(Math.round(currentFps));
+                    if (currentTime - lastFpsUpdateTime > 1000) {
+                        setFps(Math.round(currentFps));
+                        lastFpsUpdateTime = currentTime;
+                    }
 
                     if (currentFps < FPS_THRESHOLD) {
                         consecutiveFramesBelowThresholdRef.current++;

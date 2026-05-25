@@ -103,11 +103,14 @@ export class NebulaSystem {
             geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
             geometry.setAttribute('pSize', new THREE.BufferAttribute(pSizes, 1));
 
-            // Pick color: Cold (Blue-Purple) or Hot (Red-Orange)
-            const isCold = Math.random() > 0.5;
-            const baseColor = isCold 
-                ? new THREE.Color().setHSL(0.65 + Math.random() * 0.1, 0.7, 0.4) // Blue/Purple
-                : new THREE.Color().setHSL(0.02 + Math.random() * 0.05, 0.8, 0.4); // Red/Orange
+            // Nebula emission line palette — OIII teal, H-alpha red, SII orange
+            const nebulaColors = [
+                new THREE.Color(0.1, 0.8, 0.9),   // OIII — teal/cyan
+                new THREE.Color(0.9, 0.15, 0.2),  // H-alpha — deep red
+                new THREE.Color(0.95, 0.4, 0.1),  // SII — orange
+                new THREE.Color(0.4, 0.1, 0.9),   // NII — violet
+            ];
+            const baseColor = nebulaColors[Math.floor(Math.random() * nebulaColors.length)];
 
             const material = new THREE.ShaderMaterial({
                 uniforms: {
