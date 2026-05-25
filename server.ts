@@ -28,11 +28,13 @@ app.use((_req, res, next) => {
   res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
   res.setHeader('Cross-Origin-Opener-Policy', 'same-origin');
   res.setHeader('Cross-Origin-Resource-Policy', 'same-origin');
+  res.setHeader('X-XSS-Protection', '0');
   next();
 });
 
 const allowedOrigins = (process.env.ALLOWED_ORIGINS || 'http://localhost:3000,http://localhost:5173').split(',').map(o => o.trim());
 app.use((req, res, next) => { 
+    res.setHeader('Vary', 'Origin');
     const origin = req.headers.origin; 
     if (origin && allowedOrigins.includes(origin)) { 
         res.setHeader('Access-Control-Allow-Origin', origin); 
@@ -92,6 +94,9 @@ app.post('/api/analyze', async (req, res) => {
   }
 
   record.count++;
+
+  // Security: Prevent caching of sensitive AI results
+  res.setHeader('Cache-Control', 'no-store, max-age=0');
 
   // Security: Prevent memory exhaustion with FIFO eviction
   if (analysisLimitMap.size >= MAX_ENTRIES && !analysisLimitMap.has(ip)) {
