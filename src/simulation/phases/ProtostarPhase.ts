@@ -40,6 +40,53 @@ export class ProtostarPhase implements PhaseComponent {
         this.protostarDisk.rotation.x = Math.PI / 2;
         this.protostarGroup.add(this.protostarMesh);
         this.protostarGroup.add(this.protostarDisk);
+
+        // Herbig-Haro bipolar jets
+        const jetMat = new THREE.ShaderMaterial({
+            uniforms: {
+                uTime: { value: 0 },
+                uOpacity: { value: 0.0 }
+            },
+            vertexShader: `
+                varying vec2 vUv;
+                void main() {
+                    vUv = uv;
+                    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+                }
+            `,
+            fragmentShader: `
+                uniform float uTime;
+                uniform float uOpacity;
+                varying vec2 vUv;
+                void main() {
+                    float dist = abs(vUv.x - 0.5) * 2.0;
+                    float taper = 1.0 - vUv.y;
+                    float flow = fract(vUv.y * 4.0 - uTime * 1.5);
+                    float knots = sin(vUv.y * 12.0 - uTime * 3.0) * 0.5 + 0.5;
+                    float alpha = (1.0 - dist * dist) * taper * (0.6 + knots * 0.4) * uOpacity;
+                    vec3 color = mix(vec3(0.2, 0.8, 1.0), vec3(0.8, 0.95, 1.0), 1.0 - vUv.y);
+                    gl_FragColor = vec4(color, alpha * 0.85);
+                }
+            `,
+            transparent: true,
+            blending: THREE.AdditiveBlending,
+            depthWrite: false,
+            side: THREE.DoubleSide
+        });
+        const jetGeo = new THREE.CylinderGeometry(0.05, 0.4, 8.0, 12, 1, true);
+        const jet1 = new THREE.Mesh(jetGeo, jetMat);
+        jet1.position.y = 4.5;
+        const jetMat2 = jetMat.clone();
+        const jet2 = new THREE.Mesh(jetGeo, jetMat2);
+        jet2.position.y = -4.5;
+        jet2.rotation.z = Math.PI;
+        this.protostarGroup.add(jet1);
+        this.protostarGroup.add(jet2);
+        
+        (this as any)._jetMat1 = jetMat;
+        (this as any)._jetMat2 = jetMat2;
+        (this as any)._jetGeo = jetGeo;
+
         this.parent.add(this.protostarGroup);
         
         this.hide();
@@ -53,6 +100,14 @@ export class ProtostarPhase implements PhaseComponent {
         this.protostarMat.uniforms.uTime.value = appTime;
         this.protostarMat.uniforms.uHbar.value = physics.hbar || 1.0;
         this.protostarDisk.rotation.z += delta;
+
+        const jetOpacity = this.protostarMat.uniforms.uOpacity?.value ?? 0;
+        if ((this as any)._jetMat1) {
+            (this as any)._jetMat1.uniforms.uTime.value = appTime;
+            (this as any)._jetMat1.uniforms.uOpacity.value = jetOpacity;
+            (this as any)._jetMat2.uniforms.uTime.value = appTime;
+            (this as any)._jetMat2.uniforms.uOpacity.value = jetOpacity;
+        }
     }
 
     setOpacity(opacity: number): void {
@@ -73,6 +128,15 @@ export class ProtostarPhase implements PhaseComponent {
         this.protostarMat.dispose();
         this.protostarDisk.geometry.dispose();
         (this.protostarDisk.material as THREE.Material).dispose();
+        if ((this as any)._jetGeo) {
+            (this as any)._jetGeo.dispose();
+        }
+        if ((this as any)._jetMat1) {
+            (this as any)._jetMat1.dispose();
+        }
+        if ((this as any)._jetMat2) {
+            (this as any)._jetMat2.dispose();
+        }
         this.parent.remove(this.protostarGroup);
     }
 }

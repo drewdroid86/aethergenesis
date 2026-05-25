@@ -34,7 +34,8 @@ export class MainSequencePhase implements PhaseComponent {
         this.mainSeqGroup = new THREE.Group();
         
         let msColor = 0xffaa44; 
-        if (this.mass > STELLAR_CONSTANTS.PHYSICS.MASS_THRESHOLD_SUPERNOVA) msColor = 0x99aaff; 
+        if (this.mass < 0.3) msColor = 0xcc44bb;        // Brown dwarf — magenta
+        else if (this.mass > STELLAR_CONSTANTS.PHYSICS.MASS_THRESHOLD_SUPERNOVA) msColor = 0x99aaff; 
         else if (this.mass > STELLAR_CONSTANTS.PHYSICS.MASS_THRESHOLD_INTERMEDIATE) msColor = 0xffffdd; 
         
         this.starMat = new THREE.ShaderMaterial({
@@ -62,6 +63,45 @@ export class MainSequencePhase implements PhaseComponent {
         haloMesh.scale.setScalar(this.baseRadius * STELLAR_CONSTANTS.VISUALS.HALO_SCALE_FACTOR);
         
         this.mainSeqGroup.add(this.starMesh);
+
+        // Atmospheric corona glow
+        const coronaGeo = new THREE.SphereGeometry(this.baseRadius * 1.15, 32, 32);
+        const coronaMat = new THREE.ShaderMaterial({
+            uniforms: {
+                uColor: { value: new THREE.Color().setHSL(0.1, 1.0, 0.7) },
+                uOpacity: { value: 0.0 }
+            },
+            vertexShader: `
+                varying vec3 vNormal;
+                varying vec3 vWorldPos;
+                void main() {
+                    vNormal = normalize(normalMatrix * normal);
+                    vWorldPos = (modelMatrix * vec4(position, 1.0)).xyz;
+                    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+                }
+            `,
+            fragmentShader: `
+                uniform vec3 uColor;
+                uniform float uOpacity;
+                varying vec3 vNormal;
+                varying vec3 vWorldPos;
+                void main() {
+                    vec3 viewDir = normalize(cameraPosition - vWorldPos);
+                    float rim = 1.0 - max(0.0, dot(normalize(vNormal), viewDir));
+                    rim = pow(rim, 3.0);
+                    gl_FragColor = vec4(uColor, rim * uOpacity * 0.6);
+                }
+            `,
+            transparent: true,
+            blending: THREE.AdditiveBlending,
+            depthWrite: false,
+            side: THREE.BackSide
+        });
+        const corona = new THREE.Mesh(coronaGeo, coronaMat);
+        (this as any)._coronaMat = coronaMat;
+        (this as any)._coronaMesh = corona;
+        this.mainSeqGroup.add(corona);
+
         this.mainSeqGroup.add(this.coronaMesh);
         this.mainSeqGroup.add(haloMesh);
         this.parent.add(this.mainSeqGroup);
@@ -119,11 +159,19 @@ export class MainSequencePhase implements PhaseComponent {
                 p.pivot.rotation.y += p.speed * delta;
             });
         }
+
+        if (cameraPos) {
+            const distToCamera = cameraPos.distanceTo((this as any).parent?.position ?? new THREE.Vector3());
+            if (this.hzMesh) this.hzMesh.visible = distToCamera < 35;
+        }
     }
 
     setOpacity(opacity: number): void {
         this.starMat.uniforms.uOpacity.value = opacity;
         (this.coronaMesh.material as THREE.MeshBasicMaterial).opacity = opacity * 0.3;
+        if ((this as any)._coronaMat) {
+            (this as any)._coronaMat.uniforms.uOpacity.value = opacity;
+        }
     }
 
     show(): void {
@@ -143,6 +191,10 @@ export class MainSequencePhase implements PhaseComponent {
         this.starMat.dispose();
         this.coronaMesh.geometry.dispose();
         (this.coronaMesh.material as THREE.Material).dispose();
+        if ((this as any)._coronaMesh) {
+            (this as any)._coronaMesh.geometry.dispose();
+            (this as any)._coronaMesh.material.dispose();
+        }
         this.hzMesh.geometry.dispose();
         (this.hzMesh.material as THREE.Material).dispose();
         this.planetsInfo.forEach(p => {

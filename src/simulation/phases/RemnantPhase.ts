@@ -14,6 +14,7 @@ export class RemnantPhase implements PhaseComponent {
     private mass: number;
     private _opNs: number = 0;
     private _opNsLines: number = 0;
+    private bhRadius = 0.5;
 
     constructor(mass: number) {
         this.mass = mass;
@@ -56,6 +57,55 @@ export class RemnantPhase implements PhaseComponent {
         const diskMesh = new THREE.Mesh(GEOMETRIES.blackHoleDisk, diskMat);
         this.blackHoleGroup.add(bhCore);
         this.blackHoleGroup.add(diskMesh);
+
+        // Gravitational lensing sphere
+        const lensGeo = new THREE.SphereGeometry(this.bhRadius * 3.5, 64, 64);
+        const lensMat = new THREE.ShaderMaterial({
+            uniforms: {
+                uTime: { value: 0 },
+                uStrength: { value: 0.0 },
+                tBackground: { value: null }
+            },
+            vertexShader: `
+                varying vec3 vNormal;
+                varying vec3 vWorldPos;
+                void main() {
+                    vNormal = normalize(normalMatrix * normal);
+                    vWorldPos = (modelMatrix * vec4(position, 1.0)).xyz;
+                    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+                }
+            `,
+            fragmentShader: `
+                uniform float uTime;
+                uniform float uStrength;
+                varying vec3 vNormal;
+                varying vec3 vWorldPos;
+                void main() {
+                    vec3 viewDir = normalize(cameraPosition - vWorldPos);
+                    float rim = 1.0 - max(0.0, dot(normalize(vNormal), viewDir));
+                    float photonRing = pow(rim, 8.0) * uStrength;
+                    float innerRing = pow(max(0.0, rim - 0.85), 3.0) * uStrength * 2.0;
+                    // Photon ring color — hot plasma orange-white
+                    vec3 ringColor = mix(
+                        vec3(1.0, 0.5, 0.1),
+                        vec3(1.0, 0.95, 0.8),
+                        innerRing
+                    );
+                    // Shadow region — pure black event horizon
+                    float shadow = 1.0 - smoothstep(0.0, 0.3, rim);
+                    float alpha = (photonRing + innerRing) * (1.0 - shadow * 0.95);
+                    gl_FragColor = vec4(ringColor, clamp(alpha, 0.0, 1.0));
+                }
+            `,
+            transparent: true,
+            blending: THREE.AdditiveBlending,
+            depthWrite: false
+        });
+        const lensSphere = new THREE.Mesh(lensGeo, lensMat);
+        (this as any)._lensMat = lensMat;
+        (this as any)._lensMesh = lensSphere;
+        this.blackHoleGroup.add(lensSphere);
+
         this.parent.add(this.blackHoleGroup);
         
         this.hide();
@@ -66,6 +116,15 @@ export class RemnantPhase implements PhaseComponent {
             this.blackHoleGroup.visible = true;
             if (!lowDetail) this.blackHoleGroup.rotation.y += delta;
             this.blackHoleGroup.rotation.z = Math.PI / 8;
+
+            if ((this as any)._lensMat) {
+                (this as any)._lensMat.uniforms.uTime.value = appTime;
+                (this as any)._lensMat.uniforms.uStrength.value = THREE.MathUtils.lerp(
+                    (this as any)._lensMat.uniforms.uStrength.value,
+                    1.0,
+                    delta * 2.0
+                );
+            }
         } else if (this.mass > STELLAR_CONSTANTS.PHYSICS.MASS_THRESHOLD_SUPERNOVA) {
             if (!lowDetail) {
                 this.pulsarGroup.rotation.y += delta * 5.0 * (physics.weakForce || 1.0);
@@ -133,6 +192,9 @@ export class RemnantPhase implements PhaseComponent {
         this.nsMagneticLines.children.forEach(c => {
             if ((c as THREE.Mesh).material) ((c as THREE.Mesh).material as THREE.Material).dispose();
         });
+        if ((this as any)._lensMesh) {
+            (this as any)._lensMesh.geometry.dispose();
+        }
         this.blackHoleGroup.children.forEach(c => {
             if ((c as THREE.Mesh).material) ((c as THREE.Mesh).material as THREE.Material).dispose();
         });

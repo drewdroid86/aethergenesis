@@ -16,9 +16,14 @@ void main() {
     
     vec3 finalColor = mix(uColor * 0.5, uColor * 1.5, noiseVal);
     
-    // Limb darkening
-    float intensity = max(0.0, dot(vNormal, vec3(0.0, 0.0, 1.0)));
-    finalColor *= smoothstep(0.0, 1.0, intensity * 1.2 + 0.2);
+    // Quadratic limb darkening — scientifically accurate (Claret 2000)
+    vec3 viewDir = normalize(cameraPosition - vWorldPosition);
+    float mu = max(0.0, dot(normalize(vNormal), viewDir));
+    float u1 = 0.4;
+    float u2 = 0.3;
+    float limbDarkening = 1.0 - u1 * (1.0 - mu) - u2 * (1.0 - mu) * (1.0 - mu);
+    limbDarkening = clamp(limbDarkening, 0.0, 1.0);
+    finalColor *= limbDarkening;
     
     gl_FragColor = vec4(finalColor, uOpacity);
 }
