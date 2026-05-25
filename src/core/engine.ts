@@ -163,18 +163,7 @@ export class Engine {
         this.renderer.dispose();
 
         for (let i = 0; i < this.heroStars.length; i++) {
-            this.heroStars[i].traverse((child) => {
-                if (child instanceof THREE.Mesh) {
-                    child.geometry.dispose();
-                    if (Array.isArray(child.material)) {
-                        for (let j = 0; j < child.material.length; j++) {
-                            child.material[j].dispose();
-                        }
-                    } else {
-                        child.material.dispose();
-                    }
-                }
-            });
+            this.heroStars[i].dispose();
         }
         this._backgroundStarGeo.dispose();
         this._backgroundStarMat.dispose();

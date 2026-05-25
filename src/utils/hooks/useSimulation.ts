@@ -110,16 +110,7 @@ export function useSimulation(containerRef: React.RefObject<HTMLDivElement | nul
     };
 
     const disposeStarSystem = (star: HeroStarSystem) => {
-        star.traverse((child) => {
-            if (child instanceof THREE.Mesh) {
-                child.geometry.dispose();
-                if (Array.isArray(child.material)) {
-                    child.material.forEach((material) => material.dispose());
-                } else if (child.material) {
-                    child.material.dispose();
-                }
-            }
-        });
+        star.dispose();
     };
 
     const rebuildStarfieldGeometry = useCallback(() => {

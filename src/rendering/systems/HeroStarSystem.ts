@@ -49,12 +49,66 @@ export class HeroStarSystem extends THREE.Group {
     private _opS: number = 0;
     private _opNs: number = 0;
 
-    private nebulaPhase: NebulaPhase;
-    private protostarPhase: ProtostarPhase;
-    private mainSequencePhase: MainSequencePhase;
-    private redGiantPhase: RedGiantPhase;
-    private supernovaPhase: SupernovaPhase;
-    private remnantPhase: RemnantPhase;
+    private _nebulaPhase?: NebulaPhase;
+    private _protostarPhase?: ProtostarPhase;
+    private _mainSequencePhase?: MainSequencePhase;
+    private _redGiantPhase?: RedGiantPhase;
+    private _supernovaPhase?: SupernovaPhase;
+    private _remnantPhase?: RemnantPhase;
+
+    private get nebulaPhase(): NebulaPhase {
+        if (!this._nebulaPhase) {
+            this._nebulaPhase = new NebulaPhase();
+            this._nebulaPhase.init(this);
+        }
+        return this._nebulaPhase;
+    }
+
+    private get protostarPhase(): ProtostarPhase {
+        if (!this._protostarPhase) {
+            this._protostarPhase = new ProtostarPhase(this.baseRadius);
+            this._protostarPhase.init(this);
+        }
+        return this._protostarPhase;
+    }
+
+    private get mainSequencePhase(): MainSequencePhase {
+        if (!this._mainSequencePhase) {
+            this._mainSequencePhase = new MainSequencePhase(this.mass, this.baseRadius);
+            this._mainSequencePhase.init(this);
+        }
+        return this._mainSequencePhase;
+    }
+
+    private get redGiantPhase(): RedGiantPhase {
+        if (!this._redGiantPhase) {
+            this._redGiantPhase = new RedGiantPhase(this.baseRadius, this.tHeat);
+            this._redGiantPhase.init(this);
+        }
+        return this._redGiantPhase;
+    }
+
+    private get supernovaPhase(): SupernovaPhase {
+        if (!this._supernovaPhase) {
+            this._supernovaPhase = new SupernovaPhase(this.mass, this.baseRadius);
+            this._supernovaPhase.init(this);
+        }
+        return this._supernovaPhase;
+    }
+
+    private get remnantPhase(): RemnantPhase {
+        if (!this._remnantPhase) {
+            this._remnantPhase = new RemnantPhase(this.mass);
+            this._remnantPhase.init(this);
+
+            // Connect shared data and fix accretion disc if initialized
+            const bhDisk = (this._remnantPhase as any).blackHoleGroup.children[1] as THREE.Mesh;
+            if (bhDisk) {
+                this.setupBlackHoleAccretionDisc(bhDisk);
+            }
+        }
+        return this._remnantPhase;
+    }
 
     public planetarySystem?: PlanetarySystem;
     public hitMesh: THREE.Mesh;
@@ -85,65 +139,46 @@ export class HeroStarSystem extends THREE.Group {
         this.tHeat = 5778 * Math.pow(this.mass, 0.5) * baryonFactor;
         this.baseRadius = Math.pow(this.mass, 0.8) * 0.8;
 
-        // Initialize Phases
-        this.nebulaPhase = new NebulaPhase();
-        this.protostarPhase = new ProtostarPhase(this.baseRadius);
-        this.mainSequencePhase = new MainSequencePhase(this.mass, this.baseRadius);
-        this.redGiantPhase = new RedGiantPhase(this.baseRadius, this.tHeat);
-        this.supernovaPhase = new SupernovaPhase(this.mass, this.baseRadius);
-        this.remnantPhase = new RemnantPhase(this.mass);
-
-        this.nebulaPhase.init(this);
-        this.protostarPhase.init(this);
-        this.mainSequencePhase.init(this);
-        this.redGiantPhase.init(this);
-        this.supernovaPhase.init(this);
-        this.remnantPhase.init(this);
-
-        // Connect shared data
-        this.redGiantPhase.setPlanets(this.mainSequencePhase.planetsInfo);
-
         // Hit mesh for raycaster
         this.hitMesh = new THREE.Mesh(
             GEOMETRIES.hit,
             new THREE.MeshBasicMaterial({visible: false})
         );
         this.add(this.hitMesh);
+    }
 
+    private setupBlackHoleAccretionDisc(bhDisk: THREE.Mesh) {
         // BOLT: Fix black hole accretion disc - replace geometry and material for high-quality gradient
-        const bhDisk = (this.remnantPhase as any).blackHoleGroup.children[1] as THREE.Mesh;
-        if (bhDisk) {
-            if (bhDisk.geometry) bhDisk.geometry.dispose();
-            if (bhDisk.material instanceof THREE.Material) bhDisk.material.dispose();
-            bhDisk.geometry = new THREE.RingGeometry(8, 12, 64);
-            bhDisk.rotation.x = Math.PI / 2;
-            this.bhDiskMaterial = new THREE.ShaderMaterial({
-                uniforms: { uTime: { value: 0 } },
-                transparent: true,
-                blending: THREE.AdditiveBlending,
-                side: THREE.DoubleSide,
-                vertexShader: `
-                    varying vec2 vUv;
-                    void main() {
-                        vUv = uv;
-                        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-                    }
-                `,
-                fragmentShader: `
-                    varying vec2 vUv;
-                    uniform float uTime;
-                    void main() {
-                        float dist = vUv.y; // Radial distance: 0 (inner) to 1 (outer)
-                        vec3 innerColor = vec3(1.0, 1.0, 0.9); // White-ish hot
-                        vec3 outerColor = vec3(1.0, 0.4, 0.0); // Orange cool
-                        vec3 color = mix(innerColor, outerColor, pow(dist, 1.5));
-                        float alpha = (0.7 + 0.3 * sin(uTime * 4.0)) * (1.0 - dist);
-                        gl_FragColor = vec4(color, alpha * 0.8);
-                    }
-                `
-            });
-            bhDisk.material = this.bhDiskMaterial;
-        }
+        if (bhDisk.geometry) bhDisk.geometry.dispose();
+        if (bhDisk.material instanceof THREE.Material) bhDisk.material.dispose();
+        bhDisk.geometry = new THREE.RingGeometry(8, 12, 64);
+        bhDisk.rotation.x = Math.PI / 2;
+        this.bhDiskMaterial = new THREE.ShaderMaterial({
+            uniforms: { uTime: { value: 0 } },
+            transparent: true,
+            blending: THREE.AdditiveBlending,
+            side: THREE.DoubleSide,
+            vertexShader: `
+                varying vec2 vUv;
+                void main() {
+                    vUv = uv;
+                    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+                }
+            `,
+            fragmentShader: `
+                varying vec2 vUv;
+                uniform float uTime;
+                void main() {
+                    float dist = vUv.y; // Radial distance: 0 (inner) to 1 (outer)
+                    vec3 innerColor = vec3(1.0, 1.0, 0.9); // White-ish hot
+                    vec3 outerColor = vec3(1.0, 0.4, 0.0); // Orange cool
+                    vec3 color = mix(innerColor, outerColor, pow(dist, 1.5));
+                    float alpha = (0.7 + 0.3 * sin(uTime * 4.0)) * (1.0 - dist);
+                    gl_FragColor = vec4(color, alpha * 0.85);
+                }
+            `
+        });
+        bhDisk.material = this.bhDiskMaterial;
     }
 
     update(delta: number, appTime: number, cameraPos: THREE.Vector3, physics: PhysicsConstants, overrideT?: number, cosmicAge?: number, frustum?: THREE.Frustum, flicker?: number) {
@@ -187,18 +222,18 @@ export class HeroStarSystem extends THREE.Group {
         // BOLT: Determine current phase and handle transitions
         const newPhase = getPhaseForT(this.t);
         if (this._activePhase !== newPhase) {
-            if (this._activePhase === PHASES.NEBULA) this.nebulaPhase.hide();
-            else if (this._activePhase === PHASES.PROTOSTAR) this.protostarPhase.hide();
+            if (this._activePhase === PHASES.NEBULA) this._nebulaPhase?.hide();
+            else if (this._activePhase === PHASES.PROTOSTAR) this._protostarPhase?.hide();
             else if (this._activePhase === PHASES.MAIN_SEQUENCE) {
-                this.mainSequencePhase.hide();
+                this._mainSequencePhase?.hide();
                 if (this.planetarySystem) {
                     this.planetarySystem.dispose();
                     this.planetarySystem = undefined;
                 }
             }
-            else if (this._activePhase === PHASES.RED_GIANT) this.redGiantPhase.hide();
-            else if (this._activePhase === PHASES.SUPERNOVA) this.supernovaPhase.hide();
-            else if (this._activePhase === PHASES.REMNANT) this.remnantPhase.hide();
+            else if (this._activePhase === PHASES.RED_GIANT) this._redGiantPhase?.hide();
+            else if (this._activePhase === PHASES.SUPERNOVA) this._supernovaPhase?.hide();
+            else if (this._activePhase === PHASES.REMNANT) this._remnantPhase?.hide();
 
             if (newPhase === PHASES.NEBULA) this.nebulaPhase.show();
             else if (newPhase === PHASES.PROTOSTAR) this.protostarPhase.show();
@@ -208,7 +243,10 @@ export class HeroStarSystem extends THREE.Group {
                 const hzMesh = (this.mainSequencePhase as any).hzMesh;
                 if (hzMesh.material) (hzMesh.material as any).color.setHex(0xffaa44);
             }
-            else if (newPhase === PHASES.RED_GIANT) this.redGiantPhase.show();
+            else if (newPhase === PHASES.RED_GIANT) {
+                this.redGiantPhase.setPlanets(this.mainSequencePhase.planetsInfo);
+                this.redGiantPhase.show();
+            }
             else if (newPhase === PHASES.SUPERNOVA) {
                 this.supernovaPhase.show();
                 if (this.supernovaPhase.snRing.material) 
@@ -234,7 +272,6 @@ export class HeroStarSystem extends THREE.Group {
 
         if (this.t < STELLAR_CONSTANTS.PHASE_BOUNDARIES.NEBULA_LIMIT) {
             this.phase = PHASES.NEBULA;
-            this.nebulaPhase.show();
             this.nebulaPhase.update(delta, appTime, cameraPos, physics, this.t, lowDetail);
             
             const normT = this.t / STELLAR_CONSTANTS.PHASE_BOUNDARIES.NEBULA_LIMIT;
@@ -310,29 +347,75 @@ export class HeroStarSystem extends THREE.Group {
         // BOLT: Optimize transition opacities with caching and guarded assignments
         const speed = delta * STELLAR_CONSTANTS.TRANSITIONS.DEFAULT_SPEED;
         this._opP = stepOp(this._opP, targetProto, speed);
-        this.protostarPhase.setOpacity(targetProto > 0 ? this._opP * (flicker ?? 1.0) : this._opP);
-        if (this.protostarPhase.protostarGroup.visible !== this._opP > STELLAR_CONSTANTS.TRANSITIONS.VISIBILITY_THRESHOLD) {
-            this.protostarPhase.protostarGroup.visible = this._opP > STELLAR_CONSTANTS.TRANSITIONS.VISIBILITY_THRESHOLD;
+        if (this._opP > STELLAR_CONSTANTS.TRANSITIONS.VISIBILITY_THRESHOLD) {
+            this.protostarPhase.setOpacity(targetProto > 0 ? this._opP * (flicker ?? 1.0) : this._opP);
+            if (this.protostarPhase.protostarGroup.visible !== true) {
+                this.protostarPhase.protostarGroup.visible = true;
+            }
+        } else if (this._protostarPhase) {
+            this.protostarPhase.setOpacity(0);
+            this.protostarPhase.protostarGroup.visible = false;
         }
 
         this._opM = stepOp(this._opM, targetMain, speed);
-        this.mainSequencePhase.setOpacity(this._opM);
-        if (this.mainSequencePhase.mainSeqGroup.visible !== this._opM > STELLAR_CONSTANTS.TRANSITIONS.VISIBILITY_THRESHOLD) {
-            this.mainSequencePhase.mainSeqGroup.visible = this._opM > STELLAR_CONSTANTS.TRANSITIONS.VISIBILITY_THRESHOLD;
+        if (this._opM > STELLAR_CONSTANTS.TRANSITIONS.VISIBILITY_THRESHOLD) {
+            this.mainSequencePhase.setOpacity(this._opM);
+            if (this.mainSequencePhase.mainSeqGroup.visible !== true) {
+                this.mainSequencePhase.mainSeqGroup.visible = true;
+            }
+        } else if (this._mainSequencePhase) {
+            this.mainSequencePhase.setOpacity(0);
+            this.mainSequencePhase.mainSeqGroup.visible = false;
         }
 
         this._opR = stepOp(this._opR, targetRed, speed);
-        this.redGiantPhase.setOpacity(this._opR);
-        if (this.redGiantPhase.redGiantGroup.visible !== this._opR > STELLAR_CONSTANTS.TRANSITIONS.VISIBILITY_THRESHOLD) {
-            this.redGiantPhase.redGiantGroup.visible = this._opR > STELLAR_CONSTANTS.TRANSITIONS.VISIBILITY_THRESHOLD;
+        if (this._opR > STELLAR_CONSTANTS.TRANSITIONS.VISIBILITY_THRESHOLD) {
+            this.redGiantPhase.setOpacity(this._opR);
+            if (this.redGiantPhase.redGiantGroup.visible !== true) {
+                this.redGiantPhase.redGiantGroup.visible = true;
+            }
+        } else if (this._redGiantPhase) {
+            this.redGiantPhase.setOpacity(0);
+            this.redGiantPhase.redGiantGroup.visible = false;
         }
 
         this._opS = stepOp(this._opS, targetSuper, speed);
-        this.supernovaPhase.setOpacity(this._opS);
-        if (this.supernovaPhase.supernovaGroup.visible !== this._opS > STELLAR_CONSTANTS.TRANSITIONS.VISIBILITY_THRESHOLD) {
-            this.supernovaPhase.supernovaGroup.visible = this._opS > STELLAR_CONSTANTS.TRANSITIONS.VISIBILITY_THRESHOLD;
+        if (this._opS > STELLAR_CONSTANTS.TRANSITIONS.VISIBILITY_THRESHOLD) {
+            this.supernovaPhase.setOpacity(this._opS);
+            if (this.supernovaPhase.supernovaGroup.visible !== true) {
+                this.supernovaPhase.supernovaGroup.visible = true;
+            }
+        } else if (this._supernovaPhase) {
+            this.supernovaPhase.setOpacity(0);
+            this.supernovaPhase.supernovaGroup.visible = false;
         }
 
-        this.remnantPhase.updateRemnantOpacity(delta, targetNs);
+        if (targetNs > 0 || (this._remnantPhase && this._opNs > 0)) {
+            this.remnantPhase.updateRemnantOpacity(delta, targetNs);
+        }
+    }
+
+    dispose() {
+        this._nebulaPhase?.dispose();
+        this._protostarPhase?.dispose();
+        this._mainSequencePhase?.dispose();
+        this._redGiantPhase?.dispose();
+        this._supernovaPhase?.dispose();
+        this._remnantPhase?.dispose();
+
+        if (this.planetarySystem) {
+            this.planetarySystem.dispose();
+        }
+
+        if (this.hitMesh) {
+            if (this.hitMesh.material instanceof THREE.Material) {
+                this.hitMesh.material.dispose();
+            }
+            // hitMesh geometry is GEOMETRIES.hit, do NOT dispose
+        }
+
+        if (this.bhDiskMaterial) {
+            this.bhDiskMaterial.dispose();
+        }
     }
 }

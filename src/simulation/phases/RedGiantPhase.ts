@@ -98,7 +98,7 @@ export class RedGiantPhase implements PhaseComponent {
     }
 
     dispose(): void {
-        this.redGiantMesh.geometry.dispose();
+        // BOLT: redGiantMesh uses shared GEOMETRIES.redGiant, do NOT dispose
         this.redGiantMat.dispose();
         this.parent.remove(this.redGiantGroup);
     }
