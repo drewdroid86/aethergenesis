@@ -20,6 +20,8 @@ export function AetherGenesis() {
     cosmicAge,
     isPlayingCosmic,
     setIsPlayingCosmic,
+    isConstantsOpen,
+    setIsConstantsOpen,
     currentTier, 
     fps, 
     showTierDownIndicator, 
@@ -78,6 +80,8 @@ export function AetherGenesis() {
       <ConstantsPanel 
         physics={physics}
         setPhysics={setPhysics}
+        isOpen={isConstantsOpen}
+        setIsOpen={setIsConstantsOpen}
       />
 
       <div className="absolute inset-0 pointer-events-none bg-[radial-gradient(circle_at_center,transparent_0%,rgba(2,2,5,0.6)_100%)]" />

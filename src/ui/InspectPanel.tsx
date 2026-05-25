@@ -157,19 +157,24 @@ Civilization: ${geminiData.civilization}`;
                 <div className="flex items-center gap-2">
                     <button
                         onClick={copyTelemetry}
-                        className="text-[#7EB8FF]/70 hover:text-white transition-colors focus-visible:ring-2 focus-visible:ring-[#C084FC] outline-none rounded p-1"
+                        className="text-[#7EB8FF]/70 hover:text-white transition-colors focus-visible:ring-2 focus-visible:ring-[#C084FC] outline-none rounded p-1 relative group/copy"
                         aria-label="Copy Telemetry"
                         title="Copy Telemetry"
                     >
+                        <span className="absolute -top-6 right-0 text-[10px] text-[#C084FC] opacity-0 group-hover/copy:opacity-100 transition-opacity whitespace-nowrap">
+                            {copied ? 'Copied!' : 'Copy'}
+                        </span>
                         {copied ? <Check size={16} className="text-green-400" /> : <Copy size={16} />}
                     </button>
                     <button
                         onClick={() => setSelectedStar(null)}
-                        className="text-[#7EB8FF]/70 hover:text-white transition-colors focus-visible:ring-2 focus-visible:ring-[#C084FC] outline-none rounded p-1 flex items-center gap-1"
+                        className="text-[#7EB8FF]/70 hover:text-white transition-colors focus-visible:ring-2 focus-visible:ring-[#C084FC] outline-none rounded p-1 flex items-center gap-1 relative group/close"
                         aria-label="Close Stellar Telemetry"
                         title="Close [Esc]"
                     >
-                        <span className="text-[8px] text-[#C084FC] opacity-0 group-hover/header:opacity-100 transition-opacity hidden sm:inline">[Esc]</span>
+                        <span className="absolute -top-6 left-1/2 -translate-x-1/2 text-[10px] text-[#C084FC] opacity-0 group-hover/close:opacity-100 transition-opacity whitespace-nowrap">
+                            [Esc] Close
+                        </span>
                         <X size={20} />
                     </button>
                 </div>
