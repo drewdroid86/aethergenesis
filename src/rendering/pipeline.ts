@@ -30,8 +30,8 @@ export class Pipeline {
         this.composer.addPass(this.cinematicPass);
     }
 
-    render(time: number) {
-        this.cinematicPass.uniforms.time.value = time;
+    public render(appTime: number, delta: number): void {
+        if (this.cinematicPass.uniforms.time) this.cinematicPass.uniforms.time.value = appTime;
         this.composer.render();
     }
 

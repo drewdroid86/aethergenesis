@@ -8,3 +8,12 @@ coverage/
 !.env.example
 out.js
 full_file.tsx
+.agents/
+.codex/
+.cursor/
+.gemini/
+.vscode/
+.zed/
+config/
+opencode.json
+.mcp.json

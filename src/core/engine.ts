@@ -142,7 +142,7 @@ export class Engine {
         }
 
         // Use pipeline for rendering with post-processing - still render when paused for camera movement
-        this.pipeline.render(this.appTime);
+        this.pipeline.render(this.appTime, delta);
     }
 
     resize(width: number, height: number) {
