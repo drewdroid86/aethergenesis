@@ -46,7 +46,7 @@ export class RedGiantPhase implements PhaseComponent {
         this.hide();
     }
 
-    update(delta: number, appTime: number, cameraPos: THREE.Vector3, physics: PhysicsConstants, t: number, lowDetail?: boolean): void {
+    update(delta: number, appTime: number, _cameraPos: THREE.Vector3, physics: PhysicsConstants, t: number, lowDetail?: boolean): void {
         const normT = (t - STELLAR_CONSTANTS.PHASE_BOUNDARIES.RED_GIANT_START) / STELLAR_CONSTANTS.PHASE_BOUNDARIES.RED_GIANT_DURATION;
         const giantScale = this.baseRadius * (1.0 + normT * STELLAR_CONSTANTS.VISUALS.RED_GIANT_MAX_SCALE_FACTOR) + Math.sin(appTime * STELLAR_CONSTANTS.VISUALS.RED_GIANT_PULSATION_SPEED) * STELLAR_CONSTANTS.VISUALS.RED_GIANT_PULSATION_AMP;
         this.redGiantMesh.scale.setScalar(giantScale);
@@ -55,21 +55,27 @@ export class RedGiantPhase implements PhaseComponent {
         this.redGiantMat.uniforms.uHbar.value = physics.hbar || 1.0;
 
         if (!lowDetail) {
-            this.planetsInfo.forEach(p => {
+            // BOLT: Replace forEach with standard for loop
+            const count = this.planetsInfo.length;
+            const dmgRadius = giantScale * STELLAR_CONSTANTS.VISUALS.RED_GIANT_PLANET_DMG_RADIUS;
+            const burnDenom = giantScale * STELLAR_CONSTANTS.VISUALS.RED_GIANT_PLANET_BURN_RADIUS;
+
+            for (let i = 0; i < count; i++) {
+                const p = this.planetsInfo[i];
                 p.pivot.visible = true;
                 p.pivot.rotation.y += p.speed * delta;
-                if (p.dist < giantScale * STELLAR_CONSTANTS.VISUALS.RED_GIANT_PLANET_DMG_RADIUS) {
-                    const denominator = giantScale * STELLAR_CONSTANTS.VISUALS.RED_GIANT_PLANET_BURN_RADIUS;
-                    const dmg = Math.max(0, 1.0 - (p.dist - giantScale) / Math.max(0.001, denominator));
-                    (p.mesh.material as THREE.MeshStandardMaterial).color.setHex(0x222222);
-                    (p.mesh.material as THREE.MeshStandardMaterial).emissive.setHex(0xffaa00);
-                    (p.mesh.material as THREE.MeshStandardMaterial).emissiveIntensity = dmg;
+                if (p.dist < dmgRadius) {
+                    const dmg = Math.max(0, 1.0 - (p.dist - giantScale) / Math.max(0.001, burnDenom));
+                    const mat = p.mesh.material as THREE.MeshStandardMaterial;
+                    mat.color.setHex(0x222222);
+                    mat.emissive.setHex(0xffaa00);
+                    mat.emissiveIntensity = dmg;
                     p.mesh.scale.setScalar(Math.max(0.01, 1.0 - dmg));
                 } else {
                     p.mesh.scale.setScalar(1.0);
                     (p.mesh.material as THREE.MeshStandardMaterial).emissiveIntensity = 0;
                 }
-            });
+            }
         }
     }
 
@@ -89,12 +95,18 @@ export class RedGiantPhase implements PhaseComponent {
 
     show(): void {
         this.redGiantGroup.visible = true;
-        this.planetsInfo.forEach(p => p.pivot.visible = true);
+        const count = this.planetsInfo.length;
+        for (let i = 0; i < count; i++) {
+            this.planetsInfo[i].pivot.visible = true;
+        }
     }
 
     hide(): void {
         this.redGiantGroup.visible = false;
-        this.planetsInfo.forEach(p => p.pivot.visible = false);
+        const count = this.planetsInfo.length;
+        for (let i = 0; i < count; i++) {
+            this.planetsInfo[i].pivot.visible = false;
+        }
     }
 
     dispose(): void {

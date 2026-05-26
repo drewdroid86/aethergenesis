@@ -5,3 +5,7 @@
 ## 2025-05-23 - Lazy Initialization and Shared Resource Disposal
 **Learning:** Initializing all possible states for hundreds of complex Three.js entities at startup causes significant CPU/memory spikes. However, implementing lazy loading requires precise disposal logic; calling `.dispose()` on shared global geometries (e.g., from a shared constant) inside an instance's cleanup method will break rendering for all other instances.
 **Action:** Use lazy getters for expensive sub-systems. In disposal methods, only clean up instance-specific resources and ensure shared assets are preserved.
+
+## 2025-05-24 - O(1) Material Updates and Loop Pruning
+**Learning:** Iterating over child meshes to update material opacities in hot loops (e.g., `updateRemnantOpacity`) is O(N) and costly. Hoisting helper functions like `stepOp` to the module level and storing direct material references as class properties allows for O(1) state mutations. Replacing `forEach` with standard `for` loops across all simulation phases significantly reduces closure overhead in the 60fps animation path.
+**Action:** Store references to shared materials for complex entities. Replace all `forEach` usage in hot paths with standard `for` loops.
