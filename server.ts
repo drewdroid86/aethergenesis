@@ -115,12 +115,12 @@ app.post('/api/analyze', async (req, res) => {
 
   const isValidNumber = (val: any) => typeof val === 'number' && !isNaN(val) && isFinite(val);
 
-  if (!isValidNumber(temp) || temp <= 0 ||
-      !isValidNumber(mass) || mass <= 0 ||
-      !isValidNumber(lum) || lum < 0 ||
-      !isValidNumber(age) || age < 0 ||
-      !isValidNumber(G) || G <= 0 ||
-      !isValidNumber(alpha) || alpha <= 0 ||
+  if (!isValidNumber(temp) || temp <= 0 || temp > 1000000 ||
+      !isValidNumber(mass) || mass <= 0 || mass > 1000 ||
+      !isValidNumber(lum) || lum < 0 || lum > 1000000 ||
+      !isValidNumber(age) || age < 0 || age > 20000 ||
+      !isValidNumber(G) || G <= 0 || G > 100 ||
+      !isValidNumber(alpha) || alpha <= 0 || alpha > 100 ||
       typeof phase !== 'string' || !VALID_PHASES.includes(phase)) {
     return res.status(400).json({ error: 'Invalid input parameters.' });
   }
