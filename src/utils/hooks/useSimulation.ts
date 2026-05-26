@@ -88,6 +88,9 @@ export function useSimulation(containerRef: React.RefObject<HTMLDivElement | nul
     useEffect(() => { cosmicAgeRef.current = cosmicAge; }, [cosmicAge]);
     useEffect(() => { isPlayingCosmicRef.current = isPlayingCosmic; }, [isPlayingCosmic]);
 
+    // UI Panel State
+    const [isConstantsOpen, setIsConstantsOpen] = useState(true);
+
     // HUD & UI Refs
     const hudRefs = {
         hudX: useRef<HTMLSpanElement>(null),
@@ -314,9 +317,42 @@ export function useSimulation(containerRef: React.RefObject<HTMLDivElement | nul
             };
 
             const handleGlobalKeyDown = (e: KeyboardEvent) => {
-                if (e.key === 'Escape') {
-                    selectedStarRef.current = null;
-                    setSelectedStar(null);
+                // Ignore if typing in an input/textarea
+                if (document.activeElement?.tagName === 'INPUT' || document.activeElement?.tagName === 'TEXTAREA') return;
+                // Ignore if any modifier key is pressed
+                if (e.ctrlKey || e.metaKey || e.altKey || e.shiftKey) return;
+
+                switch (e.key) {
+                    case ' ': // Space
+                        e.preventDefault();
+                        setIsPlayingCosmic(prev => !prev);
+                        break;
+                    case 'r':
+                    case 'R':
+                        e.preventDefault();
+                        controlsRef.current?.reset();
+                        break;
+                    case 'f':
+                    case 'F':
+                        e.preventDefault();
+                        if (selectedStarRef.current && controlsRef.current && engineRef.current) {
+                            const targetPos = selectedStarRef.current.position.clone();
+                            const camOffset = engineRef.current.camera.position.clone().sub(controlsRef.current.target).normalize().multiplyScalar(40);
+                            engineRef.current.camera.position.copy(targetPos).add(camOffset);
+                            controlsRef.current.target.copy(targetPos);
+                            controlsRef.current.update();
+                        }
+                        break;
+                    case 'c':
+                    case 'C':
+                        e.preventDefault();
+                        setIsConstantsOpen(prev => !prev);
+                        break;
+                    case 'Escape':
+                        selectedStarRef.current = null;
+                        setSelectedStar(null);
+                        setIsConstantsOpen(false);
+                        break;
                 }
             };
 
@@ -389,6 +425,8 @@ export function useSimulation(containerRef: React.RefObject<HTMLDivElement | nul
         setCosmicAge,
         isPlayingCosmic,
         setIsPlayingCosmic,
+        isConstantsOpen,
+        setIsConstantsOpen,
         currentTier, 
         fps, 
         showTierDownIndicator, 

@@ -133,7 +133,7 @@ export const Hud: React.FC<HudProps> = ({
 
             {/* Bottom HUD */}
             <div className="absolute bottom-0 w-full p-8 flex justify-between items-end z-20 pointer-events-none">
-                <div className="font-mono text-[10px] text-[#7EB8FF]/60 space-y-1 border-l border-[#C084FC]/50 pl-4 bg-[rgba(8,8,20,0.4)] backdrop-blur-md py-3 pr-4 rounded-r border-y-0 border-r-0 pointer-events-auto">
+                <div className="font-mono text-[10px] text-[#7EB8FF]/60 space-y-1 border-l border-[#C084FC]/50 pl-4 bg-[rgba(8,8,20,0.4)] backdrop-blur-md py-3 pr-4 rounded-r border-y-0 border-r-0 pointer-events-auto group/telemetry">
                 <div className="flex items-center justify-between gap-4 mb-2 pb-1 border-b border-[rgba(126,184,255,0.2)]">
                     <div className="flex items-center gap-2">
                         <span className="inline-block w-2 h-2 rounded-full bg-[#C084FC] animate-pulse shadow-[0_0_5px_#C084FC]" />
@@ -141,10 +141,13 @@ export const Hud: React.FC<HudProps> = ({
                     </div>
                     <button
                         onClick={copyCoordinates}
-                        className="text-[#7EB8FF]/40 hover:text-white transition-colors focus-visible:ring-2 focus-visible:ring-[#C084FC] outline-none rounded"
+                        className="text-[#7EB8FF]/40 hover:text-white transition-colors focus-visible:ring-2 focus-visible:ring-[#C084FC] outline-none rounded relative group/copy"
                         aria-label="Copy Coordinates"
                         title="Copy Coordinates"
                     >
+                        <span className="absolute -top-6 right-0 text-[10px] text-[#C084FC] opacity-0 group-hover/copy:opacity-100 transition-opacity whitespace-nowrap">
+                            {copied ? 'Copied!' : 'Copy'}
+                        </span>
                         {copied ? <Check size={12} className="text-green-400" /> : <Copy size={12} />}
                     </button>
                 </div>
@@ -171,10 +174,13 @@ export const Hud: React.FC<HudProps> = ({
                                 </button>
                                 <button
                                     onClick={() => setIsPlayingCosmic(!isPlayingCosmic)}
-                                    className="text-white/40 hover:text-white transition-colors focus-visible:ring-2 focus-visible:ring-[#C084FC] outline-none rounded"
+                                    className="text-white/40 hover:text-white transition-colors focus-visible:ring-2 focus-visible:ring-[#C084FC] outline-none rounded relative group/play"
                                     aria-label={isPlayingCosmic ? "Pause cosmic simulation" : "Play cosmic simulation"}
                                     title={isPlayingCosmic ? "Pause Cosmic Simulation" : "Play Cosmic Simulation"}
                                 >
+                                    <span className="absolute -top-6 left-1/2 -translate-x-1/2 text-[10px] text-[#C084FC] opacity-0 group-hover/play:opacity-100 transition-opacity whitespace-nowrap">
+                                        [Space]
+                                    </span>
                                     {isPlayingCosmic ? <Pause size={14} /> : <Play size={14} />}
                                 </button>
                             </div>
@@ -207,16 +213,22 @@ export const Hud: React.FC<HudProps> = ({
                 <div className="grid grid-cols-2 gap-2 pointer-events-auto">
                     <button 
                         onClick={resetCamera}
-                        className="w-10 h-10 flex items-center justify-center bg-[rgba(8,8,20,0.6)] border border-[rgba(126,184,255,0.2)] rounded-md backdrop-blur-md transition-colors hover:bg-[rgba(126,184,255,0.1)] cursor-pointer focus-visible:ring-2 focus-visible:ring-[#C084FC] outline-none" 
+                        className="w-10 h-10 flex items-center justify-center bg-[rgba(8,8,20,0.6)] border border-[rgba(126,184,255,0.2)] rounded-md backdrop-blur-md transition-colors hover:bg-[rgba(126,184,255,0.1)] cursor-pointer focus-visible:ring-2 focus-visible:ring-[#C084FC] outline-none relative group/reset"
                         aria-label="Reset Camera" title="Reset Camera"
                     >
+                    <span className="absolute -top-6 left-1/2 -translate-x-1/2 text-[10px] text-[#C084FC] opacity-0 group-hover/reset:opacity-100 transition-opacity whitespace-nowrap">
+                        [R] Reset
+                    </span>
                     <Crosshair size={16} className="text-[#7EB8FF]" />
                     </button>
                     <button 
                         onClick={centerOnStar}
-                        className="w-10 h-10 flex items-center justify-center bg-[rgba(8,8,20,0.6)] border border-[rgba(126,184,255,0.2)] rounded-md backdrop-blur-md transition-colors hover:bg-[rgba(126,184,255,0.1)] cursor-pointer focus-visible:ring-2 focus-visible:ring-[#C084FC] outline-none" 
+                        className="w-10 h-10 flex items-center justify-center bg-[rgba(8,8,20,0.6)] border border-[rgba(126,184,255,0.2)] rounded-md backdrop-blur-md transition-colors hover:bg-[rgba(126,184,255,0.1)] cursor-pointer focus-visible:ring-2 focus-visible:ring-[#C084FC] outline-none relative group/focus"
                         aria-label="Center on Star" title="Center on Star"
                     >
+                    <span className="absolute -top-6 left-1/2 -translate-x-1/2 text-[10px] text-[#C084FC] opacity-0 group-hover/focus:opacity-100 transition-opacity whitespace-nowrap">
+                        [F] Focus
+                    </span>
                     <Navigation size={16} className="text-[#C084FC]" />
                     </button>
                 </div>

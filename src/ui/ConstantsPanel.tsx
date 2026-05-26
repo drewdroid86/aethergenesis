@@ -1,23 +1,31 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { Settings2, X, RotateCcw } from 'lucide-react';
 import { DEFAULT_CONSTANTS, PhysicsConstants } from '../types/physics';
 
 interface ConstantsPanelProps {
     physics: PhysicsConstants;
     setPhysics: React.Dispatch<React.SetStateAction<PhysicsConstants>>;
+    isOpen: boolean;
+    setIsOpen: (isOpen: boolean) => void;
 }
 
-export const ConstantsPanel: React.FC<ConstantsPanelProps> = ({ physics, setPhysics }) => {
-    const [isOpen, setIsOpen] = useState(true);
-
+export const ConstantsPanel: React.FC<ConstantsPanelProps> = ({
+    physics,
+    setPhysics,
+    isOpen,
+    setIsOpen
+}) => {
     if (!isOpen) {
         return (
             <button 
                 onClick={() => setIsOpen(true)} 
-                className="absolute left-8 top-32 bg-[rgba(14,14,28,0.7)] backdrop-blur-xl border border-[rgba(126,184,255,0.3)] rounded-full p-4 z-30 shadow-[0_0_30px_rgba(0,0,0,0.5)] transform transition-all pointer-events-auto text-[#7EB8FF]/70 hover:text-white group focus-visible:ring-2 focus-visible:ring-[#C084FC] outline-none"
+                className="absolute left-8 top-32 bg-[rgba(14,14,28,0.7)] backdrop-blur-xl border border-[rgba(126,184,255,0.3)] rounded-full p-4 z-30 shadow-[0_0_30px_rgba(0,0,0,0.5)] transform transition-all pointer-events-auto text-[#7EB8FF]/70 hover:text-white group focus-visible:ring-2 focus-visible:ring-[#C084FC] outline-none relative"
                 title="Open Physical Constants"
                 aria-label="Open Physical Constants"
             >
+                <span className="absolute -top-6 left-1/2 -translate-x-1/2 text-[10px] text-[#C084FC] opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
+                    [C] Open
+                </span>
                 <Settings2 size={24} className="group-hover:text-[#C084FC] transition-colors" />
             </button>
         );
@@ -41,9 +49,12 @@ export const ConstantsPanel: React.FC<ConstantsPanelProps> = ({ physics, setPhys
                     </button>
                     <button
                         onClick={() => setIsOpen(false)}
-                        className="text-[#7EB8FF]/70 hover:text-white transition-colors focus-visible:ring-2 focus-visible:ring-[#C084FC] outline-none rounded p-1"
+                        className="text-[#7EB8FF]/70 hover:text-white transition-colors focus-visible:ring-2 focus-visible:ring-[#C084FC] outline-none rounded p-1 relative group/close"
                         aria-label="Close Physical Constants"
                     >
+                        <span className="absolute -top-6 left-1/2 -translate-x-1/2 text-[10px] text-[#C084FC] opacity-0 group-hover/close:opacity-100 transition-opacity whitespace-nowrap">
+                            [C] Close
+                        </span>
                         <X size={20} />
                     </button>
                 </div>
