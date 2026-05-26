@@ -187,18 +187,15 @@ export class MainSequencePhase implements PhaseComponent {
     }
 
     dispose(): void {
-        this.starMesh.geometry.dispose();
+        // BOLT: Star, corona, and HZ use shared GEOMETRIES, do NOT dispose
         this.starMat.dispose();
-        this.coronaMesh.geometry.dispose();
         (this.coronaMesh.material as THREE.Material).dispose();
         if ((this as any)._coronaMesh) {
-            (this as any)._coronaMesh.geometry.dispose();
             (this as any)._coronaMesh.material.dispose();
         }
-        this.hzMesh.geometry.dispose();
         (this.hzMesh.material as THREE.Material).dispose();
         this.planetsInfo.forEach(p => {
-            p.mesh.geometry.dispose();
+            // Planet geometry is also shared GEOMETRIES.planet
             (p.mesh.material as THREE.Material).dispose();
             this.parent.remove(p.pivot);
         });

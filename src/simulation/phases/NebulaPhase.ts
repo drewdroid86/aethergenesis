@@ -103,9 +103,9 @@ export class NebulaPhase implements PhaseComponent {
     }
 
     dispose(): void {
-        this.nebulaMesh.geometry.dispose();
+        // BOLT: nebulaMesh uses shared GEOMETRIES.nebula, do NOT dispose
         this.nebulaMat.dispose();
-        this.dustCloud.geometry.dispose();
+        this.dustCloud.geometry.dispose(); // Unique per star
         (this.dustCloud.material as THREE.Material).dispose();
         this.parent.remove(this.nebulaMesh);
         this.parent.remove(this.dustCloud);

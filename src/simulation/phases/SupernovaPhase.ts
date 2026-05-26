@@ -112,11 +112,10 @@ export class SupernovaPhase implements PhaseComponent {
     }
 
     dispose(): void {
-        this.coreFlashMesh.geometry.dispose();
+        // BOLT: flash and ring use shared GEOMETRIES, do NOT dispose
         (this.coreFlashMesh.material as THREE.Material).dispose();
-        this.snRing.geometry.dispose();
         (this.snRing.material as THREE.Material).dispose();
-        this.ejectaMesh.geometry.dispose();
+        this.ejectaMesh.geometry.dispose(); // Unique per star
         this.ejectaMat.dispose();
         this.parent.remove(this.supernovaGroup);
         this.parent.remove(this.snRing);

@@ -1,3 +1,7 @@
 ## 2025-05-22 - Optimize Repulsion Physics and Hot Loops
 **Learning:** The $O(N^2)$ repulsion physics loop in `Engine.update` was a major bottleneck as the number of stars increased. Standard `forEach` loops in high-frequency (60fps) animation paths introduce unnecessary closure allocations and function call overhead.
 **Action:** Use AABB/Manhattan pruning and hoist property access in nested physics loops. Replace `forEach` with standard `for` loops in hot paths like `Engine.update` and `Engine.dispose`.
+
+## 2025-05-23 - Lazy Initialization and Shared Resource Disposal
+**Learning:** Initializing all possible states for hundreds of complex Three.js entities at startup causes significant CPU/memory spikes. However, implementing lazy loading requires precise disposal logic; calling `.dispose()` on shared global geometries (e.g., from a shared constant) inside an instance's cleanup method will break rendering for all other instances.
+**Action:** Use lazy getters for expensive sub-systems. In disposal methods, only clean up instance-specific resources and ensure shared assets are preserved.
