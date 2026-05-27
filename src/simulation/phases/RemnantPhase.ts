@@ -4,6 +4,13 @@ import { PhysicsConstants } from '../../types/physics';
 import { GEOMETRIES } from './geometries';
 import { STELLAR_CONSTANTS } from '../../core/constants';
 
+// BOLT: Module-level helper to avoid closure overhead
+const stepOp = (current: number, target: number, speed: number) => {
+    if (current < target) return Math.min(target, current + speed);
+    if (current > target) return Math.max(target, current - speed);
+    return current;
+};
+
 export class RemnantPhase implements PhaseComponent {
     public neutronStarGroup!: THREE.Group;
     public nsMagneticLines!: THREE.Group;
@@ -170,13 +177,8 @@ export class RemnantPhase implements PhaseComponent {
 
     updateRemnantOpacity(delta: number, targetNs: number): void {
         const speed = delta * STELLAR_CONSTANTS.TRANSITIONS.DEFAULT_SPEED;
-        const stepOp = (current: number, target: number) => {
-            if (current < target) return Math.min(target, current + speed);
-            if (current > target) return Math.max(target, current - speed);
-            return current;
-        };
 
-        const nextOpNs = stepOp(this._opNs, targetNs);
+        const nextOpNs = stepOp(this._opNs, targetNs, speed);
         if (this._opNs !== nextOpNs) {
             this._opNs = nextOpNs;
             const nsMeshMat = (this.neutronStarGroup.children[0] as THREE.Mesh).material as THREE.MeshBasicMaterial;
@@ -184,7 +186,7 @@ export class RemnantPhase implements PhaseComponent {
         }
 
         const targetLines = targetNs ? 0.3 : 0;
-        const nextOpLines = stepOp(this._opNsLines, targetLines);
+        const nextOpLines = stepOp(this._opNsLines, targetLines, speed);
         if (this._opNsLines !== nextOpLines) {
             this._opNsLines = nextOpLines;
             this.nsMagneticLines.children.forEach(c => {

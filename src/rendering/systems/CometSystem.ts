@@ -48,6 +48,10 @@ void main() {
 `;
 
 export class CometSystem {
+    // BOLT: Shared scratchpad objects to avoid per-frame allocations
+    private static _matrix = new THREE.Matrix4();
+    private static _posV = new THREE.Vector3();
+
     private instancedMesh: THREE.InstancedMesh;
     private material: THREE.ShaderMaterial;
     private group: THREE.Group;
@@ -96,8 +100,6 @@ export class CometSystem {
         const actives = this.instancedMesh.geometry.attributes.cActive.array as Float32Array;
         
         let cometIdx = 0;
-        const matrix = new THREE.Matrix4();
-        const posV = new THREE.Vector3();
         
         for (let i = 0; i < numBodies; i++) {
             const type = buffer[i * 7 + 6];
@@ -106,21 +108,21 @@ export class CometSystem {
                 const y = buffer[i * 7 + 1];
                 const z = buffer[i * 7 + 2];
                 
-                posV.set(x, y, z);
-                matrix.makeTranslation(x, y, z);
-                this.instancedMesh.setMatrixAt(cometIdx, matrix);
+                CometSystem._posV.set(x, y, z);
+                CometSystem._matrix.makeTranslation(x, y, z);
+                this.instancedMesh.setMatrixAt(cometIdx, CometSystem._matrix);
                 
-                const r = posV.length();
+                const r = CometSystem._posV.length();
                 if (r < 3.0) { // Coma active
                     actives[cometIdx] = 1.0;
                     scales[cometIdx] = 2.0;
                     
                     if (r < 2.5) { // Tail active
                         // Tail points away from star (which is at 0,0,0)
-                        const dir = posV.clone().normalize();
-                        dirs[cometIdx * 3 + 0] = dir.x;
-                        dirs[cometIdx * 3 + 1] = dir.y;
-                        dirs[cometIdx * 3 + 2] = dir.z;
+                        const invR = 1.0 / r;
+                        dirs[cometIdx * 3 + 0] = x * invR;
+                        dirs[cometIdx * 3 + 1] = y * invR;
+                        dirs[cometIdx * 3 + 2] = z * invR;
                     } else {
                         dirs[cometIdx * 3 + 0] = 0;
                         dirs[cometIdx * 3 + 1] = 0;
@@ -135,6 +137,8 @@ export class CometSystem {
             }
         }
         
+        // BOLT: Setting .count and marking dirty
+        this.instancedMesh.count = cometIdx;
         this.instancedMesh.geometry.attributes.cScale.needsUpdate = true;
         this.instancedMesh.geometry.attributes.cDir.needsUpdate = true;
         this.instancedMesh.geometry.attributes.cActive.needsUpdate = true;

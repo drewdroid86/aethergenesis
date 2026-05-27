@@ -154,6 +154,13 @@ void main() {
 `;
 
 export class PlanetarySystem {
+    // BOLT: Shared scratchpad objects to avoid per-frame allocations
+    private static _matrix = new THREE.Matrix4();
+    private static _posV = new THREE.Vector3();
+    private static _scaleV = new THREE.Vector3();
+    private static _rotQ = new THREE.Quaternion();
+    private static _yAxis = new THREE.Vector3(0, 1, 0);
+
     private instancedMesh: THREE.InstancedMesh;
     public bodies: {
         scale: number;
@@ -229,39 +236,32 @@ export class PlanetarySystem {
         this.group.visible = true;
         this.material.uniforms.uTime.value += delta;
         
-        const matrix = new THREE.Matrix4();
-        const posV = new THREE.Vector3();
-        const scaleV = new THREE.Vector3();
-        const rotQ = new THREE.Quaternion();
-
         // Buffer has 7 floats per body: x, y, z, vx, vy, vz, type
         const numBodies = Math.min(this.bodies.length, buffer.length / 7);
 
         for (let i = 0; i < numBodies; i++) {
             const b = this.bodies[i];
             
-            const x = buffer[i * 7 + 0];
-            const y = buffer[i * 7 + 1];
-            const z = buffer[i * 7 + 2];
-            
-            posV.set(x, y, z);
-            scaleV.setScalar(b.scale);
+            PlanetarySystem._posV.set(
+                buffer[i * 7 + 0],
+                buffer[i * 7 + 1],
+                buffer[i * 7 + 2]
+            );
+            PlanetarySystem._scaleV.setScalar(b.scale);
             
             // Subtle self-rotation
-            rotQ.setFromAxisAngle(new THREE.Vector3(0, 1, 0), (buffer[i*7+0] + buffer[i*7+1]) * 0.01 + b.seed);
+            PlanetarySystem._rotQ.setFromAxisAngle(
+                PlanetarySystem._yAxis,
+                (buffer[i*7+0] + buffer[i*7+1]) * 0.01 + b.seed
+            );
             
-            matrix.compose(posV, rotQ, scaleV);
-            this.instancedMesh.setMatrixAt(i, matrix);
+            PlanetarySystem._matrix.compose(PlanetarySystem._posV, PlanetarySystem._rotQ, PlanetarySystem._scaleV);
+            this.instancedMesh.setMatrixAt(i, PlanetarySystem._matrix);
         }
 
-        // Hide unused instances
-        const hideMatrix = new THREE.Matrix4().makeScale(0, 0, 0);
-        for (let i = numBodies; i < this.instancedMesh.count; i++) {
-            this.instancedMesh.setMatrixAt(i, hideMatrix);
-        }
-        
-        this.instancedMesh.instanceMatrix.needsUpdate = true;
+        // BOLT: Setting .count handles culling unused instances; no need for redundant hide loop
         this.instancedMesh.count = numBodies;
+        this.instancedMesh.instanceMatrix.needsUpdate = true;
     }
 
     /**
