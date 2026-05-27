@@ -84,8 +84,21 @@ export function broadcastSimState(state: SimBroadcast): void {
     }
 }
 
-export function initWebSocketServer(server: http.Server): void {
-    wss = new WebSocketServer({ server });
+export function initWebSocketServer(server: http.Server, allowedOrigins: string[] = []): void {
+    // Security: Limit payload size and validate origin to prevent DoS and CSWH
+    // Note: maxPayload increased to 100KB to support detailed simulation state broadcasts
+    wss = new WebSocketServer({
+        server,
+        maxPayload: 102400, // 100KB
+        verifyClient: (info: { origin: string }) => {
+            const origin = info.origin;
+            // Allow connection if it's not from a browser (no origin) or if origin is authorized.
+            // Development origins (localhost) are typically included in allowedOrigins.
+            const isAllowed = !origin || allowedOrigins.includes(origin);
+            if (!isAllowed) console.warn(`Blocked WebSocket connection from unauthorized origin: ${origin}`);
+            return isAllowed;
+        }
+    });
     
     wss.on('connection', (ws: WebSocket) => {
         clients.add(ws);

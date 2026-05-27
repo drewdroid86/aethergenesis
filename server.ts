@@ -33,6 +33,12 @@ app.use((_req, res, next) => {
 });
 
 const allowedOrigins = (process.env.ALLOWED_ORIGINS || 'http://localhost:3000,http://localhost:5173').split(',').map(o => o.trim());
+// Security: Ensure APP_URL is included in allowed origins for production environments
+if (process.env.APP_URL) {
+  const url = process.env.APP_URL.trim().replace(/\/$/, '');
+  if (url && !allowedOrigins.includes(url)) allowedOrigins.push(url);
+}
+
 app.use((req, res, next) => { 
     res.setHeader('Vary', 'Origin');
     const origin = req.headers.origin; 
@@ -201,4 +207,4 @@ const server = app.listen(port, () => {
   console.log(`Server listening at http://localhost:${port}`);
 });
 
-initWebSocketServer(server);
+initWebSocketServer(server, allowedOrigins);
