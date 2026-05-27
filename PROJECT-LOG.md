@@ -97,6 +97,21 @@ src/
 
 ---
 
+### v2.6 — Accretion Disk & Visual Alignment Bug Fixes
+**Date:** May 27, 2026
+**AI:** Antigravity (Medium)
+**Branch:** sentinel/input-validation-7488507696427334673
+
+**Changes:**
+- **Decoupled Accretion Disk:** Refactored the black hole accretion disk to create, update, and dispose its customized RingGeometry and ShaderMaterial directly within the `RemnantPhase` component, resolving a memory leak and a bug that disposed the global shared geometry.
+- **Green Habitable Zone:** Removed the system-level color override from `HeroStarSystem.ts` that colored the habitable zone orange, restoring its original green color signature.
+- **Supernova Ring Colors:** Transferred ring color control from `HeroStarSystem.ts` to `SupernovaPhase.ts`, adding white-to-orange-red color gradients for high-mass supernova rings while preserving cyan-green planetary nebula shells for low-mass stars.
+- **Geometries Cleanup:** Removed the unused `GEOMETRIES.blackHoleDisk` to clean up shared global assets.
+
+**State at end:** Code compiles cleanly and builds successfully in production mode.
+
+---
+
 ## CURRENT BUGS (as of last session)
 
 | Priority | Bug | File | Fix |

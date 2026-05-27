@@ -195,6 +195,10 @@ app.use((err: any, _req: express.Request, res: express.Response, _next: express.
   res.status(500).json({ error: 'Internal Server Error' });
 });
 
-app.listen(port, () => {
+import { initWebSocketServer } from './src/simulation/SimStateSocket';
+
+const server = app.listen(port, () => {
   console.log(`Server listening at http://localhost:${port}`);
 });
+
+initWebSocketServer(server);

@@ -36,11 +36,6 @@ export const GEOMETRIES = {
         return geo;
     })(),
     blackHoleCore: new THREE.SphereGeometry(0.5, 32, 32),
-    blackHoleDisk: (() => {
-        const geo = new THREE.TorusGeometry(1.5, 0.4, 16, 64);
-        geo.rotateX(Math.PI / 2);
-        return geo;
-    })(),
     hit: new THREE.SphereGeometry(8, 16, 16),
     magneticTubes: (() => {
         const tubes: THREE.TubeGeometry[] = [];

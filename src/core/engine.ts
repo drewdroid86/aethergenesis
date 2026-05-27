@@ -3,6 +3,18 @@ import { HeroStarSystem } from '../rendering/systems/HeroStarSystem';
 import { PhysicsConstants, DEFAULT_CONSTANTS } from '../types/physics';
 import { detectPerformanceTier, getNumStarsForTier } from '../utils/performance';
 import { Pipeline } from '../rendering/pipeline';
+import { createStellarState, advanceStellarState, StellarState, PhaseTransitionEvent } from '../simulation/StellarPhysics';
+
+let stellarState = createStellarState('hero_star', 1.0, 0.02, 0);
+const phaseTransitionLog: PhaseTransitionEvent[] = [];
+
+export function getStellarState(): StellarState {
+    return stellarState;
+}
+
+export function getPhaseHistory(): PhaseTransitionEvent[] {
+    return phaseTransitionLog;
+}
 
 export class Engine {
     scene: THREE.Scene;
@@ -69,7 +81,7 @@ export class Engine {
         }
     }
 
-    update(delta: number, selectedStar: HeroStarSystem | null, isScrubbing: boolean, physics: PhysicsConstants, cosmicAge: number) {
+    update(delta: number, selectedStar: HeroStarSystem | null, isScrubbing: boolean, physics: PhysicsConstants, cosmicAge: number, timeScale: 'cosmic' | 'realtime' = 'cosmic', nbodyBuffer: Float32Array | null = null) {
         if (!this.isPaused) {
             this.appTime += delta; 
         }
@@ -140,8 +152,24 @@ export class Engine {
                 star === selectedStar ? selectedStar!.t : undefined, 
                 cosmicAge,
                 this._frustum,
-                protostarFlicker
+                protostarFlicker,
+                nbodyBuffer
             );
+        }
+
+        if (!this.isPaused && !isScrubbing) {
+            const deltaTime_yr = timeScale === 'cosmic' ? delta * 200000000 : delta / 31557600;
+            try {
+                const result = advanceStellarState(stellarState, deltaTime_yr);
+                stellarState = result.state;
+                if (result.event) {
+                    phaseTransitionLog.push(result.event);
+                }
+            } catch (error) {
+                if (typeof (window as any).emitErrorOverlay === 'function') {
+                    (window as any).emitErrorOverlay(error);
+                }
+            }
         }
 
         // Use pipeline for rendering with post-processing - still render when paused for camera movement
