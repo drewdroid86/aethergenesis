@@ -9,11 +9,15 @@ import { PHASES } from '../../core/constants';
 const PLANET_VS = `
 attribute float planetType;
 attribute float planetSeed;
+attribute float biomass;
+attribute float civilizationTier;
 varying vec2 vUv;
 varying vec3 vNormal;
 varying vec3 vPosition;
 varying float vType;
 varying float vSeed;
+varying float vBiomass;
+varying float vCivilizationTier;
 varying vec3 vLightDir;
 
 void main() {
@@ -21,6 +25,8 @@ void main() {
     vType = planetType;
     vSeed = planetSeed;
     vPosition = position;
+    vBiomass = biomass;
+    vCivilizationTier = civilizationTier;
     
     // Transform normal and position for lighting
     vec4 worldPos = instanceMatrix * vec4(position, 1.0);
@@ -37,6 +43,8 @@ varying vec3 vNormal;
 varying vec3 vPosition;
 varying float vType;
 varying float vSeed;
+varying float vBiomass;
+varying float vCivilizationTier;
 varying vec3 vLightDir;
 
 // Simplex 3D Noise by Ashima Arts
@@ -124,20 +132,30 @@ void main() {
         if (water < -0.2) color = vec3(0.0, 0.25, 0.5);
     }
 
+    if (vBiomass > 0.0 && type != 1.0 && type != 3.0) {
+        color = mix(color, vec3(0.1, 0.6, 0.2), vBiomass * 0.4 * n);
+    }
+
     // Lighting
     float diff = max(dot(vNormal, vLightDir), 0.1);
-    gl_FragColor = vec4(color * diff, 1.0);
+    vec3 finalColor = color * diff;
+    
+    // City Lights
+    if (vCivilizationTier >= 1.0 && type != 1.0 && type != 3.0) {
+        float cityNoise = snoise(p * 8.0);
+        float nightSide = smoothstep(0.1, -0.2, dot(vNormal, vLightDir));
+        if (cityNoise > 0.5) {
+            finalColor += vec3(1.0, 0.85, 0.5) * nightSide * (cityNoise - 0.5) * 3.0;
+        }
+    }
+
+    gl_FragColor = vec4(finalColor, 1.0);
 }
 `;
 
 export class PlanetarySystem {
     private instancedMesh: THREE.InstancedMesh;
-    private bodies: {
-        semiMajorAxis: number;
-        eccentricity: number;
-        inclination: number;
-        speed: number;
-        angle: number;
+    public bodies: {
         scale: number;
         type: number;
         seed: number;
@@ -152,8 +170,8 @@ export class PlanetarySystem {
         this.group = new THREE.Group();
         this.parent.add(this.group);
 
-        // Maximum 2 planets per star
-        const numBodies = 1 + Math.floor(Math.random() * 2); 
+        // Maximum 50 bodies
+        const numBodies = 50; 
         
         const geometry = new THREE.SphereGeometry(1, 16, 16);
         this.material = new THREE.ShaderMaterial({
@@ -169,43 +187,46 @@ export class PlanetarySystem {
         // Add instance attributes for planet variation
         const types = new Float32Array(numBodies);
         const seeds = new Float32Array(numBodies);
-        
         for (let i = 0; i < numBodies; i++) {
-            types[i] = Math.floor(Math.random() * 7); // 7 types: 0 to 6
+            types[i] = Math.floor(Math.random() * 7);
             seeds[i] = Math.random() * 1000.0;
             
             this.bodies.push({
-                semiMajorAxis: 10 + i * 8 + Math.random() * 5,
-                eccentricity: Math.random() * 0.08,
-                inclination: (Math.random() - 0.5) * 0.3,
-                speed: (0.2 + Math.random() * 0.2) / Math.sqrt(10 + i * 8),
-                angle: Math.random() * Math.PI * 2,
                 scale: 1.5 + Math.random() * 2.0,
                 type: types[i],
                 seed: seeds[i]
             });
         }
         
+        // Hide all initially
+        const hideMatrix = new THREE.Matrix4().makeScale(0, 0, 0);
+        for(let i=0; i<numBodies; i++){
+            this.instancedMesh.setMatrixAt(i, hideMatrix);
+        }
+        
+        
+        const biomassArray = new Float32Array(numBodies).fill(0);
+        const civArray = new Float32Array(numBodies).fill(0);
+        
         geometry.setAttribute('planetType', new THREE.InstancedBufferAttribute(types, 1));
         geometry.setAttribute('planetSeed', new THREE.InstancedBufferAttribute(seeds, 1));
+        geometry.setAttribute('biomass', new THREE.InstancedBufferAttribute(biomassArray, 1));
+        geometry.setAttribute('civilizationTier', new THREE.InstancedBufferAttribute(civArray, 1));
         
         this.group.add(this.instancedMesh);
     }
 
     /**
-     * Update orbits and instance matrices.
-     * Only renders planets for stars in MainSequence phase.
+     * Update orbits based on Float32Array from nbodyWorker.ts
      */
-    update(delta: number): void {
+    updateFromBuffer(buffer: Float32Array, delta: number): void {
         const star = this.parent as any;
         
-        // Visibility check based on stellar phase
         if (star.phase !== PHASES.MAIN_SEQUENCE) {
             this.group.visible = false;
             return;
         }
         this.group.visible = true;
-        
         this.material.uniforms.uTime.value += delta;
         
         const matrix = new THREE.Matrix4();
@@ -213,39 +234,63 @@ export class PlanetarySystem {
         const scaleV = new THREE.Vector3();
         const rotQ = new THREE.Quaternion();
 
-        for (let i = 0; i < this.bodies.length; i++) {
+        // Buffer has 7 floats per body: x, y, z, vx, vy, vz, type
+        const numBodies = Math.min(this.bodies.length, buffer.length / 7);
+
+        for (let i = 0; i < numBodies; i++) {
             const b = this.bodies[i];
-            b.angle += b.speed * delta;
             
-            // Keplerian position approximation
-            const r = b.semiMajorAxis * (1 - b.eccentricity * b.eccentricity) / (1 + b.eccentricity * Math.cos(b.angle));
-            const x = r * Math.cos(b.angle);
-            const z = r * Math.sin(b.angle);
+            const x = buffer[i * 7 + 0];
+            const y = buffer[i * 7 + 1];
+            const z = buffer[i * 7 + 2];
             
-            const sinI = Math.sin(b.inclination);
-            const cosI = Math.cos(b.inclination);
-            
-            posV.set(x, -z * sinI, z * cosI);
+            posV.set(x, y, z);
             scaleV.setScalar(b.scale);
             
-            // Subtle self-rotation for visual appeal
-            rotQ.setFromAxisAngle(new THREE.Vector3(0, 1, 0), b.angle * 0.2 + b.seed);
+            // Subtle self-rotation
+            rotQ.setFromAxisAngle(new THREE.Vector3(0, 1, 0), (buffer[i*7+0] + buffer[i*7+1]) * 0.01 + b.seed);
             
             matrix.compose(posV, rotQ, scaleV);
             this.instancedMesh.setMatrixAt(i, matrix);
         }
+
+        // Hide unused instances
+        const hideMatrix = new THREE.Matrix4().makeScale(0, 0, 0);
+        for (let i = numBodies; i < this.instancedMesh.count; i++) {
+            this.instancedMesh.setMatrixAt(i, hideMatrix);
+        }
+        
         this.instancedMesh.instanceMatrix.needsUpdate = true;
+        this.instancedMesh.count = numBodies;
     }
 
     /**
      * GPU cleanup.
      */
-    dispose(): void {
-        this.instancedMesh.geometry.dispose();
+    dispose() {
         this.material.dispose();
-        if (this.group.parent) {
-            this.group.parent.remove(this.group);
+        this.instancedMesh.geometry.dispose();
+        if (this.parent) {
+            this.parent.remove(this.group);
         }
-        this.bodies = [];
+    }
+
+    /**
+     * Updates biosphere shaders based on AstrobiologyEngine output
+     */
+    updateAstrobiology(astrobiologyStates: any[]): void {
+        const biomassAttr = this.instancedMesh.geometry.getAttribute('biomass') as THREE.InstancedBufferAttribute;
+        const civAttr = this.instancedMesh.geometry.getAttribute('civilizationTier') as THREE.InstancedBufferAttribute;
+        
+        if (!biomassAttr || !civAttr) return;
+
+        for (let i = 0; i < astrobiologyStates.length; i++) {
+            const state = astrobiologyStates[i];
+            biomassAttr.setX(i, state.biomass || 0.0);
+            civAttr.setX(i, state.civilizationTier || 0.0);
+        }
+
+        biomassAttr.needsUpdate = true;
+        civAttr.needsUpdate = true;
     }
 }

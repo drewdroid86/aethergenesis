@@ -15,6 +15,8 @@ export class RemnantPhase implements PhaseComponent {
     private _opNs: number = 0;
     private _opNsLines: number = 0;
     private bhRadius = 0.5;
+    private bhDiskMaterial?: THREE.ShaderMaterial;
+    private bhDiskGeometry?: THREE.RingGeometry;
 
     constructor(mass: number) {
         this.mass = mass;
@@ -51,10 +53,36 @@ export class RemnantPhase implements PhaseComponent {
             GEOMETRIES.blackHoleCore,
             new THREE.MeshBasicMaterial({ color: 0x000000 })
         );
-        const diskMat = new THREE.MeshBasicMaterial({ 
-            color: 0xff8800, transparent: true, opacity: 0.8, blending: THREE.AdditiveBlending
+        
+        // Accretion disk with custom shader material for high-quality gradient and animation
+        this.bhDiskGeometry = new THREE.RingGeometry(8, 12, 64);
+        this.bhDiskGeometry.rotateX(Math.PI / 2);
+        this.bhDiskMaterial = new THREE.ShaderMaterial({
+            uniforms: { uTime: { value: 0 } },
+            transparent: true,
+            blending: THREE.AdditiveBlending,
+            side: THREE.DoubleSide,
+            vertexShader: `
+                varying vec2 vUv;
+                void main() {
+                    vUv = uv;
+                    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+                }
+            `,
+            fragmentShader: `
+                varying vec2 vUv;
+                uniform float uTime;
+                void main() {
+                    float dist = vUv.y; // Radial distance: 0 (inner) to 1 (outer)
+                    vec3 innerColor = vec3(1.0, 1.0, 0.9); // White-ish hot
+                    vec3 outerColor = vec3(1.0, 0.4, 0.0); // Orange cool
+                    vec3 color = mix(innerColor, outerColor, pow(dist, 1.5));
+                    float alpha = (0.7 + 0.3 * sin(uTime * 4.0)) * (1.0 - dist);
+                    gl_FragColor = vec4(color, alpha * 0.85);
+                }
+            `
         });
-        const diskMesh = new THREE.Mesh(GEOMETRIES.blackHoleDisk, diskMat);
+        const diskMesh = new THREE.Mesh(this.bhDiskGeometry, this.bhDiskMaterial);
         this.blackHoleGroup.add(bhCore);
         this.blackHoleGroup.add(diskMesh);
 
@@ -116,6 +144,10 @@ export class RemnantPhase implements PhaseComponent {
             this.blackHoleGroup.visible = true;
             if (!lowDetail) this.blackHoleGroup.rotation.y += delta;
             this.blackHoleGroup.rotation.z = Math.PI / 8;
+
+            if (this.bhDiskMaterial) {
+                this.bhDiskMaterial.uniforms.uTime.value = appTime;
+            }
 
             if ((this as any)._lensMat) {
                 (this as any)._lensMat.uniforms.uTime.value = appTime;
@@ -196,8 +228,11 @@ export class RemnantPhase implements PhaseComponent {
             (this as any)._lensMesh.geometry.dispose();
         }
         this.blackHoleGroup.children.forEach(c => {
-            if ((c as THREE.Mesh).material) ((c as THREE.Mesh).material as THREE.Material).dispose();
+            const mat = (c as THREE.Mesh).material;
+            if (mat instanceof THREE.Material && mat !== this.bhDiskMaterial) mat.dispose();
         });
+        if (this.bhDiskGeometry) this.bhDiskGeometry.dispose();
+        if (this.bhDiskMaterial) this.bhDiskMaterial.dispose();
         this.parent.remove(this.neutronStarGroup);
         this.parent.remove(this.blackHoleGroup);
     }

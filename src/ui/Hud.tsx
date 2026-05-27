@@ -26,6 +26,8 @@ interface HudProps {
         showIndicator: boolean;
     };
     currentSeed: string;
+    timeScale: 'cosmic' | 'realtime';
+    setTimeScale: (scale: 'cosmic' | 'realtime') => void;
 }
 
 export const Hud: React.FC<HudProps> = ({ 
@@ -33,6 +35,8 @@ export const Hud: React.FC<HudProps> = ({
     cosmicAge, 
     isPlayingCosmic, 
     setIsPlayingCosmic,
+    timeScale,
+    setTimeScale,
     onGlobalScrubStart,
     onGlobalScrubMove,
     onGlobalScrubEnd,
@@ -163,6 +167,22 @@ export const Hud: React.FC<HudProps> = ({
                                 Global Cosmic Age (Gyr) <span className="opacity-0 group-hover:opacity-100 transition-opacity ml-2 text-[8px] text-[#C084FC] hidden sm:inline">[Arrows to Seek]</span>
                             </span>
                             <div className="flex gap-2">
+                                <div className="flex bg-[rgba(8,8,20,0.8)] border border-[rgba(126,184,255,0.2)] rounded-full p-0.5 pointer-events-auto mr-2">
+                                    <button 
+                                        onClick={() => setTimeScale('cosmic')}
+                                        className={`px-3 py-1 text-[9px] uppercase tracking-wider rounded-full transition-colors ${timeScale === 'cosmic' ? 'bg-[#7EB8FF]/20 text-[#7EB8FF]' : 'text-white/40 hover:text-white'}`}
+                                        title="1 second = 200 Million Years"
+                                    >
+                                        Cosmic
+                                    </button>
+                                    <button 
+                                        onClick={() => setTimeScale('realtime')}
+                                        className={`px-3 py-1 text-[9px] uppercase tracking-wider rounded-full transition-colors ${timeScale === 'realtime' ? 'bg-[#C084FC]/20 text-[#C084FC]' : 'text-white/40 hover:text-white'}`}
+                                        title="1 second = 1 second"
+                                    >
+                                        Realtime
+                                    </button>
+                                </div>
                                 <button
                                     onClick={shareUniverse}
                                     className="flex items-center gap-1.5 px-3 py-1 bg-[#C084FC]/10 border border-[#C084FC]/30 rounded-full text-[9px] uppercase tracking-wider text-[#C084FC] hover:bg-[#C084FC]/20 transition-colors pointer-events-auto"

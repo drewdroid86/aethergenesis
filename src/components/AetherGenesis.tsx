@@ -3,6 +3,7 @@ import { useSimulation } from '../utils/hooks/useSimulation';
 import { Hud } from '../ui/Hud';
 import { InspectPanel } from '../ui/InspectPanel';
 import { ConstantsPanel } from '../ui/ConstantsPanel';
+import { AstrobiologyPanel } from '../ui/AstrobiologyPanel';
 
 export function AetherGenesis() {
   const mountRef = useRef<HTMLDivElement>(null);
@@ -35,7 +36,10 @@ export function AetherGenesis() {
     onGlobalScrubEnd,
     onKeyDown,
     resetCamera,
-    centerOnStar
+    centerOnStar,
+    timeScale,
+    setTimeScale,
+    astrobiologyData
   } = useSimulation(mountRef);
 
   return (
@@ -47,6 +51,8 @@ export function AetherGenesis() {
         cosmicAge={cosmicAge}
         isPlayingCosmic={isPlayingCosmic}
         setIsPlayingCosmic={setIsPlayingCosmic}
+        timeScale={timeScale}
+        setTimeScale={setTimeScale}
         onGlobalScrubStart={onGlobalScrubStart}
         onGlobalScrubMove={onGlobalScrubMove}
         onGlobalScrubEnd={onGlobalScrubEnd}
@@ -75,6 +81,10 @@ export function AetherGenesis() {
             onKeyDown={(e) => onKeyDown(e, false)}
             uiRefs={uiRefs}
         />
+      )}
+
+      {selectedStar && astrobiologyData.length > 0 && (
+          <AstrobiologyPanel data={astrobiologyData} selectedStar={selectedStar} />
       )}
 
       <ConstantsPanel 

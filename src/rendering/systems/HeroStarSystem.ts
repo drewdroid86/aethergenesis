@@ -9,6 +9,7 @@ import { SupernovaPhase } from '../../simulation/phases/SupernovaPhase';
 import { RemnantPhase } from '../../simulation/phases/RemnantPhase';
 import { GEOMETRIES } from '../../simulation/phases/geometries';
 import { PlanetarySystem } from './PlanetarySystem';
+import { CometSystem } from './CometSystem';
 
 // BOLT: Module-level helper to avoid closure overhead
 const stepOp = (current: number, target: number, speed: number) => {
@@ -100,20 +101,16 @@ export class HeroStarSystem extends THREE.Group {
         if (!this._remnantPhase) {
             this._remnantPhase = new RemnantPhase(this.mass);
             this._remnantPhase.init(this);
-
-            // Connect shared data and fix accretion disc if initialized
-            const bhDisk = (this._remnantPhase as any).blackHoleGroup.children[1] as THREE.Mesh;
-            if (bhDisk) {
-                this.setupBlackHoleAccretionDisc(bhDisk);
-            }
         }
         return this._remnantPhase;
     }
 
-    public planetarySystem?: PlanetarySystem;
     public hitMesh: THREE.Mesh;
-    private bhDiskMaterial: THREE.ShaderMaterial | null = null;
-    private baseRadius: number;
+    public planetarySystem?: PlanetarySystem;
+    public cometSystem?: CometSystem;
+    public dysonMesh?: THREE.Mesh;
+
+    public baseRadius: number;
     private tHeat: number;
     private birthAge: number;
 
@@ -147,41 +144,9 @@ export class HeroStarSystem extends THREE.Group {
         this.add(this.hitMesh);
     }
 
-    private setupBlackHoleAccretionDisc(bhDisk: THREE.Mesh) {
-        // BOLT: Fix black hole accretion disc - replace geometry and material for high-quality gradient
-        if (bhDisk.geometry) bhDisk.geometry.dispose();
-        if (bhDisk.material instanceof THREE.Material) bhDisk.material.dispose();
-        bhDisk.geometry = new THREE.RingGeometry(8, 12, 64);
-        bhDisk.rotation.x = Math.PI / 2;
-        this.bhDiskMaterial = new THREE.ShaderMaterial({
-            uniforms: { uTime: { value: 0 } },
-            transparent: true,
-            blending: THREE.AdditiveBlending,
-            side: THREE.DoubleSide,
-            vertexShader: `
-                varying vec2 vUv;
-                void main() {
-                    vUv = uv;
-                    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-                }
-            `,
-            fragmentShader: `
-                varying vec2 vUv;
-                uniform float uTime;
-                void main() {
-                    float dist = vUv.y; // Radial distance: 0 (inner) to 1 (outer)
-                    vec3 innerColor = vec3(1.0, 1.0, 0.9); // White-ish hot
-                    vec3 outerColor = vec3(1.0, 0.4, 0.0); // Orange cool
-                    vec3 color = mix(innerColor, outerColor, pow(dist, 1.5));
-                    float alpha = (0.7 + 0.3 * sin(uTime * 4.0)) * (1.0 - dist);
-                    gl_FragColor = vec4(color, alpha * 0.85);
-                }
-            `
-        });
-        bhDisk.material = this.bhDiskMaterial;
-    }
 
-    update(delta: number, appTime: number, cameraPos: THREE.Vector3, physics: PhysicsConstants, overrideT?: number, cosmicAge?: number, frustum?: THREE.Frustum, flicker?: number) {
+
+    update(delta: number, appTime: number, cameraPos: THREE.Vector3, physics: PhysicsConstants, overrideT?: number, cosmicAge?: number, frustum?: THREE.Frustum, flicker: number = 1.0, nbodyBuffer: Float32Array | null = null): void {
         let targetProto = 0, targetMain = 0, targetRed = 0, targetSuper = 0, targetNs = 0;
         const effG = Math.max(0.01, physics.G);
         const expL = Math.max(0.1, physics.lambda);
@@ -230,6 +195,10 @@ export class HeroStarSystem extends THREE.Group {
                     this.planetarySystem.dispose();
                     this.planetarySystem = undefined;
                 }
+                if (this.cometSystem) {
+                    this.cometSystem.dispose();
+                    this.cometSystem = undefined;
+                }
             }
             else if (this._activePhase === PHASES.RED_GIANT) this._redGiantPhase?.hide();
             else if (this._activePhase === PHASES.SUPERNOVA) this._supernovaPhase?.hide();
@@ -240,8 +209,7 @@ export class HeroStarSystem extends THREE.Group {
             else if (newPhase === PHASES.MAIN_SEQUENCE) {
                 this.mainSequencePhase.show();
                 this.planetarySystem = new PlanetarySystem(this);
-                const hzMesh = (this.mainSequencePhase as any).hzMesh;
-                if (hzMesh.material) (hzMesh.material as any).color.setHex(0xffaa44);
+                this.cometSystem = new CometSystem(this);
             }
             else if (newPhase === PHASES.RED_GIANT) {
                 this.redGiantPhase.setPlanets(this.mainSequencePhase.planetsInfo);
@@ -249,8 +217,6 @@ export class HeroStarSystem extends THREE.Group {
             }
             else if (newPhase === PHASES.SUPERNOVA) {
                 this.supernovaPhase.show();
-                if (this.supernovaPhase.snRing.material) 
-                    (this.supernovaPhase.snRing.material as THREE.MeshBasicMaterial).color.setHex(0xffaa44);
             }
             else if (newPhase === PHASES.REMNANT) this.remnantPhase.show();
 
@@ -296,7 +262,10 @@ export class HeroStarSystem extends THREE.Group {
             targetMain = 1;
             this.mainSequencePhase.show();
             this.mainSequencePhase.update(delta, appTime, cameraPos, physics, this.t, lowDetail);
-            this.planetarySystem?.update(delta);
+            if (nbodyBuffer) {
+                this.planetarySystem?.updateFromBuffer(nbodyBuffer, delta);
+                this.cometSystem?.updateFromBuffer(nbodyBuffer, delta);
+            }
             
             this.currentTemp = this.tHeat;
             this.currentLum = Math.pow(this.mass, STELLAR_CONSTANTS.PHYSICS.MASS_LUMINOSITY_EXPONENT);
@@ -331,8 +300,7 @@ export class HeroStarSystem extends THREE.Group {
                 this.currentTemp = STELLAR_CONSTANTS.TEMPERATURES.REMNANT_BH;
                 this.currentLum = STELLAR_CONSTANTS.LUMINOSITY.REMNANT_BH;
 
-                // BOLT: Pulsing glow update for black hole disc
-                if (this.bhDiskMaterial) this.bhDiskMaterial.uniforms.uTime.value = appTime;
+
             } else if (this.mass > STELLAR_CONSTANTS.PHYSICS.MASS_THRESHOLD_SUPERNOVA) {
                 targetNs = 1;
                 this.currentTemp = STELLAR_CONSTANTS.TEMPERATURES.REMNANT_NS_HIGH_MASS;
@@ -406,6 +374,9 @@ export class HeroStarSystem extends THREE.Group {
         if (this.planetarySystem) {
             this.planetarySystem.dispose();
         }
+        if (this.cometSystem) {
+            this.cometSystem.dispose();
+        }
 
         if (this.hitMesh) {
             if (this.hitMesh.material instanceof THREE.Material) {
@@ -413,9 +384,50 @@ export class HeroStarSystem extends THREE.Group {
             }
             // hitMesh geometry is GEOMETRIES.hit, do NOT dispose
         }
+        if (this.dysonMesh) {
+            this.dysonMesh.geometry.dispose();
+            if (this.dysonMesh.material instanceof THREE.Material) {
+                this.dysonMesh.material.dispose();
+            }
+            this.remove(this.dysonMesh);
+        }
+    }
 
-        if (this.bhDiskMaterial) {
-            this.bhDiskMaterial.dispose();
+    /**
+     * Checks if any planet has reached civilizationTier >= 2, and renders a Dyson Swarm/Sphere
+     */
+    updateMegastructures(astrobiologyStates: any[]): void {
+        let hasTypeII = false;
+        for (let i = 0; i < astrobiologyStates.length; i++) {
+            if (astrobiologyStates[i].civilizationTier >= 2) {
+                hasTypeII = true;
+                break;
+            }
+        }
+
+        if (hasTypeII && !this.dysonMesh) {
+            // Build the megastructure
+            const geom = new THREE.IcosahedronGeometry(this.baseRadius * 3.5, 2);
+            const mat = new THREE.MeshBasicMaterial({
+                color: 0xffaa00,
+                wireframe: true,
+                transparent: true,
+                opacity: 0.3
+            });
+            this.dysonMesh = new THREE.Mesh(geom, mat);
+            this.add(this.dysonMesh);
+        } else if (!hasTypeII && this.dysonMesh) {
+            this.dysonMesh.geometry.dispose();
+            if (this.dysonMesh.material instanceof THREE.Material) {
+                this.dysonMesh.material.dispose();
+            }
+            this.remove(this.dysonMesh);
+            this.dysonMesh = undefined;
+        }
+
+        if (this.dysonMesh) {
+            this.dysonMesh.rotation.y += 0.002;
+            this.dysonMesh.rotation.x += 0.001;
         }
     }
 }
