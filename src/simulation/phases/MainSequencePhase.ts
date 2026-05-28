@@ -148,16 +148,15 @@ export class MainSequencePhase implements PhaseComponent {
         this.hide();
     }
 
-    update(delta: number, appTime: number, cameraPos: THREE.Vector3, physics: PhysicsConstants, t: number, lowDetail?: boolean): void {
+    update(delta: number, appTime: number, cameraPos: THREE.Vector3, physics: PhysicsConstants, _t: number, lowDetail?: boolean): void {
         // BOLT: Removed redundant scale assignment
         this.starMat.uniforms.uTime.value = appTime;
         this.starMat.uniforms.uHbar.value = physics.hbar || 1.0;
 
         if (!lowDetail) {
-            this.planetsInfo.forEach(p => {
-                // BOLT: Removed redundant visibility and material assignments
-                p.pivot.rotation.y += p.speed * delta;
-            });
+            for (let i = 0; i < this.planetsInfo.length; i++) {
+                this.planetsInfo[i].pivot.rotation.y += this.planetsInfo[i].speed * delta;
+            }
         }
 
         if (cameraPos) {
@@ -177,13 +176,17 @@ export class MainSequencePhase implements PhaseComponent {
     show(): void {
         this.mainSeqGroup.visible = true;
         this.hzMesh.visible = true;
-        this.planetsInfo.forEach(p => p.pivot.visible = true);
+        for (let i = 0; i < this.planetsInfo.length; i++) {
+            this.planetsInfo[i].pivot.visible = true;
+        }
     }
 
     hide(): void {
         this.mainSeqGroup.visible = false;
         this.hzMesh.visible = false;
-        this.planetsInfo.forEach(p => p.pivot.visible = false);
+        for (let i = 0; i < this.planetsInfo.length; i++) {
+            this.planetsInfo[i].pivot.visible = false;
+        }
     }
 
     dispose(): void {
@@ -194,11 +197,12 @@ export class MainSequencePhase implements PhaseComponent {
             (this as any)._coronaMesh.material.dispose();
         }
         (this.hzMesh.material as THREE.Material).dispose();
-        this.planetsInfo.forEach(p => {
+        for (let i = 0; i < this.planetsInfo.length; i++) {
+            const p = this.planetsInfo[i];
             // Planet geometry is also shared GEOMETRIES.planet
             (p.mesh.material as THREE.Material).dispose();
             this.parent.remove(p.pivot);
-        });
+        }
         this.parent.remove(this.mainSeqGroup);
         this.parent.remove(this.hzMesh);
     }
