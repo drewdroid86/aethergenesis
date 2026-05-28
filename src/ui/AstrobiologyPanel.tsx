@@ -1,14 +1,15 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Activity, Droplets, Thermometer, ShieldAlert, Globe, Copy, Check } from 'lucide-react';
+import { Activity, Droplets, Thermometer, ShieldAlert, Globe, Copy, Check, X } from 'lucide-react';
 import { HabitabilityState } from '../simulation/AstrobiologyEngine';
 
 interface AstrobiologyPanelProps {
     data: HabitabilityState[];
     selectedStar: any;
+    onClose?: () => void;
 }
 
-export const AstrobiologyPanel: React.FC<AstrobiologyPanelProps> = ({ data, selectedStar }) => {
+export const AstrobiologyPanel: React.FC<AstrobiologyPanelProps> = ({ data, selectedStar, onClose }) => {
     const [copied, setCopied] = useState(false);
 
     const copyReport = () => {
@@ -42,17 +43,32 @@ ${planet.civilizationTier > 0 ? `- Civilization: Type ${planet.civilizationTier}
                         <Activity className="w-5 h-5 text-emerald-400" />
                         <h2 className="text-lg font-medium text-white/90 font-mono tracking-wider">Astrobiology</h2>
                     </div>
-                    <button
-                        onClick={copyReport}
-                        className="text-[#7EB8FF]/70 hover:text-white transition-colors focus-visible:ring-2 focus-visible:ring-[#C084FC] outline-none rounded p-1 relative group/copy"
-                        aria-label="Copy Astrobiology Report"
-                        title="Copy Report"
-                    >
-                        <span className="absolute -top-6 right-0 text-[10px] text-[#C084FC] opacity-0 group-hover/copy:opacity-100 transition-opacity whitespace-nowrap">
-                            {copied ? 'Copied!' : 'Copy'}
-                        </span>
-                        {copied ? <Check size={16} className="text-green-400" /> : <Copy size={16} />}
-                    </button>
+                    <div className="flex items-center gap-2">
+                        <button
+                            onClick={copyReport}
+                            className="text-[#7EB8FF]/70 hover:text-white transition-colors focus-visible:ring-2 focus-visible:ring-[#C084FC] outline-none rounded p-1 relative group/copy"
+                            aria-label="Copy Astrobiology Report"
+                            title="Copy Report"
+                        >
+                            <span className="absolute -top-6 right-0 text-[10px] text-[#C084FC] opacity-0 group-hover/copy:opacity-100 transition-opacity whitespace-nowrap">
+                                {copied ? 'Copied!' : 'Copy'}
+                            </span>
+                            {copied ? <Check size={16} className="text-green-400" /> : <Copy size={16} />}
+                        </button>
+                        {onClose && (
+                            <button
+                                onClick={onClose}
+                                className="text-[#7EB8FF]/70 hover:text-white transition-colors focus-visible:ring-2 focus-visible:ring-[#C084FC] outline-none rounded p-1 relative group/close"
+                                aria-label="Close Astrobiology Report"
+                                title="Close [Esc]"
+                            >
+                                <span className="absolute -top-6 left-1/2 -translate-x-1/2 text-[10px] text-[#C084FC] opacity-0 group-hover/close:opacity-100 transition-opacity whitespace-nowrap">
+                                    [Esc] Close
+                                </span>
+                                <X size={20} />
+                            </button>
+                        )}
+                    </div>
                 </div>
 
                 <div className="space-y-4">
@@ -100,10 +116,17 @@ ${planet.civilizationTier > 0 ? `- Civilization: Type ${planet.civilizationTier}
                                     {/* Biomass progress bar */}
                                     <div className="pt-2 mt-2 border-t border-white/10">
                                         <div className="flex justify-between mb-1 text-[10px]">
-                                            <span>Biomass</span>
+                                            <span id={`biomass-label-${planet.planet_id}`}>Biomass</span>
                                             <span>{(planet.biomass * 100).toFixed(1)}%</span>
                                         </div>
-                                        <div className="w-full h-1.5 bg-black/50 rounded-full overflow-hidden">
+                                        <div
+                                            className="w-full h-1.5 bg-black/50 rounded-full overflow-hidden"
+                                            role="progressbar"
+                                            aria-labelledby={`biomass-label-${planet.planet_id}`}
+                                            aria-valuenow={Math.round(planet.biomass * 100)}
+                                            aria-valuemin={0}
+                                            aria-valuemax={100}
+                                        >
                                             <div 
                                                 className="h-full bg-emerald-400 transition-all duration-300" 
                                                 style={{ width: `${planet.biomass * 100}%` }}

@@ -86,7 +86,11 @@ export function AetherGenesis() {
 
       <AnimatePresence>
         {selectedStar && astrobiologyData.length > 0 && (
-            <AstrobiologyPanel data={astrobiologyData} selectedStar={selectedStar} />
+            <AstrobiologyPanel
+                data={astrobiologyData}
+                selectedStar={selectedStar}
+                onClose={() => setSelectedStar(null)}
+            />
         )}
       </AnimatePresence>
 
