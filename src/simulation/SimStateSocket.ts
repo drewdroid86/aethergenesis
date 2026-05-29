@@ -62,16 +62,31 @@ const handlers: ((event: SimEvent) => void)[] = [];
 const clients = new Set<WebSocket>();
 let wss: WebSocketServer | null = null;
 
+// Security: Limits to prevent Denial of Service (DoS)
+const MAX_CLIENTS = 100;
+const MESSAGE_RATE_LIMIT = 100; // max messages per window
+const MESSAGE_RATE_WINDOW_MS = 10000; // 10 seconds
+
+interface ClientMetadata {
+    messageCount: number;
+    lastReset: number;
+}
+const clientMetadataMap = new Map<WebSocket, ClientMetadata>();
+
 export function registerEventHandler(handler: (event: SimEvent) => void): void {
     handlers.push(handler);
 }
 
-export function broadcastSimState(state: SimBroadcast): void {
+/**
+ * Broadcasts simulation state to connected clients.
+ * @param exclude - Optional client to exclude from broadcast (prevents redundant loopback)
+ */
+export function broadcastSimState(state: SimBroadcast, exclude?: WebSocket): void {
     if (!wss) return;
     try {
         const payload = JSON.stringify({ type: 'state', data: state });
         for (const client of clients) {
-            if (client.readyState === WebSocket.OPEN) {
+            if (client !== exclude && client.readyState === WebSocket.OPEN) {
                 try {
                     client.send(payload);
                 } catch (err) {
@@ -91,7 +106,13 @@ export function initWebSocketServer(server: http.Server, allowedOrigins: string[
     });
     
     wss.on('connection', (ws: WebSocket, req: http.IncomingMessage) => {
-        // Security: Origin validation to prevent CSWH
+        // Security: Limit concurrent connections to prevent resource exhaustion
+        if (clients.size >= MAX_CLIENTS) {
+            ws.close(1013, 'Server Busy: Too many connections');
+            return;
+        }
+
+        // Security: Origin validation to prevent Cross-Site WebSocket Hijacking (CSWH)
         const origin = req.headers.origin;
         if (!origin || !allowedOrigins.includes(origin)) {
             ws.close(1008, 'Forbidden: Unauthorized origin');
@@ -99,13 +120,30 @@ export function initWebSocketServer(server: http.Server, allowedOrigins: string[
         }
 
         clients.add(ws);
+        clientMetadataMap.set(ws, { messageCount: 0, lastReset: Date.now() });
         
         ws.on('message', (message: string) => {
+            // Security: Per-connection rate limiting to prevent message-flooding DoS
+            const now = Date.now();
+            const meta = clientMetadataMap.get(ws);
+            if (meta) {
+                if (now - meta.lastReset > MESSAGE_RATE_WINDOW_MS) {
+                    meta.messageCount = 0;
+                    meta.lastReset = now;
+                }
+                meta.messageCount++;
+                if (meta.messageCount > MESSAGE_RATE_LIMIT) {
+                    // Temporarily ignore messages if rate limit exceeded
+                    return;
+                }
+            }
+
             try {
-                const data = JSON.parse(message);
+                // Security: Ensure message is a string before parsing
+                const data = JSON.parse(message.toString());
                 if (data.type === 'state') {
                     // Forward simulation state to all other clients (specifically MCP servers)
-                    broadcastSimState(data.data);
+                    broadcastSimState(data.data, ws);
                 } else if (data.type === 'event' || data.event) {
                     // Dispatch incoming event to handlers
                     const simEvent: SimEvent = {
@@ -142,10 +180,12 @@ export function initWebSocketServer(server: http.Server, allowedOrigins: string[
         
         ws.on('close', () => {
             clients.delete(ws);
+            clientMetadataMap.delete(ws);
         });
         
         ws.on('error', () => {
             clients.delete(ws);
+            clientMetadataMap.delete(ws);
         });
     });
 }
