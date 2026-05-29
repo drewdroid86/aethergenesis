@@ -84,10 +84,20 @@ export function broadcastSimState(state: SimBroadcast): void {
     }
 }
 
-export function initWebSocketServer(server: http.Server): void {
-    wss = new WebSocketServer({ server });
+export function initWebSocketServer(server: http.Server, allowedOrigins: string[]): void {
+    wss = new WebSocketServer({
+        server,
+        maxPayload: 102400 // Security: 100KB limit to prevent DoS
+    });
     
-    wss.on('connection', (ws: WebSocket) => {
+    wss.on('connection', (ws: WebSocket, req: http.IncomingMessage) => {
+        // Security: Origin validation to prevent CSWH
+        const origin = req.headers.origin;
+        if (!origin || !allowedOrigins.includes(origin)) {
+            ws.close(1008, 'Forbidden: Unauthorized origin');
+            return;
+        }
+
         clients.add(ws);
         
         ws.on('message', (message: string) => {
