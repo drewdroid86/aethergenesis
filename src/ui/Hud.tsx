@@ -126,7 +126,11 @@ export const Hud: React.FC<HudProps> = ({
 
             {/* Tier Down Indicator */}
             {performance.showIndicator && (
-                <div className="absolute top-24 left-1/2 -translate-x-1/2 z-30 animate-bounce">
+                <div
+                    className="absolute top-24 left-1/2 -translate-x-1/2 z-30 animate-bounce"
+                    role="alert"
+                    aria-live="polite"
+                >
                     <div className="bg-orange-500/20 backdrop-blur-xl border border-orange-500/50 px-6 py-2 rounded-full shadow-[0_0_20px_rgba(249,115,22,0.3)]">
                         <span className="text-orange-400 text-xs font-bold uppercase tracking-[0.2em]">
                             Performance Warning: Optimizing Simulation Tier
