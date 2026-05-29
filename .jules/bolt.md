@@ -5,3 +5,7 @@
 ## 2025-05-23 - Lazy Initialization and Shared Resource Disposal
 **Learning:** Initializing all possible states for hundreds of complex Three.js entities at startup causes significant CPU/memory spikes. However, implementing lazy loading requires precise disposal logic; calling `.dispose()` on shared global geometries (e.g., from a shared constant) inside an instance's cleanup method will break rendering for all other instances.
 **Action:** Use lazy getters for expensive sub-systems. In disposal methods, only clean up instance-specific resources and ensure shared assets are preserved.
+
+## 2024-05-22 - Static Scratchpads and InstancedMesh Count
+**Learning:** Per-frame .clone() calls in InstancedMesh update loops (like CometSystem) cause significant GC pressure. Additionally, manually looping to scale hidden instances to zero is O(N) CPU work that Three.js handles natively via the .count property.
+**Action:** Use module-level scratchpad objects (Vector3, Matrix4) for intermediate calculations. Set InstancedMesh.count to the exact number of active entities to let the GPU handle clipping efficiently.

@@ -33,6 +33,10 @@ app.use((_req, res, next) => {
 });
 
 const allowedOrigins = (process.env.ALLOWED_ORIGINS || 'http://localhost:3000,http://localhost:5173').split(',').map(o => o.trim());
+if (process.env.APP_URL && !allowedOrigins.includes(process.env.APP_URL)) {
+  allowedOrigins.push(process.env.APP_URL);
+}
+
 app.use((req, res, next) => { 
     res.setHeader('Vary', 'Origin');
     const origin = req.headers.origin; 
@@ -201,4 +205,4 @@ const server = app.listen(port, () => {
   console.log(`Server listening at http://localhost:${port}`);
 });
 
-initWebSocketServer(server);
+initWebSocketServer(server, allowedOrigins);

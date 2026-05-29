@@ -1,4 +1,5 @@
 import { useRef } from 'react';
+import { AnimatePresence } from 'motion/react';
 import { useSimulation } from '../utils/hooks/useSimulation';
 import { Hud } from '../ui/Hud';
 import { InspectPanel } from '../ui/InspectPanel';
@@ -83,9 +84,15 @@ export function AetherGenesis() {
         />
       )}
 
-      {selectedStar && astrobiologyData.length > 0 && (
-          <AstrobiologyPanel data={astrobiologyData} selectedStar={selectedStar} />
-      )}
+      <AnimatePresence>
+        {selectedStar && astrobiologyData.length > 0 && (
+            <AstrobiologyPanel
+                data={astrobiologyData}
+                selectedStar={selectedStar}
+                onClose={() => setSelectedStar(null)}
+            />
+        )}
+      </AnimatePresence>
 
       <ConstantsPanel 
         physics={physics}

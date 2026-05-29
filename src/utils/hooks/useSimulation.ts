@@ -150,7 +150,7 @@ export function useSimulation(containerRef: React.RefObject<HTMLDivElement | nul
     useEffect(() => { isPlayingCosmicRef.current = isPlayingCosmic; }, [isPlayingCosmic]);
 
     // UI Panel State
-    const [isConstantsOpen, setIsConstantsOpen] = useState(true);
+    const [isConstantsOpen, setIsConstantsOpen] = useState(false);
 
     // HUD & UI Refs
     const hudRefs = {
