@@ -254,12 +254,7 @@ export class PlanetarySystem {
             this.instancedMesh.setMatrixAt(i, matrix);
         }
 
-        // Hide unused instances
-        const hideMatrix = new THREE.Matrix4().makeScale(0, 0, 0);
-        for (let i = numBodies; i < this.instancedMesh.count; i++) {
-            this.instancedMesh.setMatrixAt(i, hideMatrix);
-        }
-        
+        // BOLT: Setting .count natively handles hiding unused instances, removing redundant loop
         this.instancedMesh.instanceMatrix.needsUpdate = true;
         this.instancedMesh.count = numBodies;
     }

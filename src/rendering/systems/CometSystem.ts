@@ -47,6 +47,11 @@ void main() {
 }
 `;
 
+// BOLT: Static scratchpad to eliminate per-frame allocations
+const _posV = new THREE.Vector3();
+const _dirV = new THREE.Vector3();
+const _matrix = new THREE.Matrix4();
+
 export class CometSystem {
     private instancedMesh: THREE.InstancedMesh;
     private material: THREE.ShaderMaterial;
@@ -82,7 +87,7 @@ export class CometSystem {
         this.group.add(this.instancedMesh);
     }
 
-    updateFromBuffer(buffer: Float32Array, delta: number): void {
+    updateFromBuffer(buffer: Float32Array, _delta: number): void {
         const star = this.parent as any;
         if (star.phase !== PHASES.MAIN_SEQUENCE) {
             this.group.visible = false;
@@ -96,8 +101,7 @@ export class CometSystem {
         const actives = this.instancedMesh.geometry.attributes.cActive.array as Float32Array;
         
         let cometIdx = 0;
-        const matrix = new THREE.Matrix4();
-        const posV = new THREE.Vector3();
+        const maxCount = this.instancedMesh.instanceMatrix.count;
         
         for (let i = 0; i < numBodies; i++) {
             const type = buffer[i * 7 + 6];
@@ -106,21 +110,21 @@ export class CometSystem {
                 const y = buffer[i * 7 + 1];
                 const z = buffer[i * 7 + 2];
                 
-                posV.set(x, y, z);
-                matrix.makeTranslation(x, y, z);
-                this.instancedMesh.setMatrixAt(cometIdx, matrix);
+                _posV.set(x, y, z);
+                _matrix.makeTranslation(x, y, z);
+                this.instancedMesh.setMatrixAt(cometIdx, _matrix);
                 
-                const r = posV.length();
+                const r = _posV.length();
                 if (r < 3.0) { // Coma active
                     actives[cometIdx] = 1.0;
                     scales[cometIdx] = 2.0;
                     
                     if (r < 2.5) { // Tail active
                         // Tail points away from star (which is at 0,0,0)
-                        const dir = posV.clone().normalize();
-                        dirs[cometIdx * 3 + 0] = dir.x;
-                        dirs[cometIdx * 3 + 1] = dir.y;
-                        dirs[cometIdx * 3 + 2] = dir.z;
+                        _dirV.copy(_posV).normalize();
+                        dirs[cometIdx * 3 + 0] = _dirV.x;
+                        dirs[cometIdx * 3 + 1] = _dirV.y;
+                        dirs[cometIdx * 3 + 2] = _dirV.z;
                     } else {
                         dirs[cometIdx * 3 + 0] = 0;
                         dirs[cometIdx * 3 + 1] = 0;
@@ -131,14 +135,18 @@ export class CometSystem {
                 }
                 
                 cometIdx++;
-                if (cometIdx >= this.instancedMesh.count) break;
+                if (cometIdx >= maxCount) break;
             }
         }
         
-        this.instancedMesh.geometry.attributes.cScale.needsUpdate = true;
-        this.instancedMesh.geometry.attributes.cDir.needsUpdate = true;
-        this.instancedMesh.geometry.attributes.cActive.needsUpdate = true;
-        this.instancedMesh.instanceMatrix.needsUpdate = true;
+        // BOLT: Only update attributes if we have active comets or count changed
+        if (cometIdx > 0 || this.instancedMesh.count > 0) {
+            this.instancedMesh.geometry.attributes.cScale.needsUpdate = true;
+            this.instancedMesh.geometry.attributes.cDir.needsUpdate = true;
+            this.instancedMesh.geometry.attributes.cActive.needsUpdate = true;
+            this.instancedMesh.instanceMatrix.needsUpdate = true;
+        }
+        this.instancedMesh.count = cometIdx;
     }
 
     dispose(): void {
