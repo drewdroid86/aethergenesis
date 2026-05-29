@@ -10,6 +10,8 @@ export class RedGiantPhase implements PhaseComponent {
     public redGiantGroup!: THREE.Group;
     public redGiantMat!: THREE.ShaderMaterial;
     public redGiantMesh!: THREE.Mesh;
+    public flareMesh!: THREE.InstancedMesh;
+    public flareMat!: THREE.ShaderMaterial;
     private parent!: THREE.Group;
     private baseRadius: number;
     private tHeat: number;
@@ -41,6 +43,57 @@ export class RedGiantPhase implements PhaseComponent {
         });
         this.redGiantMesh = new THREE.Mesh(GEOMETRIES.redGiant, this.redGiantMat);
         this.redGiantGroup.add(this.redGiantMesh);
+
+        // Solar Flares
+        const curve = new THREE.QuadraticBezierCurve3(
+            new THREE.Vector3(0.8, 0, 0),
+            new THREE.Vector3(1.5, 1.5, 0),
+            new THREE.Vector3(0, 0, 0.8)
+        );
+        const flareGeo = new THREE.TubeGeometry(curve, 16, 0.05, 4, false);
+        this.flareMat = new THREE.ShaderMaterial({
+            uniforms: {
+                uTime: { value: 0 },
+                uColor: { value: new THREE.Color(0xff4400) },
+                uOpacity: { value: 0.0 }
+            },
+            vertexShader: `
+                varying vec2 vUv;
+                void main() {
+                    vUv = uv;
+                    gl_Position = projectionMatrix * viewMatrix * modelMatrix * instanceMatrix * vec4(position, 1.0);
+                }
+            `,
+            fragmentShader: `
+                uniform float uTime;
+                uniform vec3 uColor;
+                uniform float uOpacity;
+                varying vec2 vUv;
+                void main() {
+                    float alpha = (sin(uTime * 2.0 + vUv.x * 10.0) * 0.5 + 0.5) * uOpacity;
+                    alpha *= sin(vUv.x * 3.14159);
+                    gl_FragColor = vec4(uColor, alpha);
+                }
+            `,
+            transparent: true,
+            blending: THREE.AdditiveBlending,
+            depthWrite: false
+        });
+        
+        this.flareMesh = new THREE.InstancedMesh(flareGeo, this.flareMat, 4);
+        for(let i=0; i<4; i++) {
+            const matrix = new THREE.Matrix4();
+            matrix.makeRotationFromEuler(new THREE.Euler(
+                Math.random() * Math.PI * 2,
+                Math.random() * Math.PI * 2,
+                Math.random() * Math.PI * 2
+            ));
+            const s = 0.5 + Math.random() * 0.5;
+            matrix.scale(new THREE.Vector3(s * this.baseRadius, s * this.baseRadius, s * this.baseRadius));
+            this.flareMesh.setMatrixAt(i, matrix);
+        }
+        this.redGiantGroup.add(this.flareMesh);
+
         this.parent.add(this.redGiantGroup);
         
         this.hide();
@@ -53,6 +106,7 @@ export class RedGiantPhase implements PhaseComponent {
         
         this.redGiantMat.uniforms.uTime.value = appTime;
         this.redGiantMat.uniforms.uHbar.value = physics.hbar || 1.0;
+        this.flareMat.uniforms.uTime.value = appTime;
 
         if (!lowDetail) {
             this.planetsInfo.forEach(p => {
@@ -85,6 +139,7 @@ export class RedGiantPhase implements PhaseComponent {
 
     setOpacity(opacity: number): void {
         this.redGiantMat.uniforms.uOpacity.value = opacity;
+        this.flareMat.uniforms.uOpacity.value = opacity * 0.8;
     }
 
     show(): void {
@@ -100,6 +155,8 @@ export class RedGiantPhase implements PhaseComponent {
     dispose(): void {
         // BOLT: redGiantMesh uses shared GEOMETRIES.redGiant, do NOT dispose
         this.redGiantMat.dispose();
+        this.flareMat.dispose();
+        this.flareMesh.geometry.dispose();
         this.parent.remove(this.redGiantGroup);
     }
 }

@@ -9,8 +9,6 @@ import { SupernovaPhase } from '../../simulation/phases/SupernovaPhase';
 import { RemnantPhase } from '../../simulation/phases/RemnantPhase';
 import { GEOMETRIES } from '../../simulation/phases/geometries';
 import { PlanetarySystem } from './PlanetarySystem';
-import { CometSystem } from './CometSystem';
-
 // BOLT: Module-level helper to avoid closure overhead
 const stepOp = (current: number, target: number, speed: number) => {
     if (current < target) return Math.min(target, current + speed);
@@ -107,8 +105,6 @@ export class HeroStarSystem extends THREE.Group {
 
     public hitMesh: THREE.Mesh;
     public planetarySystem?: PlanetarySystem;
-    public cometSystem?: CometSystem;
-    public dysonMesh?: THREE.Mesh;
 
     public baseRadius: number;
     private tHeat: number;
@@ -195,10 +191,6 @@ export class HeroStarSystem extends THREE.Group {
                     this.planetarySystem.dispose();
                     this.planetarySystem = undefined;
                 }
-                if (this.cometSystem) {
-                    this.cometSystem.dispose();
-                    this.cometSystem = undefined;
-                }
             }
             else if (this._activePhase === PHASES.RED_GIANT) this._redGiantPhase?.hide();
             else if (this._activePhase === PHASES.SUPERNOVA) this._supernovaPhase?.hide();
@@ -209,7 +201,6 @@ export class HeroStarSystem extends THREE.Group {
             else if (newPhase === PHASES.MAIN_SEQUENCE) {
                 this.mainSequencePhase.show();
                 this.planetarySystem = new PlanetarySystem(this);
-                this.cometSystem = new CometSystem(this);
             }
             else if (newPhase === PHASES.RED_GIANT) {
                 this.redGiantPhase.setPlanets(this.mainSequencePhase.planetsInfo);
@@ -264,7 +255,6 @@ export class HeroStarSystem extends THREE.Group {
             this.mainSequencePhase.update(delta, appTime, cameraPos, physics, this.t, lowDetail);
             if (nbodyBuffer) {
                 this.planetarySystem?.updateFromBuffer(nbodyBuffer, delta);
-                this.cometSystem?.updateFromBuffer(nbodyBuffer, delta);
             }
             
             this.currentTemp = this.tHeat;
@@ -374,60 +364,12 @@ export class HeroStarSystem extends THREE.Group {
         if (this.planetarySystem) {
             this.planetarySystem.dispose();
         }
-        if (this.cometSystem) {
-            this.cometSystem.dispose();
-        }
 
         if (this.hitMesh) {
             if (this.hitMesh.material instanceof THREE.Material) {
                 this.hitMesh.material.dispose();
             }
             // hitMesh geometry is GEOMETRIES.hit, do NOT dispose
-        }
-        if (this.dysonMesh) {
-            this.dysonMesh.geometry.dispose();
-            if (this.dysonMesh.material instanceof THREE.Material) {
-                this.dysonMesh.material.dispose();
-            }
-            this.remove(this.dysonMesh);
-        }
-    }
-
-    /**
-     * Checks if any planet has reached civilizationTier >= 2, and renders a Dyson Swarm/Sphere
-     */
-    updateMegastructures(astrobiologyStates: any[]): void {
-        let hasTypeII = false;
-        for (let i = 0; i < astrobiologyStates.length; i++) {
-            if (astrobiologyStates[i].civilizationTier >= 2) {
-                hasTypeII = true;
-                break;
-            }
-        }
-
-        if (hasTypeII && !this.dysonMesh) {
-            // Build the megastructure
-            const geom = new THREE.IcosahedronGeometry(this.baseRadius * 3.5, 2);
-            const mat = new THREE.MeshBasicMaterial({
-                color: 0xffaa00,
-                wireframe: true,
-                transparent: true,
-                opacity: 0.3
-            });
-            this.dysonMesh = new THREE.Mesh(geom, mat);
-            this.add(this.dysonMesh);
-        } else if (!hasTypeII && this.dysonMesh) {
-            this.dysonMesh.geometry.dispose();
-            if (this.dysonMesh.material instanceof THREE.Material) {
-                this.dysonMesh.material.dispose();
-            }
-            this.remove(this.dysonMesh);
-            this.dysonMesh = undefined;
-        }
-
-        if (this.dysonMesh) {
-            this.dysonMesh.rotation.y += 0.002;
-            this.dysonMesh.rotation.x += 0.001;
         }
     }
 }

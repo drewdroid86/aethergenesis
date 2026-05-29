@@ -19,6 +19,7 @@ varying float vSeed;
 varying float vBiomass;
 varying float vCivilizationTier;
 varying vec3 vLightDir;
+varying vec3 vWorldPosition;
 
 void main() {
     vUv = uv;
@@ -30,10 +31,11 @@ void main() {
     
     // Transform normal and position for lighting
     vec4 worldPos = instanceMatrix * vec4(position, 1.0);
+    vWorldPosition = (modelMatrix * worldPos).xyz;
     vNormal = normalize(mat3(instanceMatrix) * normal);
     vLightDir = normalize(-worldPos.xyz); // Light comes from star at local (0,0,0)
     
-    gl_Position = projectionMatrix * modelViewMatrix * worldPos;
+    gl_Position = projectionMatrix * viewMatrix * vec4(vWorldPosition, 1.0);
 }
 `;
 
@@ -46,6 +48,17 @@ varying float vSeed;
 varying float vBiomass;
 varying float vCivilizationTier;
 varying vec3 vLightDir;
+varying vec3 vWorldPosition;
+uniform vec3 u_starPosition;
+uniform float u_biomass;
+uniform int u_kardashevTier;
+
+// Hash function for noise
+float hash(vec2 p) {
+    p = fract(p * vec2(123.34, 456.21));
+    p += dot(p, p + 45.32);
+    return fract(p.x * p.y);
+}
 
 // Simplex 3D Noise by Ashima Arts
 vec4 permute(vec4 x){return mod(((x*34.0)+1.0)*x, 289.0);}
@@ -137,16 +150,19 @@ void main() {
     }
 
     // Lighting
-    float diff = max(dot(vNormal, vLightDir), 0.1);
+    float diff = max(dot(normalize(vNormal), vLightDir), 0.1);
     vec3 finalColor = color * diff;
     
-    // City Lights
-    if (vCivilizationTier >= 1.0 && type != 1.0 && type != 3.0) {
-        float cityNoise = snoise(p * 8.0);
-        float nightSide = smoothstep(0.1, -0.2, dot(vNormal, vLightDir));
-        if (cityNoise > 0.5) {
-            finalColor += vec3(1.0, 0.85, 0.5) * nightSide * (cityNoise - 0.5) * 3.0;
-        }
+    // Night side masking
+    vec3 starDir = normalize(u_starPosition - vWorldPosition);
+    float dayFactor = dot(normalize(vNormal), starDir);
+    float nightMask = 1.0 - smoothstep(-0.1, 0.2, dayFactor);
+    
+    // City lights (Kardashev Type I+)
+    if (u_kardashevTier >= 1 && type != 1.0 && type != 3.0) {
+        float cityNoise = hash(floor(vUv * 80.0));
+        float cityLights = step(0.85, cityNoise) * nightMask;
+        finalColor += vec3(1.0, 0.85, 0.4) * cityLights * u_biomass * 2.0;
     }
 
     gl_FragColor = vec4(finalColor, 1.0);
@@ -176,7 +192,10 @@ export class PlanetarySystem {
         const geometry = new THREE.SphereGeometry(1, 16, 16);
         this.material = new THREE.ShaderMaterial({
             uniforms: {
-                uTime: { value: 0 }
+                uTime: { value: 0 },
+                u_starPosition: { value: new THREE.Vector3() },
+                u_biomass: { value: 0.0 },
+                u_kardashevTier: { value: 0 }
             },
             vertexShader: PLANET_VS,
             fragmentShader: PLANET_FS
@@ -228,6 +247,11 @@ export class PlanetarySystem {
         }
         this.group.visible = true;
         this.material.uniforms.uTime.value += delta;
+        
+        const starWorldPos = new THREE.Vector3();
+        star.getWorldPosition(starWorldPos);
+        this.material.uniforms.u_starPosition.value.copy(starWorldPos);
+        
         
         const matrix = new THREE.Matrix4();
         const posV = new THREE.Vector3();
@@ -284,11 +308,20 @@ export class PlanetarySystem {
         
         if (!biomassAttr || !civAttr) return;
 
+        let maxBiomass = 0;
+        let maxCiv = 0;
+
         for (let i = 0; i < astrobiologyStates.length; i++) {
             const state = astrobiologyStates[i];
             biomassAttr.setX(i, state.biomass || 0.0);
             civAttr.setX(i, state.civilizationTier || 0.0);
+            
+            if (state.biomass > maxBiomass) maxBiomass = state.biomass;
+            if (state.civilizationTier > maxCiv) maxCiv = state.civilizationTier;
         }
+
+        this.material.uniforms.u_biomass.value = maxBiomass;
+        this.material.uniforms.u_kardashevTier.value = maxCiv;
 
         biomassAttr.needsUpdate = true;
         civAttr.needsUpdate = true;

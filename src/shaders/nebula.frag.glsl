@@ -60,6 +60,17 @@ void main() {
         alpha += density * stepSize * 2.5;
         accCol += heatColor * density * stepSize * 3.0;
         
+        // Hubble Palette Emission Lines
+        float hAlphaLine = smoothstep(0.8, 1.0, fbm(p * 5.0 + uTime * 0.05)) * 0.3;
+        float oIIILine   = smoothstep(0.8, 1.0, fbm(p * 8.0 - uTime * 0.06)) * 0.3;
+        float sIILine    = smoothstep(0.8, 1.0, fbm(p * 3.0 + uTime * 0.04)) * 0.3;
+
+        vec3 emissionColor = vec3(1.0, 0.1, 0.1) * hAlphaLine + 
+                             vec3(0.1, 0.9, 0.8) * oIIILine + 
+                             vec3(0.9, 0.2, 0.0) * sIILine;
+        
+        accCol += emissionColor * density * stepSize * 8.0;
+        
         if(alpha > 0.99) {
             alpha = 1.0;
             break;
