@@ -577,7 +577,15 @@ export function useSimulation(containerRef: React.RefObject<HTMLDivElement | nul
             const handleGlobalKeyDown = (e: KeyboardEvent) => {
                 // Ignore if typing in an input/textarea
                 if (document.activeElement?.tagName === 'INPUT' || document.activeElement?.tagName === 'TEXTAREA') return;
-                // Ignore if any modifier key is pressed
+
+                // Handle Alt+R to reset physics constants
+                if (e.altKey && (e.key === 'r' || e.key === 'R')) {
+                    e.preventDefault();
+                    setPhysics(DEFAULT_CONSTANTS);
+                    return;
+                }
+
+                // Ignore if any modifier key is pressed for other shortcuts
                 if (e.ctrlKey || e.metaKey || e.altKey || e.shiftKey) return;
 
                 switch (e.key) {
