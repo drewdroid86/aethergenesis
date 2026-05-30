@@ -71,10 +71,28 @@ void main() {
 }
 `;
 
+const TAIL_FS = `
+varying vec2 vUv;
+varying float vActive;
+varying vec3 vColor;
+void main() {
+if (vActive < 0.5) discard;
+float lengthFade = smoothstep(1.0, 0.0, vUv.y);
+float widthFade = smoothstep(0.5, 0.0, abs(vUv.x - 0.5));
+float alpha = lengthFade * widthFade;
+gl_FragColor = vec4(vColor, alpha * 0.5);
+}
+`;
+
+const COMETS_DATA = [
+{ a: 8.0,  e: 0.967, i: 162.2, p: 75.3  },
+{ a: 2.2,  e: 0.847, i: 11.8,  p: 5.5   },
+{ a: 5.5,  e: 0.630, i: 7.1,   p: 14.7  },
+{ a: 7.0,  e: 0.920, i: 38.7,  p: 38.5  },
+{ a: 12.0, e: 0.995, i: 89.4,  p: 118.4 },
+] as const;
+
 // BOLT: Static scratchpad to eliminate per-frame allocations
-const _posV = new THREE.Vector3();
-const _dirV = new THREE.Vector3();
-const _matrix = new THREE.Matrix4();
 
 export class CometSystem {
     private comaMesh: THREE.InstancedMesh;
@@ -145,92 +163,113 @@ export class CometSystem {
         this.group.add(this.dustTailMesh);
     }
 
-    updateFromBuffer(buffer: Float32Array, _delta: number): void {
-        const star = this.parent as any;
-        if (star.phase !== PHASES.MAIN_SEQUENCE) {
+    update(delta: number, stellarState: StellarState, appTime: number): void {
+        if (stellarState.phase !== 'main_sequence') {
             this.group.visible = false;
             return;
         }
         this.group.visible = true;
+        const comaScales   = this.comaMesh.geometry.attributes.cScale.array  as Float32Array;
+        const comaColors   = this.comaMesh.geometry.attributes.cColor.array  as Float32Array;
+        const comaActives  = this.comaMesh.geometry.attributes.cActive.array as Float32Array;
+        const ionDirs      = this.ionTailMesh.geometry.attributes.cDir.array    as Float32Array;
+        const ionWidths    = this.ionTailMesh.geometry.attributes.cWidth.array  as Float32Array;
+        const ionLengths   = this.ionTailMesh.geometry.attributes.cLength.array as Float32Array;
+        const ionActives   = this.ionTailMesh.geometry.attributes.cActive.array as Float32Array;
+        const dustDirs     = this.dustTailMesh.geometry.attributes.cDir.array    as Float32Array;
+        const dustWidths   = this.dustTailMesh.geometry.attributes.cWidth.array  as Float32Array;
+        const dustLengths  = this.dustTailMesh.geometry.attributes.cLength.array as Float32Array;
+        const dustActives  = this.dustTailMesh.geometry.attributes.cActive.array as Float32Array;
 
-        const comaScales = this.comaMesh.geometry.attributes.cScale.array as Float32Array;
-        const comaColors = this.comaMesh.geometry.attributes.cColor.array as Float32Array;
-        const comaActives = this.comaMesh.geometry.attributes.cActive.array as Float32Array;
-        
-        let cometIdx = 0;
-        const maxCount = this.instancedMesh.instanceMatrix.count;
-        
         for (let i = 0; i < 5; i++) {
-            const data = cometsData[i];
-            
-            // Use smooth appTime for visual orbiting instead of age_yr which jumps by millions in cosmic scale
-            const visualYear = appTime * 100.0; 
+            const data = COMETS_DATA[i];
+            // Kepler's equation — Newton-Raphson convergence (5 iterations is sufficient)
+            const visualYear = appTime * 100.0;
             const M = (visualYear / data.p) * 2 * Math.PI;
-            let E = M % (2 * Math.PI); // ensure E is within a reasonable range
+            let E = M % (2 * Math.PI);
             for (let j = 0; j < 5; j++) {
                 E = E - (E - data.e * Math.sin(E) - M) / (1 - data.e * Math.cos(E));
             }
-            const theta = 2 * Math.atan2(Math.sqrt(1 + data.e) * Math.sin(E / 2), Math.sqrt(1 - data.e) * Math.cos(E / 2));
+            const theta = 2 * Math.atan2(
+                Math.sqrt(1 + data.e) * Math.sin(E / 2),
+                Math.sqrt(1 - data.e) * Math.cos(E / 2)
+            );
             const r = data.a * (1 - data.e * data.e) / (1 + data.e * Math.cos(theta));
-            
             let x = r * Math.cos(theta);
             let z = r * Math.sin(theta);
-            let y = 0;
-            
             const incRad = data.i * Math.PI / 180;
-            y = z * Math.sin(incRad);
-            z = z * Math.cos(incRad);
-            
+            let y = z * Math.sin(incRad);
+            z   = z * Math.cos(incRad);
+
             this._posV.set(x, y, z);
-            this._matrix.makeTranslation(this._posV.x, this._posV.y, this._posV.z);
-            
+            this._matrix.makeTranslation(x, y, z);
             this.comaMesh.setMatrixAt(i, this._matrix);
             this.ionTailMesh.setMatrixAt(i, this._matrix);
             this.dustTailMesh.setMatrixAt(i, this._matrix);
-            
+
+            // Coma color: blue-white
+            comaColors[i * 3 + 0] = 0.8;
+            comaColors[i * 3 + 1] = 0.9;
+            comaColors[i * 3 + 2] = 1.0;
+
             const dist = this._posV.length();
             if (dist < 3.0) {
                 comaActives[i] = 1.0;
-                ionActives[i] = 1.0;
+                comaScales[i]  = Math.max(0.5, (3.0 - dist) * 0.8);
+                ionActives[i]  = 1.0;
                 dustActives[i] = 1.0;
-                
-                _posV.set(x, y, z);
-                _matrix.makeTranslation(x, y, z);
-                this.instancedMesh.setMatrixAt(cometIdx, _matrix);
-                
-                const r = _posV.length();
-                if (r < 3.0) { // Coma active
-                    actives[cometIdx] = 1.0;
-                    scales[cometIdx] = 2.0;
-                    
-                    if (r < 2.5) { // Tail active
-                        // Tail points away from star (which is at 0,0,0)
-                        _dirV.copy(_posV).normalize();
-                        dirs[cometIdx * 3 + 0] = _dirV.x;
-                        dirs[cometIdx * 3 + 1] = _dirV.y;
-                        dirs[cometIdx * 3 + 2] = _dirV.z;
-                    } else {
-                        dirs[cometIdx * 3 + 0] = 0;
-                        dirs[cometIdx * 3 + 1] = 0;
-                        dirs[cometIdx * 3 + 2] = 0;
-                    }
+
+                if (dist < 2.5) {
+                    // Ion tail: blue plasma pointing away from star
+                    this._ionDir.copy(this._posV).normalize();
+                    ionDirs[i * 3]     = this._ionDir.x;
+                    ionDirs[i * 3 + 1] = this._ionDir.y;
+                    ionDirs[i * 3 + 2] = this._ionDir.z;
+                    ionWidths[i]  = 0.05;
+                    ionLengths[i] = (2.5 - dist) * 0.8;
+
+                    // Dust tail: slightly offset direction, broader
+                    this._dustDir.copy(this._ionDir);
+                    dustDirs[i * 3]     = this._dustDir.x;
+                    dustDirs[i * 3 + 1] = this._dustDir.y;
+                    dustDirs[i * 3 + 2] = this._dustDir.z;
+                    dustWidths[i]  = 0.08;
+                    dustLengths[i] = (2.5 - dist) * 0.5;
                 } else {
-                    actives[cometIdx] = 0.0;
+                    ionWidths[i]  = 0;  dustWidths[i]  = 0;
+                    ionLengths[i] = 0;  dustLengths[i] = 0;
+                    ionDirs[i*3] = ionDirs[i*3+1] = ionDirs[i*3+2] = 0;
+                    dustDirs[i*3] = dustDirs[i*3+1] = dustDirs[i*3+2] = 0;
                 }
-                
-                cometIdx++;
-                if (cometIdx >= maxCount) break;
+            } else {
+                comaActives[i] = 0.0;
+                comaScales[i]  = 0.0;
+                ionActives[i]  = 0.0;
+                dustActives[i] = 0.0;
             }
         }
-        
-        // BOLT: Only update attributes if we have active comets or count changed
-        if (cometIdx > 0 || this.instancedMesh.count > 0) {
-            this.instancedMesh.geometry.attributes.cScale.needsUpdate = true;
-            this.instancedMesh.geometry.attributes.cDir.needsUpdate = true;
-            this.instancedMesh.geometry.attributes.cActive.needsUpdate = true;
-            this.instancedMesh.instanceMatrix.needsUpdate = true;
-        }
-        this.instancedMesh.count = cometIdx;
+
+        this.comaMesh.instanceMatrix.needsUpdate       = true;
+        this.ionTailMesh.instanceMatrix.needsUpdate    = true;
+        this.dustTailMesh.instanceMatrix.needsUpdate   = true;
+
+        this.comaMesh.geometry.attributes.cScale.needsUpdate  = true;
+        this.comaMesh.geometry.attributes.cColor.needsUpdate  = true;
+        this.comaMesh.geometry.attributes.cActive.needsUpdate = true;
+
+        this.ionTailMesh.geometry.attributes.cDir.needsUpdate    = true;
+        this.ionTailMesh.geometry.attributes.cWidth.needsUpdate  = true;
+        this.ionTailMesh.geometry.attributes.cLength.needsUpdate = true;
+        this.ionTailMesh.geometry.attributes.cActive.needsUpdate = true;
+
+        this.dustTailMesh.geometry.attributes.cDir.needsUpdate    = true;
+        this.dustTailMesh.geometry.attributes.cWidth.needsUpdate  = true;
+        this.dustTailMesh.geometry.attributes.cLength.needsUpdate = true;
+        this.dustTailMesh.geometry.attributes.cActive.needsUpdate = true;
+
+        this.comaMesh.count      = 5;
+        this.ionTailMesh.count   = 5;
+        this.dustTailMesh.count  = 5;
     }
 
     dispose(): void {
