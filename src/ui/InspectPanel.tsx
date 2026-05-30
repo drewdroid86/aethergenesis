@@ -148,7 +148,13 @@ Civilization: ${geminiData.civilization}`;
     }, [selectedStar]);
 
     return (
-        <div className="absolute right-8 top-1/2 -translate-y-1/2 w-[min(320px,85vw)] overflow-hidden bg-[rgba(14,14,28,0.7)] backdrop-blur-xl border border-[rgba(126,184,255,0.3)] rounded-2xl p-6 z-30 shadow-[0_0_30px_rgba(0,0,0,0.5)] transform transition-all pointer-events-auto">
+        <motion.div
+            initial={{ opacity: 0, x: 20, filter: 'blur(10px)', y: '-50%' }}
+            animate={{ opacity: 1, x: 0, filter: 'blur(0px)', y: '-50%' }}
+            exit={{ opacity: 0, x: 20, filter: 'blur(10px)', y: '-50%' }}
+            transition={{ duration: 0.5, ease: "easeOut" }}
+            className="absolute right-8 top-1/2 w-[min(320px,85vw)] overflow-hidden bg-[rgba(14,14,28,0.7)] backdrop-blur-xl border border-[rgba(126,184,255,0.3)] rounded-2xl p-6 z-30 shadow-[0_0_30px_rgba(0,0,0,0.5)] pointer-events-auto"
+        >
             <div className="flex items-center justify-between mb-6 pb-4 border-b border-[rgba(126,184,255,0.1)] group/header">
                 <div className="flex items-center gap-3">
                     <Scan size={20} className={`text-[#C084FC] ${isAnalyzing ? 'animate-pulse' : ''}`} />
@@ -210,8 +216,28 @@ Civilization: ${geminiData.civilization}`;
                             Time Override <span className="opacity-0 group-hover/timeline:opacity-100 transition-opacity ml-1 text-[8px] text-[#C084FC] hidden sm:inline">[Arrows to Seek]</span>
                         </span>
                         <div className="flex gap-2">
-                            <button onClick={() => setIsPaused(true)} className="text-white/40 hover:text-white transition-colors focus-visible:ring-2 focus-visible:ring-[#C084FC] outline-none rounded" aria-label="Pause Simulation" title="Pause Simulation"><Pause size={12} /></button>
-                            <button onClick={() => setIsPaused(false)} className="text-white/40 hover:text-white transition-colors focus-visible:ring-2 focus-visible:ring-[#C084FC] outline-none rounded" aria-label="Play Simulation" title="Play Simulation"><Play size={12} /></button>
+                            <button
+                                onClick={() => setIsPaused(true)}
+                                className="text-white/40 hover:text-white transition-colors focus-visible:ring-2 focus-visible:ring-[#C084FC] outline-none rounded relative group/pause"
+                                aria-label="Pause Simulation"
+                                title="Pause Simulation [P]"
+                            >
+                                <span className="absolute -top-6 left-1/2 -translate-x-1/2 text-[10px] text-[#C084FC] opacity-0 group-hover/pause:opacity-100 transition-opacity whitespace-nowrap">
+                                    [P]
+                                </span>
+                                <Pause size={12} />
+                            </button>
+                            <button
+                                onClick={() => setIsPaused(false)}
+                                className="text-white/40 hover:text-white transition-colors focus-visible:ring-2 focus-visible:ring-[#C084FC] outline-none rounded relative group/play"
+                                aria-label="Play Simulation"
+                                title="Play Simulation [P]"
+                            >
+                                <span className="absolute -top-6 left-1/2 -translate-x-1/2 text-[10px] text-[#C084FC] opacity-0 group-hover/play:opacity-100 transition-opacity whitespace-nowrap">
+                                    [P]
+                                </span>
+                                <Play size={12} />
+                            </button>
                         </div>
                     </div>
                     <div 
@@ -279,6 +305,6 @@ Civilization: ${geminiData.civilization}`;
                     </AnimatePresence>
                 </div>
             </div>
-        </div>
+        </motion.div>
     );
 };

@@ -577,18 +577,31 @@ export function useSimulation(containerRef: React.RefObject<HTMLDivElement | nul
             const handleGlobalKeyDown = (e: KeyboardEvent) => {
                 // Ignore if typing in an input/textarea
                 if (document.activeElement?.tagName === 'INPUT' || document.activeElement?.tagName === 'TEXTAREA') return;
-                // Ignore if any modifier key is pressed
-                if (e.ctrlKey || e.metaKey || e.altKey || e.shiftKey) return;
+
+                // Allow Alt key for Reset Physics (Alt+R)
+                const isAltR = e.altKey && (e.key === 'r' || e.key === 'R');
+
+                // Ignore if any other modifier key is pressed, or if Alt is pressed but it's not Alt+R
+                if (e.ctrlKey || e.metaKey || (e.altKey && !isAltR) || e.shiftKey) return;
 
                 switch (e.key) {
                     case ' ': // Space
                         e.preventDefault();
                         setIsPlayingCosmic(prev => !prev);
                         break;
+                    case 'p':
+                    case 'P':
+                        e.preventDefault();
+                        setIsPaused(prev => !prev);
+                        break;
                     case 'r':
                     case 'R':
                         e.preventDefault();
-                        controlsRef.current?.reset();
+                        if (e.altKey) {
+                            setPhysics(DEFAULT_CONSTANTS);
+                        } else {
+                            controlsRef.current?.reset();
+                        }
                         break;
                     case 'f':
                     case 'F':

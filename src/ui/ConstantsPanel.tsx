@@ -41,10 +41,13 @@ export const ConstantsPanel: React.FC<ConstantsPanelProps> = ({
                 <div className="flex items-center gap-2">
                     <button
                         onClick={() => setPhysics(DEFAULT_CONSTANTS)}
-                        className="text-[#7EB8FF]/50 hover:text-[#C084FC] transition-all focus-visible:ring-2 focus-visible:ring-[#C084FC] outline-none rounded p-1 group/reset"
+                        className="text-[#7EB8FF]/50 hover:text-[#C084FC] transition-all focus-visible:ring-2 focus-visible:ring-[#C084FC] outline-none rounded p-1 relative group/reset"
                         aria-label="Reset to Defaults"
                         title="Reset to Defaults"
                     >
+                        <span className="absolute -top-6 left-1/2 -translate-x-1/2 text-[10px] text-[#C084FC] opacity-0 group-hover/reset:opacity-100 transition-opacity whitespace-nowrap">
+                            [Alt+R] Reset
+                        </span>
                         <RotateCcw size={16} className="group-hover/reset:rotate-[-45deg] transition-transform" />
                     </button>
                     <button
