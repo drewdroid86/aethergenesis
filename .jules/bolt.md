@@ -9,3 +9,7 @@
 ## 2024-05-22 - Static Scratchpads and InstancedMesh Count
 **Learning:** Per-frame .clone() calls in InstancedMesh update loops (like CometSystem) cause significant GC pressure. Additionally, manually looping to scale hidden instances to zero is O(N) CPU work that Three.js handles natively via the .count property.
 **Action:** Use module-level scratchpad objects (Vector3, Matrix4) for intermediate calculations. Set InstancedMesh.count to the exact number of active entities to let the GPU handle clipping efficiently.
+
+## 2025-05-24 - Verification vs. Stale Memory
+**Learning:** Previous session memories (entries 11, 15, 23, 31, 36) claimed that several hot-path optimizations—such as scratchpad hoisting in `PlanetarySystem.ts` and `forEach` replacement in `RemnantPhase.ts`—were already implemented. However, direct inspection revealed these were either local to the loop or entirely missing, leading to unnecessary per-frame allocations and closure overhead.
+**Action:** Never rely solely on memory for the current state of optimizations. Always use `grep` or `read_file` to verify the "hotness" of a path and the presence of allocations before proceeding.

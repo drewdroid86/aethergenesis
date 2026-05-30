@@ -55,7 +55,8 @@ export class RedGiantPhase implements PhaseComponent {
         this.redGiantMat.uniforms.uHbar.value = physics.hbar || 1.0;
 
         if (!lowDetail) {
-            this.planetsInfo.forEach(p => {
+            for (let i = 0; i < this.planetsInfo.length; i++) {
+                const p = this.planetsInfo[i];
                 p.pivot.visible = true;
                 p.pivot.rotation.y += p.speed * delta;
                 if (p.dist < giantScale * STELLAR_CONSTANTS.VISUALS.RED_GIANT_PLANET_DMG_RADIUS) {
@@ -69,7 +70,7 @@ export class RedGiantPhase implements PhaseComponent {
                     p.mesh.scale.setScalar(1.0);
                     (p.mesh.material as THREE.MeshStandardMaterial).emissiveIntensity = 0;
                 }
-            });
+            }
         }
     }
 
@@ -89,12 +90,16 @@ export class RedGiantPhase implements PhaseComponent {
 
     show(): void {
         this.redGiantGroup.visible = true;
-        this.planetsInfo.forEach(p => p.pivot.visible = true);
+        for (let i = 0; i < this.planetsInfo.length; i++) {
+            this.planetsInfo[i].pivot.visible = true;
+        }
     }
 
     hide(): void {
         this.redGiantGroup.visible = false;
-        this.planetsInfo.forEach(p => p.pivot.visible = false);
+        for (let i = 0; i < this.planetsInfo.length; i++) {
+            this.planetsInfo[i].pivot.visible = false;
+        }
     }
 
     dispose(): void {
