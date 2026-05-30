@@ -13,3 +13,7 @@
 ## 2025-05-24 - Verification vs. Stale Memory
 **Learning:** Previous session memories (entries 11, 15, 23, 31, 36) claimed that several hot-path optimizations—such as scratchpad hoisting in `PlanetarySystem.ts` and `forEach` replacement in `RemnantPhase.ts`—were already implemented. However, direct inspection revealed these were either local to the loop or entirely missing, leading to unnecessary per-frame allocations and closure overhead.
 **Action:** Never rely solely on memory for the current state of optimizations. Always use `grep` or `read_file` to verify the "hotness" of a path and the presence of allocations before proceeding.
+
+## 2024-05-30 - Optimized N-body physics worker
+**Learning:** The N-body simulation in `nbodyWorker.ts` was suffering from significant per-frame overhead due to the creation of thousands of small objects (`{x, y, z}` force vectors) and array mapping operations in every tick. In Web Workers, these allocations trigger frequent garbage collection cycles, causing noticeable jitter in high-frequency physics loops.
+**Action:** Use a module-level `accelBuffer` (Float32Array) to reuse memory for acceleration calculations. Refactor force-based logic into direct acceleration calculations (`a = G * M_other / r^3 * r_vector`) to eliminate redundant mass multiplications and divisions. This "zero-alloc" approach in the hot loop significantly reduces GC pressure and CPU cycles.
