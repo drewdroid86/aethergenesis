@@ -214,8 +214,9 @@ export class MainSequencePhase implements PhaseComponent {
         }
 
         if (cameraPos) {
-            const distToCamera = cameraPos.distanceTo((this as any).parent?.position ?? new THREE.Vector3());
-            if (this.hzMesh) this.hzMesh.visible = distToCamera < 35;
+            const distSq = cameraPos.distanceToSquared((this as any).parent?.position ?? new THREE.Vector3());
+            // BOLT: Use distanceToSquared for performance (35 * 35 = 1225)
+            if (this.hzMesh) this.hzMesh.visible = distSq < 1225;
         }
     }
 

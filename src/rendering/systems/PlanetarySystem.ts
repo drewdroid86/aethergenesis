@@ -169,6 +169,13 @@ void main() {
 }
 `;
 
+// BOLT: Static scratchpads to eliminate per-frame allocations
+const _matrix = new THREE.Matrix4();
+const _posV = new THREE.Vector3();
+const _scaleV = new THREE.Vector3();
+const _rotQ = new THREE.Quaternion();
+const _yAxis = new THREE.Vector3(0, 1, 0);
+
 export class PlanetarySystem {
     private instancedMesh: THREE.InstancedMesh;
     public bodies: {
@@ -248,16 +255,6 @@ export class PlanetarySystem {
         this.group.visible = true;
         this.material.uniforms.uTime.value += delta;
         
-        const starWorldPos = new THREE.Vector3();
-        star.getWorldPosition(starWorldPos);
-        this.material.uniforms.u_starPosition.value.copy(starWorldPos);
-        
-        
-        const matrix = new THREE.Matrix4();
-        const posV = new THREE.Vector3();
-        const scaleV = new THREE.Vector3();
-        const rotQ = new THREE.Quaternion();
-
         // Buffer has 7 floats per body: x, y, z, vx, vy, vz, type
         const numBodies = Math.min(this.bodies.length, buffer.length / 7);
 
@@ -268,14 +265,14 @@ export class PlanetarySystem {
             const y = buffer[i * 7 + 1];
             const z = buffer[i * 7 + 2];
             
-            posV.set(x, y, z);
-            scaleV.setScalar(b.scale);
+            _posV.set(x, y, z);
+            _scaleV.setScalar(b.scale);
             
             // Subtle self-rotation
-            rotQ.setFromAxisAngle(new THREE.Vector3(0, 1, 0), (buffer[i*7+0] + buffer[i*7+1]) * 0.01 + b.seed);
+            _rotQ.setFromAxisAngle(_yAxis, (buffer[i*7+0] + buffer[i*7+1]) * 0.01 + b.seed);
             
-            matrix.compose(posV, rotQ, scaleV);
-            this.instancedMesh.setMatrixAt(i, matrix);
+            _matrix.compose(_posV, _rotQ, _scaleV);
+            this.instancedMesh.setMatrixAt(i, _matrix);
         }
 
         // BOLT: Setting .count natively handles hiding unused instances, removing redundant loop
