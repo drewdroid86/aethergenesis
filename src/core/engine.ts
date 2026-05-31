@@ -1,6 +1,9 @@
 import * as THREE from 'three';
 import { HeroStarSystem } from '../rendering/systems/HeroStarSystem';
 import { PhysicsConstants, DEFAULT_CONSTANTS } from '../types/physics';
+import { CometSystem } from '../rendering/systems/CometSystem';
+import { DysonSwarmSystem } from '../rendering/systems/DysonSwarmSystem';
+import { AsteroidBeltSystem } from '../rendering/systems/AsteroidBeltSystem';
 import { detectPerformanceTier, getNumStarsForTier } from '../utils/performance';
 import { Pipeline } from '../rendering/pipeline';
 import { createStellarState, advanceStellarState, StellarState, PhaseTransitionEvent } from '../simulation/StellarPhysics';
@@ -21,8 +24,12 @@ export class Engine {
     camera: THREE.PerspectiveCamera;
     renderer: THREE.WebGLRenderer;
     pipeline: Pipeline;
+    cometSystem: CometSystem;
+    dysonSwarmSystem: DysonSwarmSystem;
+    asteroidBeltSystem: AsteroidBeltSystem;
     heroStars: HeroStarSystem[] = [];
     appTime: number = 0;
+    highestKardashevTier: number = 0;
     isPaused: boolean = false;
     container: HTMLElement;
 
@@ -63,6 +70,9 @@ export class Engine {
         this.scene.add(new THREE.Points(this._backgroundStarGeo, this._backgroundStarMat));
 
         this.pipeline = new Pipeline(this.renderer, this.scene, this.camera);
+        this.cometSystem = new CometSystem(this.scene, this.camera);
+        this.dysonSwarmSystem = new DysonSwarmSystem(this.scene);
+        this.asteroidBeltSystem = new AsteroidBeltSystem(this.scene);
         
         const initialPhysics = { ...DEFAULT_CONSTANTS };
         this.createHeroStars(getNumStarsForTier(detectPerformanceTier()), initialPhysics);
@@ -141,7 +151,20 @@ export class Engine {
                 star.position.x += star.velocity.x * delta;
                 star.position.y += star.velocity.y * delta;
                 star.position.z += star.velocity.z * delta;
+
+                const MAX_WORLD_RADIUS = 200;
+                if (star.position.length() > MAX_WORLD_RADIUS) {
+                    star.position.normalize().multiplyScalar(MAX_WORLD_RADIUS);
+                    // Also zero out velocity to prevent bounce oscillation:
+                    if (star.velocity) { star.velocity.set(0, 0, 0); }
+                }
+
                 star.velocity.multiplyScalar(0.97); // Damping
+
+                const MAX_SPEED = 2.0;
+                if (star.velocity.length() > MAX_SPEED) {
+                    star.velocity.normalize().multiplyScalar(MAX_SPEED);
+                }
             }
 
             star.update(
@@ -165,6 +188,9 @@ export class Engine {
                 if (result.event) {
                     phaseTransitionLog.push(result.event);
                 }
+                this.cometSystem.update(deltaTime_yr, stellarState, this.appTime);
+                this.dysonSwarmSystem.update(this.highestKardashevTier, this.appTime);
+                this.asteroidBeltSystem.update(this.appTime);
             } catch (error) {
                 if (typeof (window as any).emitErrorOverlay === 'function') {
                     (window as any).emitErrorOverlay(error);
@@ -193,6 +219,9 @@ export class Engine {
         for (let i = 0; i < this.heroStars.length; i++) {
             this.heroStars[i].dispose();
         }
+        this.cometSystem.dispose();
+        this.dysonSwarmSystem.dispose();
+        this.asteroidBeltSystem.dispose();
         this._backgroundStarGeo.dispose();
         this._backgroundStarMat.dispose();
         this.heroStars = [];

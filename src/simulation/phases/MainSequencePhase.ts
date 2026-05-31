@@ -17,6 +17,8 @@ export class MainSequencePhase implements PhaseComponent {
     public starMat!: THREE.ShaderMaterial;
     public starMesh!: THREE.Mesh;
     public coronaMesh!: THREE.Mesh;
+    public flareMesh!: THREE.InstancedMesh;
+    public flareMat!: THREE.ShaderMaterial;
     public hzMesh!: THREE.Mesh;
     public planetsInfo: PlanetInfo[] = [];
     
@@ -104,6 +106,57 @@ export class MainSequencePhase implements PhaseComponent {
 
         this.mainSeqGroup.add(this.coronaMesh);
         this.mainSeqGroup.add(haloMesh);
+        
+        // Solar Flares
+        const curve = new THREE.QuadraticBezierCurve3(
+            new THREE.Vector3(0.8, 0, 0),
+            new THREE.Vector3(1.5, 1.5, 0),
+            new THREE.Vector3(0, 0, 0.8)
+        );
+        const flareGeo = new THREE.TubeGeometry(curve, 16, 0.05, 4, false);
+        this.flareMat = new THREE.ShaderMaterial({
+            uniforms: {
+                uTime: { value: 0 },
+                uColor: { value: new THREE.Color(msColor) },
+                uOpacity: { value: 0.0 }
+            },
+            vertexShader: `
+                varying vec2 vUv;
+                void main() {
+                    vUv = uv;
+                    gl_Position = projectionMatrix * viewMatrix * modelMatrix * instanceMatrix * vec4(position, 1.0);
+                }
+            `,
+            fragmentShader: `
+                uniform float uTime;
+                uniform vec3 uColor;
+                uniform float uOpacity;
+                varying vec2 vUv;
+                void main() {
+                    float alpha = (sin(uTime * 2.0 + vUv.x * 10.0) * 0.5 + 0.5) * uOpacity;
+                    alpha *= sin(vUv.x * 3.14159);
+                    gl_FragColor = vec4(uColor, alpha);
+                }
+            `,
+            transparent: true,
+            blending: THREE.AdditiveBlending,
+            depthWrite: false
+        });
+        
+        this.flareMesh = new THREE.InstancedMesh(flareGeo, this.flareMat, 4);
+        for(let i=0; i<4; i++) {
+            const matrix = new THREE.Matrix4();
+            matrix.makeRotationFromEuler(new THREE.Euler(
+                Math.random() * Math.PI * 2,
+                Math.random() * Math.PI * 2,
+                Math.random() * Math.PI * 2
+            ));
+            const s = 0.5 + Math.random() * 0.5;
+            matrix.scale(new THREE.Vector3(s * this.baseRadius, s * this.baseRadius, s * this.baseRadius));
+            this.flareMesh.setMatrixAt(i, matrix);
+        }
+        this.mainSeqGroup.add(this.flareMesh);
+        
         this.parent.add(this.mainSeqGroup);
 
         // Habitable Zone
@@ -152,6 +205,7 @@ export class MainSequencePhase implements PhaseComponent {
         // BOLT: Removed redundant scale assignment
         this.starMat.uniforms.uTime.value = appTime;
         this.starMat.uniforms.uHbar.value = physics.hbar || 1.0;
+        this.flareMat.uniforms.uTime.value = appTime;
 
         if (!lowDetail) {
             for (let i = 0; i < this.planetsInfo.length; i++) {
@@ -169,6 +223,7 @@ export class MainSequencePhase implements PhaseComponent {
     setOpacity(opacity: number): void {
         this.starMat.uniforms.uOpacity.value = opacity;
         (this.coronaMesh.material as THREE.MeshBasicMaterial).opacity = opacity * 0.3;
+        this.flareMat.uniforms.uOpacity.value = opacity * 0.8;
         if ((this as any)._coronaMat) {
             (this as any)._coronaMat.uniforms.uOpacity.value = opacity;
         }
@@ -193,6 +248,8 @@ export class MainSequencePhase implements PhaseComponent {
     dispose(): void {
         // BOLT: Star, corona, and HZ use shared GEOMETRIES, do NOT dispose
         this.starMat.dispose();
+        this.flareMat.dispose();
+        this.flareMesh.geometry.dispose();
         (this.coronaMesh.material as THREE.Material).dispose();
         if ((this as any)._coronaMesh) {
             (this as any)._coronaMesh.material.dispose();

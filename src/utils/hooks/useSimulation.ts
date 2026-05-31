@@ -501,6 +501,9 @@ export function useSimulation(containerRef: React.RefObject<HTMLDivElement | nul
                                     });
                                 }
 
+                                const maxK = astrobiologyStates.reduce((max, s) => Math.max(max, s.civilizationTier), 0);
+                                engine.highestKardashevTier = maxK;
+
                                 // Avoid rapid React state updates by throttling UI state to 1Hz
                                 if (currentTime - (lastAnalysisTimeRef.current || 0) > 1000) {
                                     setAstrobiologyData(astrobiologyStates);
@@ -510,11 +513,6 @@ export function useSimulation(containerRef: React.RefObject<HTMLDivElement | nul
                                 // Update Biosphere & City Light shaders
                                 if (star.planetarySystem) {
                                     star.planetarySystem.updateAstrobiology(astrobiologyStates);
-                                }
-                                
-                                // Update Dyson Swarms
-                                if (star.updateMegastructures) {
-                                    star.updateMegastructures(astrobiologyStates);
                                 }
 
                                 const statePayload = {
