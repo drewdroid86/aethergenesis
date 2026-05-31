@@ -30,9 +30,15 @@ export function useSimulation(containerRef: React.RefObject<HTMLDivElement | nul
     const wsRef = useRef<any>(null);
 
     useEffect(() => {
+        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
         const wsHost = window.location.hostname || 'localhost';
-        const wsPort = '3001';
-        const wsUrl = `ws://${wsHost}:${wsPort}`;
+
+        // Security: Avoid mixed content and fix production connectivity
+        // In local development, the backend usually runs on 3001.
+        // In production, the backend and frontend are typically served from the same port.
+        const wsPort = (wsHost === 'localhost' || wsHost === '127.0.0.1') ? '3001' : window.location.port;
+        const wsUrl = `${protocol}//${wsHost}${wsPort ? `:${wsPort}` : ''}`;
+
         let socket: any = null;
         let reconnectTimeout: any;
 

@@ -60,18 +60,20 @@ export interface SimEvent {
 
 const handlers: ((event: SimEvent) => void)[] = [];
 const clients = new Set<WebSocket>();
+const MAX_CLIENTS = 100;
+const clientMetadataMap = new Map<WebSocket, { messageCount: number, windowStart: number }>();
 let wss: WebSocketServer | null = null;
 
 export function registerEventHandler(handler: (event: SimEvent) => void): void {
     handlers.push(handler);
 }
 
-export function broadcastSimState(state: SimBroadcast): void {
+export function broadcastSimState(state: SimBroadcast, exclude?: WebSocket): void {
     if (!wss) return;
     try {
         const payload = JSON.stringify({ type: 'state', data: state });
         for (const client of clients) {
-            if (client.readyState === WebSocket.OPEN) {
+            if (client !== exclude && client.readyState === WebSocket.OPEN) {
                 try {
                     client.send(payload);
                 } catch (err) {
@@ -91,6 +93,12 @@ export function initWebSocketServer(server: http.Server, allowedOrigins: string[
     });
     
     wss.on('connection', (ws: WebSocket, req: http.IncomingMessage) => {
+        // Security: Limit concurrent connections to prevent resource exhaustion
+        if (clients.size >= MAX_CLIENTS) {
+            ws.close(1013, 'Server too busy: Max connections reached');
+            return;
+        }
+
         // Security: Origin validation to prevent CSWH
         const origin = req.headers.origin;
         if (!origin || !allowedOrigins.includes(origin)) {
@@ -99,13 +107,31 @@ export function initWebSocketServer(server: http.Server, allowedOrigins: string[
         }
 
         clients.add(ws);
+        clientMetadataMap.set(ws, { messageCount: 0, windowStart: Date.now() });
         
         ws.on('message', (message: string) => {
+            // Security: Per-connection rate limiting (100 msgs per 10s)
+            const now = Date.now();
+            const meta = clientMetadataMap.get(ws) || { messageCount: 0, windowStart: now };
+
+            if (now - meta.windowStart > 10000) {
+                meta.messageCount = 0;
+                meta.windowStart = now;
+            }
+
+            meta.messageCount++;
+            clientMetadataMap.set(ws, meta);
+
+            if (meta.messageCount > 100) {
+                return; // Silently drop over-limit messages
+            }
+
             try {
                 const data = JSON.parse(message);
                 if (data.type === 'state') {
                     // Forward simulation state to all other clients (specifically MCP servers)
-                    broadcastSimState(data.data);
+                    // Security: Loopback prevention via exclude parameter
+                    broadcastSimState(data.data, ws);
                 } else if (data.type === 'event' || data.event) {
                     // Dispatch incoming event to handlers
                     const simEvent: SimEvent = {
@@ -142,10 +168,12 @@ export function initWebSocketServer(server: http.Server, allowedOrigins: string[
         
         ws.on('close', () => {
             clients.delete(ws);
+            clientMetadataMap.delete(ws);
         });
         
         ws.on('error', () => {
             clients.delete(ws);
+            clientMetadataMap.delete(ws);
         });
     });
 }
