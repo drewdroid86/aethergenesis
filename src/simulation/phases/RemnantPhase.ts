@@ -25,6 +25,11 @@ export class RemnantPhase implements PhaseComponent {
     private bhDiskMaterial?: THREE.ShaderMaterial;
     private bhDiskGeometry?: THREE.RingGeometry;
 
+    // BOLT: Cache child materials for O(1) opacity updates
+    private _nsMat!: THREE.MeshBasicMaterial;
+    private _tubeMat!: THREE.MeshBasicMaterial;
+    private _beamMat!: THREE.MeshBasicMaterial;
+
     constructor(mass: number) {
         this.mass = mass;
     }
@@ -34,20 +39,20 @@ export class RemnantPhase implements PhaseComponent {
 
         // Neutron Star
         this.neutronStarGroup = new THREE.Group();
-        const nsMat = new THREE.MeshBasicMaterial({color: 0xaaccff, transparent: true, opacity: 0});
+        this._nsMat = new THREE.MeshBasicMaterial({color: 0xaaccff, transparent: true, opacity: 0});
         this.pulsarGroup = new THREE.Group();
-        const beamMat = new THREE.MeshBasicMaterial({ color: 0x00ffff, transparent: true, opacity: 0, blending: THREE.AdditiveBlending });
-        const beam1 = new THREE.Mesh(GEOMETRIES.pulsarBeam1, beamMat);
-        const beam2 = new THREE.Mesh(GEOMETRIES.pulsarBeam2, beamMat);
+        this._beamMat = new THREE.MeshBasicMaterial({ color: 0x00ffff, transparent: true, opacity: 0, blending: THREE.AdditiveBlending });
+        const beam1 = new THREE.Mesh(GEOMETRIES.pulsarBeam1, this._beamMat);
+        const beam2 = new THREE.Mesh(GEOMETRIES.pulsarBeam2, this._beamMat);
         this.pulsarGroup.add(beam1);
         this.pulsarGroup.add(beam2);
-        this.neutronStarGroup.add(new THREE.Mesh(GEOMETRIES.neutronStar, nsMat));
+        this.neutronStarGroup.add(new THREE.Mesh(GEOMETRIES.neutronStar, this._nsMat));
         this.neutronStarGroup.add(this.pulsarGroup);
         
         const nsMagGroup = new THREE.Group();
-        const tubeMat = new THREE.MeshBasicMaterial({color: 0xaaccff, transparent: true, opacity: 0, blending: THREE.AdditiveBlending});
+        this._tubeMat = new THREE.MeshBasicMaterial({color: 0xaaccff, transparent: true, opacity: 0, blending: THREE.AdditiveBlending});
         for(const tubeGeo of GEOMETRIES.magneticTubes) {
-            nsMagGroup.add(new THREE.Mesh(tubeGeo, tubeMat));
+            nsMagGroup.add(new THREE.Mesh(tubeGeo, this._tubeMat));
         }
         
         this.nsMagneticLines = nsMagGroup;
@@ -175,34 +180,30 @@ export class RemnantPhase implements PhaseComponent {
         }
     }
 
+    /**
+     * BOLT: Optimized opacity updates using cached material references.
+     * Eliminates per-frame children array access and property lookups.
+     */
     updateRemnantOpacity(delta: number, targetNs: number): void {
         const speed = delta * STELLAR_CONSTANTS.TRANSITIONS.DEFAULT_SPEED;
 
         const nextOpNs = stepOp(this._opNs, targetNs, speed);
         if (this._opNs !== nextOpNs) {
             this._opNs = nextOpNs;
-            const nsMeshMat = (this.neutronStarGroup.children[0] as THREE.Mesh).material as THREE.MeshBasicMaterial;
-            nsMeshMat.opacity = this._opNs;
+            this._nsMat.opacity = this._opNs;
         }
 
         const targetLines = targetNs ? 0.3 : 0;
         const nextOpLines = stepOp(this._opNsLines, targetLines, speed);
         if (this._opNsLines !== nextOpLines) {
             this._opNsLines = nextOpLines;
-            const children = this.nsMagneticLines.children;
-            for (let i = 0; i < children.length; i++) {
-                ((children[i] as THREE.Mesh).material as THREE.MeshBasicMaterial).opacity = this._opNsLines;
-            }
+            this._tubeMat.opacity = this._opNsLines;
         }
 
         // Pulsar beams are either on or off for simplicity in opacity guarding
         const targetBeam = targetNs ? 0.6 : 0;
-        const firstBeam = this.pulsarGroup.children[0] as THREE.Mesh;
-        if ((firstBeam.material as THREE.MeshBasicMaterial).opacity !== targetBeam) {
-            const children = this.pulsarGroup.children;
-            for (let i = 0; i < children.length; i++) {
-                ((children[i] as THREE.Mesh).material as THREE.MeshBasicMaterial).opacity = targetBeam;
-            }
+        if (this._beamMat.opacity !== targetBeam) {
+            this._beamMat.opacity = targetBeam;
         }
         
         const isVisible = this._opNs > STELLAR_CONSTANTS.TRANSITIONS.VISIBILITY_THRESHOLD || this._opNsLines > STELLAR_CONSTANTS.TRANSITIONS.VISIBILITY_THRESHOLD;
@@ -222,17 +223,9 @@ export class RemnantPhase implements PhaseComponent {
 
     dispose(): void {
         // BOLT: Stop disposing shared global geometries. Only dispose local materials if unique.
-        const nsChildren = this.neutronStarGroup.children;
-        for (let i = 0; i < nsChildren.length; i++) {
-            const c = nsChildren[i] as THREE.Mesh;
-            if (c.material) (c.material as THREE.Material).dispose();
-        }
-
-        const nsLinesChildren = this.nsMagneticLines.children;
-        for (let i = 0; i < nsLinesChildren.length; i++) {
-            const c = nsLinesChildren[i] as THREE.Mesh;
-            if (c.material) (c.material as THREE.Material).dispose();
-        }
+        if (this._nsMat) this._nsMat.dispose();
+        if (this._beamMat) this._beamMat.dispose();
+        if (this._tubeMat) this._tubeMat.dispose();
 
         if ((this as any)._lensMesh) {
             (this as any)._lensMesh.geometry.dispose();
@@ -242,7 +235,9 @@ export class RemnantPhase implements PhaseComponent {
         for (let i = 0; i < bhChildren.length; i++) {
             const c = bhChildren[i] as THREE.Mesh;
             const mat = c.material;
-            if (mat instanceof THREE.Material && mat !== this.bhDiskMaterial) mat.dispose();
+            if (mat instanceof THREE.Material && mat !== this.bhDiskMaterial && mat !== this._nsMat && mat !== this._beamMat && mat !== this._tubeMat) {
+                mat.dispose();
+            }
         }
         if (this.bhDiskGeometry) this.bhDiskGeometry.dispose();
         if (this.bhDiskMaterial) this.bhDiskMaterial.dispose();

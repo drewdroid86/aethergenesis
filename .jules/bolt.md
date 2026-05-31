@@ -13,3 +13,7 @@
 ## 2025-05-24 - Verification vs. Stale Memory
 **Learning:** Previous session memories (entries 11, 15, 23, 31, 36) claimed that several hot-path optimizations—such as scratchpad hoisting in `PlanetarySystem.ts` and `forEach` replacement in `RemnantPhase.ts`—were already implemented. However, direct inspection revealed these were either local to the loop or entirely missing, leading to unnecessary per-frame allocations and closure overhead.
 **Action:** Never rely solely on memory for the current state of optimizations. Always use `grep` or `read_file` to verify the "hotness" of a path and the presence of allocations before proceeding.
+
+## 2024-05-31 - Zero-Alloc Physics and Material Caching
+**Learning:** Per-frame object/array allocations in hot paths like the 60Hz physics worker and animation loops cause significant GC spikes. Additionally, repeated indexing into child arrays (e.g., `group.children[0]`) and type casting in every frame adds unnecessary CPU overhead.
+**Action:** Use persistent Float32Arrays for simulation state and intermediate calculations in workers. Cache child material references as private members during initialization to enable O(1) property updates in animation loops.

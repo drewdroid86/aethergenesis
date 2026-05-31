@@ -148,14 +148,17 @@ export class CometSystem {
         this.ionTailMesh = new THREE.InstancedMesh(tailGeo, this.tailMat, numComets);
         this.dustTailMesh = new THREE.InstancedMesh(tailGeo, this.tailMat, numComets);
         
-        [this.ionTailMesh, this.dustTailMesh].forEach(mesh => {
+        // BOLT: Replaced forEach with standard for loop
+        const meshes = [this.ionTailMesh, this.dustTailMesh];
+        for (let i = 0; i < meshes.length; i++) {
+            const mesh = meshes[i];
             mesh.geometry.setAttribute('cWidth', new THREE.InstancedBufferAttribute(new Float32Array(numComets), 1));
             mesh.geometry.setAttribute('cLength', new THREE.InstancedBufferAttribute(new Float32Array(numComets), 1));
             mesh.geometry.setAttribute('cDir', new THREE.InstancedBufferAttribute(new Float32Array(numComets * 3), 3));
             mesh.geometry.setAttribute('cColor', new THREE.InstancedBufferAttribute(new Float32Array(numComets * 3), 3));
             mesh.geometry.setAttribute('cActive', new THREE.InstancedBufferAttribute(new Float32Array(numComets), 1));
             mesh.frustumCulled = false;
-        });
+        }
         this.comaMesh.frustumCulled = false;
 
         this.group.add(this.comaMesh);
