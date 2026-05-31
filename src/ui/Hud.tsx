@@ -150,10 +150,13 @@ export const Hud: React.FC<HudProps> = ({
                     <button
                         onClick={copyCoordinates}
                         className="text-[#7EB8FF]/40 hover:text-white transition-colors focus-visible:ring-2 focus-visible:ring-[#C084FC] outline-none rounded relative group/copy"
-                        aria-label="Copy Coordinates"
+                        aria-label={copied ? "Coordinates Copied" : "Copy Coordinates"}
                         title="Copy Coordinates"
                     >
-                        <span className="absolute -top-6 right-0 text-[10px] text-[#C084FC] opacity-0 group-hover/copy:opacity-100 transition-opacity whitespace-nowrap">
+                        <span
+                            className="absolute -top-6 right-0 text-[10px] text-[#C084FC] opacity-0 group-hover/copy:opacity-100 transition-opacity whitespace-nowrap"
+                            aria-live="polite"
+                        >
                             {copied ? 'Copied!' : 'Copy'}
                         </span>
                         {copied ? <Check size={12} className="text-green-400" /> : <Copy size={12} />}
