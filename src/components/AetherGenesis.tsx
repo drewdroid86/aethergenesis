@@ -24,9 +24,9 @@ export function AetherGenesis() {
     setIsPlayingCosmic,
     isConstantsOpen,
     setIsConstantsOpen,
-    currentTier, 
-    fps, 
-    showTierDownIndicator, 
+    currentTier,
+    fps,
+    showTierDownIndicator,
     numHeroStars,
     currentSeed,
     onScrubStart,
@@ -40,14 +40,14 @@ export function AetherGenesis() {
     centerOnStar,
     timeScale,
     setTimeScale,
-    astrobiologyData
+    astrobiologyData,
   } = useSimulation(mountRef);
 
   return (
     <div className="relative w-full h-screen bg-[#020205] overflow-hidden flex flex-col font-sans text-white select-none">
       <div ref={mountRef} className="absolute inset-0 cursor-crosshair z-0" />
-      
-      <Hud 
+
+      <Hud
         uiRefs={hudRefs}
         cosmicAge={cosmicAge}
         isPlayingCosmic={isPlayingCosmic}
@@ -61,40 +61,40 @@ export function AetherGenesis() {
         resetCamera={resetCamera}
         centerOnStar={centerOnStar}
         performance={{
-            tier: currentTier,
-            numStars: numHeroStars,
-            fps: fps,
-            showIndicator: showTierDownIndicator
+          tier: currentTier,
+          numStars: numHeroStars,
+          fps: fps,
+          showIndicator: showTierDownIndicator,
         }}
         currentSeed={currentSeed}
       />
 
       {selectedStar && (
-        <InspectPanel 
-            selectedStar={selectedStar}
-            setSelectedStar={setSelectedStar}
-            isPaused={isPaused}
-            setIsPaused={setIsPaused}
-            physics={physics}
-            onScrubStart={onScrubStart}
-            onScrubMove={onScrubMove}
-            onScrubEnd={onScrubEnd}
-            onKeyDown={(e) => onKeyDown(e, false)}
-            uiRefs={uiRefs}
+        <InspectPanel
+          selectedStar={selectedStar}
+          setSelectedStar={setSelectedStar}
+          isPaused={isPaused}
+          setIsPaused={setIsPaused}
+          physics={physics}
+          onScrubStart={onScrubStart}
+          onScrubMove={onScrubMove}
+          onScrubEnd={onScrubEnd}
+          onKeyDown={(e) => onKeyDown(e, false)}
+          uiRefs={uiRefs}
         />
       )}
 
       <AnimatePresence>
         {selectedStar && astrobiologyData.length > 0 && (
-            <AstrobiologyPanel
-                data={astrobiologyData}
-                selectedStar={selectedStar}
-                onClose={() => setSelectedStar(null)}
-            />
+          <AstrobiologyPanel
+            data={astrobiologyData}
+            selectedStar={selectedStar}
+            onClose={() => setSelectedStar(null)}
+          />
         )}
       </AnimatePresence>
 
-      <ConstantsPanel 
+      <ConstantsPanel
         physics={physics}
         setPhysics={setPhysics}
         isOpen={isConstantsOpen}

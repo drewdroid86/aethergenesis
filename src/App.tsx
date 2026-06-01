@@ -1,4 +1,4 @@
-import { AetherGenesis } from "./components/AetherGenesis";
+import { AetherGenesis } from './components/AetherGenesis';
 
 export default function App() {
   return (

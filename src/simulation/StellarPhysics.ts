@@ -149,15 +149,9 @@ export function computeRadius(
  * @param radius_solar — Radius in solar radii
  * @returns Effective temperature in Kelvin
  */
-export function computeTemperature(
-  luminosity_solar: number,
-  radius_solar: number
-): number {
+export function computeTemperature(luminosity_solar: number, radius_solar: number): number {
   if (radius_solar <= 0) return 0;
-  return 5778 * Math.pow(
-    luminosity_solar / (radius_solar * radius_solar),
-    0.25
-  );
+  return 5778 * Math.pow(luminosity_solar / (radius_solar * radius_solar), 0.25);
 }
 
 /**
@@ -244,11 +238,7 @@ export function computeSchwarzschild(mass_solar: number): number {
  * @param tau_ms — Main sequence lifetime in years
  * @returns Current evolutionary phase
  */
-export function computePhase(
-  mass_solar: number,
-  age_yr: number,
-  tau_ms: number
-): StellarPhase {
+export function computePhase(mass_solar: number, age_yr: number, tau_ms: number): StellarPhase {
   if (age_yr < tau_ms * 0.001) return 'nebula';
   if (age_yr < tau_ms * 0.01) return 'protostar';
   if (age_yr < tau_ms) return 'main_sequence';
@@ -385,7 +375,11 @@ export function createStellarState(
   const phase = computePhase(initialMass_solar, age_yr, tau_ms);
   const mass_solar = computeCurrentMass(initialMass_solar, phase, age_yr, tau_ms);
   const luminosity_solar = computePhaseLuminosity(
-    initialMass_solar, mass_solar, phase, age_yr, tau_ms
+    initialMass_solar,
+    mass_solar,
+    phase,
+    age_yr,
+    tau_ms
   );
   const radius_solar = computeRadius(mass_solar, phase, age_yr, tau_ms);
   const temperature_K = computeTemperature(luminosity_solar, radius_solar);

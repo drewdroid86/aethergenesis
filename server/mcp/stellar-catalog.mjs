@@ -15,13 +15,14 @@ const server = new Server(
   }
 );
 
-const SIMBAD_BASE_URL = process.env.SIMBAD_BASE_URL || 'https://simbad.u-strasbg.fr/simbad/sim-tap/sync';
+const SIMBAD_BASE_URL =
+  process.env.SIMBAD_BASE_URL || 'https://simbad.u-strasbg.fr/simbad/sim-tap/sync';
 
 // Preset library: 10 stars from literature
 const PRESETS = [
   {
-    name: "Sun",
-    spectral_class: "G2V",
+    name: 'Sun',
+    spectral_class: 'G2V',
     mass_solar: 1.0,
     luminosity_solar: 1.0,
     temperature_K: 5778,
@@ -33,11 +34,11 @@ const PRESETS = [
     habitable_zone_inner_au: 0.95,
     habitable_zone_outer_au: 1.37,
     chandrasekhar_relevant: true,
-    literature_reference: "Carroll & Ostlie §13.2"
+    literature_reference: 'Carroll & Ostlie §13.2',
   },
   {
-    name: "Proxima Centauri",
-    spectral_class: "M5Ve",
+    name: 'Proxima Centauri',
+    spectral_class: 'M5Ve',
     mass_solar: 0.122,
     luminosity_solar: 0.0017,
     temperature_K: 3042,
@@ -49,27 +50,27 @@ const PRESETS = [
     habitable_zone_inner_au: 0.04,
     habitable_zone_outer_au: 0.08,
     chandrasekhar_relevant: false,
-    literature_reference: "Anglada-Escudé et al. 2016"
+    literature_reference: 'Anglada-Escudé et al. 2016',
   },
   {
-    name: "Sirius A",
-    spectral_class: "A1V",
+    name: 'Sirius A',
+    spectral_class: 'A1V',
     mass_solar: 2.063,
     luminosity_solar: 25.4,
     temperature_K: 9940,
     radius_solar: 1.711,
     metallicity_Z: 0.03,
-    distance_ly: 8.60,
+    distance_ly: 8.6,
     age_gyr: 0.24,
     known_planets: 0,
     habitable_zone_inner_au: 4.8,
     habitable_zone_outer_au: 8.5,
     chandrasekhar_relevant: true,
-    literature_reference: "Liebert et al. 2005"
+    literature_reference: 'Liebert et al. 2005',
   },
   {
-    name: "Betelgeuse",
-    spectral_class: "M2Iab",
+    name: 'Betelgeuse',
+    spectral_class: 'M2Iab',
     mass_solar: 16.5,
     luminosity_solar: 126000.0,
     temperature_K: 3600,
@@ -81,15 +82,15 @@ const PRESETS = [
     habitable_zone_inner_au: 350.0,
     habitable_zone_outer_au: 620.0,
     chandrasekhar_relevant: true,
-    literature_reference: "Joyce et al. 2020"
+    literature_reference: 'Joyce et al. 2020',
   },
   {
-    name: "Kepler-442",
-    spectral_class: "K5V",
+    name: 'Kepler-442',
+    spectral_class: 'K5V',
     mass_solar: 0.61,
     luminosity_solar: 0.12,
     temperature_K: 4402,
-    radius_solar: 0.60,
+    radius_solar: 0.6,
     metallicity_Z: 0.012,
     distance_ly: 1206.0,
     age_gyr: 2.9,
@@ -97,11 +98,11 @@ const PRESETS = [
     habitable_zone_inner_au: 0.35,
     habitable_zone_outer_au: 0.62,
     chandrasekhar_relevant: false,
-    literature_reference: "Torres et al. 2015"
+    literature_reference: 'Torres et al. 2015',
   },
   {
-    name: "Eta Carinae",
-    spectral_class: "LBV",
+    name: 'Eta Carinae',
+    spectral_class: 'LBV',
     mass_solar: 100.0,
     luminosity_solar: 5000000.0,
     temperature_K: 30000,
@@ -113,12 +114,12 @@ const PRESETS = [
     habitable_zone_inner_au: 2100.0,
     habitable_zone_outer_au: 3700.0,
     chandrasekhar_relevant: true,
-    literature_reference: "Davidson & Humphreys 1997"
+    literature_reference: 'Davidson & Humphreys 1997',
   },
   {
-    name: "61 Cygni A",
-    spectral_class: "K5V",
-    mass_solar: 0.70,
+    name: '61 Cygni A',
+    spectral_class: 'K5V',
+    mass_solar: 0.7,
     luminosity_solar: 0.156,
     temperature_K: 4526,
     radius_solar: 0.665,
@@ -129,11 +130,11 @@ const PRESETS = [
     habitable_zone_inner_au: 0.38,
     habitable_zone_outer_au: 0.67,
     chandrasekhar_relevant: false,
-    literature_reference: "Kervella et al. 2008"
+    literature_reference: 'Kervella et al. 2008',
   },
   {
-    name: "Tau Ceti",
-    spectral_class: "G8V",
+    name: 'Tau Ceti',
+    spectral_class: 'G8V',
     mass_solar: 0.783,
     luminosity_solar: 0.52,
     temperature_K: 5344,
@@ -145,11 +146,11 @@ const PRESETS = [
     habitable_zone_inner_au: 0.68,
     habitable_zone_outer_au: 1.2,
     chandrasekhar_relevant: false,
-    literature_reference: "Teixeira et al. 2009"
+    literature_reference: 'Teixeira et al. 2009',
   },
   {
-    name: "Vega",
-    spectral_class: "A0V",
+    name: 'Vega',
+    spectral_class: 'A0V',
     mass_solar: 2.135,
     luminosity_solar: 40.12,
     temperature_K: 9602,
@@ -161,11 +162,11 @@ const PRESETS = [
     habitable_zone_inner_au: 6.0,
     habitable_zone_outer_au: 10.7,
     chandrasekhar_relevant: true,
-    literature_reference: "Yoon et al. 2010"
+    literature_reference: 'Yoon et al. 2010',
   },
   {
-    name: "Rigel",
-    spectral_class: "B8Ia",
+    name: 'Rigel',
+    spectral_class: 'B8Ia',
     mass_solar: 21.0,
     luminosity_solar: 120000.0,
     temperature_K: 12100,
@@ -177,8 +178,8 @@ const PRESETS = [
     habitable_zone_inner_au: 330.0,
     habitable_zone_outer_au: 590.0,
     chandrasekhar_relevant: true,
-    literature_reference: "Przybilla et al. 2006"
-  }
+    literature_reference: 'Przybilla et al. 2006',
+  },
 ];
 
 // Confirmed habitable exoplanet systems
@@ -191,88 +192,88 @@ const EXOPLANETS = [
     planet_semi_major_axis_au: 0.0252,
     earth_similarity_index: 0.95,
     in_habitable_zone: true,
-    source: "NASA Exoplanet Archive"
+    source: 'NASA Exoplanet Archive',
   },
   {
-    star_name: "Kepler-442",
+    star_name: 'Kepler-442',
     star_mass_solar: 0.61,
     star_temperature_K: 4402,
-    planet_name: "Kepler-442b",
+    planet_name: 'Kepler-442b',
     planet_semi_major_axis_au: 0.409,
     earth_similarity_index: 0.84,
     in_habitable_zone: true,
-    source: "NASA Exoplanet Archive"
+    source: 'NASA Exoplanet Archive',
   },
   {
-    star_name: "TRAPPIST-1",
+    star_name: 'TRAPPIST-1',
     star_mass_solar: 0.09,
     star_temperature_K: 2566,
-    planet_name: "TRAPPIST-1 e",
+    planet_name: 'TRAPPIST-1 e',
     planet_semi_major_axis_au: 0.029,
     earth_similarity_index: 0.95,
     in_habitable_zone: true,
-    source: "NASA Exoplanet Archive"
+    source: 'NASA Exoplanet Archive',
   },
   {
-    star_name: "TRAPPIST-1",
+    star_name: 'TRAPPIST-1',
     star_mass_solar: 0.09,
     star_temperature_K: 2566,
-    planet_name: "TRAPPIST-1 d",
+    planet_name: 'TRAPPIST-1 d',
     planet_semi_major_axis_au: 0.022,
-    earth_similarity_index: 0.90,
+    earth_similarity_index: 0.9,
     in_habitable_zone: true,
-    source: "NASA Exoplanet Archive"
+    source: 'NASA Exoplanet Archive',
   },
   {
-    star_name: "TRAPPIST-1",
+    star_name: 'TRAPPIST-1',
     star_mass_solar: 0.09,
     star_temperature_K: 2566,
-    planet_name: "TRAPPIST-1 f",
+    planet_name: 'TRAPPIST-1 f',
     planet_semi_major_axis_au: 0.038,
-    earth_similarity_index: 0.70,
+    earth_similarity_index: 0.7,
     in_habitable_zone: true,
-    source: "NASA Exoplanet Archive"
+    source: 'NASA Exoplanet Archive',
   },
   {
-    star_name: "Proxima Centauri",
+    star_name: 'Proxima Centauri',
     star_mass_solar: 0.122,
     star_temperature_K: 3042,
-    planet_name: "Proxima Centauri b",
+    planet_name: 'Proxima Centauri b',
     planet_semi_major_axis_au: 0.0485,
     earth_similarity_index: 0.87,
     in_habitable_zone: true,
-    source: "NASA Exoplanet Archive"
+    source: 'NASA Exoplanet Archive',
   },
   {
     star_name: "Luyten's Star",
     star_mass_solar: 0.29,
     star_temperature_K: 3150,
-    planet_name: "Luyten b",
+    planet_name: 'Luyten b',
     planet_semi_major_axis_au: 0.091,
     earth_similarity_index: 0.91,
     in_habitable_zone: true,
-    source: "NASA Exoplanet Archive"
+    source: 'NASA Exoplanet Archive',
   },
   {
-    star_name: "Kepler-186",
+    star_name: 'Kepler-186',
     star_mass_solar: 0.54,
     star_temperature_K: 3788,
-    planet_name: "Kepler-186f",
+    planet_name: 'Kepler-186f',
     planet_semi_major_axis_au: 0.432,
     earth_similarity_index: 0.61,
     in_habitable_zone: true,
-    source: "NASA Exoplanet Archive"
+    source: 'NASA Exoplanet Archive',
   },
   {
-    star_name: "Kepler-1649",
+    star_name: 'Kepler-1649',
     star_mass_solar: 0.22,
     star_temperature_K: 3240,
-    planet_name: "Kepler-1649c",
+    planet_name: 'Kepler-1649c',
     planet_semi_major_axis_au: 0.083,
     earth_similarity_index: 0.92,
     in_habitable_zone: true,
-    source: "NASA Exoplanet Archive"
-  }
+    source: 'NASA Exoplanet Archive',
+  },
 ];
 
 /**
@@ -285,7 +286,14 @@ function estimateParams(spType) {
   let lum = 1.0;
   let metallicity = 0.02;
 
-  if (!spType) return { mass_solar: mass, temperature_K: temp, radius_solar: rad, luminosity_solar: lum, metallicity_Z: metallicity };
+  if (!spType)
+    return {
+      mass_solar: mass,
+      temperature_K: temp,
+      radius_solar: rad,
+      luminosity_solar: lum,
+      metallicity_Z: metallicity,
+    };
 
   const cleanSp = spType.trim().toUpperCase();
   const match = cleanSp.match(/^([OBAFGKM])([0-9])?/);
@@ -300,7 +308,7 @@ function estimateParams(spType) {
       F: [7500, 6000],
       G: [6000, 5200],
       K: [5200, 3700],
-      M: [3700, 2400]
+      M: [3700, 2400],
     };
     const range = tempMap[letter];
     temp = range[1] + (range[0] - range[1]) * ((10 - num) / 10);
@@ -312,7 +320,7 @@ function estimateParams(spType) {
       F: [1.4, 1.04],
       G: [1.04, 0.8],
       K: [0.8, 0.45],
-      M: [0.45, 0.08]
+      M: [0.45, 0.08],
     };
     const mRange = massMap[letter];
     mass = mRange[1] + (mRange[0] - mRange[1]) * ((10 - num) / 10);
@@ -324,7 +332,7 @@ function estimateParams(spType) {
       F: [1.4, 1.15],
       G: [1.15, 0.96],
       K: [0.96, 0.7],
-      M: [0.7, 0.1]
+      M: [0.7, 0.1],
     };
     const rRange = radMap[letter];
     rad = rRange[1] + (rRange[0] - rRange[1]) * ((10 - num) / 10);
@@ -338,7 +346,7 @@ function estimateParams(spType) {
     }
 
     const T_sun = 5778;
-    lum = (rad * rad) * Math.pow(temp / T_sun, 4);
+    lum = rad * rad * Math.pow(temp / T_sun, 4);
   }
 
   return {
@@ -346,7 +354,7 @@ function estimateParams(spType) {
     temperature_K: Math.round(temp),
     radius_solar: Number(rad.toFixed(2)),
     luminosity_solar: Number(lum.toFixed(4)),
-    metallicity_Z: metallicity
+    metallicity_Z: metallicity,
   };
 }
 
@@ -380,7 +388,7 @@ async function querySimbad(adql) {
  */
 function findPresetStar(name) {
   const cleanName = name.toLowerCase().replace(/[^a-z0-9]/g, '');
-  return PRESETS.find(p => {
+  return PRESETS.find((p) => {
     const pName = p.name.toLowerCase().replace(/[^a-z0-9]/g, '');
     return cleanName.includes(pName) || pName.includes(cleanName);
   });
@@ -392,43 +400,59 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
     tools: [
       {
         name: 'search_stars',
-        description: 'Query real stars by physical parameters. Queries SIMBAD TAP and falls back to cached presets. Reference: http://simbad.cds.unistra.fr/simbad/sim-tap',
+        description:
+          'Query real stars by physical parameters. Queries SIMBAD TAP and falls back to cached presets. Reference: http://simbad.cds.unistra.fr/simbad/sim-tap',
         inputSchema: {
           type: 'object',
           properties: {
-            spectral_class: { type: 'string', description: 'Spectral class prefix (e.g. G2, M5, K5)' },
+            spectral_class: {
+              type: 'string',
+              description: 'Spectral class prefix (e.g. G2, M5, K5)',
+            },
             mass_min_solar: { type: 'number', description: 'Minimum solar mass' },
             mass_max_solar: { type: 'number', description: 'Maximum solar mass' },
             distance_max_ly: { type: 'number', description: 'Maximum distance in light years' },
-            limit: { type: 'integer', description: 'Maximum number of stars to return (default 10, max 20)' },
+            limit: {
+              type: 'integer',
+              description: 'Maximum number of stars to return (default 10, max 20)',
+            },
           },
         },
       },
       {
         name: 'get_star_by_name',
-        description: 'Returns a full physical profile for a named star. Sourced from verified literature or SIMBAD TAP. Reference: http://simbad.cds.unistra.fr/simbad/sim-tap',
+        description:
+          'Returns a full physical profile for a named star. Sourced from verified literature or SIMBAD TAP. Reference: http://simbad.cds.unistra.fr/simbad/sim-tap',
         inputSchema: {
           type: 'object',
           properties: {
-            name: { type: 'string', description: 'Common name or designation of the star (e.g. Betelgeuse, Vega)' },
+            name: {
+              type: 'string',
+              description: 'Common name or designation of the star (e.g. Betelgeuse, Vega)',
+            },
           },
           required: ['name'],
         },
       },
       {
         name: 'get_exoplanet_systems',
-        description: 'Returns confirmed habitable zone exoplanetary systems. Reference: NASA Exoplanet Archive',
+        description:
+          'Returns confirmed habitable zone exoplanetary systems. Reference: NASA Exoplanet Archive',
         inputSchema: {
           type: 'object',
           properties: {
-            esi_min: { type: 'number', description: 'Minimum Earth Similarity Index (0.0-1.0, default 0.7)' },
+            esi_min: {
+              type: 'number',
+              description: 'Minimum Earth Similarity Index (0.0-1.0, default 0.7)',
+            },
             limit: { type: 'integer', description: 'Maximum number of systems to return' },
           },
         },
       },
       {
         name: 'get_preset_library',
-        description: 'Returns the complete AetherGenesis built-in star preset library, hardcoded from verified astrophysics sources.',
+        description:
+          'Returns the complete AetherGenesis built-in star preset library, hardcoded from verified astrophysics sources.',
         inputSchema: {
           type: 'object',
           properties: {},
@@ -457,8 +481,8 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     if (name === 'get_exoplanet_systems') {
       const esiMin = args.esi_min !== undefined ? args.esi_min : 0.7;
       const limit = args.limit || 10;
-      
-      const filtered = EXOPLANETS.filter(p => p.earth_similarity_index >= esiMin).slice(0, limit);
+
+      const filtered = EXOPLANETS.filter((p) => p.earth_similarity_index >= esiMin).slice(0, limit);
       return {
         content: [
           {
@@ -471,7 +495,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
     if (name === 'get_star_by_name') {
       const starName = args.name;
-      
+
       // 1. Check presets first
       const preset = findPresetStar(starName);
       if (preset) {
@@ -493,20 +517,20 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         // Query SIMBAD for the star
         const adql = `SELECT TOP 1 main_id, sp_type, plx_value FROM basic WHERE main_id = '${starName}' OR main_id LIKE '% ${starName}'`;
         const data = await querySimbad(adql);
-        
+
         if (data && data.data && data.data.length > 0) {
           const row = data.data[0];
           const mainId = row[0].trim();
           const spType = row[1] || 'G2V';
           const plx = parseFloat(row[2]) || 0;
-          
+
           const distance_ly = plx > 0 ? Number((3261.56 / plx).toFixed(2)) : null;
           const params = estimateParams(spType);
-          
+
           // Calculate Kopparapu habitable zone bounds
           const innerHz = Number(Math.sqrt(params.luminosity_solar / 1.1).toFixed(2));
           const outerHz = Number(Math.sqrt(params.luminosity_solar / 0.53).toFixed(2));
-          
+
           return {
             content: [
               {
@@ -559,7 +583,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
       // Try SIMBAD TAP
       try {
-        let filters = ["sp_type IS NOT NULL", "plx_value IS NOT NULL", "plx_value > 0"];
+        let filters = ['sp_type IS NOT NULL', 'plx_value IS NOT NULL', 'plx_value > 0'];
         if (spClass) {
           filters.push(`sp_type LIKE '${spClass}%'`);
         }
@@ -612,7 +636,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       }
 
       // Fallback to local presets
-      let results = PRESETS.map(p => ({
+      let results = PRESETS.map((p) => ({
         name: p.name,
         hip_id: null,
         spectral_class: p.spectral_class,
@@ -626,16 +650,18 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       }));
 
       if (spClass) {
-        results = results.filter(r => r.spectral_class.toUpperCase().startsWith(spClass.toUpperCase()));
+        results = results.filter((r) =>
+          r.spectral_class.toUpperCase().startsWith(spClass.toUpperCase())
+        );
       }
       if (massMin !== undefined) {
-        results = results.filter(r => r.mass_solar >= massMin);
+        results = results.filter((r) => r.mass_solar >= massMin);
       }
       if (massMax !== undefined) {
-        results = results.filter(r => r.mass_solar <= massMax);
+        results = results.filter((r) => r.mass_solar <= massMax);
       }
       if (distMax !== undefined) {
-        results = results.filter(r => r.distance_ly <= distMax);
+        results = results.filter((r) => r.distance_ly <= distMax);
       }
 
       return {

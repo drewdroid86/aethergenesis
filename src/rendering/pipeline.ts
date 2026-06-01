@@ -6,40 +6,42 @@ import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
 import { CinematicPassShader } from './shaders/stellar';
 
 export class Pipeline {
-    composer: EffectComposer;
-    bloomPass: UnrealBloomPass;
-    cinematicPass: ShaderPass;
+  composer: EffectComposer;
+  bloomPass: UnrealBloomPass;
+  cinematicPass: ShaderPass;
 
-    constructor(renderer: THREE.WebGLRenderer, scene: THREE.Scene, camera: THREE.PerspectiveCamera) {
-        this.composer = new EffectComposer(renderer);
-        this.composer.setPixelRatio(renderer.getPixelRatio());
+  constructor(renderer: THREE.WebGLRenderer, scene: THREE.Scene, camera: THREE.PerspectiveCamera) {
+    this.composer = new EffectComposer(renderer);
+    this.composer.setPixelRatio(renderer.getPixelRatio());
 
-        const renderPass = new RenderPass(scene, camera);
-        this.composer.addPass(renderPass);
+    const renderPass = new RenderPass(scene, camera);
+    this.composer.addPass(renderPass);
 
-        this.bloomPass = new UnrealBloomPass(
-            new THREE.Vector2(window.innerWidth, window.innerHeight), 
-            1.6, 0.4, 0.1
-        );
-        this.bloomPass.strength = 1.6;
-        this.bloomPass.radius = 0.75;
-        this.bloomPass.threshold = 0.08;
-        this.composer.addPass(this.bloomPass);
+    this.bloomPass = new UnrealBloomPass(
+      new THREE.Vector2(window.innerWidth, window.innerHeight),
+      1.6,
+      0.4,
+      0.1
+    );
+    this.bloomPass.strength = 1.6;
+    this.bloomPass.radius = 0.75;
+    this.bloomPass.threshold = 0.08;
+    this.composer.addPass(this.bloomPass);
 
-        this.cinematicPass = new ShaderPass(CinematicPassShader);
-        this.composer.addPass(this.cinematicPass);
-    }
+    this.cinematicPass = new ShaderPass(CinematicPassShader);
+    this.composer.addPass(this.cinematicPass);
+  }
 
-    public render(appTime: number, delta: number): void {
-        if (this.cinematicPass.uniforms.time) this.cinematicPass.uniforms.time.value = appTime;
-        this.composer.render();
-    }
+  public render(appTime: number, delta: number): void {
+    if (this.cinematicPass.uniforms.time) this.cinematicPass.uniforms.time.value = appTime;
+    this.composer.render();
+  }
 
-    setSize(width: number, height: number) {
-        this.composer.setSize(width, height);
-    }
+  setSize(width: number, height: number) {
+    this.composer.setSize(width, height);
+  }
 
-    setBloomStrength(strength: number) {
-        this.bloomPass.strength = strength;
-    }
+  setBloomStrength(strength: number) {
+    this.bloomPass.strength = strength;
+  }
 }

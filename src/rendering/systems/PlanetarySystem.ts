@@ -177,145 +177,148 @@ const _rotQ = new THREE.Quaternion();
 const _yAxis = new THREE.Vector3(0, 1, 0);
 
 export class PlanetarySystem {
-    private instancedMesh: THREE.InstancedMesh;
-    public bodies: {
-        scale: number;
-        type: number;
-        seed: number;
-    }[] = [];
-    
-    private group: THREE.Group;
-    private parent: THREE.Object3D;
-    private material: THREE.ShaderMaterial;
+  private instancedMesh: THREE.InstancedMesh;
+  public bodies: {
+    scale: number;
+    type: number;
+    seed: number;
+  }[] = [];
 
-    constructor(star: THREE.Object3D) {
-        this.parent = star;
-        this.group = new THREE.Group();
-        this.parent.add(this.group);
+  private group: THREE.Group;
+  private parent: THREE.Object3D;
+  private material: THREE.ShaderMaterial;
 
-        // Maximum 50 bodies
-        const numBodies = 50; 
-        
-        const geometry = new THREE.SphereGeometry(1, 16, 16);
-        this.material = new THREE.ShaderMaterial({
-            uniforms: {
-                uTime: { value: 0 },
-                u_starPosition: { value: new THREE.Vector3() },
-                u_biomass: { value: 0.0 },
-                u_kardashevTier: { value: 0 }
-            },
-            vertexShader: PLANET_VS,
-            fragmentShader: PLANET_FS
-        });
+  constructor(star: THREE.Object3D) {
+    this.parent = star;
+    this.group = new THREE.Group();
+    this.parent.add(this.group);
 
-        this.instancedMesh = new THREE.InstancedMesh(geometry, this.material, numBodies);
-        
-        // Add instance attributes for planet variation
-        const types = new Float32Array(numBodies);
-        const seeds = new Float32Array(numBodies);
-        for (let i = 0; i < numBodies; i++) {
-            types[i] = Math.floor(Math.random() * 7);
-            seeds[i] = Math.random() * 1000.0;
-            
-            this.bodies.push({
-                scale: 1.5 + Math.random() * 2.0,
-                type: types[i],
-                seed: seeds[i]
-            });
-        }
-        
-        // Hide all initially
-        const hideMatrix = new THREE.Matrix4().makeScale(0, 0, 0);
-        for(let i=0; i<numBodies; i++){
-            this.instancedMesh.setMatrixAt(i, hideMatrix);
-        }
-        
-        
-        const biomassArray = new Float32Array(numBodies).fill(0);
-        const civArray = new Float32Array(numBodies).fill(0);
-        
-        geometry.setAttribute('planetType', new THREE.InstancedBufferAttribute(types, 1));
-        geometry.setAttribute('planetSeed', new THREE.InstancedBufferAttribute(seeds, 1));
-        geometry.setAttribute('biomass', new THREE.InstancedBufferAttribute(biomassArray, 1));
-        geometry.setAttribute('civilizationTier', new THREE.InstancedBufferAttribute(civArray, 1));
-        
-        this.group.add(this.instancedMesh);
+    // Maximum 50 bodies
+    const numBodies = 50;
+
+    const geometry = new THREE.SphereGeometry(1, 16, 16);
+    this.material = new THREE.ShaderMaterial({
+      uniforms: {
+        uTime: { value: 0 },
+        u_starPosition: { value: new THREE.Vector3() },
+        u_biomass: { value: 0.0 },
+        u_kardashevTier: { value: 0 },
+      },
+      vertexShader: PLANET_VS,
+      fragmentShader: PLANET_FS,
+    });
+
+    // Add instance attributes for planet variation
+    const types = new Float32Array(numBodies);
+    const seeds = new Float32Array(numBodies);
+    const biomassArray = new Float32Array(numBodies).fill(0);
+    const civArray = new Float32Array(numBodies).fill(0);
+
+    for (let i = 0; i < numBodies; i++) {
+      types[i] = Math.floor(Math.random() * 7);
+      seeds[i] = Math.random() * 1000.0;
+
+      this.bodies.push({
+        scale: 1.5 + Math.random() * 2.0,
+        type: types[i],
+        seed: seeds[i],
+      });
     }
 
-    /**
-     * Update orbits based on Float32Array from nbodyWorker.ts
-     */
-    updateFromBuffer(buffer: Float32Array, delta: number): void {
-        const star = this.parent as any;
-        
-        if (star.phase !== PHASES.MAIN_SEQUENCE) {
-            this.group.visible = false;
-            return;
-        }
-        this.group.visible = true;
-        this.material.uniforms.uTime.value += delta;
-        
-        // Buffer has 7 floats per body: x, y, z, vx, vy, vz, type
-        const numBodies = Math.min(this.bodies.length, buffer.length / 7);
+    geometry.setAttribute('planetType', new THREE.InstancedBufferAttribute(types, 1));
+    geometry.setAttribute('planetSeed', new THREE.InstancedBufferAttribute(seeds, 1));
+    geometry.setAttribute('biomass', new THREE.InstancedBufferAttribute(biomassArray, 1));
+    geometry.setAttribute('civilizationTier', new THREE.InstancedBufferAttribute(civArray, 1));
 
-        for (let i = 0; i < numBodies; i++) {
-            const b = this.bodies[i];
-            
-            const x = buffer[i * 7 + 0];
-            const y = buffer[i * 7 + 1];
-            const z = buffer[i * 7 + 2];
-            
-            _posV.set(x, y, z);
-            _scaleV.setScalar(b.scale);
-            
-            // Subtle self-rotation
-            _rotQ.setFromAxisAngle(_yAxis, (buffer[i*7+0] + buffer[i*7+1]) * 0.01 + b.seed);
-            
-            _matrix.compose(_posV, _rotQ, _scaleV);
-            this.instancedMesh.setMatrixAt(i, _matrix);
-        }
+    this.instancedMesh = new THREE.InstancedMesh(geometry, this.material, numBodies);
 
-        // BOLT: Setting .count natively handles hiding unused instances, removing redundant loop
-        this.instancedMesh.instanceMatrix.needsUpdate = true;
-        this.instancedMesh.count = numBodies;
+    // Hide all initially
+    const hideMatrix = new THREE.Matrix4().makeScale(0, 0, 0);
+    for (let i = 0; i < numBodies; i++) {
+      this.instancedMesh.setMatrixAt(i, hideMatrix);
     }
 
-    /**
-     * GPU cleanup.
-     */
-    dispose() {
-        this.material.dispose();
-        this.instancedMesh.geometry.dispose();
-        if (this.parent) {
-            this.parent.remove(this.group);
-        }
+    this.group.add(this.instancedMesh);
+  }
+
+  /**
+   * Update orbits based on Float32Array from nbodyWorker.ts
+   */
+  updateFromBuffer(buffer: Float32Array, delta: number): void {
+    const star = this.parent as any;
+
+    if (star.phase !== PHASES.MAIN_SEQUENCE) {
+      this.group.visible = false;
+      return;
+    }
+    this.group.visible = true;
+    this.material.uniforms.uTime.value += delta;
+
+    // Buffer has 7 floats per body: x, y, z, vx, vy, vz, type
+    const numBodies = Math.min(this.bodies.length, buffer.length / 7);
+
+    for (let i = 0; i < numBodies; i++) {
+      const b = this.bodies[i];
+
+      const x = buffer[i * 7 + 0];
+      const y = buffer[i * 7 + 1];
+      const z = buffer[i * 7 + 2];
+
+      _posV.set(x, y, z);
+      _scaleV.setScalar(b.scale);
+
+      // Subtle self-rotation
+      _rotQ.setFromAxisAngle(_yAxis, (buffer[i * 7 + 0] + buffer[i * 7 + 1]) * 0.01 + b.seed);
+
+      _matrix.compose(_posV, _rotQ, _scaleV);
+      this.instancedMesh.setMatrixAt(i, _matrix);
     }
 
-    /**
-     * Updates biosphere shaders based on AstrobiologyEngine output
-     */
-    updateAstrobiology(astrobiologyStates: any[]): void {
-        const biomassAttr = this.instancedMesh.geometry.getAttribute('biomass') as THREE.InstancedBufferAttribute;
-        const civAttr = this.instancedMesh.geometry.getAttribute('civilizationTier') as THREE.InstancedBufferAttribute;
-        
-        if (!biomassAttr || !civAttr) return;
+    // BOLT: Setting .count natively handles hiding unused instances, removing redundant loop
+    this.instancedMesh.instanceMatrix.needsUpdate = true;
+    this.instancedMesh.count = numBodies;
+  }
 
-        let maxBiomass = 0;
-        let maxCiv = 0;
-
-        for (let i = 0; i < astrobiologyStates.length; i++) {
-            const state = astrobiologyStates[i];
-            biomassAttr.setX(i, state.biomass || 0.0);
-            civAttr.setX(i, state.civilizationTier || 0.0);
-            
-            if (state.biomass > maxBiomass) maxBiomass = state.biomass;
-            if (state.civilizationTier > maxCiv) maxCiv = state.civilizationTier;
-        }
-
-        this.material.uniforms.u_biomass.value = maxBiomass;
-        this.material.uniforms.u_kardashevTier.value = maxCiv;
-
-        biomassAttr.needsUpdate = true;
-        civAttr.needsUpdate = true;
+  /**
+   * GPU cleanup.
+   */
+  dispose() {
+    this.material.dispose();
+    this.instancedMesh.geometry.dispose();
+    if (this.parent) {
+      this.parent.remove(this.group);
     }
+  }
+
+  /**
+   * Updates biosphere shaders based on AstrobiologyEngine output
+   */
+  updateAstrobiology(astrobiologyStates: any[]): void {
+    const biomassAttr = this.instancedMesh.geometry.getAttribute(
+      'biomass'
+    ) as THREE.InstancedBufferAttribute;
+    const civAttr = this.instancedMesh.geometry.getAttribute(
+      'civilizationTier'
+    ) as THREE.InstancedBufferAttribute;
+
+    if (!biomassAttr || !civAttr) return;
+
+    let maxBiomass = 0;
+    let maxCiv = 0;
+
+    for (let i = 0; i < astrobiologyStates.length; i++) {
+      const state = astrobiologyStates[i];
+      biomassAttr.setX(i, state.biomass || 0.0);
+      civAttr.setX(i, state.civilizationTier || 0.0);
+
+      if (state.biomass > maxBiomass) maxBiomass = state.biomass;
+      if (state.civilizationTier > maxCiv) maxCiv = state.civilizationTier;
+    }
+
+    this.material.uniforms.u_biomass.value = maxBiomass;
+    this.material.uniforms.u_kardashevTier.value = maxCiv;
+
+    biomassAttr.needsUpdate = true;
+    civAttr.needsUpdate = true;
+  }
 }

@@ -27,12 +27,11 @@ export const particleFS = resolveIncludes(particleFrag);
 export const ejectaVS = resolveIncludes(ejectaVert);
 export const ejectaFS = resolveIncludes(ejectaFrag);
 
-
 export const CinematicPassShader = {
   uniforms: {
     tDiffuse: { value: null },
-    time: { value: 0 }
+    time: { value: 0 },
   },
   vertexShader: resolveIncludes(cinematicVert),
-  fragmentShader: resolveIncludes(cinematicFrag)
+  fragmentShader: resolveIncludes(cinematicFrag),
 };

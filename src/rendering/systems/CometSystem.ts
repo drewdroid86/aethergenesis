@@ -85,201 +85,292 @@ gl_FragColor = vec4(vColor, alpha * 0.5);
 `;
 
 const COMETS_DATA = [
-{ a: 8.0,  e: 0.967, i: 162.2, p: 75.3  },
-{ a: 2.2,  e: 0.847, i: 11.8,  p: 5.5   },
-{ a: 5.5,  e: 0.630, i: 7.1,   p: 14.7  },
-{ a: 7.0,  e: 0.920, i: 38.7,  p: 38.5  },
-{ a: 12.0, e: 0.995, i: 89.4,  p: 118.4 },
+  { a: 8.0, e: 0.967, i: 162.2, p: 75.3 },
+  { a: 2.2, e: 0.847, i: 11.8, p: 5.5 },
+  { a: 5.5, e: 0.63, i: 7.1, p: 14.7 },
+  { a: 7.0, e: 0.92, i: 38.7, p: 38.5 },
+  { a: 12.0, e: 0.995, i: 89.4, p: 118.4 },
 ] as const;
 
 // BOLT: Static scratchpad to eliminate per-frame allocations
 
 export class CometSystem {
-    private comaMesh: THREE.InstancedMesh;
-    private ionTailMesh: THREE.InstancedMesh;
-    private dustTailMesh: THREE.InstancedMesh;
-    
-    private comaMat: THREE.ShaderMaterial;
-    private tailMat: THREE.ShaderMaterial;
-    private group: THREE.Group;
-    private prevPositions: THREE.Vector3[];
+  private comaMesh: THREE.InstancedMesh;
+  private ionTailMesh: THREE.InstancedMesh;
+  private dustTailMesh: THREE.InstancedMesh;
 
-    private _matrix = new THREE.Matrix4();
-    private _posV = new THREE.Vector3();
-    private _vel = new THREE.Vector3();
-    private _ionDir = new THREE.Vector3();
-    private _crossVec = new THREE.Vector3();
-    private _dustDir = new THREE.Vector3();
+  private comaMat: THREE.ShaderMaterial;
+  private tailMat: THREE.ShaderMaterial;
+  private group: THREE.Group;
+  private prevPositions: THREE.Vector3[];
 
-    constructor(scene: THREE.Scene, camera: THREE.Camera) {
-        this.group = new THREE.Group();
-        scene.add(this.group);
+  private _matrix = new THREE.Matrix4();
+  private _posV = new THREE.Vector3();
+  private _vel = new THREE.Vector3();
+  private _ionDir = new THREE.Vector3();
+  private _crossVec = new THREE.Vector3();
+  private _dustDir = new THREE.Vector3();
 
-        const numComets = 5;
-        this.prevPositions = Array.from({ length: numComets }, () => new THREE.Vector3());
+  constructor(scene: THREE.Scene, camera: THREE.Camera) {
+    this.group = new THREE.Group();
+    scene.add(this.group);
 
-        // Coma Geometry
-        const comaGeo = new THREE.PlaneGeometry(1, 1);
-        this.comaMat = new THREE.ShaderMaterial({
-            vertexShader: COMET_VS,
-            fragmentShader: COMET_FS,
-            transparent: true,
-            blending: THREE.AdditiveBlending,
-            depthWrite: false
-        });
-        this.comaMesh = new THREE.InstancedMesh(comaGeo, this.comaMat, numComets);
-        this.comaMesh.geometry.setAttribute('cScale', new THREE.InstancedBufferAttribute(new Float32Array(numComets), 1));
-        this.comaMesh.geometry.setAttribute('cColor', new THREE.InstancedBufferAttribute(new Float32Array(numComets * 3), 3));
-        this.comaMesh.geometry.setAttribute('cActive', new THREE.InstancedBufferAttribute(new Float32Array(numComets), 1));
+    const numComets = 5;
+    this.prevPositions = Array.from({ length: numComets }, () => new THREE.Vector3());
 
-        // Tail Geometry (starts at 0, extends to y=1)
-        const tailGeo = new THREE.PlaneGeometry(1, 1);
-        tailGeo.translate(0, 0.5, 0);
-        
-        this.tailMat = new THREE.ShaderMaterial({
-            vertexShader: TAIL_VS,
-            fragmentShader: TAIL_FS,
-            transparent: true,
-            blending: THREE.AdditiveBlending,
-            depthWrite: false,
-            uniforms: { uTime: { value: 0 } }
-        });
-        
-        this.ionTailMesh = new THREE.InstancedMesh(tailGeo, this.tailMat, numComets);
-        this.dustTailMesh = new THREE.InstancedMesh(tailGeo, this.tailMat, numComets);
-        
-        [this.ionTailMesh, this.dustTailMesh].forEach(mesh => {
-            mesh.geometry.setAttribute('cWidth', new THREE.InstancedBufferAttribute(new Float32Array(numComets), 1));
-            mesh.geometry.setAttribute('cLength', new THREE.InstancedBufferAttribute(new Float32Array(numComets), 1));
-            mesh.geometry.setAttribute('cDir', new THREE.InstancedBufferAttribute(new Float32Array(numComets * 3), 3));
-            mesh.geometry.setAttribute('cColor', new THREE.InstancedBufferAttribute(new Float32Array(numComets * 3), 3));
-            mesh.geometry.setAttribute('cActive', new THREE.InstancedBufferAttribute(new Float32Array(numComets), 1));
-            mesh.frustumCulled = false;
-        });
-        this.comaMesh.frustumCulled = false;
+    // Coma Geometry
+    const comaGeo = new THREE.PlaneGeometry(1, 1);
+    this.comaMat = new THREE.ShaderMaterial({
+      vertexShader: COMET_VS,
+      fragmentShader: COMET_FS,
+      transparent: true,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+    });
+    this.comaMesh = new THREE.InstancedMesh(comaGeo, this.comaMat, numComets);
+    this.comaMesh.geometry.setAttribute(
+      'cScale',
+      new THREE.InstancedBufferAttribute(new Float32Array(numComets), 1)
+    );
+    this.comaMesh.geometry.setAttribute(
+      'cColor',
+      new THREE.InstancedBufferAttribute(new Float32Array(numComets * 3), 3)
+    );
+    this.comaMesh.geometry.setAttribute(
+      'cActive',
+      new THREE.InstancedBufferAttribute(new Float32Array(numComets), 1)
+    );
 
-        this.group.add(this.comaMesh);
-        this.group.add(this.ionTailMesh);
-        this.group.add(this.dustTailMesh);
+    // Tail Geometry (starts at 0, extends to y=1)
+    const tailGeo = new THREE.PlaneGeometry(1, 1);
+    tailGeo.translate(0, 0.5, 0);
+
+    this.tailMat = new THREE.ShaderMaterial({
+      vertexShader: TAIL_VS,
+      fragmentShader: TAIL_FS,
+      transparent: true,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+      uniforms: { uTime: { value: 0 } },
+    });
+
+    this.ionTailMesh = new THREE.InstancedMesh(tailGeo, this.tailMat, numComets);
+    this.dustTailMesh = new THREE.InstancedMesh(tailGeo, this.tailMat, numComets);
+
+    [this.ionTailMesh, this.dustTailMesh].forEach((mesh) => {
+      mesh.geometry.setAttribute(
+        'cWidth',
+        new THREE.InstancedBufferAttribute(new Float32Array(numComets), 1)
+      );
+      mesh.geometry.setAttribute(
+        'cLength',
+        new THREE.InstancedBufferAttribute(new Float32Array(numComets), 1)
+      );
+      mesh.geometry.setAttribute(
+        'cDir',
+        new THREE.InstancedBufferAttribute(new Float32Array(numComets * 3), 3)
+      );
+      mesh.geometry.setAttribute(
+        'cColor',
+        new THREE.InstancedBufferAttribute(new Float32Array(numComets * 3), 3)
+      );
+      mesh.geometry.setAttribute(
+        'cActive',
+        new THREE.InstancedBufferAttribute(new Float32Array(numComets), 1)
+      );
+      mesh.frustumCulled = false;
+    });
+    this.comaMesh.frustumCulled = false;
+
+    this.group.add(this.comaMesh);
+    this.group.add(this.ionTailMesh);
+    this.group.add(this.dustTailMesh);
+  }
+
+  update(delta: number, stellarState: StellarState, appTime: number): void {
+    if (stellarState.phase !== 'main_sequence') {
+      this.group.visible = false;
+      return;
+    }
+    this.group.visible = true;
+    const comaScales = this.comaMesh.geometry.attributes.cScale.array as Float32Array;
+    const comaColors = this.comaMesh.geometry.attributes.cColor.array as Float32Array;
+    const comaActives = this.comaMesh.geometry.attributes.cActive.array as Float32Array;
+    const ionDirs = this.ionTailMesh.geometry.attributes.cDir.array as Float32Array;
+    const ionWidths = this.ionTailMesh.geometry.attributes.cWidth.array as Float32Array;
+    const ionLengths = this.ionTailMesh.geometry.attributes.cLength.array as Float32Array;
+    const ionActives = this.ionTailMesh.geometry.attributes.cActive.array as Float32Array;
+    const dustDirs = this.dustTailMesh.geometry.attributes.cDir.array as Float32Array;
+    const dustWidths = this.dustTailMesh.geometry.attributes.cWidth.array as Float32Array;
+    const dustLengths = this.dustTailMesh.geometry.attributes.cLength.array as Float32Array;
+    const dustActives = this.dustTailMesh.geometry.attributes.cActive.array as Float32Array;
+    const ionColors = this.ionTailMesh.geometry.attributes.cColor.array as Float32Array;
+    const dustColors = this.dustTailMesh.geometry.attributes.cColor.array as Float32Array;
+
+    for (let i = 0; i < 5; i++) {
+      const data = COMETS_DATA[i];
+      // Kepler's equation — Newton-Raphson convergence (5 iterations is sufficient)
+      const visualYear = appTime * 100.0;
+      const M = (visualYear / data.p) * 2 * Math.PI;
+      if (!isFinite(M) || !isFinite(data.e) || data.e >= 1.0) {
+        this._matrix.makeTranslation(99999, 99999, 99999);
+        this.comaMesh.setMatrixAt(i, this._matrix);
+        this.ionTailMesh.setMatrixAt(i, this._matrix);
+        this.dustTailMesh.setMatrixAt(i, this._matrix);
+        comaActives[i] = 0.0;
+        comaScales[i] = 0.0;
+        ionActives[i] = 0.0;
+        dustActives[i] = 0.0;
+        ionColors[i * 3] = ionColors[i * 3 + 1] = ionColors[i * 3 + 2] = 0;
+        dustColors[i * 3] = dustColors[i * 3 + 1] = dustColors[i * 3 + 2] = 0;
+        continue;
+      }
+      let E = M % (2 * Math.PI);
+      for (let j = 0; j < 5; j++) {
+        const prevE = E;
+        E = E - (E - data.e * Math.sin(E) - M) / (1 - data.e * Math.cos(E));
+        if (!isFinite(E)) {
+          E = prevE;
+          break;
+        }
+      }
+      const theta =
+        2 *
+        Math.atan2(
+          Math.sqrt(1 + data.e) * Math.sin(E / 2),
+          Math.sqrt(1 - data.e) * Math.cos(E / 2)
+        );
+      const r = (data.a * (1 - data.e * data.e)) / (1 + data.e * Math.cos(theta));
+      let x = r * Math.cos(theta);
+      let z = r * Math.sin(theta);
+      const incRad = (data.i * Math.PI) / 180;
+      let y = z * Math.sin(incRad);
+      z = z * Math.cos(incRad);
+
+      if (!isFinite(x) || !isFinite(y) || !isFinite(z)) {
+        this._matrix.makeTranslation(99999, 99999, 99999);
+        this.comaMesh.setMatrixAt(i, this._matrix);
+        this.ionTailMesh.setMatrixAt(i, this._matrix);
+        this.dustTailMesh.setMatrixAt(i, this._matrix);
+        comaActives[i] = 0.0;
+        comaScales[i] = 0.0;
+        ionActives[i] = 0.0;
+        dustActives[i] = 0.0;
+        ionColors[i * 3] = ionColors[i * 3 + 1] = ionColors[i * 3 + 2] = 0;
+        dustColors[i * 3] = dustColors[i * 3 + 1] = dustColors[i * 3 + 2] = 0;
+        continue;
+      }
+
+      this._posV.set(x, y, z);
+      this._matrix.makeTranslation(x, y, z);
+      this.comaMesh.setMatrixAt(i, this._matrix);
+      this.ionTailMesh.setMatrixAt(i, this._matrix);
+      this.dustTailMesh.setMatrixAt(i, this._matrix);
+
+      // Coma color: blue-white
+      comaColors[i * 3 + 0] = 0.8;
+      comaColors[i * 3 + 1] = 0.9;
+      comaColors[i * 3 + 2] = 1.0;
+
+      const dist = this._posV.length();
+      if (dist < 3.0) {
+        comaActives[i] = 1.0;
+        comaScales[i] = Math.max(0.5, (3.0 - dist) * 0.8);
+        ionActives[i] = 1.0;
+        dustActives[i] = 1.0;
+
+        if (dist < 2.5) {
+          // Ion tail: blue plasma pointing away from star
+          this._ionDir.copy(this._posV).normalize();
+          ionDirs[i * 3] = this._ionDir.x;
+          ionDirs[i * 3 + 1] = this._ionDir.y;
+          ionDirs[i * 3 + 2] = this._ionDir.z;
+          ionWidths[i] = 0.05;
+          ionLengths[i] = (2.5 - dist) * 0.8;
+
+          // Dust tail: slightly offset direction, broader
+          // Approximate orbital velocity direction via finite-difference with prevPositions
+          this._vel.subVectors(this._posV, this.prevPositions[i]);
+          if (this._vel.lengthSq() < 0.000001) {
+            this._vel.copy(this._ionDir);
+          } else {
+            this._vel.normalize();
+          }
+          // Dust tail: blend radial + retrograde velocity (radiation pressure + orbital drag)
+          this._dustDir
+            .copy(this._ionDir)
+            .multiplyScalar(0.7)
+            .addScaledVector(this._vel, -0.3)
+            .normalize();
+          dustDirs[i * 3] = this._dustDir.x;
+          dustDirs[i * 3 + 1] = this._dustDir.y;
+          dustDirs[i * 3 + 2] = this._dustDir.z;
+          dustWidths[i] = 0.08;
+          dustLengths[i] = (2.5 - dist) * 0.5;
+
+          // Ion tail: blue plasma
+          ionColors[i * 3 + 0] = 0.3;
+          ionColors[i * 3 + 1] = 0.6;
+          ionColors[i * 3 + 2] = 1.0;
+
+          // Dust tail: warm yellow-orange
+          dustColors[i * 3 + 0] = 1.0;
+          dustColors[i * 3 + 1] = 0.75;
+          dustColors[i * 3 + 2] = 0.3;
+        } else {
+          ionWidths[i] = 0;
+          dustWidths[i] = 0;
+          ionLengths[i] = 0;
+          dustLengths[i] = 0;
+          ionDirs[i * 3] = ionDirs[i * 3 + 1] = ionDirs[i * 3 + 2] = 0;
+          dustDirs[i * 3] = dustDirs[i * 3 + 1] = dustDirs[i * 3 + 2] = 0;
+        }
+      } else {
+        comaActives[i] = 0.0;
+        comaScales[i] = 0.0;
+        ionActives[i] = 0.0;
+        dustActives[i] = 0.0;
+        ionColors[i * 3] = ionColors[i * 3 + 1] = ionColors[i * 3 + 2] = 0;
+        dustColors[i * 3] = dustColors[i * 3 + 1] = dustColors[i * 3 + 2] = 0;
+      }
+
+      // Save position for finite-difference velocity calculation on the next frame
+      this.prevPositions[i].copy(this._posV);
     }
 
-    update(delta: number, stellarState: StellarState, appTime: number): void {
-        if (stellarState.phase !== 'main_sequence') {
-            this.group.visible = false;
-            return;
-        }
-        this.group.visible = true;
-        const comaScales   = this.comaMesh.geometry.attributes.cScale.array  as Float32Array;
-        const comaColors   = this.comaMesh.geometry.attributes.cColor.array  as Float32Array;
-        const comaActives  = this.comaMesh.geometry.attributes.cActive.array as Float32Array;
-        const ionDirs      = this.ionTailMesh.geometry.attributes.cDir.array    as Float32Array;
-        const ionWidths    = this.ionTailMesh.geometry.attributes.cWidth.array  as Float32Array;
-        const ionLengths   = this.ionTailMesh.geometry.attributes.cLength.array as Float32Array;
-        const ionActives   = this.ionTailMesh.geometry.attributes.cActive.array as Float32Array;
-        const dustDirs     = this.dustTailMesh.geometry.attributes.cDir.array    as Float32Array;
-        const dustWidths   = this.dustTailMesh.geometry.attributes.cWidth.array  as Float32Array;
-        const dustLengths  = this.dustTailMesh.geometry.attributes.cLength.array as Float32Array;
-        const dustActives  = this.dustTailMesh.geometry.attributes.cActive.array as Float32Array;
+    this.comaMesh.instanceMatrix.needsUpdate = true;
+    this.ionTailMesh.instanceMatrix.needsUpdate = true;
+    this.dustTailMesh.instanceMatrix.needsUpdate = true;
 
-        for (let i = 0; i < 5; i++) {
-            const data = COMETS_DATA[i];
-            // Kepler's equation — Newton-Raphson convergence (5 iterations is sufficient)
-            const visualYear = appTime * 100.0;
-            const M = (visualYear / data.p) * 2 * Math.PI;
-            let E = M % (2 * Math.PI);
-            for (let j = 0; j < 5; j++) {
-                E = E - (E - data.e * Math.sin(E) - M) / (1 - data.e * Math.cos(E));
-            }
-            const theta = 2 * Math.atan2(
-                Math.sqrt(1 + data.e) * Math.sin(E / 2),
-                Math.sqrt(1 - data.e) * Math.cos(E / 2)
-            );
-            const r = data.a * (1 - data.e * data.e) / (1 + data.e * Math.cos(theta));
-            let x = r * Math.cos(theta);
-            let z = r * Math.sin(theta);
-            const incRad = data.i * Math.PI / 180;
-            let y = z * Math.sin(incRad);
-            z   = z * Math.cos(incRad);
+    this.comaMesh.geometry.attributes.cScale.needsUpdate = true;
+    this.comaMesh.geometry.attributes.cColor.needsUpdate = true;
+    this.comaMesh.geometry.attributes.cActive.needsUpdate = true;
 
-            this._posV.set(x, y, z);
-            this._matrix.makeTranslation(x, y, z);
-            this.comaMesh.setMatrixAt(i, this._matrix);
-            this.ionTailMesh.setMatrixAt(i, this._matrix);
-            this.dustTailMesh.setMatrixAt(i, this._matrix);
+    this.ionTailMesh.geometry.attributes.cDir.needsUpdate = true;
+    this.ionTailMesh.geometry.attributes.cWidth.needsUpdate = true;
+    this.ionTailMesh.geometry.attributes.cLength.needsUpdate = true;
+    this.ionTailMesh.geometry.attributes.cActive.needsUpdate = true;
 
-            // Coma color: blue-white
-            comaColors[i * 3 + 0] = 0.8;
-            comaColors[i * 3 + 1] = 0.9;
-            comaColors[i * 3 + 2] = 1.0;
+    this.dustTailMesh.geometry.attributes.cDir.needsUpdate = true;
+    this.dustTailMesh.geometry.attributes.cWidth.needsUpdate = true;
+    this.dustTailMesh.geometry.attributes.cLength.needsUpdate = true;
+    this.dustTailMesh.geometry.attributes.cActive.needsUpdate = true;
+    this.ionTailMesh.geometry.attributes.cColor.needsUpdate = true;
+    this.dustTailMesh.geometry.attributes.cColor.needsUpdate = true;
 
-            const dist = this._posV.length();
-            if (dist < 3.0) {
-                comaActives[i] = 1.0;
-                comaScales[i]  = Math.max(0.5, (3.0 - dist) * 0.8);
-                ionActives[i]  = 1.0;
-                dustActives[i] = 1.0;
+    this.comaMesh.count = 5;
+    this.ionTailMesh.count = 5;
+    this.dustTailMesh.count = 5;
+  }
 
-                if (dist < 2.5) {
-                    // Ion tail: blue plasma pointing away from star
-                    this._ionDir.copy(this._posV).normalize();
-                    ionDirs[i * 3]     = this._ionDir.x;
-                    ionDirs[i * 3 + 1] = this._ionDir.y;
-                    ionDirs[i * 3 + 2] = this._ionDir.z;
-                    ionWidths[i]  = 0.05;
-                    ionLengths[i] = (2.5 - dist) * 0.8;
-
-                    // Dust tail: slightly offset direction, broader
-                    this._dustDir.copy(this._ionDir);
-                    dustDirs[i * 3]     = this._dustDir.x;
-                    dustDirs[i * 3 + 1] = this._dustDir.y;
-                    dustDirs[i * 3 + 2] = this._dustDir.z;
-                    dustWidths[i]  = 0.08;
-                    dustLengths[i] = (2.5 - dist) * 0.5;
-                } else {
-                    ionWidths[i]  = 0;  dustWidths[i]  = 0;
-                    ionLengths[i] = 0;  dustLengths[i] = 0;
-                    ionDirs[i*3] = ionDirs[i*3+1] = ionDirs[i*3+2] = 0;
-                    dustDirs[i*3] = dustDirs[i*3+1] = dustDirs[i*3+2] = 0;
-                }
-            } else {
-                comaActives[i] = 0.0;
-                comaScales[i]  = 0.0;
-                ionActives[i]  = 0.0;
-                dustActives[i] = 0.0;
-            }
-        }
-
-        this.comaMesh.instanceMatrix.needsUpdate       = true;
-        this.ionTailMesh.instanceMatrix.needsUpdate    = true;
-        this.dustTailMesh.instanceMatrix.needsUpdate   = true;
-
-        this.comaMesh.geometry.attributes.cScale.needsUpdate  = true;
-        this.comaMesh.geometry.attributes.cColor.needsUpdate  = true;
-        this.comaMesh.geometry.attributes.cActive.needsUpdate = true;
-
-        this.ionTailMesh.geometry.attributes.cDir.needsUpdate    = true;
-        this.ionTailMesh.geometry.attributes.cWidth.needsUpdate  = true;
-        this.ionTailMesh.geometry.attributes.cLength.needsUpdate = true;
-        this.ionTailMesh.geometry.attributes.cActive.needsUpdate = true;
-
-        this.dustTailMesh.geometry.attributes.cDir.needsUpdate    = true;
-        this.dustTailMesh.geometry.attributes.cWidth.needsUpdate  = true;
-        this.dustTailMesh.geometry.attributes.cLength.needsUpdate = true;
-        this.dustTailMesh.geometry.attributes.cActive.needsUpdate = true;
-
-        this.comaMesh.count      = 5;
-        this.ionTailMesh.count   = 5;
-        this.dustTailMesh.count  = 5;
+  dispose(): void {
+    this.comaMesh.geometry.dispose();
+    this.ionTailMesh.geometry.dispose();
+    this.dustTailMesh.geometry.dispose();
+    this.comaMat.dispose();
+    this.tailMat.dispose();
+    if (this.group.parent) {
+      this.group.parent.remove(this.group);
     }
-
-    dispose(): void {
-        this.comaMesh.geometry.dispose();
-        this.ionTailMesh.geometry.dispose();
-        this.dustTailMesh.geometry.dispose();
-        this.comaMat.dispose();
-        this.tailMat.dispose();
-        if (this.group.parent) {
-            this.group.parent.remove(this.group);
-        }
-    }
+  }
 }

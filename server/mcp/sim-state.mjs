@@ -42,20 +42,20 @@ function connectWebSocket() {
       const msg = JSON.parse(data.toString());
       if (msg.type === 'state') {
         latestState = msg.data;
-        
+
         // Track phase transitions automatically
         if (latestState && latestState.stellar) {
           const currentPhase = latestState.stellar.phase;
           const currentAge = latestState.stellar.age_yr || 0;
-          
+
           if (lastPhase !== null && lastPhase !== currentPhase) {
-            const duration = lastPhaseStartTime !== null ? (currentAge - lastPhaseStartTime) : null;
+            const duration = lastPhaseStartTime !== null ? currentAge - lastPhaseStartTime : null;
             phaseHistory.push({
               phase: currentPhase,
               triggered_at_yr: currentAge,
               trigger_condition: 'Stellar evolution threshold reached',
               duration_yr: duration,
-              sim_time_yr: latestState.stellar.sim_time_yr || 0
+              sim_time_yr: latestState.stellar.sim_time_yr || 0,
             });
             lastPhaseStartTime = currentAge;
           } else if (lastPhase === null) {
@@ -95,23 +95,31 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
         inputSchema: {
           type: 'object',
           properties: {
-            star_id: { type: 'string', description: 'ID of the star to query (default: hero_star)' },
+            star_id: {
+              type: 'string',
+              description: 'ID of the star to query (default: hero_star)',
+            },
           },
         },
       },
       {
         name: 'get_habitability_scores',
-        description: 'Get the live AstrobiologyEngine habitability scores for all planets in the system.',
+        description:
+          'Get the live AstrobiologyEngine habitability scores for all planets in the system.',
         inputSchema: {
           type: 'object',
           properties: {
-            planet_id: { type: 'string', description: 'Specific planet ID, or "all" to get all planets' },
+            planet_id: {
+              type: 'string',
+              description: 'Specific planet ID, or "all" to get all planets',
+            },
           },
         },
       },
       {
         name: 'get_phase_history',
-        description: 'Get the history of all stellar phase transitions recorded during this simulation run.',
+        description:
+          'Get the history of all stellar phase transitions recorded during this simulation run.',
         inputSchema: {
           type: 'object',
           properties: {
@@ -121,7 +129,8 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
       },
       {
         name: 'get_orbital_states',
-        description: 'Get the current live positions and velocities of all bodies in the stellar system.',
+        description:
+          'Get the current live positions and velocities of all bodies in the stellar system.',
         inputSchema: {
           type: 'object',
           properties: {},
@@ -129,17 +138,18 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
       },
       {
         name: 'trigger_simulation_event',
-        description: 'Send an event command to the live simulation (disabled by default for safety).',
+        description:
+          'Send an event command to the live simulation (disabled by default for safety).',
         inputSchema: {
           type: 'object',
           properties: {
             event: {
               type: 'string',
               enum: ['force_supernova', 'advance_1gyr', 'reset', 'spawn_comet', 'impact_event'],
-              description: 'The simulation event to trigger'
+              description: 'The simulation event to trigger',
             },
             target_id: { type: 'string', description: 'Target body ID (optional)' },
-            parameters: { type: 'object', description: 'Additional event parameters' }
+            parameters: { type: 'object', description: 'Additional event parameters' },
           },
           required: ['event'],
         },
@@ -157,7 +167,11 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       content: [
         {
           type: 'text',
-          text: JSON.stringify({ error: 'No live simulation state available. Make sure the Vite dev server is running and the web page is open.', code: 503 }),
+          text: JSON.stringify({
+            error:
+              'No live simulation state available. Make sure the Vite dev server is running and the web page is open.',
+            code: 503,
+          }),
         },
       ],
     };
@@ -179,7 +193,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       const planetId = args.planet_id || 'all';
       let scores = latestState.astrobiology || [];
       if (planetId !== 'all') {
-        scores = scores.filter(p => p.planet_id === planetId);
+        scores = scores.filter((p) => p.planet_id === planetId);
       }
       return {
         content: [
@@ -219,12 +233,14 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       const parameters = args.parameters || {};
 
       if (ws && ws.readyState === WebSocket.OPEN) {
-        ws.send(JSON.stringify({
-          type: 'event',
-          event: eventName,
-          target_id: targetId,
-          parameters: parameters
-        }));
+        ws.send(
+          JSON.stringify({
+            type: 'event',
+            event: eventName,
+            target_id: targetId,
+            parameters: parameters,
+          })
+        );
 
         return {
           content: [
@@ -236,8 +252,8 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
                 new_state_summary: {
                   phase: latestState.stellar.phase,
                   age_yr: latestState.stellar.age_yr,
-                  sim_time_yr: latestState.stellar.sim_time_yr
-                }
+                  sim_time_yr: latestState.stellar.sim_time_yr,
+                },
               }),
             },
           ],
