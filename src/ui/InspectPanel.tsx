@@ -210,8 +210,17 @@ Civilization: ${geminiData.civilization}`;
                             Time Override <span className="opacity-0 group-hover/timeline:opacity-100 transition-opacity ml-1 text-[8px] text-[#C084FC] hidden sm:inline">[Arrows to Seek]</span>
                         </span>
                         <div className="flex gap-2">
-                            <button onClick={() => setIsPaused(true)} className="text-white/40 hover:text-white transition-colors focus-visible:ring-2 focus-visible:ring-[#C084FC] outline-none rounded" aria-label="Pause Simulation" title="Pause Simulation"><Pause size={12} /></button>
-                            <button onClick={() => setIsPaused(false)} className="text-white/40 hover:text-white transition-colors focus-visible:ring-2 focus-visible:ring-[#C084FC] outline-none rounded" aria-label="Play Simulation" title="Play Simulation"><Play size={12} /></button>
+                            <button
+                                onClick={() => setIsPaused(!isPaused)}
+                                className="text-white/40 hover:text-white transition-colors focus-visible:ring-2 focus-visible:ring-[#C084FC] outline-none rounded relative group/pause"
+                                aria-label={isPaused ? "Play Simulation" : "Pause Simulation"}
+                                title={isPaused ? "Play Simulation" : "Pause Simulation"}
+                            >
+                                <span className="absolute -top-6 left-1/2 -translate-x-1/2 text-[10px] text-[#C084FC] opacity-0 group-hover/pause:opacity-100 transition-opacity whitespace-nowrap">
+                                    [P]
+                                </span>
+                                {isPaused ? <Play size={12} /> : <Pause size={12} />}
+                            </button>
                         </div>
                     </div>
                     <div 

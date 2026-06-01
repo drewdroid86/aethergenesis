@@ -9,3 +9,6 @@
 ## 2024-05-22 - Unified Cinematic UI Patterns
 **Learning:** Maintaining visual consistency across information-dense panels requires centralizing "utilitarian" styles like scrollbars. Custom CSS scrollbars that match the app's transparency and color palette (e.g., `scrollbar-color`) prevent the "browser-default" look from breaking immersion. Furthermore, using `AnimatePresence` for all floating HUD panels ensures a cohesive feel when switching between telemetry types.
 **Action:** Define reusable utility classes for scrollbars in the global CSS and ensure all context-sensitive panels share a common motion/positioning framework to avoid layout shifts.
+## 2025-01-24 - Hover-Revealed Shortcuts for Cinematic UI
+**Learning:** In information-dense or visually-focused applications, persistent keyboard shortcut labels can cause visual clutter. Implementing "hover-revealed" hints using Tailwind's `group` and `group-hover` utilities maintains a clean "Cinematic UI" while providing immediate discoverability for power users.
+**Action:** Use absolute-positioned, low-opacity hints (e.g., `-top-6 opacity-0 group-hover:opacity-100`) for icon-only buttons that have global keyboard equivalents.
