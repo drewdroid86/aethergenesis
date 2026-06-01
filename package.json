@@ -10,6 +10,7 @@
     "preview": "node node_modules/vite/bin/vite.js preview",
     "clean": "rm -rf dist",
     "lint": "node node_modules/typescript/bin/tsc --noEmit",
+    "format": "node node_modules/prettier/bin/prettier.cjs --write \"src/**/*.{ts,tsx,js,jsx,json,css,md}\" \"server/**/*.{ts,mjs}\"",
     "server": "node node_modules/tsx/dist/cli.mjs server.ts",
     "dev:full": "node node_modules/concurrently/dist/bin/concurrently.js \"npm run dev\" \"npm run server\""
   },
@@ -45,6 +46,7 @@
     "tsx": "^4.22.0",
     "typescript": "~5.8.2",
     "typescript-eslint": "^8.59.4",
-    "vite": "^6.2.0"
+    "vite": "^6.2.0",
+    "prettier": "^3.2.5"
   }
 }
