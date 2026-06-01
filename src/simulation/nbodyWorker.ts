@@ -1,4 +1,4 @@
-import { OrbitalBody, Vector3 } from './OrbitalMechanics';
+import { OrbitalBody } from './OrbitalMechanics';
 
 // Web worker state
 let bodies: OrbitalBody[] = [];
@@ -8,6 +8,10 @@ let softeningSq = 0.0001; // small softening for N-body
 let dt_yr = 1.0 / 365.25; // default 1 day step
 let tickTimeout: any = null;
 
+// BOLT: Persistent buffers to eliminate per-frame allocations
+let accelBuffer: Float64Array;
+let outputBuffer: Float32Array;
+
 const G_mu = 4.0 * Math.PI * Math.PI;
 
 self.onmessage = (e) => {
@@ -16,12 +20,20 @@ self.onmessage = (e) => {
         bodies = payload.bodies || [];
         centralMass_solar = payload.centralMass_solar || 1.0;
         dt_yr = payload.dt_yr || (1.0 / 365.25);
+
+        // BOLT: Initialize buffers
+        accelBuffer = new Float64Array(bodies.length * 3);
+        outputBuffer = new Float32Array(bodies.length * 7);
+
         if (!isRunning) {
             isRunning = true;
             physicsTick();
         }
     } else if (type === 'ADD_BODY') {
         bodies.push(payload.body);
+        // BOLT: Resize buffers
+        accelBuffer = new Float64Array(bodies.length * 3);
+        outputBuffer = new Float32Array(bodies.length * 7);
     } else if (type === 'SET_RUNNING') {
         isRunning = payload.isRunning;
         if (isRunning && !tickTimeout) {
@@ -32,48 +44,62 @@ self.onmessage = (e) => {
     }
 };
 
-function calculateForces(): Vector3[] {
-    const forces: Vector3[] = new Array(bodies.length).fill(null).map(() => ({ x: 0, y: 0, z: 0 }));
+/**
+ * BOLT: Zero-allocation acceleration calculation.
+ * Updates the global accelBuffer directly.
+ */
+function updateAccelerations() {
+    accelBuffer.fill(0);
+    const n = bodies.length;
 
-    // Central star gravity
-    for (let i = 0; i < bodies.length; i++) {
+    // Central star gravity: a = -G*M_star / r^3 * r_vec
+    const starAccelFactor = -G_mu * centralMass_solar;
+    for (let i = 0; i < n; i++) {
         const b = bodies[i];
-        const rSq = b.position_au.x * b.position_au.x + b.position_au.y * b.position_au.y + b.position_au.z * b.position_au.z;
-        const r = Math.sqrt(rSq + softeningSq);
+        const px = b.position_au.x;
+        const py = b.position_au.y;
+        const pz = b.position_au.z;
+        const rSq = px * px + py * py + pz * pz;
+        const invR3 = 1.0 / Math.pow(rSq + softeningSq, 1.5);
+        const aMag = starAccelFactor * invR3;
         
-        // F = -G * M * m / r^2
-        // Force vector = F * (r_vec / r) = -G * M * m / r^3 * r_vec
-        const aMag = -(G_mu * centralMass_solar) / (r * r * r);
-        forces[i].x += aMag * b.position_au.x * b.mass_solar;
-        forces[i].y += aMag * b.position_au.y * b.mass_solar;
-        forces[i].z += aMag * b.position_au.z * b.mass_solar;
+        accelBuffer[i * 3 + 0] = aMag * px;
+        accelBuffer[i * 3 + 1] = aMag * py;
+        accelBuffer[i * 3 + 2] = aMag * pz;
     }
 
-    // N-Body gravity
-    for (let i = 0; i < bodies.length; i++) {
+    // N-Body gravity: a_i = G*M_j / r^3 * r_ij
+    for (let i = 0; i < n; i++) {
         const bi = bodies[i];
-        for (let j = i + 1; j < bodies.length; j++) {
-            const bj = bodies[j];
-            const dx = bj.position_au.x - bi.position_au.x;
-            const dy = bj.position_au.y - bi.position_au.y;
-            const dz = bj.position_au.z - bi.position_au.z;
-            const distSq = dx*dx + dy*dy + dz*dz;
-            const dist = Math.sqrt(distSq + softeningSq);
-            
-            const fMag = (G_mu * bi.mass_solar * bj.mass_solar) / (dist * dist * dist);
-            const fx = fMag * dx;
-            const fy = fMag * dy;
-            const fz = fMag * dz;
+        const pix = bi.position_au.x;
+        const piy = bi.position_au.y;
+        const piz = bi.position_au.z;
 
-            forces[i].x += fx;
-            forces[i].y += fy;
-            forces[i].z += fz;
-            forces[j].x -= fx;
-            forces[j].y -= fy;
-            forces[j].z -= fz;
+        for (let j = i + 1; j < n; j++) {
+            const bj = bodies[j];
+            const dx = bj.position_au.x - pix;
+            const dy = bj.position_au.y - piy;
+            const dz = bj.position_au.z - piz;
+            const distSq = dx * dx + dy * dy + dz * dz;
+            const invR3 = 1.0 / Math.pow(distSq + softeningSq, 1.5);
+
+            const commonFactor = G_mu * invR3;
+            
+            const ax = commonFactor * dx;
+            const ay = commonFactor * dy;
+            const az = commonFactor * dz;
+
+            // Update i with bj's mass
+            accelBuffer[i * 3 + 0] += ax * bj.mass_solar;
+            accelBuffer[i * 3 + 1] += ay * bj.mass_solar;
+            accelBuffer[i * 3 + 2] += az * bj.mass_solar;
+
+            // Update j with bi's mass (opposite direction)
+            accelBuffer[j * 3 + 0] -= ax * bi.mass_solar;
+            accelBuffer[j * 3 + 1] -= ay * bi.mass_solar;
+            accelBuffer[j * 3 + 2] -= az * bi.mass_solar;
         }
     }
-    return forces;
 }
 
 function physicsTick() {
@@ -83,18 +109,16 @@ function physicsTick() {
     }
 
     // Störmer-Verlet (Leapfrog) Integrator
+    const n = bodies.length;
+    const dt2 = dt_yr / 2.0;
     
     // 1. Calculate half-step velocities
-    const forces = calculateForces();
-    for (let i = 0; i < bodies.length; i++) {
+    updateAccelerations();
+    for (let i = 0; i < n; i++) {
         const b = bodies[i];
-        const ax = forces[i].x / b.mass_solar;
-        const ay = forces[i].y / b.mass_solar;
-        const az = forces[i].z / b.mass_solar;
-
-        b.velocity_au_yr.x += ax * (dt_yr / 2.0);
-        b.velocity_au_yr.y += ay * (dt_yr / 2.0);
-        b.velocity_au_yr.z += az * (dt_yr / 2.0);
+        b.velocity_au_yr.x += accelBuffer[i * 3 + 0] * dt2;
+        b.velocity_au_yr.y += accelBuffer[i * 3 + 1] * dt2;
+        b.velocity_au_yr.z += accelBuffer[i * 3 + 2] * dt2;
 
         // 2. Full-step positions
         b.position_au.x += b.velocity_au_yr.x * dt_yr;
@@ -103,34 +127,36 @@ function physicsTick() {
     }
 
     // 3. Recalculate forces at new positions
-    const newForces = calculateForces();
+    updateAccelerations();
 
     // 4. Calculate full-step velocities
-    for (let i = 0; i < bodies.length; i++) {
+    for (let i = 0; i < n; i++) {
         const b = bodies[i];
-        const ax = newForces[i].x / b.mass_solar;
-        const ay = newForces[i].y / b.mass_solar;
-        const az = newForces[i].z / b.mass_solar;
-
-        b.velocity_au_yr.x += ax * (dt_yr / 2.0);
-        b.velocity_au_yr.y += ay * (dt_yr / 2.0);
-        b.velocity_au_yr.z += az * (dt_yr / 2.0);
+        b.velocity_au_yr.x += accelBuffer[i * 3 + 0] * dt2;
+        b.velocity_au_yr.y += accelBuffer[i * 3 + 1] * dt2;
+        b.velocity_au_yr.z += accelBuffer[i * 3 + 2] * dt2;
     }
 
     // Pack state for rendering main thread
-    const buffer = new Float32Array(bodies.length * 7);
-    for (let i = 0; i < bodies.length; i++) {
-        buffer[i * 7 + 0] = bodies[i].position_au.x;
-        buffer[i * 7 + 1] = bodies[i].position_au.y;
-        buffer[i * 7 + 2] = bodies[i].position_au.z;
-        buffer[i * 7 + 3] = bodies[i].velocity_au_yr.x;
-        buffer[i * 7 + 4] = bodies[i].velocity_au_yr.y;
-        buffer[i * 7 + 5] = bodies[i].velocity_au_yr.z;
-        buffer[i * 7 + 6] = bodies[i].type === 'planet' ? 0 : 1; 
+    // BOLT: Reuse outputBuffer. Since we postMessage with transferables,
+    // we need to re-allocate if the buffer is detached.
+    if (outputBuffer.byteLength === 0) {
+        outputBuffer = new Float32Array(n * 7);
     }
 
-    // Pass buffer via transferable interface for zero-alloc
-    (self as any).postMessage({ type: 'UPDATE', buffer }, [buffer.buffer]);
+    for (let i = 0; i < n; i++) {
+        const b = bodies[i];
+        outputBuffer[i * 7 + 0] = b.position_au.x;
+        outputBuffer[i * 7 + 1] = b.position_au.y;
+        outputBuffer[i * 7 + 2] = b.position_au.z;
+        outputBuffer[i * 7 + 3] = b.velocity_au_yr.x;
+        outputBuffer[i * 7 + 4] = b.velocity_au_yr.y;
+        outputBuffer[i * 7 + 5] = b.velocity_au_yr.z;
+        outputBuffer[i * 7 + 6] = b.type === 'planet' ? 0 : 1;
+    }
+
+    // Pass buffer via transferable interface for zero-alloc (main thread ownership)
+    (self as any).postMessage({ type: 'UPDATE', buffer: outputBuffer }, [outputBuffer.buffer]);
 
     // Schedule next tick (60Hz targeting)
     tickTimeout = setTimeout(physicsTick, 16);

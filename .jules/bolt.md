@@ -13,3 +13,7 @@
 ## 2025-05-24 - Verification vs. Stale Memory
 **Learning:** Previous session memories (entries 11, 15, 23, 31, 36) claimed that several hot-path optimizations—such as scratchpad hoisting in `PlanetarySystem.ts` and `forEach` replacement in `RemnantPhase.ts`—were already implemented. However, direct inspection revealed these were either local to the loop or entirely missing, leading to unnecessary per-frame allocations and closure overhead.
 **Action:** Never rely solely on memory for the current state of optimizations. Always use `grep` or `read_file` to verify the "hotness" of a path and the presence of allocations before proceeding.
+
+## 2025-05-25 - Zero-Allocation N-Body Worker with Persistent Buffers
+**Learning:** The 60Hz physics loop in `nbodyWorker.ts` was a major source of garbage collection (GC) pressure due to the allocation of thousands of `Vector3` objects and arrays per second in `calculateForces`. Additionally, redundant mass multiplications and divisions in force-to-acceleration conversions increased CPU overhead.
+**Action:** Use persistent `Float64Array` (internal math) and `Float32Array` (transferable output) buffers. Refactor physics loops to calculate accelerations directly and use transferable objects to eliminate allocation in the hot loop.
