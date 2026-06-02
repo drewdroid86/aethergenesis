@@ -47,7 +47,7 @@ ${planet.civilizationTier > 0 ? `- Civilization: Type ${planet.civilizationTier}
                         <button
                             onClick={copyReport}
                             className="text-[#7EB8FF]/70 hover:text-white transition-colors focus-visible:ring-2 focus-visible:ring-[#C084FC] outline-none rounded p-1 relative group/copy"
-                            aria-label="Copy Astrobiology Report"
+                            aria-label={copied ? "Astrobiology Report Copied" : "Copy Astrobiology Report"}
                             title="Copy Report"
                         >
                             <span className="absolute -top-6 right-0 text-[10px] text-[#C084FC] opacity-0 group-hover/copy:opacity-100 transition-opacity whitespace-nowrap">
