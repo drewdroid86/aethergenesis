@@ -146,7 +146,7 @@ export class CometSystem {
         });
         
         this.ionTailMesh = new THREE.InstancedMesh(tailGeo, this.tailMat, numComets);
-        this.dustTailMesh = new THREE.InstancedMesh(tailGeo, this.tailMat, numComets);
+        this.dustTailMesh = new THREE.InstancedMesh(tailGeo.clone(), this.tailMat, numComets);
         
         [this.ionTailMesh, this.dustTailMesh].forEach(mesh => {
             mesh.geometry.setAttribute('cWidth', new THREE.InstancedBufferAttribute(new Float32Array(numComets), 1));
@@ -176,17 +176,19 @@ export class CometSystem {
         const ionWidths    = this.ionTailMesh.geometry.attributes.cWidth.array  as Float32Array;
         const ionLengths   = this.ionTailMesh.geometry.attributes.cLength.array as Float32Array;
         const ionActives   = this.ionTailMesh.geometry.attributes.cActive.array as Float32Array;
+        const ionColors    = this.ionTailMesh.geometry.attributes.cColor.array as Float32Array;
         const dustDirs     = this.dustTailMesh.geometry.attributes.cDir.array    as Float32Array;
         const dustWidths   = this.dustTailMesh.geometry.attributes.cWidth.array  as Float32Array;
         const dustLengths  = this.dustTailMesh.geometry.attributes.cLength.array as Float32Array;
         const dustActives  = this.dustTailMesh.geometry.attributes.cActive.array as Float32Array;
+        const dustColors   = this.dustTailMesh.geometry.attributes.cColor.array as Float32Array;
 
         for (let i = 0; i < 5; i++) {
             const data = COMETS_DATA[i];
             // Kepler's equation — Newton-Raphson convergence (5 iterations is sufficient)
             const visualYear = appTime * 100.0;
-            const M = (visualYear / data.p) * 2 * Math.PI;
-            let E = M % (2 * Math.PI);
+            const M = ((visualYear / data.p) * 2 * Math.PI) % (2 * Math.PI);
+            let E = M;
             for (let j = 0; j < 5; j++) {
                 E = E - (E - data.e * Math.sin(E) - M) / (1 - data.e * Math.cos(E));
             }
@@ -227,14 +229,29 @@ export class CometSystem {
                     ionDirs[i * 3 + 2] = this._ionDir.z;
                     ionWidths[i]  = 0.05;
                     ionLengths[i] = (2.5 - dist) * 0.8;
+                    ionColors[i * 3 + 0] = 0.2;
+                    ionColors[i * 3 + 1] = 0.5;
+                    ionColors[i * 3 + 2] = 1.0;
+
+                    // Calculate velocity direction for dust tail
+                    const prev = this.prevPositions[i];
+                    if (prev.lengthSq() > 0) {
+                        this._vel.set(x - prev.x, y - prev.y, z - prev.z).normalize();
+                    } else {
+                        this._vel.set(0, 0, 0);
+                    }
+                    prev.set(x, y, z);
 
                     // Dust tail: slightly offset direction, broader
-                    this._dustDir.copy(this._ionDir);
+                    this._dustDir.copy(this._ionDir).addScaledVector(this._vel, -0.5).normalize();
                     dustDirs[i * 3]     = this._dustDir.x;
                     dustDirs[i * 3 + 1] = this._dustDir.y;
                     dustDirs[i * 3 + 2] = this._dustDir.z;
                     dustWidths[i]  = 0.08;
                     dustLengths[i] = (2.5 - dist) * 0.5;
+                    dustColors[i * 3 + 0] = 1.0;
+                    dustColors[i * 3 + 1] = 0.9;
+                    dustColors[i * 3 + 2] = 0.6;
                 } else {
                     ionWidths[i]  = 0;  dustWidths[i]  = 0;
                     ionLengths[i] = 0;  dustLengths[i] = 0;
@@ -261,11 +278,13 @@ export class CometSystem {
         this.ionTailMesh.geometry.attributes.cWidth.needsUpdate  = true;
         this.ionTailMesh.geometry.attributes.cLength.needsUpdate = true;
         this.ionTailMesh.geometry.attributes.cActive.needsUpdate = true;
+        this.ionTailMesh.geometry.attributes.cColor.needsUpdate  = true;
 
         this.dustTailMesh.geometry.attributes.cDir.needsUpdate    = true;
         this.dustTailMesh.geometry.attributes.cWidth.needsUpdate  = true;
         this.dustTailMesh.geometry.attributes.cLength.needsUpdate = true;
         this.dustTailMesh.geometry.attributes.cActive.needsUpdate = true;
+        this.dustTailMesh.geometry.attributes.cColor.needsUpdate  = true;
 
         this.comaMesh.count      = 5;
         this.ionTailMesh.count   = 5;
