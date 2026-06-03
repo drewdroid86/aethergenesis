@@ -195,6 +195,9 @@ export class Engine {
                 this.stellarState = result.state;
                 if (result.event) {
                     this.phaseTransitionLog.push(result.event);
+                    if (this.phaseTransitionLog.length > 50) {
+                        this.phaseTransitionLog.shift();
+                    }
                 }
                 this.cometSystem.update(deltaTime_yr, this.stellarState, this.appTime);
                 this.dysonSwarmSystem.update(this.highestKardashevTier, this.appTime);
