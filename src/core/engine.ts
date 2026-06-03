@@ -8,16 +8,7 @@ import { detectPerformanceTier, getNumStarsForTier } from '../utils/performance'
 import { Pipeline } from '../rendering/pipeline';
 import { createStellarState, advanceStellarState, StellarState, PhaseTransitionEvent } from '../simulation/StellarPhysics';
 
-let stellarState = createStellarState('hero_star', 1.0, 0.02, 0);
-const phaseTransitionLog: PhaseTransitionEvent[] = [];
 
-export function getStellarState(): StellarState {
-    return stellarState;
-}
-
-export function getPhaseHistory(): PhaseTransitionEvent[] {
-    return phaseTransitionLog;
-}
 
 export class Engine {
     scene: THREE.Scene;
@@ -28,10 +19,13 @@ export class Engine {
     dysonSwarmSystem: DysonSwarmSystem;
     asteroidBeltSystem: AsteroidBeltSystem;
     heroStars: HeroStarSystem[] = [];
+    activeHeroStarCount: number = 0;
     appTime: number = 0;
     highestKardashevTier: number = 0;
     isPaused: boolean = false;
     container: HTMLElement;
+    stellarState: StellarState;
+    phaseTransitionLog: PhaseTransitionEvent[] = [];
 
     private _frustum = new THREE.Frustum();
     private _projScreenMatrix = new THREE.Matrix4();
@@ -40,6 +34,7 @@ export class Engine {
 
     constructor(container: HTMLElement) {
         this.container = container;
+        this.stellarState = createStellarState('hero_star', 1.0, 0.02, 0);
         this.scene = new THREE.Scene();
         this.camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 2000);
         this.camera.position.z = 5;
@@ -75,7 +70,7 @@ export class Engine {
         this.asteroidBeltSystem = new AsteroidBeltSystem(this.scene);
         
         const initialPhysics = { ...DEFAULT_CONSTANTS };
-        this.createHeroStars(getNumStarsForTier(detectPerformanceTier()), initialPhysics);
+        this.setHeroStarCount(getNumStarsForTier(detectPerformanceTier()), initialPhysics);
     }
 
     createHeroStars(count: number, physicsConstants: PhysicsConstants) {
@@ -88,6 +83,19 @@ export class Engine {
             );
             this.scene.add(star);
             this.heroStars.push(star);
+        }
+    }
+
+    setHeroStarCount(count: number, physicsConstants: PhysicsConstants) {
+        if (count > this.heroStars.length) {
+            this.createHeroStars(count - this.heroStars.length, physicsConstants);
+        }
+        this.activeHeroStarCount = count;
+        
+        for (let i = 0; i < this.heroStars.length; i++) {
+            if (i >= this.activeHeroStarCount) {
+                this.heroStars[i].visible = false;
+            }
         }
     }
 
@@ -105,11 +113,11 @@ export class Engine {
             const minDist = 20 * softening;
             const minDistSq = minDist * minDist;
 
-            for (let i = 0; i < this.heroStars.length; i++) {
+            for (let i = 0; i < this.activeHeroStarCount; i++) {
                 const s1 = this.heroStars[i];
                 const p1 = s1.position;
 
-                for (let j = i + 1; j < this.heroStars.length; j++) {
+                for (let j = i + 1; j < this.activeHeroStarCount; j++) {
                     const s2 = this.heroStars[j];
                     const p2 = s2.position;
 
@@ -145,7 +153,7 @@ export class Engine {
         this._frustum.setFromProjectionMatrix(this._projScreenMatrix.multiplyMatrices(this.camera.projectionMatrix, this.camera.matrixWorldInverse));
         const protostarFlicker = 0.8 + 0.2 * Math.sin(this.appTime * 20.0);
 
-        for (let i = 0; i < this.heroStars.length; i++) {
+        for (let i = 0; i < this.activeHeroStarCount; i++) {
             const star = this.heroStars[i];
             if (!this.isPaused && !isScrubbing) {
                 star.position.x += star.velocity.x * delta;
@@ -181,14 +189,14 @@ export class Engine {
         }
 
         if (!this.isPaused && !isScrubbing) {
-            const deltaTime_yr = timeScale === 'cosmic' ? delta * 200000000 : delta / 31557600;
+            const deltaTime_yr = timeScale === 'cosmic' ? delta * 200000000 : delta * 1000;
             try {
-                const result = advanceStellarState(stellarState, deltaTime_yr);
-                stellarState = result.state;
+                const result = advanceStellarState(this.stellarState, deltaTime_yr);
+                this.stellarState = result.state;
                 if (result.event) {
-                    phaseTransitionLog.push(result.event);
+                    this.phaseTransitionLog.push(result.event);
                 }
-                this.cometSystem.update(deltaTime_yr, stellarState, this.appTime);
+                this.cometSystem.update(deltaTime_yr, this.stellarState, this.appTime);
                 this.dysonSwarmSystem.update(this.highestKardashevTier, this.appTime);
                 this.asteroidBeltSystem.update(this.appTime);
             } catch (error) {
@@ -210,7 +218,9 @@ export class Engine {
     }
 
     dispose() {
-        this.pipeline.composer.dispose();
+        if (this.pipeline && typeof (this.pipeline as any).dispose === 'function') {
+            (this.pipeline as any).dispose();
+        }
         if (this.container.contains(this.renderer.domElement)) {
             this.container.removeChild(this.renderer.domElement);
         }
