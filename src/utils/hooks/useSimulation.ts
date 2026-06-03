@@ -48,10 +48,12 @@ export function useSimulation(containerRef: React.RefObject<HTMLDivElement | nul
                         console.log('Received event command from WS:', msg);
                         if (msg.event === 'force_supernova' && selectedStarRef.current) {
                             selectedStarRef.current.t = 0.88;
+                            if (engineRef.current) engineRef.current.forceSupernova();
                         } else if (msg.event === 'reset') {
                             window.location.reload();
                         } else if (msg.event === 'advance_1gyr' && selectedStarRef.current) {
                             selectedStarRef.current.currentRealAge += 1000;
+                            if (engineRef.current) engineRef.current.advanceTime(1e9);
                         }
                     }
                 } catch (err) {

@@ -6,7 +6,7 @@ import { DysonSwarmSystem } from '../rendering/systems/DysonSwarmSystem';
 import { AsteroidBeltSystem } from '../rendering/systems/AsteroidBeltSystem';
 import { detectPerformanceTier, getNumStarsForTier } from '../utils/performance';
 import { Pipeline } from '../rendering/pipeline';
-import { createStellarState, advanceStellarState, StellarState, PhaseTransitionEvent } from '../simulation/StellarPhysics';
+import { createStellarState, advanceStellarState, StellarState, PhaseTransitionEvent, computeMainSequenceLifetime } from '../simulation/StellarPhysics';
 
 
 
@@ -29,6 +29,29 @@ export class Engine {
 
     getStellarState() { return this.stellarState; }
     getPhaseHistory() { return this.phaseTransitionLog; }
+
+    forceSupernova() {
+        // Ensure mass > 8 so supernova can physically occur, and set age exactly past main sequence lifetime
+        const currentMass = this.stellarState.initialMass_solar;
+        const mass = Math.max(currentMass, 8.1); 
+        const tau_ms = computeMainSequenceLifetime(mass);
+        
+        this.stellarState = createStellarState(
+            this.stellarState.id,
+            mass,
+            this.stellarState.metallicity_Z,
+            tau_ms + 1 // Advance age to immediately trigger supernova phase
+        );
+    }
+
+    advanceTime(years: number) {
+        const result = advanceStellarState(this.stellarState, years);
+        this.stellarState = result.state;
+        if (result.event) {
+            this.phaseTransitionLog.push(result.event);
+            if (this.phaseTransitionLog.length > 50) this.phaseTransitionLog.shift();
+        }
+    }
 
     private _frustum = new THREE.Frustum();
     private _projScreenMatrix = new THREE.Matrix4();
