@@ -30,9 +30,11 @@ export function useSimulation(containerRef: React.RefObject<HTMLDivElement | nul
     const wsRef = useRef<any>(null);
 
     useEffect(() => {
+        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
         const wsHost = window.location.hostname || 'localhost';
-        const wsPort = '3001';
-        const wsUrl = `ws://${wsHost}:${wsPort}`;
+        const isLocal = wsHost === 'localhost' || wsHost === '127.0.0.1';
+        const wsPort = isLocal ? '3001' : window.location.port;
+        const wsUrl = `${protocol}//${wsHost}${wsPort ? `:${wsPort}` : ''}`;
         let socket: any = null;
         let reconnectTimeout: any;
 
