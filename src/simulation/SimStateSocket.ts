@@ -52,6 +52,18 @@ const handlers: ((event: SimEvent) => void)[] = [];
 const clients = new Set<WebSocket>();
 let wss: WebSocketServer | null = null;
 
+// Security: Max concurrent WebSocket clients to prevent resource exhaustion
+const MAX_CLIENTS = 100;
+
+// Security: Per-client rate limiting to prevent message flooding
+interface ClientMetadata {
+    messageCount: number;
+    windowStart: number;
+}
+const clientMetadataMap = new Map<WebSocket, ClientMetadata>();
+const RATE_LIMIT_WINDOW_MS = 10000; // 10 seconds
+const MAX_MESSAGES_PER_WINDOW = 100;
+
 export function registerEventHandler(handler: (event: SimEvent) => void): void {
     handlers.push(handler);
 }
@@ -63,12 +75,12 @@ export function unregisterEventHandler(handler: (event: SimEvent) => void): void
     }
 }
 
-export function broadcastSimState(state: SimBroadcast): void {
+export function broadcastSimState(state: SimBroadcast, exclude?: WebSocket): void {
     if (!wss) return;
     try {
         const payload = JSON.stringify({ type: 'state', data: state });
         for (const client of clients) {
-            if (client.readyState === WebSocket.OPEN) {
+            if (client !== exclude && client.readyState === WebSocket.OPEN) {
                 try {
                     client.send(payload);
                 } catch (err) {
@@ -95,9 +107,29 @@ export function initWebSocketServer(server: http.Server, allowedOrigins: string[
             return;
         }
 
+        // Security: Limit concurrent connections
+        if (clients.size >= MAX_CLIENTS) {
+            ws.close(1013, 'Server overloaded: Too many connections');
+            return;
+        }
+
         clients.add(ws);
         
         ws.on('message', (message: string | Buffer | ArrayBuffer | Buffer[]) => {
+            // Security: Per-client rate limiting
+            const now = Date.now();
+            const metadata = clientMetadataMap.get(ws) || { messageCount: 0, windowStart: now };
+
+            if (now - metadata.windowStart > RATE_LIMIT_WINDOW_MS) {
+                metadata.messageCount = 0;
+                metadata.windowStart = now;
+            }
+
+            if (metadata.messageCount >= MAX_MESSAGES_PER_WINDOW) {
+                return; // Silently drop abusive messages
+            }
+            metadata.messageCount++;
+            clientMetadataMap.set(ws, metadata);
             try {
                 let raw: string;
                 if (typeof message === 'string') {
@@ -112,7 +144,7 @@ export function initWebSocketServer(server: http.Server, allowedOrigins: string[
                 const data = JSON.parse(raw);
                 if (data.type === 'state') {
                     // Forward simulation state to all other clients (specifically MCP servers)
-                    broadcastSimState(data.data);
+                    broadcastSimState(data.data, ws);
                 } else if (data.type === 'event' || data.event) {
                     // Dispatch incoming event to handlers
                     const simEvent: SimEvent = {
@@ -149,10 +181,12 @@ export function initWebSocketServer(server: http.Server, allowedOrigins: string[
         
         ws.on('close', () => {
             clients.delete(ws);
+            clientMetadataMap.delete(ws);
         });
         
         ws.on('error', () => {
             clients.delete(ws);
+            clientMetadataMap.delete(ws);
         });
     });
 }

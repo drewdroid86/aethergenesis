@@ -150,7 +150,7 @@ export const Hud: React.FC<HudProps> = ({
                     <button
                         onClick={copyCoordinates}
                         className="text-[#7EB8FF]/40 hover:text-white transition-colors focus-visible:ring-2 focus-visible:ring-[#C084FC] outline-none rounded relative group/copy"
-                        aria-label="Copy Coordinates"
+                        aria-label={copied ? "Coordinates Copied" : "Copy Coordinates"}
                         title="Copy Coordinates"
                     >
                         <span className="absolute -top-6 right-0 text-[10px] text-[#C084FC] opacity-0 group-hover/copy:opacity-100 transition-opacity whitespace-nowrap">
@@ -190,7 +190,7 @@ export const Hud: React.FC<HudProps> = ({
                                 <button
                                     onClick={shareUniverse}
                                     className="flex items-center gap-1.5 px-3 py-1 bg-[#C084FC]/10 border border-[#C084FC]/30 rounded-full text-[9px] uppercase tracking-wider text-[#C084FC] hover:bg-[#C084FC]/20 transition-colors pointer-events-auto"
-                                    aria-label="Share current universe seed"
+                                    aria-label={shareCopied ? "Universe Seed URL Copied" : "Share current universe seed"}
                                     title="Copy Universe Seed URL"
                                 >
                                     {shareCopied ? <Check size={10} /> : <Copy size={10} />}
