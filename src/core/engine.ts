@@ -24,8 +24,11 @@ export class Engine {
     highestKardashevTier: number = 0;
     isPaused: boolean = false;
     container: HTMLElement;
-    stellarState: StellarState;
-    phaseTransitionLog: PhaseTransitionEvent[] = [];
+    private stellarState: StellarState;
+    private phaseTransitionLog: PhaseTransitionEvent[] = [];
+
+    getStellarState() { return this.stellarState; }
+    getPhaseHistory() { return this.phaseTransitionLog; }
 
     private _frustum = new THREE.Frustum();
     private _projScreenMatrix = new THREE.Matrix4();

@@ -405,7 +405,7 @@ export function useSimulation(containerRef: React.RefObject<HTMLDivElement | nul
                         if (socket && socket.readyState === 1 /* WebSocket.OPEN */ && engineRef.current) {
                             const star = selectedStarRef.current || engineRef.current.heroStars[0];
                             if (star) {
-                                const realStellarState = engineRef.current.stellarState;
+                                const realStellarState = engineRef.current.getStellarState();
 
                                 // Extract planetary system orbital state
                                 const orbitalStates: any[] = [];
@@ -546,7 +546,7 @@ export function useSimulation(containerRef: React.RefObject<HTMLDivElement | nul
 
                     if (selectedStarRef.current) {
                         const s = selectedStarRef.current;
-                        const state = engine.stellarState;
+                        const state = engine.getStellarState();
                         
                         if (uiRefs.phase.current) uiRefs.phase.current.innerText = state.phase.replace('_', ' ').toUpperCase();
                         if (uiRefs.temp.current) uiRefs.temp.current.innerText = Math.round(state.temperature_K).toLocaleString();
