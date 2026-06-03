@@ -13,3 +13,7 @@
 ## 2025-05-15 - [Accessible Control Feedbacks]
 **Learning:** Combining `aria-describedby` with semantic sliders and hover-revealed keyboard hints provides a layered discovery model that balances cinematic minimalism with high accessibility. Using a transient "Copied!" state for both visual and ARIA label updates ensures screen reader users receive confirmation of background operations without intrusive alerts.
 **Action:** Always implement the "hover-hint" pattern for keyboard shortcuts in dense, icon-heavy UIs to maintain a clean aesthetic while ensuring discoverability.
+
+## 2024-06-05 - Cinematic Transitions and Accessible Simulation Controls
+**Learning:** Cinematic transitions in floating UI panels are most effective when they combine spatial (slide), opacity (fade), and depth (blur) cues, providing a clear sense of origin and state change. When animating centered elements, using Framer Motion's `y: '-50%'` instead of CSS transforms prevents jitter and maintains alignment during the lifecycle. For simulation controls, using `role="radiogroup"` and `role="radio"` for multi-state toggles (like time-scale) provides significantly better semantic context to screen readers than generic buttons.
+**Action:** Use a combination of `initial={{ opacity: 0, filter: 'blur(10px)' }}` and `animate={{ opacity: 1, filter: 'blur(0px)' }}` for a unified "Aether" visual language. Always map multi-state simulation toggles to appropriate ARIA roles (`radiogroup`) to ensure accessible telemetry interaction.

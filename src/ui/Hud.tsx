@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { motion, AnimatePresence } from 'motion/react';
 import { Check, Copy, Crosshair, Navigation, Pause, Play } from 'lucide-react';
 
 interface HudProps {
@@ -125,19 +126,24 @@ export const Hud: React.FC<HudProps> = ({
             </nav>
 
             {/* Tier Down Indicator */}
-            {performance.showIndicator && (
-                <div
-                    className="absolute top-24 left-1/2 -translate-x-1/2 z-30 animate-bounce"
-                    role="alert"
-                    aria-live="polite"
-                >
-                    <div className="bg-orange-500/20 backdrop-blur-xl border border-orange-500/50 px-6 py-2 rounded-full shadow-[0_0_20px_rgba(249,115,22,0.3)]">
-                        <span className="text-orange-400 text-xs font-bold uppercase tracking-[0.2em]">
-                            Performance Warning: Optimizing Simulation Tier
-                        </span>
-                    </div>
-                </div>
-            )}
+            <AnimatePresence>
+                {performance.showIndicator && (
+                    <motion.div
+                        initial={{ opacity: 0, y: -20, x: '-50%' }}
+                        animate={{ opacity: 1, y: 0, x: '-50%' }}
+                        exit={{ opacity: 0, y: -20, x: '-50%' }}
+                        className="absolute top-24 left-1/2 z-30 pointer-events-none"
+                        role="alert"
+                        aria-live="polite"
+                    >
+                        <div className="bg-orange-500/20 backdrop-blur-xl border border-orange-500/50 px-6 py-2 rounded-full shadow-[0_0_20px_rgba(249,115,22,0.3)] animate-bounce">
+                            <span className="text-orange-400 text-xs font-bold uppercase tracking-[0.2em]">
+                                Performance Warning: Optimizing Simulation Tier
+                            </span>
+                        </div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
 
             {/* Bottom HUD */}
             <div className="absolute bottom-0 w-full p-8 flex justify-between items-end z-20 pointer-events-none">
@@ -171,9 +177,15 @@ export const Hud: React.FC<HudProps> = ({
                                 Global Cosmic Age (Gyr) <span className="opacity-0 group-hover:opacity-100 transition-opacity ml-2 text-[8px] text-[#C084FC] hidden sm:inline">[Arrows to Seek]</span>
                             </span>
                             <div className="flex gap-2">
-                                <div className="flex bg-[rgba(8,8,20,0.8)] border border-[rgba(126,184,255,0.2)] rounded-full p-0.5 pointer-events-auto mr-2">
+                                <div
+                                    className="flex bg-[rgba(8,8,20,0.8)] border border-[rgba(126,184,255,0.2)] rounded-full p-0.5 pointer-events-auto mr-2"
+                                    role="radiogroup"
+                                    aria-label="Time scale"
+                                >
                                     <button 
                                         onClick={() => setTimeScale('cosmic')}
+                                        role="radio"
+                                        aria-checked={timeScale === 'cosmic'}
                                         className={`px-3 py-1 text-[9px] uppercase tracking-wider rounded-full transition-colors ${timeScale === 'cosmic' ? 'bg-[#7EB8FF]/20 text-[#7EB8FF]' : 'text-white/40 hover:text-white'}`}
                                         title="1 second = 200 Million Years"
                                     >
@@ -181,6 +193,8 @@ export const Hud: React.FC<HudProps> = ({
                                     </button>
                                     <button 
                                         onClick={() => setTimeScale('realtime')}
+                                        role="radio"
+                                        aria-checked={timeScale === 'realtime'}
                                         className={`px-3 py-1 text-[9px] uppercase tracking-wider rounded-full transition-colors ${timeScale === 'realtime' ? 'bg-[#C084FC]/20 text-[#C084FC]' : 'text-white/40 hover:text-white'}`}
                                         title="1 second = 1 second"
                                     >
