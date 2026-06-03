@@ -131,7 +131,10 @@ export class Engine {
         }
 
         // Dark Matter affects background star visibility
-        this._backgroundStarMat.opacity = 0.1 + (physics.darkMatter || 0) * 2.0;
+        const bgOpacity = 0.1 + (physics.darkMatter || 0) * 2.0;
+        if (this._backgroundStarMat.opacity !== bgOpacity) {
+            this._backgroundStarMat.opacity = bgOpacity;
+        }
 
         // Repulsion physics using softening
         const softening = physics.softening || 0.1;
@@ -139,16 +142,20 @@ export class Engine {
             const minDist = 20 * softening;
             const minDistSq = minDist * minDist;
 
+            // BOLT: Sweep-and-Prune optimization for repulsion physics
+            const activeStars = this.heroStars.slice(0, this.activeHeroStarCount);
+            activeStars.sort((a, b) => a.position.x - b.position.x);
+
             for (let i = 0; i < this.activeHeroStarCount; i++) {
-                const s1 = this.heroStars[i];
+                const s1 = activeStars[i];
                 const p1 = s1.position;
 
                 for (let j = i + 1; j < this.activeHeroStarCount; j++) {
-                    const s2 = this.heroStars[j];
+                    const s2 = activeStars[j];
                     const p2 = s2.position;
 
-                    const dx = p1.x - p2.x;
-                    if (Math.abs(dx) > minDist) continue; // Manhattan pruning
+                    const dx = p2.x - p1.x;
+                    if (dx > minDist) break; // BOLT: Sorted by X, so no more stars can be within range
 
                     const dy = p1.y - p2.y;
                     if (Math.abs(dy) > minDist) continue;
@@ -161,7 +168,7 @@ export class Engine {
                         const dist = Math.sqrt(distSq);
                         const force = (minDist - dist) / minDist * delta * 30;
                         const invDist = 1.0 / dist;
-                        const fx = dx * invDist * force;
+                        const fx = (p1.x - p2.x) * invDist * force;
                         const fy = dy * invDist * force;
                         const fz = dz * invDist * force;
                         s1.velocity.x += fx;
@@ -186,18 +193,18 @@ export class Engine {
                 star.position.y += star.velocity.y * delta;
                 star.position.z += star.velocity.z * delta;
 
-                const MAX_WORLD_RADIUS = 200;
-                if (star.position.length() > MAX_WORLD_RADIUS) {
-                    star.position.normalize().multiplyScalar(MAX_WORLD_RADIUS);
+                const MAX_WORLD_RADIUS_SQ = 40000; // 200 * 200
+                if (star.position.lengthSq() > MAX_WORLD_RADIUS_SQ) {
+                    star.position.normalize().multiplyScalar(200);
                     // Also zero out velocity to prevent bounce oscillation:
                     if (star.velocity) { star.velocity.set(0, 0, 0); }
                 }
 
                 star.velocity.multiplyScalar(0.97); // Damping
 
-                const MAX_SPEED = 2.0;
-                if (star.velocity.length() > MAX_SPEED) {
-                    star.velocity.normalize().multiplyScalar(MAX_SPEED);
+                const MAX_SPEED_SQ = 4.0; // 2.0 * 2.0
+                if (star.velocity.lengthSq() > MAX_SPEED_SQ) {
+                    star.velocity.normalize().multiplyScalar(2.0);
                 }
             }
 

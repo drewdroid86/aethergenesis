@@ -17,3 +17,7 @@
 ## 2025-05-25 - Zero-Alloc Workers and Force Caching
 **Learning:** In high-frequency Web Workers (60Hz), even small object allocations (like Vector3 for forces) create significant GC pressure that manifests as micro-stutters. Furthermore, the Velocity Verlet integrator provides a mathematical opportunity to cache forces between steps, halving the most expensive O(N^2) operation in the simulation.
 **Action:** Use Float32Arrays for all internal worker state and intermediate calculations. Implement 'forcesValid' flags to reuse force buffers across integration steps where possible.
+
+## 2026-06-03 - Sweep-and-Prune & Instance Buffer Efficiency
+**Learning:** For simulations with hundreds of entities (e.g., 600 stars), a naive O(N^2) repulsion loop becomes the primary CPU bottleneck. Additionally, Three.js developers often over-use `instanceMatrix.needsUpdate = true` out of caution, but for object-level transforms like rotation or scale of the entire InstancedMesh, the model matrix is sufficient and avoids expensive per-frame buffer re-uploads.
+**Action:** Always implement spatial partitioning or sweep-and-prune for N-body-like interactions. Only set `needsUpdate` when individual instance matrices actually change.

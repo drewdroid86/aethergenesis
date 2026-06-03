@@ -35,7 +35,7 @@ export class DysonSwarmSystem {
         if (this.swarm.visible) {
             // Slowly rotate each segment
             this.swarm.rotation.y = time * 0.01;
-            this.swarm.instanceMatrix.needsUpdate = true;
+            // BOLT: Removed instanceMatrix.needsUpdate as rotating the mesh doesn't require buffer re-upload
         }
     }
 
