@@ -243,7 +243,6 @@ export class HeroStarSystem extends THREE.Group {
                 this.nebulaPhase.updateAsSecondary(delta, appTime, cameraPos, normT);
             }
 
-            this.protostarPhase.show();
             this.protostarPhase.update(delta, appTime, cameraPos, physics, this.t, lowDetail);
             
             this.currentTemp = STELLAR_CONSTANTS.TEMPERATURES.PROTOSTAR_START + normT * (this.tHeat - STELLAR_CONSTANTS.TEMPERATURES.PROTOSTAR_START);
@@ -251,7 +250,6 @@ export class HeroStarSystem extends THREE.Group {
 
         } else if (this.phase === PHASES.MAIN_SEQUENCE) {
             targetMain = 1;
-            this.mainSequencePhase.show();
             this.mainSequencePhase.update(delta, appTime, cameraPos, physics, this.t, lowDetail);
             if (nbodyBuffer) {
                 this.planetarySystem?.updateFromBuffer(nbodyBuffer, delta);
@@ -262,7 +260,6 @@ export class HeroStarSystem extends THREE.Group {
 
         } else if (this.phase === PHASES.RED_GIANT) {
             targetRed = 1;
-            this.redGiantPhase.show();
             this.redGiantPhase.update(delta, appTime, cameraPos, physics, this.t, lowDetail);
             
             this.currentTemp = this.redGiantPhase.getCurrentTemp(this.t);
@@ -270,7 +267,6 @@ export class HeroStarSystem extends THREE.Group {
 
         } else if (this.phase === PHASES.SUPERNOVA) {
             targetSuper = 1;
-            this.supernovaPhase.show();
             this.supernovaPhase.update(delta, appTime, cameraPos, physics, this.t, lowDetail);
             this.isSupernovaFlashing = this.supernovaPhase?.isFlashing ?? false;
 
@@ -283,7 +279,6 @@ export class HeroStarSystem extends THREE.Group {
 
         } else {
             this.phase = PHASES.REMNANT;
-            this.remnantPhase.show();
             this.remnantPhase.update(delta, appTime, cameraPos, physics, this.t, lowDetail);
             
             if (this.mass > STELLAR_CONSTANTS.PHYSICS.MASS_THRESHOLD_BLACK_HOLE) {
