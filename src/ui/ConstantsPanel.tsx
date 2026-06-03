@@ -41,10 +41,13 @@ export const ConstantsPanel: React.FC<ConstantsPanelProps> = ({
                 <div className="flex items-center gap-2">
                     <button
                         onClick={() => setPhysics(DEFAULT_CONSTANTS)}
-                        className="text-[#7EB8FF]/50 hover:text-[#C084FC] transition-all focus-visible:ring-2 focus-visible:ring-[#C084FC] outline-none rounded p-1 group/reset"
+                        className="text-[#7EB8FF]/50 hover:text-[#C084FC] transition-all focus-visible:ring-2 focus-visible:ring-[#C084FC] outline-none rounded p-1 relative group/reset"
                         aria-label="Reset to Defaults"
                         title="Reset to Defaults"
                     >
+                        <span className="absolute -top-6 left-1/2 -translate-x-1/2 text-[10px] text-[#C084FC] opacity-0 group-hover/reset:opacity-100 transition-opacity whitespace-nowrap">
+                            [Alt+R] Reset
+                        </span>
                         <RotateCcw size={16} className="group-hover/reset:rotate-[-45deg] transition-transform" />
                     </button>
                     <button
@@ -169,10 +172,11 @@ export const ConstantsPanel: React.FC<ConstantsPanelProps> = ({
                         max="1.0"
                         step="0.01"
                         value={physics.softening}
+                        aria-describedby="desc-softening"
                         onChange={e => setPhysics({...physics, softening: parseFloat(e.target.value)})}
                         className="w-full accent-[#C084FC] cursor-pointer"
                     />
-                    <p className="text-[9px] text-[#7EB8FF]/50 mt-1">Repulsion radius between close stars</p>
+                    <p id="desc-softening" className="text-[9px] text-[#7EB8FF]/50 mt-1">Repulsion radius between close stars</p>
                 </div>
                 {/* Strong Force */}
                 <div>
@@ -187,10 +191,11 @@ export const ConstantsPanel: React.FC<ConstantsPanelProps> = ({
                         max="5.0"
                         step="0.1"
                         value={physics.strongForce}
+                        aria-describedby="desc-strong"
                         onChange={e => setPhysics({...physics, strongForce: parseFloat(e.target.value)})}
                         className="w-full accent-[#C084FC] cursor-pointer"
                     />
-                    <p className="text-[9px] text-[#7EB8FF]/50 mt-1">Supernova explosion radius</p>
+                    <p id="desc-strong" className="text-[9px] text-[#7EB8FF]/50 mt-1">Supernova explosion radius</p>
                 </div>
                 {/* Weak Force */}
                 <div>
@@ -205,10 +210,11 @@ export const ConstantsPanel: React.FC<ConstantsPanelProps> = ({
                         max="5.0"
                         step="0.1"
                         value={physics.weakForce}
+                        aria-describedby="desc-weak"
                         onChange={e => setPhysics({...physics, weakForce: parseFloat(e.target.value)})}
                         className="w-full accent-[#C084FC] cursor-pointer"
                     />
-                    <p className="text-[9px] text-[#7EB8FF]/50 mt-1">Neutron star spin rate</p>
+                    <p id="desc-weak" className="text-[9px] text-[#7EB8FF]/50 mt-1">Neutron star spin rate</p>
                 </div>
                 {/* Dark Matter */}
                 <div>
@@ -223,10 +229,11 @@ export const ConstantsPanel: React.FC<ConstantsPanelProps> = ({
                         max="1.0"
                         step="0.05"
                         value={physics.darkMatter}
+                        aria-describedby="desc-dm"
                         onChange={e => setPhysics({...physics, darkMatter: parseFloat(e.target.value)})}
                         className="w-full accent-[#C084FC] cursor-pointer"
                     />
-                    <p className="text-[9px] text-[#7EB8FF]/50 mt-1">Background star density</p>
+                    <p id="desc-dm" className="text-[9px] text-[#7EB8FF]/50 mt-1">Background star density</p>
                 </div>
                 {/* Baryon */}
                 <div>
@@ -241,10 +248,11 @@ export const ConstantsPanel: React.FC<ConstantsPanelProps> = ({
                         max="0.2"
                         step="0.01"
                         value={physics.baryon}
+                        aria-describedby="desc-baryon"
                         onChange={e => setPhysics({...physics, baryon: parseFloat(e.target.value)})}
                         className="w-full accent-[#C084FC] cursor-pointer"
                     />
-                    <p className="text-[9px] text-[#7EB8FF]/50 mt-1">Star color temperature distribution</p>
+                    <p id="desc-baryon" className="text-[9px] text-[#7EB8FF]/50 mt-1">Star color temperature distribution</p>
                 </div>
             </div>
         </div>
