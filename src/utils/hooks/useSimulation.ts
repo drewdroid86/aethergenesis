@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-import { Engine, getStellarState } from '../../core/engine';
+import { Engine } from '../../core/engine';
 import { HeroStarSystem } from '../../rendering/systems/HeroStarSystem';
 import { NebulaSystem } from '../../rendering/systems/NebulaSystem';
 import { PHASE_NAMES } from '../../core/constants';
@@ -405,7 +405,7 @@ export function useSimulation(containerRef: React.RefObject<HTMLDivElement | nul
                         if (socket && socket.readyState === 1 /* WebSocket.OPEN */ && engineRef.current) {
                             const star = selectedStarRef.current || engineRef.current.heroStars[0];
                             if (star) {
-                                const realStellarState = getStellarState();
+                                const realStellarState = engineRef.current.stellarState;
 
                                 // Extract planetary system orbital state
                                 const orbitalStates: any[] = [];
@@ -546,7 +546,7 @@ export function useSimulation(containerRef: React.RefObject<HTMLDivElement | nul
 
                     if (selectedStarRef.current) {
                         const s = selectedStarRef.current;
-                        const state = getStellarState();
+                        const state = engine.stellarState;
                         
                         if (uiRefs.phase.current) uiRefs.phase.current.innerText = state.phase.replace('_', ' ').toUpperCase();
                         if (uiRefs.temp.current) uiRefs.temp.current.innerText = Math.round(state.temperature_K).toLocaleString();

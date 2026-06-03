@@ -1,21 +1,11 @@
 import { WebSocketServer, WebSocket } from 'ws';
 import * as http from 'http';
+import { StellarState as CoreStellarState } from './StellarPhysics';
 
-export interface StellarState {
-    id: string;
-    initialMass_solar: number;
-    metallicity_Z: number;
-    age_yr: number;
-    mass_solar: number;
-    luminosity_solar: number;
-    radius_solar: number;
-    temperature_K: number;
+export interface StellarState extends Omit<CoreStellarState, 'phase' | 'spectralClass' | 'remnantType'> {
     phase: string;
     spectralClass: string;
-    absoluteMagnitude: number;
-    hrPosition: { logT: number; logL: number };
     remnantType?: string;
-    schwarzschildRadius_km?: number;
     sim_time_yr: number;
 }
 
@@ -78,6 +68,13 @@ export function registerEventHandler(handler: (event: SimEvent) => void): void {
     handlers.push(handler);
 }
 
+export function unregisterEventHandler(handler: (event: SimEvent) => void): void {
+    const index = handlers.indexOf(handler);
+    if (index > -1) {
+        handlers.splice(index, 1);
+    }
+}
+
 export function broadcastSimState(state: SimBroadcast, exclude?: WebSocket): void {
     if (!wss) return;
     try {
@@ -118,7 +115,7 @@ export function initWebSocketServer(server: http.Server, allowedOrigins: string[
 
         clients.add(ws);
         
-        ws.on('message', (message: string) => {
+        ws.on('message', (message: string | Buffer | ArrayBuffer | Buffer[]) => {
             // Security: Per-client rate limiting
             const now = Date.now();
             const metadata = clientMetadataMap.get(ws) || { messageCount: 0, windowStart: now };
@@ -133,9 +130,18 @@ export function initWebSocketServer(server: http.Server, allowedOrigins: string[
             }
             metadata.messageCount++;
             clientMetadataMap.set(ws, metadata);
-
             try {
-                const data = JSON.parse(message);
+                let raw: string;
+                if (typeof message === 'string') {
+                    raw = message;
+                } else if (Array.isArray(message)) {
+                    raw = Buffer.concat(message).toString('utf-8');
+                } else if (message instanceof Buffer) {
+                    raw = message.toString('utf-8');
+                } else {
+                    raw = Buffer.from(message as ArrayBuffer).toString('utf-8');
+                }
+                const data = JSON.parse(raw);
                 if (data.type === 'state') {
                     // Forward simulation state to all other clients (specifically MCP servers)
                     broadcastSimState(data.data, ws);
