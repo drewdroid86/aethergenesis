@@ -1,4 +1,4 @@
-## 2025-05-21 - [In-memory Map Denial of Service]
-**Vulnerability:** Memory exhaustion (DoS) via unbounded growth of in-memory rate-limiting maps.
-**Learning:** Even with a cleanup interval, an attacker can flood the server with requests from thousands of unique IP addresses within the window, potentially causing an Out-of-Memory (OOM) crash if the map has no size limit and eviction policy.
-**Prevention:** Implement a strict `MAX_ENTRIES` cap for all in-memory trackers and use a FIFO eviction strategy (e.g., `map.delete(map.keys().next().value)`) when the limit is reached to ensure predictable memory usage.
+## 2025-05-15 - WebSocket Security Hardening
+**Vulnerability:** Hardcoded `ws://` protocol and unvalidated event broadcasting.
+**Learning:** Hardcoded insecure protocols lead to Mixed Content blocks in secure environments (HTTPS), and broadcasting unvalidated events allows any connected client to trigger disruptive global actions (like `reset`) across all user sessions.
+**Prevention:** Dynamically detect protocol (`ws:` vs `wss:`) and use strict event whitelisting to validate incoming messages before processing or broadcasting.

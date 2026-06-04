@@ -48,6 +48,9 @@ export interface SimEvent {
     parameters?: Record<string, unknown>;
 }
 
+// Security: Whitelist of allowed simulation events to prevent arbitrary command injection
+const ALLOWED_EVENTS = ['force_supernova', 'advance_1gyr', 'reset'];
+
 const handlers: ((event: SimEvent) => void)[] = [];
 const clients = new Set<WebSocket>();
 let wss: WebSocketServer | null = null;
@@ -146,9 +149,17 @@ export function initWebSocketServer(server: http.Server, allowedOrigins: string[
                     // Forward simulation state to all other clients (specifically MCP servers)
                     broadcastSimState(data.data, ws);
                 } else if (data.type === 'event' || data.event) {
+                    const eventName = data.event || data.data?.event;
+
+                    // Security: Validate event against whitelist before processing or broadcasting
+                    if (!ALLOWED_EVENTS.includes(eventName)) {
+                        console.warn(`Blocked unauthorized simulation event: ${eventName}`);
+                        return;
+                    }
+
                     // Dispatch incoming event to handlers
                     const simEvent: SimEvent = {
-                        event: data.event || data.data?.event,
+                        event: eventName,
                         target_id: data.target_id || data.data?.target_id,
                         parameters: data.parameters || data.data?.parameters
                     };
