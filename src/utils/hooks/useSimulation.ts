@@ -606,6 +606,11 @@ export function useSimulation(containerRef: React.RefObject<HTMLDivElement | nul
                         e.preventDefault();
                         setIsPaused(prev => !prev);
                         break;
+                    case 't':
+                    case 'T':
+                        e.preventDefault();
+                        setTimeScale(prev => prev === 'cosmic' ? 'realtime' : 'cosmic');
+                        break;
                     case 'r':
                     case 'R':
                         e.preventDefault();
