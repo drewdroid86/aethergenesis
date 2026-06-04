@@ -57,6 +57,8 @@ export class AsteroidBeltSystem {
             this.orbitalPeriods[i] = Math.sqrt(radius * radius * radius);
         }
         
+        // BOLT: Ensure matrices are uploaded to GPU
+        this.instancedMesh.instanceMatrix.needsUpdate = true;
         scene.add(this.instancedMesh);
     }
 

@@ -17,3 +17,7 @@
 ## 2025-05-25 - Zero-Alloc Workers and Force Caching
 **Learning:** In high-frequency Web Workers (60Hz), even small object allocations (like Vector3 for forces) create significant GC pressure that manifests as micro-stutters. Furthermore, the Velocity Verlet integrator provides a mathematical opportunity to cache forces between steps, halving the most expensive O(N^2) operation in the simulation.
 **Action:** Use Float32Arrays for all internal worker state and intermediate calculations. Implement 'forcesValid' flags to reuse force buffers across integration steps where possible.
+
+## 2025-05-26 - Squared Thresholding and Static Buffer Management
+**Learning:** Redundant `Math.sqrt()` calls in hot loops (up to 1200/frame) and unnecessary GPU buffer re-uploads for static `InstancedMesh` matrices waste CPU cycles and PCI-e bandwidth. Using `lengthSq()` for distance/speed thresholds and managing `instanceMatrix.needsUpdate` precisely prevents this waste.
+**Action:** Use squared thresholding for magnitude checks in hot loops. For static `InstancedMesh` systems (like Dyson swarms), set `needsUpdate` once in the constructor and avoid per-frame flag resets.

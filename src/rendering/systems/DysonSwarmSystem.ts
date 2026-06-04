@@ -26,6 +26,8 @@ export class DysonSwarmSystem {
             this.swarm.setMatrixAt(i, matrix);
         }
         
+        // BOLT: Matrices are static, upload once during init
+        this.swarm.instanceMatrix.needsUpdate = true;
         this.swarm.visible = false;
         scene.add(this.swarm);
     }
@@ -35,7 +37,7 @@ export class DysonSwarmSystem {
         if (this.swarm.visible) {
             // Slowly rotate each segment
             this.swarm.rotation.y = time * 0.01;
-            this.swarm.instanceMatrix.needsUpdate = true;
+            // BOLT: Redundant instanceMatrix.needsUpdate removed as individual matrices are static
         }
     }
 
