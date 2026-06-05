@@ -171,18 +171,29 @@ export const Hud: React.FC<HudProps> = ({
                                 Global Cosmic Age (Gyr) <span className="opacity-0 group-hover:opacity-100 transition-opacity ml-2 text-[8px] text-[#C084FC] hidden sm:inline">[Arrows to Seek]</span>
                             </span>
                             <div className="flex gap-2">
-                                <div className="flex bg-[rgba(8,8,20,0.8)] border border-[rgba(126,184,255,0.2)] rounded-full p-0.5 pointer-events-auto mr-2">
+                                <div
+                                    className="flex bg-[rgba(8,8,20,0.8)] border border-[rgba(126,184,255,0.2)] rounded-full p-0.5 pointer-events-auto mr-2 relative group/scale"
+                                    role="radiogroup"
+                                    aria-label="Simulation time scale"
+                                >
+                                    <span className="absolute -top-6 left-1/2 -translate-x-1/2 text-[10px] text-[#C084FC] opacity-0 group-hover/scale:opacity-100 transition-opacity whitespace-nowrap">
+                                        [T] Scale
+                                    </span>
                                     <button 
                                         onClick={() => setTimeScale('cosmic')}
-                                        className={`px-3 py-1 text-[9px] uppercase tracking-wider rounded-full transition-colors ${timeScale === 'cosmic' ? 'bg-[#7EB8FF]/20 text-[#7EB8FF]' : 'text-white/40 hover:text-white'}`}
+                                        className={`px-3 py-1 text-[9px] uppercase tracking-wider rounded-full transition-colors ${timeScale === 'cosmic' ? 'bg-[#7EB8FF]/20 text-[#7EB8FF]' : 'text-white/40 hover:text-white'} focus-visible:ring-1 focus-visible:ring-[#C084FC] outline-none`}
                                         title="1 second = 200 Million Years"
+                                        role="radio"
+                                        aria-checked={timeScale === 'cosmic'}
                                     >
                                         Cosmic
                                     </button>
                                     <button 
                                         onClick={() => setTimeScale('realtime')}
-                                        className={`px-3 py-1 text-[9px] uppercase tracking-wider rounded-full transition-colors ${timeScale === 'realtime' ? 'bg-[#C084FC]/20 text-[#C084FC]' : 'text-white/40 hover:text-white'}`}
+                                        className={`px-3 py-1 text-[9px] uppercase tracking-wider rounded-full transition-colors ${timeScale === 'realtime' ? 'bg-[#C084FC]/20 text-[#C084FC]' : 'text-white/40 hover:text-white'} focus-visible:ring-1 focus-visible:ring-[#C084FC] outline-none`}
                                         title="1 second = 1 second"
+                                        role="radio"
+                                        aria-checked={timeScale === 'realtime'}
                                     >
                                         Realtime
                                     </button>
