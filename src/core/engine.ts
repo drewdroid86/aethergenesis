@@ -179,6 +179,12 @@ export class Engine {
         this._frustum.setFromProjectionMatrix(this._projScreenMatrix.multiplyMatrices(this.camera.projectionMatrix, this.camera.matrixWorldInverse));
         const protostarFlicker = 0.8 + 0.2 * Math.sin(this.appTime * 20.0);
 
+        // BOLT: Hoist constants and pre-calculate squares to eliminate Math.sqrt in hot loop
+        const MAX_WORLD_RADIUS = 200;
+        const MAX_WORLD_RADIUS_SQ = MAX_WORLD_RADIUS * MAX_WORLD_RADIUS;
+        const MAX_SPEED = 2.0;
+        const MAX_SPEED_SQ = MAX_SPEED * MAX_SPEED;
+
         for (let i = 0; i < this.activeHeroStarCount; i++) {
             const star = this.heroStars[i];
             if (!this.isPaused && !isScrubbing) {
@@ -186,8 +192,7 @@ export class Engine {
                 star.position.y += star.velocity.y * delta;
                 star.position.z += star.velocity.z * delta;
 
-                const MAX_WORLD_RADIUS = 200;
-                if (star.position.length() > MAX_WORLD_RADIUS) {
+                if (star.position.lengthSq() > MAX_WORLD_RADIUS_SQ) {
                     star.position.normalize().multiplyScalar(MAX_WORLD_RADIUS);
                     // Also zero out velocity to prevent bounce oscillation:
                     if (star.velocity) { star.velocity.set(0, 0, 0); }
@@ -195,8 +200,7 @@ export class Engine {
 
                 star.velocity.multiplyScalar(0.97); // Damping
 
-                const MAX_SPEED = 2.0;
-                if (star.velocity.length() > MAX_SPEED) {
+                if (star.velocity.lengthSq() > MAX_SPEED_SQ) {
                     star.velocity.normalize().multiplyScalar(MAX_SPEED);
                 }
             }
