@@ -64,6 +64,9 @@ const clientMetadataMap = new Map<WebSocket, ClientMetadata>();
 const RATE_LIMIT_WINDOW_MS = 10000; // 10 seconds
 const MAX_MESSAGES_PER_WINDOW = 100;
 
+// Security: Whitelist of allowed simulation events to prevent command injection
+const ALLOWED_EVENTS = ['force_supernova', 'advance_1gyr', 'reset', 'spawn_comet', 'impact_event'];
+
 export function registerEventHandler(handler: (event: SimEvent) => void): void {
     handlers.push(handler);
 }
@@ -147,8 +150,15 @@ export function initWebSocketServer(server: http.Server, allowedOrigins: string[
                     broadcastSimState(data.data, ws);
                 } else if (data.type === 'event' || data.event) {
                     // Dispatch incoming event to handlers
+                    const eventName = data.event || data.data?.event;
+
+                    // Security: Validate event against whitelist
+                    if (!eventName || !ALLOWED_EVENTS.includes(eventName)) {
+                        return; // Ignore unauthorized or malformed events
+                    }
+
                     const simEvent: SimEvent = {
-                        event: data.event || data.data?.event,
+                        event: eventName,
                         target_id: data.target_id || data.data?.target_id,
                         parameters: data.parameters || data.data?.parameters
                     };
