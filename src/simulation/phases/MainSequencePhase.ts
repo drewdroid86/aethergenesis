@@ -5,6 +5,9 @@ import { subtleDisplacementVS, starSurfaceFS } from '../../rendering/shaders/ste
 import { GEOMETRIES } from './geometries';
 import { STELLAR_CONSTANTS } from '../../core/constants';
 
+// BOLT: Static scratchpad to eliminate per-frame allocations
+const _scratchPos = new THREE.Vector3();
+
 export interface PlanetInfo {
     pivot: THREE.Group;
     mesh: THREE.Mesh;
@@ -214,7 +217,8 @@ export class MainSequencePhase implements PhaseComponent {
         }
 
         if (cameraPos) {
-            const distSq = cameraPos.distanceToSquared((this as any).parent?.position ?? new THREE.Vector3());
+            const parentPos = (this as any).parent?.position ?? _scratchPos.set(0, 0, 0);
+            const distSq = cameraPos.distanceToSquared(parentPos);
             // BOLT: Use distanceToSquared for performance (35 * 35 = 1225)
             if (this.hzMesh) this.hzMesh.visible = distSq < 1225;
         }

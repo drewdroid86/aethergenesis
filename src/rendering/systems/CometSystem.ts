@@ -214,8 +214,9 @@ export class CometSystem {
             comaColors[i * 3 + 1] = 0.9;
             comaColors[i * 3 + 2] = 1.0;
 
-            const dist = this._posV.length();
-            if (dist < 3.0) {
+            const distSq = this._posV.lengthSq();
+            if (distSq < 9.0) { // 3.0 AU threshold
+                const dist = Math.sqrt(distSq);
                 comaActives[i] = 1.0;
                 comaScales[i]  = Math.max(0.5, (3.0 - dist) * 0.8);
                 ionActives[i]  = 1.0;

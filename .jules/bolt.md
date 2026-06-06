@@ -17,3 +17,7 @@
 ## 2025-05-25 - Zero-Alloc Workers and Force Caching
 **Learning:** In high-frequency Web Workers (60Hz), even small object allocations (like Vector3 for forces) create significant GC pressure that manifests as micro-stutters. Furthermore, the Velocity Verlet integrator provides a mathematical opportunity to cache forces between steps, halving the most expensive O(N^2) operation in the simulation.
 **Action:** Use Float32Arrays for all internal worker state and intermediate calculations. Implement 'forcesValid' flags to reuse force buffers across integration steps where possible.
+
+## 2025-05-26 - Squared Lengths and Scratchpad Hoisting
+**Learning:** High-frequency distance and boundary checks (e.g., 600 stars/frame) that use `.length()` perform unnecessary `Math.sqrt` calls. Additionally, even small object allocations like `new THREE.Vector3()` for temporary fallback values in hot paths accumulate significant GC pressure.
+**Action:** Always prefer `.lengthSq()` for threshold comparisons. Hoist scratchpad objects to the module level for all per-frame calculations and fallback defaults.

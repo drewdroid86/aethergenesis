@@ -187,7 +187,8 @@ export class Engine {
                 star.position.z += star.velocity.z * delta;
 
                 const MAX_WORLD_RADIUS = 200;
-                if (star.position.length() > MAX_WORLD_RADIUS) {
+                const MAX_WORLD_RADIUS_SQ = 40000;
+                if (star.position.lengthSq() > MAX_WORLD_RADIUS_SQ) {
                     star.position.normalize().multiplyScalar(MAX_WORLD_RADIUS);
                     // Also zero out velocity to prevent bounce oscillation:
                     if (star.velocity) { star.velocity.set(0, 0, 0); }
@@ -196,7 +197,8 @@ export class Engine {
                 star.velocity.multiplyScalar(0.97); // Damping
 
                 const MAX_SPEED = 2.0;
-                if (star.velocity.length() > MAX_SPEED) {
+                const MAX_SPEED_SQ = 4.0;
+                if (star.velocity.lengthSq() > MAX_SPEED_SQ) {
                     star.velocity.normalize().multiplyScalar(MAX_SPEED);
                 }
             }
