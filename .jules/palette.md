@@ -13,3 +13,7 @@
 ## 2025-05-15 - [Accessible Control Feedbacks]
 **Learning:** Combining `aria-describedby` with semantic sliders and hover-revealed keyboard hints provides a layered discovery model that balances cinematic minimalism with high accessibility. Using a transient "Copied!" state for both visual and ARIA label updates ensures screen reader users receive confirmation of background operations without intrusive alerts.
 **Action:** Always implement the "hover-hint" pattern for keyboard shortcuts in dense, icon-heavy UIs to maintain a clean aesthetic while ensuring discoverability.
+
+## 2024-06-05 - Semantic Time Controls
+**Learning:** For mutually exclusive state toggles (like simulation time scales), using `role="radiogroup"` and `role="radio"` provides a much richer accessibility context than simple buttons. Combined with the "hover-hint" pattern, this ensures the UI remains cinematic for visual users while being fully descriptive for assistive technologies.
+**Action:** Use ARIA radio patterns for multi-state toggles and supplement with `focus-visible` rings and hover-revealed keyboard hints.
