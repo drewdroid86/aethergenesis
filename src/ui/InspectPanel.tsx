@@ -51,6 +51,7 @@ export const InspectPanel: React.FC<InspectPanelProps> = ({
     const [geminiData, setGeminiData] = useState<GeminiAnalysisResult | null>(null);
     const [analysisFailed, setAnalysisFailed] = useState(false);
     const [copied, setCopied] = useState(false);
+    const [announcement, setAnnouncement] = useState('');
     const lastAnalysisTimeRef = useRef(0);
     const [isDragging, setIsDragging] = useState(false);
 
@@ -78,7 +79,11 @@ Civilization: ${geminiData.civilization}`;
 
         navigator.clipboard.writeText(text).then(() => {
             setCopied(true);
-            setTimeout(() => setCopied(false), 2000);
+            setAnnouncement('Telemetry copied to clipboard');
+            setTimeout(() => {
+                setCopied(false);
+                setAnnouncement('');
+            }, 2000);
         });
     };
 
@@ -287,6 +292,9 @@ Civilization: ${geminiData.civilization}`;
                         )}
                     </AnimatePresence>
                 </div>
+            </div>
+            <div className="sr-only" aria-live="polite">
+                {announcement}
             </div>
         </div>
     );

@@ -49,6 +49,7 @@ export const Hud: React.FC<HudProps> = ({
     const [copied, setCopied] = useState(false);
     const [shareCopied, setShareCopied] = useState(false);
     const [isDragging, setIsDragging] = useState(false);
+    const [announcement, setAnnouncement] = useState('');
 
     const copyCoordinates = () => {
         const x = uiRefs.hudX.current?.innerText || '0.0000';
@@ -58,7 +59,11 @@ export const Hud: React.FC<HudProps> = ({
 
         navigator.clipboard.writeText(coords).then(() => {
             setCopied(true);
-            setTimeout(() => setCopied(false), 2000);
+            setAnnouncement('Coordinates copied to clipboard');
+            setTimeout(() => {
+                setCopied(false);
+                setAnnouncement('');
+            }, 2000);
         });
     };
 
@@ -67,7 +72,11 @@ export const Hud: React.FC<HudProps> = ({
         url.searchParams.set('seed', currentSeed);
         navigator.clipboard.writeText(url.toString()).then(() => {
             setShareCopied(true);
-            setTimeout(() => setShareCopied(false), 2000);
+            setAnnouncement('Universe seed URL copied to clipboard');
+            setTimeout(() => {
+                setShareCopied(false);
+                setAnnouncement('');
+            }, 2000);
         });
     };
 
@@ -171,8 +180,15 @@ export const Hud: React.FC<HudProps> = ({
                                 Global Cosmic Age (Gyr) <span className="opacity-0 group-hover:opacity-100 transition-opacity ml-2 text-[8px] text-[#C084FC] hidden sm:inline">[Arrows to Seek]</span>
                             </span>
                             <div className="flex gap-2">
-                                <div className="flex bg-[rgba(8,8,20,0.8)] border border-[rgba(126,184,255,0.2)] rounded-full p-0.5 pointer-events-auto mr-2">
+                                <div
+                                    role="radiogroup"
+                                    aria-label="Simulation time scale"
+                                    className="flex bg-[rgba(8,8,20,0.8)] border border-[rgba(126,184,255,0.2)] rounded-full p-0.5 pointer-events-auto mr-2"
+                                >
                                     <button 
+                                        role="radio"
+                                        aria-checked={timeScale === 'cosmic'}
+                                        aria-label="Cosmic time scale: 1 second = 200 Million Years"
                                         onClick={() => setTimeScale('cosmic')}
                                         className={`px-3 py-1 text-[9px] uppercase tracking-wider rounded-full transition-colors ${timeScale === 'cosmic' ? 'bg-[#7EB8FF]/20 text-[#7EB8FF]' : 'text-white/40 hover:text-white'}`}
                                         title="1 second = 200 Million Years"
@@ -180,6 +196,9 @@ export const Hud: React.FC<HudProps> = ({
                                         Cosmic
                                     </button>
                                     <button 
+                                        role="radio"
+                                        aria-checked={timeScale === 'realtime'}
+                                        aria-label="Realtime time scale: 1 second = 1 second"
                                         onClick={() => setTimeScale('realtime')}
                                         className={`px-3 py-1 text-[9px] uppercase tracking-wider rounded-full transition-colors ${timeScale === 'realtime' ? 'bg-[#C084FC]/20 text-[#C084FC]' : 'text-white/40 hover:text-white'}`}
                                         title="1 second = 1 second"
@@ -231,6 +250,10 @@ export const Hud: React.FC<HudProps> = ({
                         <span className="font-mono text-2xl font-light tracking-wider mt-2" ref={uiRefs.hudAge}>{cosmicAge.toFixed(2)}</span>
                     </div>
                     <p className="text-[10px] text-[#7EB8FF]/50 italic text-center pointer-events-none">"Scrub to T=0 to observe pre-stellar plasma state."</p>
+                </div>
+
+                <div className="sr-only" aria-live="polite">
+                    {announcement}
                 </div>
 
                 <div className="flex flex-col items-end gap-2 text-right">

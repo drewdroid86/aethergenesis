@@ -10,6 +10,7 @@
     "preview": "node node_modules/vite/bin/vite.js preview",
     "clean": "rm -rf dist",
     "lint": "node node_modules/typescript/bin/tsc --noEmit",
+    "test": "echo \"No tests configured\"",
     "server": "node node_modules/tsx/dist/cli.mjs server.ts",
     "dev:full": "node node_modules/concurrently/dist/bin/concurrently.js \"npm run dev\" \"npm run server\""
   },

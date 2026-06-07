@@ -13,3 +13,7 @@
 ## 2025-05-15 - [Accessible Control Feedbacks]
 **Learning:** Combining `aria-describedby` with semantic sliders and hover-revealed keyboard hints provides a layered discovery model that balances cinematic minimalism with high accessibility. Using a transient "Copied!" state for both visual and ARIA label updates ensures screen reader users receive confirmation of background operations without intrusive alerts.
 **Action:** Always implement the "hover-hint" pattern for keyboard shortcuts in dense, icon-heavy UIs to maintain a clean aesthetic while ensuring discoverability.
+
+## 2024-05-24 - Screen Reader Feedback for Clipboard Actions
+**Learning:** For background actions like "copy to clipboard" that have only transient visual feedback, an `aria-live="polite"` region is essential for accessibility. Without it, screen reader users are left unaware if the action succeeded. Furthermore, icon-only buttons should always have explicit `aria-label` even if `title` is present, as `title` is not reliably announced by all assistive technologies.
+**Action:** Implement a central or component-specific `aria-live` announcement state for non-visual success confirmations. Ensure all icon-only buttons use `aria-label` for primary accessibility and `title` for mouse tooltips.
