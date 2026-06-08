@@ -627,6 +627,11 @@ export function useSimulation(containerRef: React.RefObject<HTMLDivElement | nul
                         e.preventDefault();
                         setIsConstantsOpen(prev => !prev);
                         break;
+                    case 't':
+                    case 'T':
+                        e.preventDefault();
+                        setTimeScale(prev => prev === 'cosmic' ? 'realtime' : 'cosmic');
+                        break;
                     case 'Escape':
                         selectedStarRef.current = null;
                         setSelectedStar(null);
