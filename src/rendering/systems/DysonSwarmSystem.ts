@@ -35,7 +35,8 @@ export class DysonSwarmSystem {
         if (this.swarm.visible) {
             // Slowly rotate each segment
             this.swarm.rotation.y = time * 0.01;
-            this.swarm.instanceMatrix.needsUpdate = true;
+            // BOLT: Redundant needsUpdate removed. Mesh rotation is handled by world matrix,
+            // while instance matrices are static and don't need per-frame buffer updates.
         }
     }
 

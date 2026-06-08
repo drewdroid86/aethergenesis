@@ -54,10 +54,11 @@ function calculateForces(targetBuffer: Float32Array): void {
         const pz = b.position_au.z;
 
         const rSq = px * px + py * py + pz * pz;
-        const r = Math.sqrt(rSq + softeningSq);
+        const rSoftSq = rSq + softeningSq;
+        const r = Math.sqrt(rSoftSq);
         
-        // aMag = -G * M / r^3
-        const aMag = -(G_mu * centralMass_solar) / (r * r * r);
+        // BOLT: aMag = -G * M / r^3 = -G * M / (rSq * r)
+        const aMag = -(G_mu * centralMass_solar) / (rSoftSq * r);
         const mass = b.mass_solar;
 
         targetBuffer[i * 3 + 0] += aMag * px * mass;
@@ -79,9 +80,11 @@ function calculateForces(targetBuffer: Float32Array): void {
             const dy = bj.position_au.y - piy;
             const dz = bj.position_au.z - piz;
             const distSq = dx*dx + dy*dy + dz*dz;
-            const dist = Math.sqrt(distSq + softeningSq);
+            const dSoftSq = distSq + softeningSq;
+            const dist = Math.sqrt(dSoftSq);
             
-            const fMag = (G_mu * mi * bj.mass_solar) / (dist * dist * dist);
+            // BOLT: fMag = (G * m1 * m2) / r^3 = (G * m1 * m2) / (rSq * r)
+            const fMag = (G_mu * mi * bj.mass_solar) / (dSoftSq * dist);
             const fx = fMag * dx;
             const fy = fMag * dy;
             const fz = fMag * dz;

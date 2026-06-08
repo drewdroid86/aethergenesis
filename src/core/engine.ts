@@ -138,32 +138,36 @@ export class Engine {
         if (!this.isPaused && !isScrubbing) {
             const minDist = 20 * softening;
             const minDistSq = minDist * minDist;
+            const invMinDist = 1.0 / minDist;
 
             for (let i = 0; i < this.activeHeroStarCount; i++) {
                 const s1 = this.heroStars[i];
                 const p1 = s1.position;
+                const p1x = p1.x;
+                const p1y = p1.y;
+                const p1z = p1.z;
 
                 for (let j = i + 1; j < this.activeHeroStarCount; j++) {
                     const s2 = this.heroStars[j];
                     const p2 = s2.position;
 
-                    const dx = p1.x - p2.x;
+                    const dx = p1x - p2.x;
                     if (Math.abs(dx) > minDist) continue; // Manhattan pruning
 
-                    const dy = p1.y - p2.y;
+                    const dy = p1y - p2.y;
                     if (Math.abs(dy) > minDist) continue;
 
-                    const dz = p1.z - p2.z;
+                    const dz = p1z - p2.z;
                     if (Math.abs(dz) > minDist) continue;
 
                     const distSq = dx*dx + dy*dy + dz*dz;
                     if (distSq < minDistSq && distSq > 0.01) {
-                        const dist = Math.sqrt(distSq);
-                        const force = (minDist - dist) / minDist * delta * 30;
-                        const invDist = 1.0 / dist;
-                        const fx = dx * invDist * force;
-                        const fy = dy * invDist * force;
-                        const fz = dz * invDist * force;
+                        const invDist = 1.0 / Math.sqrt(distSq);
+                        // BOLT: (minDist - dist) / (minDist * dist) = 1/dist - 1/minDist
+                        const forceFactor = (invDist - invMinDist) * delta * 30;
+                        const fx = dx * forceFactor;
+                        const fy = dy * forceFactor;
+                        const fz = dz * forceFactor;
                         s1.velocity.x += fx;
                         s1.velocity.y += fy;
                         s1.velocity.z += fz;
@@ -179,6 +183,12 @@ export class Engine {
         this._frustum.setFromProjectionMatrix(this._projScreenMatrix.multiplyMatrices(this.camera.projectionMatrix, this.camera.matrixWorldInverse));
         const protostarFlicker = 0.8 + 0.2 * Math.sin(this.appTime * 20.0);
 
+        // BOLT: Pre-calculated squared constants for fast boundary checks
+        const MAX_WORLD_RADIUS = 200;
+        const MAX_WORLD_RADIUS_SQ = MAX_WORLD_RADIUS * MAX_WORLD_RADIUS;
+        const MAX_SPEED = 2.0;
+        const MAX_SPEED_SQ = MAX_SPEED * MAX_SPEED;
+
         for (let i = 0; i < this.activeHeroStarCount; i++) {
             const star = this.heroStars[i];
             if (!this.isPaused && !isScrubbing) {
@@ -186,8 +196,7 @@ export class Engine {
                 star.position.y += star.velocity.y * delta;
                 star.position.z += star.velocity.z * delta;
 
-                const MAX_WORLD_RADIUS = 200;
-                if (star.position.length() > MAX_WORLD_RADIUS) {
+                if (star.position.lengthSq() > MAX_WORLD_RADIUS_SQ) {
                     star.position.normalize().multiplyScalar(MAX_WORLD_RADIUS);
                     // Also zero out velocity to prevent bounce oscillation:
                     if (star.velocity) { star.velocity.set(0, 0, 0); }
@@ -195,8 +204,7 @@ export class Engine {
 
                 star.velocity.multiplyScalar(0.97); // Damping
 
-                const MAX_SPEED = 2.0;
-                if (star.velocity.length() > MAX_SPEED) {
+                if (star.velocity.lengthSq() > MAX_SPEED_SQ) {
                     star.velocity.normalize().multiplyScalar(MAX_SPEED);
                 }
             }

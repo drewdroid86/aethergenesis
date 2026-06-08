@@ -17,3 +17,7 @@
 ## 2025-05-25 - Zero-Alloc Workers and Force Caching
 **Learning:** In high-frequency Web Workers (60Hz), even small object allocations (like Vector3 for forces) create significant GC pressure that manifests as micro-stutters. Furthermore, the Velocity Verlet integrator provides a mathematical opportunity to cache forces between steps, halving the most expensive O(N^2) operation in the simulation.
 **Action:** Use Float32Arrays for all internal worker state and intermediate calculations. Implement 'forcesValid' flags to reuse force buffers across integration steps where possible.
+
+## 2025-05-26 - Hot-path Physics and Math Optimizations
+**Learning:** High-frequency (60fps) physics loops and distance checks are major CPU consumers. Using `lengthSq()` instead of `length()` eliminates hundreds of `Math.sqrt()` calls per frame. Hoisting property access (e.g., `p1x = p1.x`) in nested loops reduces the overhead of JS engine property lookups. Refactoring force math to `1/dist - 1/minDist` reduces arithmetic complexity in the repulsion loop. In the N-body worker, refactoring cubic distance math from `r*r*r` to `(rSq + softeningSq) * r` saves one multiplication per interaction.
+**Action:** Always prefer squared distance comparisons for thresholds. Hoist object property access out of hot inner loops. Look for mathematical simplifications that reduce the number of operations in (N^2)$ or (N)$ paths.
