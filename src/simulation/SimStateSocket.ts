@@ -55,6 +55,9 @@ let wss: WebSocketServer | null = null;
 // Security: Max concurrent WebSocket clients to prevent resource exhaustion
 const MAX_CLIENTS = 100;
 
+// Security: Whitelist of permitted simulation events to prevent command injection
+const ALLOWED_EVENTS = ['force_supernova', 'advance_1gyr', 'reset', 'spawn_comet', 'impact_event'];
+
 // Security: Per-client rate limiting to prevent message flooding
 interface ClientMetadata {
     messageCount: number;
@@ -142,13 +145,24 @@ export function initWebSocketServer(server: http.Server, allowedOrigins: string[
                     raw = Buffer.from(message as ArrayBuffer).toString('utf-8');
                 }
                 const data = JSON.parse(raw);
+
+                // Security: Defensive parsing - ensure data is a valid object
+                if (!data || typeof data !== 'object') return;
+
                 if (data.type === 'state') {
                     // Forward simulation state to all other clients (specifically MCP servers)
                     broadcastSimState(data.data, ws);
                 } else if (data.type === 'event' || data.event) {
+                    const eventName = data.event || data.data?.event;
+
+                    // Security: Whitelist validation to prevent arbitrary event injection
+                    if (!ALLOWED_EVENTS.includes(eventName)) {
+                        return;
+                    }
+
                     // Dispatch incoming event to handlers
                     const simEvent: SimEvent = {
-                        event: data.event || data.data?.event,
+                        event: eventName,
                         target_id: data.target_id || data.data?.target_id,
                         parameters: data.parameters || data.data?.parameters
                     };
