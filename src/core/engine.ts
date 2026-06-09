@@ -147,19 +147,26 @@ export class Engine {
                     const s2 = this.heroStars[j];
                     const p2 = s2.position;
 
-                    const dx = p1.x - p2.x;
+                    let dx = p1.x - p2.x;
                     if (Math.abs(dx) > minDist) continue; // Manhattan pruning
 
-                    const dy = p1.y - p2.y;
+                    let dy = p1.y - p2.y;
                     if (Math.abs(dy) > minDist) continue;
 
-                    const dz = p1.z - p2.z;
+                    let dz = p1.z - p2.z;
                     if (Math.abs(dz) > minDist) continue;
 
-                    const distSq = dx*dx + dy*dy + dz*dz;
-                    if (distSq < minDistSq && distSq > 0.01) {
+                    let distSq = dx*dx + dy*dy + dz*dz;
+                    
+                    if (distSq === 0) {
+                        dx = 0.01; dy = 0.01; dz = 0.01;
+                        distSq = 0.0003;
+                    }
+
+                    if (distSq < minDistSq) {
                         const dist = Math.sqrt(distSq);
-                        const force = (minDist - dist) / minDist * delta * 30;
+                        const rawForce = (minDist - dist) / minDist * delta * 30;
+                        const force = Math.min(rawForce, 10.0); // Cap restitution to prevent overcorrection
                         const invDist = 1.0 / dist;
                         const fx = dx * invDist * force;
                         const fy = dy * invDist * force;

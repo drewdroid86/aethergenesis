@@ -115,7 +115,7 @@ export class RedGiantPhase implements PhaseComponent {
                 p.pivot.rotation.y += p.speed * delta;
                 if (p.dist < giantScale * STELLAR_CONSTANTS.VISUALS.RED_GIANT_PLANET_DMG_RADIUS) {
                     const denominator = giantScale * STELLAR_CONSTANTS.VISUALS.RED_GIANT_PLANET_BURN_RADIUS;
-                    const dmg = Math.max(0, 1.0 - (p.dist - giantScale) / Math.max(0.001, denominator));
+                    const dmg = Math.min(1.0, Math.max(0, 1.0 - (p.dist - giantScale) / Math.max(0.001, denominator)));
                     (p.mesh.material as THREE.MeshStandardMaterial).color.setHex(0x222222);
                     (p.mesh.material as THREE.MeshStandardMaterial).emissive.setHex(0xffaa00);
                     (p.mesh.material as THREE.MeshStandardMaterial).emissiveIntensity = dmg;

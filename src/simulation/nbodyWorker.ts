@@ -4,7 +4,7 @@ import { OrbitalBody } from './OrbitalMechanics';
 let bodies: OrbitalBody[] = [];
 let centralMass_solar: number = 1.0;
 let isRunning = false;
-let softeningSq = 0.0001; // small softening for N-body
+const softeningSq = 0.0001; // small softening for N-body
 let dt_yr = 1.0 / 365.25; // default 1 day step
 let tickTimeout: any = null;
 
@@ -81,7 +81,8 @@ function calculateForces(targetBuffer: Float32Array): void {
             const distSq = dx*dx + dy*dy + dz*dz;
             const dist = Math.sqrt(distSq + softeningSq);
             
-            const fMag = (G_mu * mi * bj.mass_solar) / (dist * dist * dist);
+            let fMag = (G_mu * mi * bj.mass_solar) / (dist * dist * dist);
+            if (!isFinite(fMag) || fMag > 1e6) continue;
             const fx = fMag * dx;
             const fy = fMag * dy;
             const fz = fMag * dz;

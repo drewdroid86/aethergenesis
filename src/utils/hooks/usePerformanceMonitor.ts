@@ -37,8 +37,9 @@ export function usePerformanceMonitor(onTierChangeCallback: (newTier: 'low' | 'm
 
     useEffect(() => {
         const initialTier = detectPerformanceTier();
-        currentTierRef.current = initialTier;
-        setCurrentTier(initialTier);
+        if (currentTierRef.current !== initialTier) {
+            handleTierChange(initialTier);
+        }
     }, [handleTierChange]);
 
     const registerFrameDelta = useCallback((delta: number, currentTime: number) => {

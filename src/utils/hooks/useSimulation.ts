@@ -345,7 +345,7 @@ export function useSimulation(containerRef: React.RefObject<HTMLDivElement | nul
 
             let frameId: number;
             let lastAnimationTime = performance.now();
-            let fpsHistory: number[] = [];
+            const fpsHistory: number[] = [];
             let lastFpsUpdateTime = 0;
             let lastStateSendTime = 0;
 
@@ -744,7 +744,7 @@ export function useSimulation(containerRef: React.RefObject<HTMLDivElement | nul
                 e.currentTarget.setAttribute('aria-valuenow', formattedAge);
                 e.currentTarget.setAttribute('aria-valuetext', `${formattedAge} Billion Years`);
             } else if (selectedStarRef.current) {
-                let t = k==='Home'?0 : k==='End'?1 : selectedStarRef.current.t+(k==='ArrowLeft'?-0.01:0.01);
+                const t = k==='Home'?0 : k==='End'?1 : selectedStarRef.current.t+(k==='ArrowLeft'?-0.01:0.01);
                 selectedStarRef.current.t = Math.max(0, Math.min(1, t));
                 const perc = Math.round(selectedStarRef.current.t * 100);
                 e.currentTarget.setAttribute('aria-valuenow', perc.toString());
