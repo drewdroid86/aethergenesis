@@ -17,3 +17,7 @@
 ## 2025-05-25 - Zero-Alloc Workers and Force Caching
 **Learning:** In high-frequency Web Workers (60Hz), even small object allocations (like Vector3 for forces) create significant GC pressure that manifests as micro-stutters. Furthermore, the Velocity Verlet integrator provides a mathematical opportunity to cache forces between steps, halving the most expensive O(N^2) operation in the simulation.
 **Action:** Use Float32Arrays for all internal worker state and intermediate calculations. Implement 'forcesValid' flags to reuse force buffers across integration steps where possible.
+
+## 2025-05-26 - GPU Buffer Upload Optimization
+**Learning:** Marking `instanceMatrix.needsUpdate = true` in every frame of an `update` loop triggers redundant CPU-to-GPU data transfers for `InstancedMesh`, even if the instance matrices are static. This creates unnecessary overhead in the rendering pipeline.
+**Action:** Only mark `needsUpdate = true` when instance data actually changes. If the mesh rotation or position is handled via the global transform matrix, the instance buffer doesn't need to be refreshed.

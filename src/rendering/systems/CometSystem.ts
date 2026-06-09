@@ -214,14 +214,15 @@ export class CometSystem {
             comaColors[i * 3 + 1] = 0.9;
             comaColors[i * 3 + 2] = 1.0;
 
-            const dist = this._posV.length();
-            if (dist < 3.0) {
+            const distSq = this._posV.lengthSq();
+            if (distSq < 9.0) {
+                const dist = Math.sqrt(distSq);
                 comaActives[i] = 1.0;
                 comaScales[i]  = Math.max(0.5, (3.0 - dist) * 0.8);
                 ionActives[i]  = 1.0;
                 dustActives[i] = 1.0;
 
-                if (dist < 2.5) {
+                if (distSq < 6.25) {
                     // Ion tail: blue plasma pointing away from star
                     this._ionDir.copy(this._posV).normalize();
                     ionDirs[i * 3]     = this._ionDir.x;
