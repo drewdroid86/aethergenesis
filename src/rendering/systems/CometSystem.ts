@@ -197,10 +197,10 @@ export class CometSystem {
                 Math.sqrt(1 - data.e) * Math.cos(E / 2)
             );
             const r = data.a * (1 - data.e * data.e) / (1 + data.e * Math.cos(theta));
-            let x = r * Math.cos(theta);
+            const x = r * Math.cos(theta);
             let z = r * Math.sin(theta);
             const incRad = data.i * Math.PI / 180;
-            let y = z * Math.sin(incRad);
+            const y = z * Math.sin(incRad);
             z   = z * Math.cos(incRad);
 
             this._posV.set(x, y, z);

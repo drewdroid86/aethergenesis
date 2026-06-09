@@ -18,7 +18,7 @@ export function randomGaussian(mean = 0, stdev = 1) {
 }
 
 export function colorTempToRGB(kelvin: number): THREE.Color {
-    let temp = kelvin / 100;
+    const temp = kelvin / 100;
     let red, green, blue;
 
     if (temp <= 66) {

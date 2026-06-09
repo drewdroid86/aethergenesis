@@ -88,7 +88,7 @@ export class AstrobiologyEngine {
     const compositeScore = orbitalScore * thermalScore * atmosphereScore * stellarActivityScore * ageScore;
 
     // History tracking
-    let record = this.history.get(planet_id) || { timeInHz_yr: 0, highestScore: 0, civEmergenceTime: 0 };
+    const record = this.history.get(planet_id) || { timeInHz_yr: 0, highestScore: 0, civEmergenceTime: 0 };
     if (compositeScore > 0.65) {
       record.timeInHz_yr += delta_yr;
     } else {
