@@ -48,6 +48,9 @@ export interface SimEvent {
     parameters?: Record<string, unknown>;
 }
 
+// Security: Whitelist of events that can be triggered via WebSocket to prevent arbitrary command injection
+const ALLOWED_EVENTS = ['force_supernova', 'advance_1gyr', 'reset', 'spawn_comet', 'impact_event'];
+
 const handlers: ((event: SimEvent) => void)[] = [];
 const clients = new Set<WebSocket>();
 let wss: WebSocketServer | null = null;
@@ -142,15 +145,32 @@ export function initWebSocketServer(server: http.Server, allowedOrigins: string[
                     raw = Buffer.from(message as ArrayBuffer).toString('utf-8');
                 }
                 const data = JSON.parse(raw);
+                // Security: Defensive check to ensure data is an object
+                if (!data || typeof data !== 'object') return;
+
                 if (data.type === 'state') {
                     // Forward simulation state to all other clients (specifically MCP servers)
                     broadcastSimState(data.data, ws);
                 } else if (data.type === 'event' || data.event) {
+                    const eventName = data.event || data.data?.event;
+
+                    // Security: Validate event against whitelist to prevent arbitrary command injection
+                    if (typeof eventName !== 'string' || !ALLOWED_EVENTS.includes(eventName)) {
+                        return;
+                    }
+
+                    const target_id = data.target_id || data.data?.target_id;
+                    const parameters = data.parameters || data.data?.parameters;
+
+                    // Security: Type validation for optional event payload components
+                    if (target_id !== undefined && typeof target_id !== 'string') return;
+                    if (parameters !== undefined && (typeof parameters !== 'object' || parameters === null)) return;
+
                     // Dispatch incoming event to handlers
                     const simEvent: SimEvent = {
-                        event: data.event || data.data?.event,
-                        target_id: data.target_id || data.data?.target_id,
-                        parameters: data.parameters || data.data?.parameters
+                        event: eventName,
+                        target_id: target_id,
+                        parameters: parameters
                     };
                     
                     // Trigger registered local handlers
