@@ -69,20 +69,22 @@ export function AetherGenesis() {
         currentSeed={currentSeed}
       />
 
-      {selectedStar && (
-        <InspectPanel 
-            selectedStar={selectedStar}
-            setSelectedStar={setSelectedStar}
-            isPaused={isPaused}
-            setIsPaused={setIsPaused}
-            physics={physics}
-            onScrubStart={onScrubStart}
-            onScrubMove={onScrubMove}
-            onScrubEnd={onScrubEnd}
-            onKeyDown={(e) => onKeyDown(e, false)}
-            uiRefs={uiRefs}
-        />
-      )}
+      <AnimatePresence>
+        {selectedStar && (
+          <InspectPanel
+              selectedStar={selectedStar}
+              setSelectedStar={setSelectedStar}
+              isPaused={isPaused}
+              setIsPaused={setIsPaused}
+              physics={physics}
+              onScrubStart={onScrubStart}
+              onScrubMove={onScrubMove}
+              onScrubEnd={onScrubEnd}
+              onKeyDown={(e) => onKeyDown(e, false)}
+              uiRefs={uiRefs}
+          />
+        )}
+      </AnimatePresence>
 
       <AnimatePresence>
         {selectedStar && astrobiologyData.length > 0 && (

@@ -148,7 +148,15 @@ Civilization: ${geminiData.civilization}`;
     }, [selectedStar]);
 
     return (
-        <div className="absolute right-8 top-1/2 -translate-y-1/2 w-[min(320px,85vw)] overflow-hidden bg-[rgba(14,14,28,0.7)] backdrop-blur-xl border border-[rgba(126,184,255,0.3)] rounded-2xl p-6 z-30 shadow-[0_0_30px_rgba(0,0,0,0.5)] transform transition-all pointer-events-auto">
+        <motion.div
+            initial={{ opacity: 0, x: 20, y: '-50%', filter: 'blur(10px)' }}
+            animate={{ opacity: 1, x: 0, y: '-50%', filter: 'blur(0px)' }}
+            exit={{ opacity: 0, x: 20, y: '-50%', filter: 'blur(10px)' }}
+            transition={{ duration: 0.4, ease: "easeOut" }}
+            role="region"
+            aria-label="Stellar Telemetry Panel"
+            className="absolute right-8 top-1/2 w-[min(320px,85vw)] overflow-hidden bg-[rgba(14,14,28,0.7)] backdrop-blur-xl border border-[rgba(126,184,255,0.3)] rounded-2xl p-6 z-30 shadow-[0_0_30px_rgba(0,0,0,0.5)] pointer-events-auto"
+        >
             <div className="flex items-center justify-between mb-6 pb-4 border-b border-[rgba(126,184,255,0.1)] group/header">
                 <div className="flex items-center gap-3">
                     <Scan size={20} className={`text-[#C084FC] ${isAnalyzing ? 'animate-pulse' : ''}`} />
@@ -288,6 +296,6 @@ Civilization: ${geminiData.civilization}`;
                     </AnimatePresence>
                 </div>
             </div>
-        </div>
+        </motion.div>
     );
 };

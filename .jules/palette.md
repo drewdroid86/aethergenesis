@@ -17,3 +17,6 @@
 ## 2025-06-10 - Audible Clipboard Feedback via aria-live
 **Learning:** Background operations like "Copy to Clipboard" are often silent to screen readers. Implementing a dedicated, hidden `aria-live="polite"` region that receives transient text updates provides a non-intrusive way to confirm success for keyboard-only or screen reader users, complementing visual feedback (like "Copied!" tooltips).
 **Action:** Centralize accessible announcements in information-dense HUDs to avoid multiple live regions and ensure consistent feedback for all interaction-triggered background tasks.
+## 2026-06-10 - Motion Jitter and Centering
+**Learning:** When using Framer Motion on elements that are vertically centered via CSS (`top-1/2`, `-translate-y-1/2`), there's a risk of layout jitter or conflict during entry/exit animations. Offloading the centering logic to Framer's `y: '-50%'` prop ensures that the initial, animate, and exit states are calculated from the same baseline, preventing vertical displacement "jumps."
+**Action:** Prefer Framer Motion's `y` property for centering over CSS transforms when the element is part of an `AnimatePresence` sequence.
