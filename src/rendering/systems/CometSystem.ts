@@ -92,7 +92,12 @@ const COMETS_DATA = [
 { a: 12.0, e: 0.995, i: 89.4,  p: 118.4 },
 ] as const;
 
-// BOLT: Static scratchpad to eliminate per-frame allocations
+// BOLT: Pre-calculated orbital constants to save per-frame Math ops
+interface PrecalcComet {
+    a: number; e: number; i: number; p: number;
+    sqrt1pe: number; sqrt1me: number; pSemiLatus: number;
+    incRad: number; twoPiOverP: number;
+}
 
 export class CometSystem {
     private comaMesh: THREE.InstancedMesh;
@@ -103,6 +108,7 @@ export class CometSystem {
     private tailMat: THREE.ShaderMaterial;
     private group: THREE.Group;
     private prevPositions: THREE.Vector3[];
+    private precalcData: PrecalcComet[] = [];
 
     private _matrix = new THREE.Matrix4();
     private _posV = new THREE.Vector3();
@@ -117,6 +123,19 @@ export class CometSystem {
 
         const numComets = 5;
         this.prevPositions = Array.from({ length: numComets }, () => new THREE.Vector3());
+
+        // BOLT: Initialize pre-calculated constants
+        for (let i = 0; i < numComets; i++) {
+            const d = COMETS_DATA[i];
+            this.precalcData.push({
+                ...d,
+                sqrt1pe: Math.sqrt(1 + d.e),
+                sqrt1me: Math.sqrt(1 - d.e),
+                pSemiLatus: d.a * (1 - d.e * d.e),
+                incRad: d.i * Math.PI / 180,
+                twoPiOverP: (2 * Math.PI) / d.p
+            });
+        }
 
         // Coma Geometry
         const comaGeo = new THREE.PlaneGeometry(1, 1);
@@ -184,27 +203,26 @@ export class CometSystem {
         const dustColors   = this.dustTailMesh.geometry.attributes.cColor.array as Float32Array;
 
         for (let i = 0; i < 5; i++) {
-            const data = COMETS_DATA[i];
+            const data = this.precalcData[i];
             // Kepler's equation — Newton-Raphson convergence (5 iterations is sufficient)
             const visualYear = appTime * 100.0;
-            const M = ((visualYear / data.p) * 2 * Math.PI) % (2 * Math.PI);
+            const M = (visualYear * data.twoPiOverP) % (2 * Math.PI);
             let E = M;
             for (let j = 0; j < 5; j++) {
                 E = E - (E - data.e * Math.sin(E) - M) / (1 - data.e * Math.cos(E));
             }
             const theta = 2 * Math.atan2(
-                Math.sqrt(1 + data.e) * Math.sin(E / 2),
-                Math.sqrt(1 - data.e) * Math.cos(E / 2)
+                data.sqrt1pe * Math.sin(E / 2),
+                data.sqrt1me * Math.cos(E / 2)
             );
-            const r = data.a * (1 - data.e * data.e) / (1 + data.e * Math.cos(theta));
+            const r = data.pSemiLatus / (1 + data.e * Math.cos(theta));
             const x = r * Math.cos(theta);
             let z = r * Math.sin(theta);
-            const incRad = data.i * Math.PI / 180;
-            const y = z * Math.sin(incRad);
-            z   = z * Math.cos(incRad);
+            const y = z * Math.sin(data.incRad);
+            z   = z * Math.cos(data.incRad);
 
             this._posV.set(x, y, z);
-            this._matrix.makeTranslation(x, y, z);
+            this._matrix.makeTranslation(x, y, z); // Reuse matrix for all 3 meshes
             this.comaMesh.setMatrixAt(i, this._matrix);
             this.ionTailMesh.setMatrixAt(i, this._matrix);
             this.dustTailMesh.setMatrixAt(i, this._matrix);

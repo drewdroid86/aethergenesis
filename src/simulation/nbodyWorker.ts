@@ -53,11 +53,11 @@ function calculateForces(targetBuffer: Float32Array): void {
         const py = b.position_au.y;
         const pz = b.position_au.z;
 
-        const rSq = px * px + py * py + pz * pz;
-        const r = Math.sqrt(rSq + softeningSq);
+        const rSoftSq = px * px + py * py + pz * pz + softeningSq;
+        const r = Math.sqrt(rSoftSq);
         
-        // aMag = -G * M / r^3
-        const aMag = -(G_mu * centralMass_solar) / (r * r * r);
+        // BOLT: aMag = -G * M / r^3. Use r * rSoftSq to save one multiplication.
+        const aMag = -(G_mu * centralMass_solar) / (r * rSoftSq);
         const mass = b.mass_solar;
 
         targetBuffer[i * 3 + 0] += aMag * px * mass;
@@ -78,10 +78,12 @@ function calculateForces(targetBuffer: Float32Array): void {
             const dx = bj.position_au.x - pix;
             const dy = bj.position_au.y - piy;
             const dz = bj.position_au.z - piz;
-            const distSq = dx*dx + dy*dy + dz*dz;
-            const dist = Math.sqrt(distSq + softeningSq);
             
-            let fMag = (G_mu * mi * bj.mass_solar) / (dist * dist * dist);
+            const distSoftSq = dx*dx + dy*dy + dz*dz + softeningSq;
+            const dist = Math.sqrt(distSoftSq);
+
+            // BOLT: fMag = (G * m1 * m2) / r^3. Use dist * distSoftSq to save one multiplication.
+            let fMag = (G_mu * mi * bj.mass_solar) / (dist * distSoftSq);
             if (!isFinite(fMag) || fMag > 1e6) continue;
             const fx = fMag * dx;
             const fy = fMag * dy;
@@ -120,11 +122,17 @@ function physicsTick() {
 
     const dt_half = dt_yr * 0.5;
 
+    // BOLT: Consolidate invMass calculation once per tick per body
+    const invMasses = new Float32Array(n);
+    for (let i = 0; i < n; i++) {
+        invMasses[i] = 1.0 / bodies[i].mass_solar;
+    }
+
     // 2. First half-step: v(t + dt/2) = v(t) + a(t) * dt/2
     //    And full-step position: r(t + dt) = r(t) + v(t + dt/2) * dt
     for (let i = 0; i < n; i++) {
         const b = bodies[i];
-        const invMass = 1.0 / b.mass_solar;
+        const invMass = invMasses[i];
 
         const ax = forceBuffer[i * 3 + 0] * invMass;
         const ay = forceBuffer[i * 3 + 1] * invMass;
@@ -145,7 +153,7 @@ function physicsTick() {
     // 4. Second half-step: v(t + dt) = v(t + dt/2) + a(t + dt) * dt/2
     for (let i = 0; i < n; i++) {
         const b = bodies[i];
-        const invMass = 1.0 / b.mass_solar;
+        const invMass = invMasses[i];
 
         const ax = forceBuffer[i * 3 + 0] * invMass;
         const ay = forceBuffer[i * 3 + 1] * invMass;
