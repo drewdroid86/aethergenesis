@@ -3,6 +3,7 @@ import dotenv from 'dotenv';
 import { GoogleGenAI } from '@google/genai';
 import { fileURLToPath } from 'url';
 import path from 'path';
+import { LRUCache } from 'lru-cache';
 
 dotenv.config();
 
@@ -24,7 +25,8 @@ app.use((_req, res, next) => {
   res.setHeader('X-Frame-Options', 'DENY');
   res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains; preload');
   res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
-  res.setHeader('Content-Security-Policy', "default-src 'self'; script-src 'self' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; connect-src 'self' ws: wss:; img-src 'self' data: https:; font-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; upgrade-insecure-requests;");
+  const scriptSrc = process.env.NODE_ENV === 'production' ? "'self'" : "'self' 'unsafe-eval'";
+  res.setHeader('Content-Security-Policy', `default-src 'self'; script-src ${scriptSrc}; style-src 'self' 'unsafe-inline'; connect-src 'self' ws: wss:; img-src 'self' data: https:; font-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; upgrade-insecure-requests;`);
   res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
   res.setHeader('Cross-Origin-Opener-Policy', 'same-origin');
   res.setHeader('Cross-Origin-Resource-Policy', 'same-origin');
@@ -49,23 +51,18 @@ app.use((req, res, next) => {
     next(); 
 });
 
-// Security: Simple in-memory rate limiting for AI analysis
+// Security: LRU Cache rate limiting for AI analysis
 interface RateLimitData {
   count: number;
   windowStart: number;
 }
-const analysisLimitMap = new Map<string, RateLimitData>();
 const RATE_LIMIT_WINDOW = 60 * 1000; // 1 minute
 const MAX_REQUESTS_PER_WINDOW = 5;
-const MAX_ENTRIES = 1000; // Memory protection
 
-// Periodic cleanup to prevent memory exhaustion
-setInterval(() => {
-  const now = Date.now();
-  for (const [ip, data] of analysisLimitMap.entries()) {
-    if (now - data.windowStart > RATE_LIMIT_WINDOW) analysisLimitMap.delete(ip);
-  }
-}, RATE_LIMIT_WINDOW);
+const analysisLimitMap = new LRUCache<string, RateLimitData>({
+  max: 1000,
+  ttl: RATE_LIMIT_WINDOW
+});
 
 const apiKey = process.env.GEMINI_API_KEY;
 const ai = apiKey ? new GoogleGenAI({ apiKey }) : null;
@@ -102,11 +99,6 @@ app.post('/api/analyze', async (req, res) => {
   // Security: Prevent caching of sensitive AI results
   res.setHeader('Cache-Control', 'no-store, max-age=0');
 
-  // Security: Prevent memory exhaustion with FIFO eviction
-  if (analysisLimitMap.size >= MAX_ENTRIES && !analysisLimitMap.has(ip)) {
-    const firstKey = analysisLimitMap.keys().next().value;
-    if (firstKey !== undefined) analysisLimitMap.delete(firstKey);
-  }
   analysisLimitMap.set(ip, record);
 
   const { temp, mass, lum, age, phase, G, alpha } = req.body;
