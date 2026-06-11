@@ -17,3 +17,7 @@
 ## 2025-05-25 - Zero-Alloc Workers and Force Caching
 **Learning:** In high-frequency Web Workers (60Hz), even small object allocations (like Vector3 for forces) create significant GC pressure that manifests as micro-stutters. Furthermore, the Velocity Verlet integrator provides a mathematical opportunity to cache forces between steps, halving the most expensive O(N^2) operation in the simulation.
 **Action:** Use Float32Arrays for all internal worker state and intermediate calculations. Implement 'forcesValid' flags to reuse force buffers across integration steps where possible.
+
+## 2025-05-26 - Squared Distance Pitfalls in Force Capping
+**Learning:** While `distanceToSquared()` is a powerful optimization for avoiding `Math.sqrt()`, it requires care when used in formulas that expect a linear distance (like `1/d`). Furthermore, applying a cap to a "repulsion factor" rather than the final force magnitude can lead to unintended physics behavior (e.g., force still scaling with $1/d^2$ after the cap is hit).
+**Action:** When using squared distances for $1/d$ forces, calculate the inverse distance once and use it for both the force magnitude and the cap check. Always verify that caps are applied to the final magnitude to ensure physical correctness.
