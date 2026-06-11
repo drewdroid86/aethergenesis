@@ -114,6 +114,14 @@ export function initWebSocketServer(server: http.Server, allowedOrigins: string[
         const url = new URL(req.url || '', `http://${req.headers.host}`);
         const token = url.searchParams.get('token');
         const expectedToken = process.env.WS_TOKEN || 'default_secret';
+
+        // Security: Reject insecure 'default_secret' in production
+        const isProduction = process.env.NODE_ENV === 'production';
+        if (isProduction && expectedToken === 'default_secret') {
+            ws.close(1008, 'Forbidden: WS_TOKEN must be configured in production');
+            return;
+        }
+
         if (token !== expectedToken) {
             ws.close(1008, 'Forbidden: Invalid token');
             return;
