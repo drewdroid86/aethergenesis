@@ -107,6 +107,15 @@ export function initWebSocketServer(server: http.Server, allowedOrigins: string[
             return;
         }
 
+        // Security: Token authentication
+        const url = new URL(req.url || '', `http://${req.headers.host}`);
+        const token = url.searchParams.get('token');
+        const expectedToken = process.env.WS_TOKEN || 'default_secret';
+        if (token !== expectedToken) {
+            ws.close(1008, 'Forbidden: Invalid token');
+            return;
+        }
+
         // Security: Limit concurrent connections
         if (clients.size >= MAX_CLIENTS) {
             ws.close(1013, 'Server overloaded: Too many connections');

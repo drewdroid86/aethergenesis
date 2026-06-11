@@ -32,7 +32,8 @@ export function useSimulation(containerRef: React.RefObject<HTMLDivElement | nul
     useEffect(() => {
         const wsHost = window.location.hostname || 'localhost';
         const wsPort = '3001';
-        const wsUrl = `ws://${wsHost}:${wsPort}`;
+        const wsToken = import.meta.env.VITE_WS_TOKEN || 'default_secret';
+        const wsUrl = `ws://${wsHost}:${wsPort}?token=${wsToken}`;
         let socket: any = null;
         let reconnectTimeout: any;
 

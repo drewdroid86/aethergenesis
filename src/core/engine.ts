@@ -159,8 +159,7 @@ export class Engine {
                     let distSq = dx*dx + dy*dy + dz*dz;
                     
                     if (distSq === 0) {
-                        dx = 0.01; dy = 0.01; dz = 0.01;
-                        distSq = 0.0003;
+                        distSq = 1e-6;
                     }
 
                     if (distSq < minDistSq) {

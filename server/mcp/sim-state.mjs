@@ -18,7 +18,8 @@ const server = new Server(
 
 const SIM_PORT = process.env.SIM_PORT || '3001';
 const SIM_HOST = process.env.SIM_HOST || 'localhost';
-const wsUrl = `ws://${SIM_HOST}:${SIM_PORT}`;
+const WS_TOKEN = process.env.WS_TOKEN || 'default_secret';
+const wsUrl = `ws://${SIM_HOST}:${SIM_PORT}?token=${WS_TOKEN}`;
 
 let latestState = null;
 let phaseHistory = [];

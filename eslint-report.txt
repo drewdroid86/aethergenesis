@@ -1,0 +1,295 @@
+
+/data/data/com.termux/files/home/aethergenesis/src/components/AetherGenesis.tsx
+  16:5  error  'fatalError' is assigned a value but never used     @typescript-eslint/no-unused-vars
+  17:5  error  'setFatalError' is assigned a value but never used  @typescript-eslint/no-unused-vars
+
+/data/data/com.termux/files/home/aethergenesis/src/core/constants.ts
+  1:13  error  'THREE' is defined but never used  @typescript-eslint/no-unused-vars
+
+/data/data/com.termux/files/home/aethergenesis/src/core/engine.ts
+  102:36  error  'physicsConstants' is defined but never used  @typescript-eslint/no-unused-vars
+  239:39  error  Unexpected any. Specify a different type      @typescript-eslint/no-explicit-any
+  240:32  error  Unexpected any. Specify a different type      @typescript-eslint/no-explicit-any
+  257:55  error  Unexpected any. Specify a different type      @typescript-eslint/no-explicit-any
+  258:31  error  Unexpected any. Specify a different type      @typescript-eslint/no-explicit-any
+
+/data/data/com.termux/files/home/aethergenesis/src/physics/math.ts
+  21:9  error  'temp' is never reassigned. Use 'const' instead  prefer-const
+
+/data/data/com.termux/files/home/aethergenesis/src/rendering/pipeline.ts
+  33:36  error  'delta' is defined but never used  @typescript-eslint/no-unused-vars
+
+/data/data/com.termux/files/home/aethergenesis/src/rendering/systems/AsteroidBeltSystem.ts
+  33:17  error  'x' is never reassigned. Use 'const' instead                    prefer-const
+  35:17  error  The value assigned to 'y' is not used in subsequent statements  no-useless-assignment
+
+/data/data/com.termux/files/home/aethergenesis/src/rendering/systems/CometSystem.ts
+  114:37  error  'camera' is defined but never used            @typescript-eslint/no-unused-vars
+  200:17  error  'x' is never reassigned. Use 'const' instead  prefer-const
+  203:17  error  'y' is never reassigned. Use 'const' instead  prefer-const
+
+/data/data/com.termux/files/home/aethergenesis/src/rendering/systems/PlanetarySystem.ts
+  249:37  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  297:44  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+/data/data/com.termux/files/home/aethergenesis/src/simulation/AstrobiologyEngine.ts
+  64:9  error  The value assigned to 'thermalScore' is not used in subsequent statements  no-useless-assignment
+  91:9  error  'record' is never reassigned. Use 'const' instead                          prefer-const
+
+/data/data/com.termux/files/home/aethergenesis/src/simulation/OrbitalMechanics.ts
+  87:11  error  'h' is assigned a value but never used  @typescript-eslint/no-unused-vars
+
+/data/data/com.termux/files/home/aethergenesis/src/simulation/SimStateSocket.ts
+   86:26  error  'err' is defined but never used  @typescript-eslint/no-unused-vars
+   91:14  error  'err' is defined but never used  @typescript-eslint/no-unused-vars
+  160:34  error  'e' is defined but never used    @typescript-eslint/no-unused-vars
+  171:38  error  'err' is defined but never used  @typescript-eslint/no-unused-vars
+  177:22  error  'err' is defined but never used  @typescript-eslint/no-unused-vars
+
+/data/data/com.termux/files/home/aethergenesis/src/simulation/nbodyWorker.ts
+    7:5   error  'softeningSq' is never reassigned. Use 'const' instead  prefer-const
+    9:18  error  Unexpected any. Specify a different type                @typescript-eslint/no-explicit-any
+  173:14  error  Unexpected any. Specify a different type                @typescript-eslint/no-explicit-any
+
+/data/data/com.termux/files/home/aethergenesis/src/simulation/phases/MainSequencePhase.ts
+  103:18  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  104:18  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  217:65  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  227:22  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  228:22  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  254:22  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  255:22  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+/data/data/com.termux/files/home/aethergenesis/src/simulation/phases/NebulaPhase.ts
+  66:108  error  'lowDetail' is defined but never used  @typescript-eslint/no-unused-vars
+
+/data/data/com.termux/files/home/aethergenesis/src/simulation/phases/ProtostarPhase.ts
+   86:18   error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   87:18   error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   88:18   error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   95:108  error  'lowDetail' is defined but never used     @typescript-eslint/no-unused-vars
+  105:22   error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  106:22   error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  107:22   error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  108:22   error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  109:22   error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  130:22   error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  131:22   error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  133:22   error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  134:22   error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  136:22   error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  137:22   error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+/data/data/com.termux/files/home/aethergenesis/src/simulation/phases/RemnantPhase.ts
+  140:18  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  141:18  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  159:26  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  160:26  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  161:26  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  162:30  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  237:22  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  238:22  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+/data/data/com.termux/files/home/aethergenesis/src/simulation/phases/SupernovaPhase.ts
+  66:108  error  'lowDetail' is defined but never used  @typescript-eslint/no-unused-vars
+
+/data/data/com.termux/files/home/aethergenesis/src/types/physics.ts
+  1:13  error  'THREE' is defined but never used  @typescript-eslint/no-unused-vars
+
+/data/data/com.termux/files/home/aethergenesis/src/ui/AstrobiologyPanel.tsx
+  8:19  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+/data/data/com.termux/files/home/aethergenesis/src/ui/Hud.tsx
+  163:110  error  Error: Cannot access refs during render
+
+React refs are values that are not needed for rendering. Refs should only be accessed outside of render, such as in event handlers or effects. Accessing a ref value (the `current` property) during render can cause your component not to update as expected (https://react.dev/reference/react/useRef).
+
+/data/data/com.termux/files/home/aethergenesis/src/ui/Hud.tsx:163:110
+  161 |                 </div>
+  162 |                 <div className="text-white"><span className="text-[#7EB8FF]/70 mr-2">POS_X:</span><span ref={uiRefs.hudX}>0.0000</span></div>
+> 163 |                 <div className="text-white"><span className="text-[#7EB8FF]/70 mr-2">POS_Y:</span><span ref={uiRefs.hudY}>0.0000</span></div>
+      |                                                                                                              ^^^^^^^^^^^ Cannot access ref value during render
+  164 |                 <div className="text-white"><span className="text-[#7EB8FF]/70 mr-2">POS_Z:</span><span ref={uiRefs.hudZ}>0.0000</span></div>
+  165 |                 </div>
+  166 |                                                                                                           react-hooks/refs
+  164:110  error  Error: Cannot access refs during render
+
+React refs are values that are not needed for rendering. Refs should only be accessed outside of render, such as in event handlers or effects. Accessing a ref value (the `current` property) during render can cause your component not to update as expected (https://react.dev/reference/react/useRef).
+
+/data/data/com.termux/files/home/aethergenesis/src/ui/Hud.tsx:164:110
+  162 |                 <div className="text-white"><span className="text-[#7EB8FF]/70 mr-2">POS_X:</span><span ref={uiRefs.hudX}>0.0000</span></div>
+  163 |                 <div className="text-white"><span className="text-[#7EB8FF]/70 mr-2">POS_Y:</span><span ref={uiRefs.hudY}>0.0000</span></div>
+> 164 |                 <div className="text-white"><span className="text-[#7EB8FF]/70 mr-2">POS_Z:</span><span ref={uiRefs.hudZ}>0.0000</span></div>
+      |                                                                                                              ^^^^^^^^^^^ Cannot access ref value during render
+  165 |                 </div>
+  166 |
+  167 |                 <div className="absolute left-1/2 -translate-x-1/2 flex flex-col items-center gap-4 w-1/3 pointer-events-auto">  react-hooks/refs
+  214:34   error  Error: Cannot access refs during render
+
+React refs are values that are not needed for rendering. Refs should only be accessed outside of render, such as in event handlers or effects. Accessing a ref value (the `current` property) during render can cause your component not to update as expected (https://react.dev/reference/react/useRef).
+
+/data/data/com.termux/files/home/aethergenesis/src/ui/Hud.tsx:214:34
+  212 |                         
+  213 |                         <div 
+> 214 |                             ref={uiRefs.globalSlider}
+      |                                  ^^^^^^^^^^^^^^^^^^^ Cannot access ref value during render
+  215 |                             role="slider"
+  216 |                             tabIndex={0}
+  217 |                             aria-label="Global cosmic age timeline"                                                                                                                                                                                                                                                                                                                                                                                                    react-hooks/refs
+  228:39   error  Error: Cannot access refs during render
+
+React refs are values that are not needed for rendering. Refs should only be accessed outside of render, such as in event handlers or effects. Accessing a ref value (the `current` property) during render can cause your component not to update as expected (https://react.dev/reference/react/useRef).
+
+/data/data/com.termux/files/home/aethergenesis/src/ui/Hud.tsx:228:39
+  226 |                             onKeyDown={(e) => onKeyDown(e, true)}
+  227 |                         >
+> 228 |                             <div ref={uiRefs.globalTimelineFill} className="h-full bg-gradient-to-r from-[#7EB8FF] to-[#C084FC]" style={{width: `${(cosmicAge / 14.0) * 100}%`}}></div>
+      |                                       ^^^^^^^^^^^^^^^^^^^^^^^^^ Cannot access ref value during render
+  229 |                             <div className="absolute inset-0 bg-white/20 opacity-0 group-hover:opacity-100 transition-opacity"></div>
+  230 |                         </div>
+  231 |                         <span className="font-mono text-2xl font-light tracking-wider mt-2" ref={uiRefs.hudAge}>{cosmicAge.toFixed(2)}</span>                                                      react-hooks/refs
+  231:98   error  Error: Cannot access refs during render
+
+React refs are values that are not needed for rendering. Refs should only be accessed outside of render, such as in event handlers or effects. Accessing a ref value (the `current` property) during render can cause your component not to update as expected (https://react.dev/reference/react/useRef).
+
+/data/data/com.termux/files/home/aethergenesis/src/ui/Hud.tsx:231:98
+  229 |                             <div className="absolute inset-0 bg-white/20 opacity-0 group-hover:opacity-100 transition-opacity"></div>
+  230 |                         </div>
+> 231 |                         <span className="font-mono text-2xl font-light tracking-wider mt-2" ref={uiRefs.hudAge}>{cosmicAge.toFixed(2)}</span>
+      |                                                                                                  ^^^^^^^^^^^^^ Cannot access ref value during render
+  232 |                     </div>
+  233 |                     <p className="text-[10px] text-[#7EB8FF]/50 italic text-center pointer-events-none">"Scrub to T=0 to observe pre-stellar plasma state."</p>
+  234 |                 </div>                                                                         react-hooks/refs
+
+/data/data/com.termux/files/home/aethergenesis/src/ui/InspectPanel.tsx
+  129:18  error  'err' is defined but never used                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  @typescript-eslint/no-unused-vars
+  146:9   error  Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+/data/data/com.termux/files/home/aethergenesis/src/ui/InspectPanel.tsx:146:9
+  144 |
+  145 |     useEffect(() => {
+> 146 |         setGeminiData(null);
+      |         ^^^^^^^^^^^^^ Avoid calling setState() directly within an effect
+  147 |         setAnalysisFailed(false);
+  148 |     }, [selectedStar]);
+  149 |                                                                    react-hooks/set-state-in-effect
+  192:32  error  Error: Cannot access refs during render
+
+React refs are values that are not needed for rendering. Refs should only be accessed outside of render, such as in event handlers or effects. Accessing a ref value (the `current` property) during render can cause your component not to update as expected (https://react.dev/reference/react/useRef).
+
+/data/data/com.termux/files/home/aethergenesis/src/ui/InspectPanel.tsx:192:32
+  190 |                         <Zap size={14} /> Temp (K)
+  191 |                     </span>
+> 192 |                     <span ref={uiRefs.temp} className="text-white">-</span>
+      |                                ^^^^^^^^^^^ Cannot access ref value during render
+  193 |                 </div>
+  194 |                 <div className="flex justify-between items-center">
+  195 |                     <span className="text-[#7EB8FF]/70 uppercase tracking-wider">Mass (M☉)</span>                                                                                                                                                                              react-hooks/refs
+  196:32  error  Error: Cannot access refs during render
+
+React refs are values that are not needed for rendering. Refs should only be accessed outside of render, such as in event handlers or effects. Accessing a ref value (the `current` property) during render can cause your component not to update as expected (https://react.dev/reference/react/useRef).
+
+/data/data/com.termux/files/home/aethergenesis/src/ui/InspectPanel.tsx:196:32
+  194 |                 <div className="flex justify-between items-center">
+  195 |                     <span className="text-[#7EB8FF]/70 uppercase tracking-wider">Mass (M☉)</span>
+> 196 |                     <span ref={uiRefs.mass} className="text-white">-</span>
+      |                                ^^^^^^^^^^^ Cannot access ref value during render
+  197 |                 </div>
+  198 |                 <div className="flex justify-between items-center bg-white/5 p-2 rounded">
+  199 |                     <span className="text-[#7EB8FF]/70 uppercase tracking-wider">Luminosity (L☉)</span>                                                          react-hooks/refs
+  200:32  error  Error: Cannot access refs during render
+
+React refs are values that are not needed for rendering. Refs should only be accessed outside of render, such as in event handlers or effects. Accessing a ref value (the `current` property) during render can cause your component not to update as expected (https://react.dev/reference/react/useRef).
+
+/data/data/com.termux/files/home/aethergenesis/src/ui/InspectPanel.tsx:200:32
+  198 |                 <div className="flex justify-between items-center bg-white/5 p-2 rounded">
+  199 |                     <span className="text-[#7EB8FF]/70 uppercase tracking-wider">Luminosity (L☉)</span>
+> 200 |                     <span ref={uiRefs.lum} className="text-white">-</span>
+      |                                ^^^^^^^^^^ Cannot access ref value during render
+  201 |                 </div>
+  202 |                 <div className="flex justify-between items-center">
+  203 |                     <span className="text-[#7EB8FF]/70 uppercase tracking-wider">Age (Myr)</span>                                                            react-hooks/refs
+  204:32  error  Error: Cannot access refs during render
+
+React refs are values that are not needed for rendering. Refs should only be accessed outside of render, such as in event handlers or effects. Accessing a ref value (the `current` property) during render can cause your component not to update as expected (https://react.dev/reference/react/useRef).
+
+/data/data/com.termux/files/home/aethergenesis/src/ui/InspectPanel.tsx:204:32
+  202 |                 <div className="flex justify-between items-center">
+  203 |                     <span className="text-[#7EB8FF]/70 uppercase tracking-wider">Age (Myr)</span>
+> 204 |                     <span ref={uiRefs.age} className="text-white">-</span>
+      |                                ^^^^^^^^^^ Cannot access ref value during render
+  205 |                 </div>
+  206 |                 
+  207 |                 <div className="mt-8 pt-6 border-t border-[rgba(126,184,255,0.1)] group/timeline">                                                                                                                                           react-hooks/refs
+  227:30  error  Error: Cannot access refs during render
+
+React refs are values that are not needed for rendering. Refs should only be accessed outside of render, such as in event handlers or effects. Accessing a ref value (the `current` property) during render can cause your component not to update as expected (https://react.dev/reference/react/useRef).
+
+/data/data/com.termux/files/home/aethergenesis/src/ui/InspectPanel.tsx:227:30
+  225 |                     </div>
+  226 |                     <div 
+> 227 |                         ref={uiRefs.stellarSlider}
+      |                              ^^^^^^^^^^^^^^^^^^^^ Cannot access ref value during render
+  228 |                         role="slider" 
+  229 |                         tabIndex={0} 
+  230 |                         aria-label="Stellar lifecycle timeline"                                                                                                                                                                                                                                                                          react-hooks/refs
+  240:35  error  Error: Cannot access refs during render
+
+React refs are values that are not needed for rendering. Refs should only be accessed outside of render, such as in event handlers or effects. Accessing a ref value (the `current` property) during render can cause your component not to update as expected (https://react.dev/reference/react/useRef).
+
+/data/data/com.termux/files/home/aethergenesis/src/ui/InspectPanel.tsx:240:35
+  238 |                         onKeyDown={onKeyDown}
+  239 |                     >
+> 240 |                         <div ref={uiRefs.timelineFill} className="h-full bg-gradient-to-r from-blue-500 via-fuchsia-500 to-red-500" style={{width: '0%'}}></div>
+      |                                   ^^^^^^^^^^^^^^^^^^^ Cannot access ref value during render
+  241 |                         <div className="absolute inset-0 bg-white/20 opacity-0 group-hover:opacity-100 transition-opacity"></div>
+  242 |                     </div>
+  243 |                     <div className="flex justify-between mt-2 text-[9px] text-[#7EB8FF]/40 uppercase tracking-widest">  react-hooks/refs
+
+/data/data/com.termux/files/home/aethergenesis/src/utils/hooks/usePerformanceMonitor.ts
+  41:9  error  Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+/data/data/com.termux/files/home/aethergenesis/src/utils/hooks/usePerformanceMonitor.ts:41:9
+  39 |         const initialTier = detectPerformanceTier();
+  40 |         currentTierRef.current = initialTier;
+> 41 |         setCurrentTier(initialTier);
+     |         ^^^^^^^^^^^^^^ Avoid calling setState() directly within an effect
+  42 |     }, [handleTierChange]);
+  43 |
+  44 |     const registerFrameDelta = useCallback((delta: number, currentTime: number) => {  react-hooks/set-state-in-effect
+
+/data/data/com.termux/files/home/aethergenesis/src/utils/hooks/useSimulation.ts
+   30:26  error    Unexpected any. Specify a different type                                                                                                                                                                                                                                                                                                                                @typescript-eslint/no-explicit-any
+   36:21  error    Unexpected any. Specify a different type                                                                                                                                                                                                                                                                                                                                @typescript-eslint/no-explicit-any
+   37:31  error    Unexpected any. Specify a different type                                                                                                                                                                                                                                                                                                                                @typescript-eslint/no-explicit-any
+   44:40  error    Unexpected any. Specify a different type                                                                                                                                                                                                                                                                                                                                @typescript-eslint/no-explicit-any
+   69:36  error    Unexpected any. Specify a different type                                                                                                                                                                                                                                                                                                                                @typescript-eslint/no-explicit-any
+  150:62  error    Unexpected any. Specify a different type                                                                                                                                                                                                                                                                                                                                @typescript-eslint/no-explicit-any
+  348:17  error    'fpsHistory' is never reassigned. Use 'const' instead                                                                                                                                                                                                                                                                                                                   prefer-const
+  413:54  error    Unexpected any. Specify a different type                                                                                                                                                                                                                                                                                                                                @typescript-eslint/no-explicit-any
+  458:59  error    Unexpected any. Specify a different type                                                                                                                                                                                                                                                                                                                                @typescript-eslint/no-explicit-any
+  566:31  error    Unexpected any. Specify a different type                                                                                                                                                                                                                                                                                                                                @typescript-eslint/no-explicit-any
+  660:23  error    Unexpected any. Specify a different type                                                                                                                                                                                                                                                                                                                                @typescript-eslint/no-explicit-any
+  663:8   warning  React Hook useEffect has missing dependencies: 'containerRef', 'hudRefs.globalSlider', 'hudRefs.globalTimelineFill', 'hudRefs.hudAge', 'hudRefs.hudX', 'hudRefs.hudY', 'hudRefs.hudZ', 'uiRefs.age', 'uiRefs.lum', 'uiRefs.mass', 'uiRefs.phase', 'uiRefs.stellarSlider', 'uiRefs.temp', and 'uiRefs.timelineFill'. Either include them or remove the dependency array  react-hooks/exhaustive-deps
+  747:21  error    't' is never reassigned. Use 'const' instead                                                                                                                                                                                                                                                                                                                            prefer-const
+
+/data/data/com.termux/files/home/aethergenesis/src/utils/math.ts
+  3:33  error  'index' is defined but never used  @typescript-eslint/no-unused-vars
+
+/data/data/com.termux/files/home/aethergenesis/src/utils/shaderLoader.ts
+  13:44  error  Unnecessary escape character: \/  no-useless-escape
+
+✖ 91 problems (90 errors, 1 warning)
+  8 errors and 0 warnings potentially fixable with the `--fix` option.
