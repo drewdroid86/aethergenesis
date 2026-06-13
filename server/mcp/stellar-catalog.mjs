@@ -276,6 +276,14 @@ const EXOPLANETS = [
 ];
 
 /**
+ * Sanitizes input strings for ADQL queries by escaping single quotes.
+ */
+function sanitize(str) {
+  if (typeof str !== 'string') return '';
+  return str.replace(/'/g, "''");
+}
+
+/**
  * Estimates stellar physical properties based on spectral class.
  */
 function estimateParams(spType) {
@@ -491,7 +499,8 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       // 2. Query SIMBAD TAP
       try {
         // Query SIMBAD for the star
-        const adql = `SELECT TOP 1 main_id, sp_type, plx_value FROM basic WHERE main_id = '${starName}' OR main_id LIKE '% ${starName}'`;
+        const sStarName = sanitize(starName);
+        const adql = `SELECT TOP 1 main_id, sp_type, plx_value FROM basic WHERE main_id = '${sStarName}' OR main_id LIKE '% ${sStarName}'`;
         const data = await querySimbad(adql);
         
         if (data && data.data && data.data.length > 0) {
@@ -561,7 +570,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       try {
         let filters = ["sp_type IS NOT NULL", "plx_value IS NOT NULL", "plx_value > 0"];
         if (spClass) {
-          filters.push(`sp_type LIKE '${spClass}%'`);
+          filters.push(`sp_type LIKE '${sanitize(spClass)}%'`);
         }
         if (distMax) {
           // plx in mas = 3261.56 / distance_ly
