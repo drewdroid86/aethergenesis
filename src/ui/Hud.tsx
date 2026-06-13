@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Check, Copy, Crosshair, Navigation, Pause, Play } from 'lucide-react';
 
 interface HudProps {
@@ -51,6 +51,15 @@ export const Hud: React.FC<HudProps> = ({
     const [idCopied, setIdCopied] = useState(false);
     const [announcement, setAnnouncement] = useState('');
     const [isDragging, setIsDragging] = useState(false);
+    const [isFirstRender, setIsFirstRender] = useState(true);
+
+    useEffect(() => {
+        if (isFirstRender) {
+            setIsFirstRender(false);
+            return;
+        }
+        announce(`Timescale changed to ${timeScale}`);
+    }, [timeScale]);
 
     const announce = (msg: string) => {
         setAnnouncement(msg);
@@ -198,10 +207,13 @@ export const Hud: React.FC<HudProps> = ({
                             </span>
                             <div className="flex gap-2">
                                 <div
-                                    className="flex bg-[rgba(8,8,20,0.8)] border border-[rgba(126,184,255,0.2)] rounded-full p-0.5 pointer-events-auto mr-2"
+                                    className="flex bg-[rgba(8,8,20,0.8)] border border-[rgba(126,184,255,0.2)] rounded-full p-0.5 pointer-events-auto mr-2 relative group/timescale"
                                     role="radiogroup"
                                     aria-label="Simulation timescale"
                                 >
+                                    <span className="absolute -top-6 left-1/2 -translate-x-1/2 text-[10px] text-[#C084FC] opacity-0 group-hover/timescale:opacity-100 transition-opacity whitespace-nowrap">
+                                        [T] Scale
+                                    </span>
                                     <button 
                                         onClick={() => setTimeScale('cosmic')}
                                         className={`px-3 py-1 text-[9px] uppercase tracking-wider rounded-full transition-colors ${timeScale === 'cosmic' ? 'bg-[#7EB8FF]/20 text-[#7EB8FF]' : 'text-white/40 hover:text-white'}`}
