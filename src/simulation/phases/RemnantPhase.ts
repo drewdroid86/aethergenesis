@@ -25,6 +25,11 @@ export class RemnantPhase implements PhaseComponent {
     private bhDiskMaterial?: THREE.ShaderMaterial;
     private bhDiskGeometry?: THREE.RingGeometry;
 
+    // BOLT: Shared materials cached to eliminate per-frame O(N) loops and lookups
+    private nsMat!: THREE.MeshBasicMaterial;
+    private tubeMat!: THREE.MeshBasicMaterial;
+    private beamMat!: THREE.MeshBasicMaterial;
+
     constructor(mass: number) {
         this.mass = mass;
     }
@@ -34,20 +39,20 @@ export class RemnantPhase implements PhaseComponent {
 
         // Neutron Star
         this.neutronStarGroup = new THREE.Group();
-        const nsMat = new THREE.MeshBasicMaterial({color: 0xaaccff, transparent: true, opacity: 0});
+        this.nsMat = new THREE.MeshBasicMaterial({color: 0xaaccff, transparent: true, opacity: 0});
         this.pulsarGroup = new THREE.Group();
-        const beamMat = new THREE.MeshBasicMaterial({ color: 0x00ffff, transparent: true, opacity: 0, blending: THREE.AdditiveBlending });
-        const beam1 = new THREE.Mesh(GEOMETRIES.pulsarBeam1, beamMat);
-        const beam2 = new THREE.Mesh(GEOMETRIES.pulsarBeam2, beamMat);
+        this.beamMat = new THREE.MeshBasicMaterial({ color: 0x00ffff, transparent: true, opacity: 0, blending: THREE.AdditiveBlending });
+        const beam1 = new THREE.Mesh(GEOMETRIES.pulsarBeam1, this.beamMat);
+        const beam2 = new THREE.Mesh(GEOMETRIES.pulsarBeam2, this.beamMat);
         this.pulsarGroup.add(beam1);
         this.pulsarGroup.add(beam2);
-        this.neutronStarGroup.add(new THREE.Mesh(GEOMETRIES.neutronStar, nsMat));
+        this.neutronStarGroup.add(new THREE.Mesh(GEOMETRIES.neutronStar, this.nsMat));
         this.neutronStarGroup.add(this.pulsarGroup);
         
         const nsMagGroup = new THREE.Group();
-        const tubeMat = new THREE.MeshBasicMaterial({color: 0xaaccff, transparent: true, opacity: 0, blending: THREE.AdditiveBlending});
+        this.tubeMat = new THREE.MeshBasicMaterial({color: 0xaaccff, transparent: true, opacity: 0, blending: THREE.AdditiveBlending});
         for(const tubeGeo of GEOMETRIES.magneticTubes) {
-            nsMagGroup.add(new THREE.Mesh(tubeGeo, tubeMat));
+            nsMagGroup.add(new THREE.Mesh(tubeGeo, this.tubeMat));
         }
         
         this.nsMagneticLines = nsMagGroup;
@@ -181,28 +186,23 @@ export class RemnantPhase implements PhaseComponent {
         const nextOpNs = stepOp(this._opNs, targetNs, speed);
         if (this._opNs !== nextOpNs) {
             this._opNs = nextOpNs;
-            const nsMeshMat = (this.neutronStarGroup.children[0] as THREE.Mesh).material as THREE.MeshBasicMaterial;
-            nsMeshMat.opacity = this._opNs;
+            // BOLT: O(1) opacity update using cached material reference
+            this.nsMat.opacity = this._opNs;
         }
 
         const targetLines = targetNs ? 0.3 : 0;
         const nextOpLines = stepOp(this._opNsLines, targetLines, speed);
         if (this._opNsLines !== nextOpLines) {
             this._opNsLines = nextOpLines;
-            const children = this.nsMagneticLines.children;
-            for (let i = 0; i < children.length; i++) {
-                ((children[i] as THREE.Mesh).material as THREE.MeshBasicMaterial).opacity = this._opNsLines;
-            }
+            // BOLT: O(1) opacity update for all magnetic lines via shared material
+            this.tubeMat.opacity = this._opNsLines;
         }
 
         // Pulsar beams are either on or off for simplicity in opacity guarding
         const targetBeam = targetNs ? 0.6 : 0;
-        const firstBeam = this.pulsarGroup.children[0] as THREE.Mesh;
-        if ((firstBeam.material as THREE.MeshBasicMaterial).opacity !== targetBeam) {
-            const children = this.pulsarGroup.children;
-            for (let i = 0; i < children.length; i++) {
-                ((children[i] as THREE.Mesh).material as THREE.MeshBasicMaterial).opacity = targetBeam;
-            }
+        if (this.beamMat.opacity !== targetBeam) {
+            // BOLT: O(1) opacity update for all beams via shared material
+            this.beamMat.opacity = targetBeam;
         }
         
         const isVisible = this._opNs > STELLAR_CONSTANTS.TRANSITIONS.VISIBILITY_THRESHOLD || this._opNsLines > STELLAR_CONSTANTS.TRANSITIONS.VISIBILITY_THRESHOLD;
