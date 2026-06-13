@@ -30,10 +30,17 @@ export function useSimulation(containerRef: React.RefObject<HTMLDivElement | nul
     const wsRef = useRef<any>(null);
 
     useEffect(() => {
-        const wsHost = window.location.hostname || 'localhost';
-        const wsPort = '3001';
+        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        const host = window.location.hostname || 'localhost';
+        let port = window.location.port;
+
+        // Development override: if on localhost:3000, use 3001 for backend
+        if (host === 'localhost' && (port === '3000' || !port)) {
+            port = '3001';
+        }
+
         const wsToken = import.meta.env.VITE_WS_TOKEN || 'default_secret';
-        const wsUrl = `ws://${wsHost}:${wsPort}?token=${wsToken}`;
+        const wsUrl = `${protocol}//${host}${port ? `:${port}` : ''}?token=${wsToken}`;
         let socket: any = null;
         let reconnectTimeout: any;
 
