@@ -38,10 +38,14 @@ export class MainSequencePhase implements PhaseComponent {
         this.parent = parent;
         this.mainSeqGroup = new THREE.Group();
         
-        let msColor = 0xffaa44; 
-        if (this.mass < 0.3) msColor = 0xcc44bb;        // Brown dwarf — magenta
-        else if (this.mass > STELLAR_CONSTANTS.PHYSICS.MASS_THRESHOLD_SUPERNOVA) msColor = 0x99aaff; 
-        else if (this.mass > STELLAR_CONSTANTS.PHYSICS.MASS_THRESHOLD_INTERMEDIATE) msColor = 0xffffdd; 
+        let msColor: number;
+        if (this.mass < 0.08)      msColor = 0xcc44bb;  // Brown dwarf — magenta
+        else if (this.mass < 0.45) msColor = 0xff3300;  // M class — deep red
+        else if (this.mass < 0.75) msColor = 0xff7722;  // K class — orange
+        else if (this.mass < 1.5)  msColor = 0xfff5cc;  // F class — yellow-white
+        else if (this.mass < 2.1)  msColor = 0xddeeff;  // A class — white-blue
+        else if (this.mass < STELLAR_CONSTANTS.PHYSICS.MASS_THRESHOLD_SUPERNOVA) msColor = 0xaabbff; // B class — blue-white
+        else                       msColor = 0x8899ff;  // O class — deep blue
         
         this.starMat = new THREE.ShaderMaterial({
             vertexShader: subtleDisplacementVS,
@@ -80,7 +84,7 @@ export class MainSequencePhase implements PhaseComponent {
                 varying vec3 vNormal;
                 varying vec3 vWorldPos;
                 void main() {
-                    vNormal = normalize(normalMatrix * normal);
+                    vNormal = normalize(mat3(modelMatrix) * normal);
                     vWorldPos = (modelMatrix * vec4(position, 1.0)).xyz;
                     gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
                 }
