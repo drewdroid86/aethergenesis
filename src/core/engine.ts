@@ -77,17 +77,29 @@ export class Engine {
         container.appendChild(this.renderer.domElement);
 
         this._backgroundStarGeo = new THREE.BufferGeometry();
-        this._backgroundStarMat = new THREE.PointsMaterial({ color: 0xffffff, size: 0.5, transparent: true, opacity: 0.8 });
-        const starVertices = [];
-        for (let i = 0; i < 3000; i++) {
+        this._backgroundStarMat = new THREE.PointsMaterial({ vertexColors: true, size: 2.5, sizeAttenuation: false, transparent: true, opacity: 0.9 });
+        const starVertices: number[] = [];
+        const starColors: number[] = [];
+        const _bgStarPalette = [
+            new THREE.Color(1.00, 1.00, 1.00),  // pure white
+            new THREE.Color(0.90, 0.95, 1.00),  // blue-white
+            new THREE.Color(1.00, 0.97, 0.88),  // warm white
+            new THREE.Color(1.00, 0.88, 0.60),  // yellow
+            new THREE.Color(1.00, 0.60, 0.35),  // orange
+        ];
+        for (let i = 0; i < 5000; i++) {
             const theta = Math.random() * Math.PI * 2;
             const phi = Math.acos(2 * Math.random() - 1);
-            const x = 900 * Math.sin(phi) * Math.cos(theta);
-            const y = 900 * Math.sin(phi) * Math.sin(theta);
-            const z = 900 * Math.cos(phi);
-            starVertices.push(x, y, z);
+            const c = _bgStarPalette[Math.floor(Math.random() * _bgStarPalette.length)];
+            starVertices.push(
+                900 * Math.sin(phi) * Math.cos(theta),
+                900 * Math.sin(phi) * Math.sin(theta),
+                900 * Math.cos(phi)
+            );
+            starColors.push(c.r, c.g, c.b);
         }
         this._backgroundStarGeo.setAttribute('position', new THREE.Float32BufferAttribute(starVertices, 3));
+        this._backgroundStarGeo.setAttribute('color', new THREE.Float32BufferAttribute(starColors, 3));
         this.scene.add(new THREE.Points(this._backgroundStarGeo, this._backgroundStarMat));
 
         this.pipeline = new Pipeline(this.renderer, this.scene, this.camera);
@@ -102,10 +114,16 @@ export class Engine {
     createHeroStars(count: number, physicsConstants: PhysicsConstants) {
         for (let i = 0; i < count; i++) {
             const star = new HeroStarSystem();
+            const _u1 = Math.max(1e-9, Math.random());
+            const _u2 = Math.random();
+            const _u3 = Math.max(1e-9, Math.random());
+            const _u4 = Math.random();
+            const _mag1 = Math.sqrt(-2.0 * Math.log(_u1)) * 180;
+            const _mag2 = Math.sqrt(-2.0 * Math.log(_u3)) * 180;
             star.position.set(
-                (Math.random() - 0.5) * 600,
-                (Math.random() - 0.5) * 600,
-                (Math.random() - 0.5) * 600
+                _mag1 * Math.cos(2 * Math.PI * _u2),
+                _mag2 * Math.sin(2 * Math.PI * _u4) * 0.3,
+                _mag1 * Math.sin(2 * Math.PI * _u2)
             );
             this.scene.add(star);
             this.heroStars.push(star);

@@ -6,7 +6,7 @@ uniform float uTime;
 #include <noise>
 
 void main() {
-    vNormal = normalize(normalMatrix * normal);
+    vNormal = normalize(mat3(modelMatrix) * normal);
     vec3 p = position;
     float d = noise_sin(p * 5.0 + uTime * 2.0) * 0.04;
     p += normal * d;

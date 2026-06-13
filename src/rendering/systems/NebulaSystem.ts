@@ -58,7 +58,7 @@ const fragmentShader = `
         // Soft edge blending
         alpha *= smoothstep(1.0, 0.4, dist);
         
-        gl_FragColor = vec4(finalColor, alpha * 0.4);
+        gl_FragColor = vec4(finalColor, alpha * 0.18);
     }
 `;
 
@@ -96,7 +96,7 @@ export class NebulaSystem {
                 positions[j * 3 + 2] = r * Math.cos(phi);
                 
                 // Individual particle sizes for variation
-                pSizes[j] = 200 + Math.random() * 400;
+                pSizes[j] = 80 + Math.random() * 160;
             }
 
             const geometry = new THREE.BufferGeometry();
@@ -128,7 +128,7 @@ export class NebulaSystem {
             const points = new THREE.Points(geometry, material);
             
             // Position the entire formation further away (behind hero stars)
-            const dist = 800 + Math.random() * 800;
+            const dist = 1400 + Math.random() * 400;
             const t = Math.random() * Math.PI * 2;
             const p = Math.acos(2 * Math.random() - 1);
             
