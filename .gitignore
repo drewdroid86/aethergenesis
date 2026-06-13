@@ -8,10 +8,13 @@ coverage/
 !.env.example
 out.js
 full_file.tsx
+# Generated reports
+eslint-report.txt
 .agents/
 .codex/
 .cursor/
 .gemini/
+.jules/
 .vscode/
 .zed/
 config/
