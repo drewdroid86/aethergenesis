@@ -19,6 +19,11 @@ app.set('trust proxy', 1);
 // Security: Limit payload size to mitigate DoS risks
 app.use(express.json({ limit: '10kb' }));
 
+const allowedOrigins = (process.env.ALLOWED_ORIGINS || 'http://localhost:3000,http://localhost:5173').split(',').map(o => o.trim());
+if (process.env.APP_URL && !allowedOrigins.includes(process.env.APP_URL)) {
+  allowedOrigins.push(process.env.APP_URL);
+}
+
 // Security: Set enhanced security headers
 app.use((_req, res, next) => {
   res.setHeader('X-Content-Type-Options', 'nosniff');
@@ -26,18 +31,22 @@ app.use((_req, res, next) => {
   res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains; preload');
   res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
   const scriptSrc = process.env.NODE_ENV === 'production' ? "'self'" : "'self' 'unsafe-eval'";
-  res.setHeader('Content-Security-Policy', `default-src 'self'; script-src ${scriptSrc}; style-src 'self' 'unsafe-inline'; connect-src 'self' ws: wss:; img-src 'self' data: https:; font-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; upgrade-insecure-requests;`);
+
+  // Security: Restrict connect-src to self and specific allowed origins for WebSockets
+  const wsPort = process.env.SIM_PORT || '3001';
+  const wsOrigins = allowedOrigins.map(o => {
+    const wsBase = o.replace(/^http/, 'ws');
+    return `${wsBase} ${wsBase}:${wsPort}`;
+  }).join(' ');
+  const connectSrc = `'self' ${wsOrigins}`;
+
+  res.setHeader('Content-Security-Policy', `default-src 'self'; script-src ${scriptSrc}; style-src 'self' 'unsafe-inline'; connect-src ${connectSrc}; img-src 'self' data: https:; font-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; upgrade-insecure-requests;`);
   res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
   res.setHeader('Cross-Origin-Opener-Policy', 'same-origin');
   res.setHeader('Cross-Origin-Resource-Policy', 'same-origin');
   res.setHeader('X-XSS-Protection', '0');
   next();
 });
-
-const allowedOrigins = (process.env.ALLOWED_ORIGINS || 'http://localhost:3000,http://localhost:5173').split(',').map(o => o.trim());
-if (process.env.APP_URL && !allowedOrigins.includes(process.env.APP_URL)) {
-  allowedOrigins.push(process.env.APP_URL);
-}
 
 app.use((req, res, next) => { 
     res.setHeader('Vary', 'Origin');
