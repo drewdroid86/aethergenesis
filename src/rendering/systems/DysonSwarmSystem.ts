@@ -33,9 +33,9 @@ export class DysonSwarmSystem {
     update(kardashevTier: number, time: number): void {
         this.swarm.visible = kardashevTier >= 2;
         if (this.swarm.visible) {
-            // Slowly rotate each segment
+            // Slowly rotate the entire swarm group
+            // BOLT: Removed redundant instanceMatrix.needsUpdate since only base rotation changes
             this.swarm.rotation.y = time * 0.01;
-            this.swarm.instanceMatrix.needsUpdate = true;
         }
     }
 
