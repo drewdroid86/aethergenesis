@@ -58,6 +58,10 @@ export class Engine {
     private _backgroundStarGeo: THREE.BufferGeometry;
     private _backgroundStarMat: THREE.PointsMaterial;
 
+    // BOLT: Sweep and Prune scratchpads
+    private _activeStarBuffer: HeroStarSystem[] = [];
+    private _xSortComparator = (a: HeroStarSystem, b: HeroStarSystem) => a.position.x - b.position.x;
+
     constructor(container: HTMLElement) {
         this.container = container;
         this.stellarState = createStellarState('hero_star', 1.0, 0.02, 0);
@@ -151,46 +155,54 @@ export class Engine {
         // Dark Matter affects background star visibility
         this._backgroundStarMat.opacity = 0.1 + (physics.darkMatter || 0) * 2.0;
 
-        // Repulsion physics using softening
+        // BOLT: Sweep and Prune (X-axis spatial pruning) for star repulsion
         const softening = physics.softening || 0.1;
         if (!this.isPaused && !isScrubbing) {
             const minDist = 20 * softening;
             const minDistSq = minDist * minDist;
-            const invMinDist = 1.0 / minDist; // BOLT: Hoist reciprocal
+            const invMinDist = 1.0 / minDist;
 
+            // 1. Prepare buffer of active stars
+            if (this._activeStarBuffer.length !== this.activeHeroStarCount) {
+                this._activeStarBuffer = this.heroStars.slice(0, this.activeHeroStarCount);
+            } else {
+                for (let i = 0; i < this.activeHeroStarCount; i++) {
+                    this._activeStarBuffer[i] = this.heroStars[i];
+                }
+            }
+
+            // 2. Sort stars by X-position (Sweep and Prune)
+            this._activeStarBuffer.sort(this._xSortComparator);
+
+            // 3. Optimized repulsion loop
             for (let i = 0; i < this.activeHeroStarCount; i++) {
-                const s1 = this.heroStars[i];
+                const s1 = this._activeStarBuffer[i];
                 const p1 = s1.position;
-                const p1x = p1.x; // BOLT: Hoist position components
+                const p1x = p1.x;
                 const p1y = p1.y;
                 const p1z = p1.z;
 
                 for (let j = i + 1; j < this.activeHeroStarCount; j++) {
-                    const s2 = this.heroStars[j];
+                    const s2 = this._activeStarBuffer[j];
                     const p2 = s2.position;
 
-                    let dx = p1x - p2.x;
-                    if (Math.abs(dx) > minDist) continue; // Manhattan pruning
+                    // BOLT: Sweep and Prune early break on X-axis
+                    const dx = p1x - p2.x;
+                    if (Math.abs(dx) > minDist) break;
 
-                    let dy = p1y - p2.y;
+                    const dy = p1y - p2.y;
                     if (Math.abs(dy) > minDist) continue;
 
-                    let dz = p1z - p2.z;
+                    const dz = p1z - p2.z;
                     if (Math.abs(dz) > minDist) continue;
 
-                    let distSq = dx*dx + dy*dy + dz*dz;
-                    
-                    if (distSq === 0) {
-                        distSq = 1e-6;
-                    }
-
+                    let distSq = dx * dx + dy * dy + dz * dz;
                     if (distSq < minDistSq) {
+                        if (distSq === 0) distSq = 1e-6;
                         const dist = Math.sqrt(distSq);
                         const invDist = 1.0 / dist;
-                        // BOLT: Cap the magnitude (mag) rather than mag/dist to ensure strong repulsion at close range
                         const rawMag = (minDist - dist) * invMinDist * delta * 30;
-                        const mag = Math.min(rawMag, 10.0);
-                        const f = mag * invDist;
+                        const f = Math.min(rawMag, 10.0) * invDist;
 
                         const fx = dx * f;
                         const fy = dy * f;
