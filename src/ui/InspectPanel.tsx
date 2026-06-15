@@ -51,7 +51,7 @@ export const InspectPanel: React.FC<InspectPanelProps> = ({
     const [geminiData, setGeminiData] = useState<GeminiAnalysisResult | null>(null);
     const [analysisFailed, setAnalysisFailed] = useState(false);
     const [copied, setCopied] = useState(false);
-    const lastAnalysisTimeRef = useRef(0);
+    const [cooldown, setCooldown] = useState(0);
     const [isDragging, setIsDragging] = useState(false);
 
     const copyTelemetry = () => {
@@ -96,12 +96,15 @@ Civilization: ${geminiData.civilization}`;
         onScrubEnd();
     };
 
-    const analyzeSystem = async () => {
-        if (!selectedStar || isAnalyzing) return;
+    useEffect(() => {
+        if (cooldown > 0) {
+            const timer = setTimeout(() => setCooldown(cooldown - 1), 1000);
+            return () => clearTimeout(timer);
+        }
+    }, [cooldown]);
 
-        const now = Date.now();
-        if (now - lastAnalysisTimeRef.current < 5000) return;
-        lastAnalysisTimeRef.current = now;
+    const analyzeSystem = async () => {
+        if (!selectedStar || isAnalyzing || cooldown > 0) return;
 
         try {
             setIsAnalyzing(true);
@@ -126,7 +129,9 @@ Civilization: ${geminiData.civilization}`;
             const data = await response.json() as GeminiAnalysisResult;
             setGeminiData(data);
             setAnalysisFailed(false);
+            setCooldown(5);
         } catch (err) {
+            setCooldown(5);
             console.warn("Analysis unavailable - using predictive fallback.");
             setAnalysisFailed(true);
             setGeminiData({
@@ -169,7 +174,7 @@ Civilization: ${geminiData.civilization}`;
                         aria-label={copied ? "Telemetry Copied" : "Copy Telemetry"}
                         title="Copy Telemetry"
                     >
-                        <span className="absolute -top-6 right-0 text-[10px] text-[#C084FC] opacity-0 group-hover/copy:opacity-100 transition-opacity whitespace-nowrap">
+                        <span className={`absolute -top-6 right-0 text-[10px] text-[#C084FC] transition-opacity whitespace-nowrap ${copied ? 'opacity-100' : 'opacity-0 group-hover/copy:opacity-100'}`}>
                             {copied ? 'Copied!' : 'Copy'}
                         </span>
                         {copied ? <Check size={16} className="text-green-400" /> : <Copy size={16} />}
@@ -257,7 +262,7 @@ Civilization: ${geminiData.civilization}`;
                 <div className="mt-4 pt-4 border-t border-[rgba(126,184,255,0.1)]">
                     <button 
                         onClick={analyzeSystem}
-                        disabled={isAnalyzing}
+                        disabled={isAnalyzing || cooldown > 0}
                         aria-busy={isAnalyzing}
                         className="w-full py-2 bg-[#C084FC]/20 hover:bg-[#C084FC]/40 text-[#C084FC] hover:text-white border border-[#C084FC]/30 rounded transition-all text-[10px] uppercase tracking-widest disabled:opacity-50 flex items-center justify-center gap-2"
                     >
@@ -266,6 +271,8 @@ Civilization: ${geminiData.civilization}`;
                                 <Loader2 size={14} className="animate-spin" />
                                 <span>Analyzing...</span>
                             </>
+                        ) : cooldown > 0 ? (
+                            `Scan Cooldown (${cooldown}s)`
                         ) : (
                             "Gemini AI: Deep Scan"
                         )}
