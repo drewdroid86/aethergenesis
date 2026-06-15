@@ -57,6 +57,8 @@ export class Engine {
     private _projScreenMatrix = new THREE.Matrix4();
     private _backgroundStarGeo: THREE.BufferGeometry;
     private _backgroundStarMat: THREE.PointsMaterial;
+    private _activeStarBuffer: HeroStarSystem[] = [];
+    private _xSortComparator = (a: HeroStarSystem, b: HeroStarSystem) => a.position.x - b.position.x;
 
     constructor(container: HTMLElement) {
         this.container = container;
@@ -151,43 +153,48 @@ export class Engine {
         // Dark Matter affects background star visibility
         this._backgroundStarMat.opacity = 0.1 + (physics.darkMatter || 0) * 2.0;
 
-        // Repulsion physics using softening
+        // BOLT: Repulsion physics using Sweep and Prune (X-axis spatial pruning)
         const softening = physics.softening || 0.1;
         if (!this.isPaused && !isScrubbing) {
             const minDist = 20 * softening;
             const minDistSq = minDist * minDist;
-            const invMinDist = 1.0 / minDist; // BOLT: Hoist reciprocal
+            const invMinDist = 1.0 / minDist;
+
+            // Populate and sort active buffer (X-axis)
+            this._activeStarBuffer.length = this.activeHeroStarCount;
+            for (let i = 0; i < this.activeHeroStarCount; i++) {
+                this._activeStarBuffer[i] = this.heroStars[i];
+            }
+            this._activeStarBuffer.sort(this._xSortComparator);
 
             for (let i = 0; i < this.activeHeroStarCount; i++) {
-                const s1 = this.heroStars[i];
+                const s1 = this._activeStarBuffer[i];
                 const p1 = s1.position;
-                const p1x = p1.x; // BOLT: Hoist position components
+                const p1x = p1.x;
                 const p1y = p1.y;
                 const p1z = p1.z;
 
                 for (let j = i + 1; j < this.activeHeroStarCount; j++) {
-                    const s2 = this.heroStars[j];
+                    const s2 = this._activeStarBuffer[j];
                     const p2 = s2.position;
 
-                    let dx = p1x - p2.x;
-                    if (Math.abs(dx) > minDist) continue; // Manhattan pruning
+                    const dx = p1x - p2.x;
+                    // BOLT: Sweep and Prune early-exit. Since buffer is X-sorted,
+                    // once dx > minDist, all subsequent j will also be > minDist.
+                    if (Math.abs(dx) > minDist) break;
 
-                    let dy = p1y - p2.y;
+                    const dy = p1y - p2.y;
                     if (Math.abs(dy) > minDist) continue;
 
-                    let dz = p1z - p2.z;
+                    const dz = p1z - p2.z;
                     if (Math.abs(dz) > minDist) continue;
 
-                    let distSq = dx*dx + dy*dy + dz*dz;
-                    
-                    if (distSq === 0) {
-                        distSq = 1e-6;
-                    }
+                    let distSq = dx * dx + dy * dy + dz * dz;
+                    if (distSq === 0) distSq = 1e-6;
 
                     if (distSq < minDistSq) {
                         const dist = Math.sqrt(distSq);
                         const invDist = 1.0 / dist;
-                        // BOLT: Cap the magnitude (mag) rather than mag/dist to ensure strong repulsion at close range
                         const rawMag = (minDist - dist) * invMinDist * delta * 30;
                         const mag = Math.min(rawMag, 10.0);
                         const f = mag * invDist;
@@ -223,16 +230,20 @@ export class Engine {
                 star.position.y += star.velocity.y * delta;
                 star.position.z += star.velocity.z * delta;
 
-                if (star.position.lengthSq() > MAX_WORLD_RADIUS_SQ) {
-                    star.position.normalize().multiplyScalar(MAX_WORLD_RADIUS);
-                    // Also zero out velocity to prevent bounce oscillation:
-                    if (star.velocity) { star.velocity.set(0, 0, 0); }
+                // BOLT: Optimize boundary and speed checks by reusing lengthSq results
+                const pLenSq = star.position.lengthSq();
+                if (pLenSq > MAX_WORLD_RADIUS_SQ) {
+                    const factor = MAX_WORLD_RADIUS / Math.sqrt(pLenSq);
+                    star.position.multiplyScalar(factor);
+                    star.velocity.set(0, 0, 0);
                 }
 
                 star.velocity.multiplyScalar(0.97); // Damping
 
-                if (star.velocity.lengthSq() > MAX_SPEED_SQ) {
-                    star.velocity.normalize().multiplyScalar(MAX_SPEED);
+                const vLenSq = star.velocity.lengthSq();
+                if (vLenSq > MAX_SPEED_SQ) {
+                    const factor = MAX_SPEED / Math.sqrt(vLenSq);
+                    star.velocity.multiplyScalar(factor);
                 }
             }
 
