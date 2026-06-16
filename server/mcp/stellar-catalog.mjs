@@ -376,6 +376,22 @@ async function querySimbad(adql) {
 }
 
 /**
+ * Sanitizes input for ADQL queries by truncating and escaping.
+ */
+function sanitizeAdql(str) {
+  if (typeof str !== 'string') return '';
+  // Truncate to safe length and escape single quotes by doubling them
+  return str.substring(0, 64).replace(/'/g, "''");
+}
+
+/**
+ * Validates that a value is a finite number.
+ */
+function isValidNumber(val) {
+  return typeof val === 'number' && !isNaN(val) && isFinite(val);
+}
+
+/**
  * Searches local presets library.
  */
 function findPresetStar(name) {
@@ -455,8 +471,9 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     }
 
     if (name === 'get_exoplanet_systems') {
-      const esiMin = args.esi_min !== undefined ? args.esi_min : 0.7;
-      const limit = args.limit || 10;
+      // Security: Input validation
+      const esiMin = isValidNumber(args.esi_min) ? args.esi_min : 0.7;
+      const limit = isValidNumber(args.limit) ? Math.max(1, Math.min(50, args.limit)) : 10;
       
       const filtered = EXOPLANETS.filter(p => p.earth_similarity_index >= esiMin).slice(0, limit);
       return {
@@ -471,6 +488,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
     if (name === 'get_star_by_name') {
       const starName = args.name;
+      if (typeof starName !== 'string') return { content: [{ type: 'text', text: JSON.stringify({ error: 'Invalid star name', code: 400 }) }] };
       
       // 1. Check presets first
       const preset = findPresetStar(starName);
@@ -490,8 +508,10 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
       // 2. Query SIMBAD TAP
       try {
+        // Security: Sanitize input for ADQL interpolation
+        const safeName = sanitizeAdql(starName);
         // Query SIMBAD for the star
-        const adql = `SELECT TOP 1 main_id, sp_type, plx_value FROM basic WHERE main_id = '${starName}' OR main_id LIKE '% ${starName}'`;
+        const adql = `SELECT TOP 1 main_id, sp_type, plx_value FROM basic WHERE main_id = '${safeName}' OR main_id LIKE '% ${safeName}'`;
         const data = await querySimbad(adql);
         
         if (data && data.data && data.data.length > 0) {
@@ -552,16 +572,18 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
     if (name === 'search_stars') {
       const spClass = args.spectral_class;
-      const massMin = args.mass_min_solar;
-      const massMax = args.mass_max_solar;
-      const distMax = args.distance_max_ly;
-      const limit = Math.min(20, args.limit || 10);
+      // Security: Validate numeric inputs
+      const massMin = isValidNumber(args.mass_min_solar) ? args.mass_min_solar : undefined;
+      const massMax = isValidNumber(args.mass_max_solar) ? args.mass_max_solar : undefined;
+      const distMax = isValidNumber(args.distance_max_ly) && args.distance_max_ly > 0 ? args.distance_max_ly : undefined;
+      const limit = isValidNumber(args.limit) ? Math.max(1, Math.min(20, args.limit)) : 10;
 
       // Try SIMBAD TAP
       try {
         let filters = ["sp_type IS NOT NULL", "plx_value IS NOT NULL", "plx_value > 0"];
-        if (spClass) {
-          filters.push(`sp_type LIKE '${spClass}%'`);
+        if (typeof spClass === 'string') {
+          // Security: Sanitize ADQL input
+          filters.push(`sp_type LIKE '${sanitizeAdql(spClass)}%'`);
         }
         if (distMax) {
           // plx in mas = 3261.56 / distance_ly
