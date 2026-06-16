@@ -26,14 +26,20 @@ export default defineConfig(() => {
     build: {
       rollupOptions: {
         output: {
-          manualChunks: {
-            three: ['three'],
-            react: ['react', 'react-dom'],
-            postprocessing: ['three/addons/postprocessing/EffectComposer.js']
-          }
-        }
-      }
-    }
+          manualChunks: (id) => {
+            if (id.includes('node_modules')) {
+              if (id.includes('three')) {
+                return 'vendor-three';
+              }
+              if (id.includes('react')) {
+                return 'vendor-react';
+              }
+              return 'vendor';
+            }
+          },
+        },
+      },
+    },
   };
 });
 
