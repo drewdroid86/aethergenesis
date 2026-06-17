@@ -51,8 +51,16 @@ export const InspectPanel: React.FC<InspectPanelProps> = ({
     const [geminiData, setGeminiData] = useState<GeminiAnalysisResult | null>(null);
     const [analysisFailed, setAnalysisFailed] = useState(false);
     const [copied, setCopied] = useState(false);
+    const [cooldown, setCooldown] = useState(0);
     const lastAnalysisTimeRef = useRef(0);
     const [isDragging, setIsDragging] = useState(false);
+
+    useEffect(() => {
+        if (cooldown > 0) {
+            const timer = setInterval(() => setCooldown(c => Math.max(0, c - 1)), 1000);
+            return () => clearInterval(timer);
+        }
+    }, [cooldown]);
 
     const copyTelemetry = () => {
         const phase = uiRefs.phase.current?.innerText || '-';
@@ -102,6 +110,7 @@ Civilization: ${geminiData.civilization}`;
         const now = Date.now();
         if (now - lastAnalysisTimeRef.current < 5000) return;
         lastAnalysisTimeRef.current = now;
+        setCooldown(5);
 
         try {
             setIsAnalyzing(true);
@@ -169,7 +178,7 @@ Civilization: ${geminiData.civilization}`;
                         aria-label={copied ? "Telemetry Copied" : "Copy Telemetry"}
                         title="Copy Telemetry"
                     >
-                        <span className="absolute -top-6 right-0 text-[10px] text-[#C084FC] opacity-0 group-hover/copy:opacity-100 transition-opacity whitespace-nowrap">
+                        <span className="absolute -top-6 right-0 text-[10px] text-[#C084FC] opacity-0 group-hover/copy:opacity-100 group-focus-visible/copy:opacity-100 transition-opacity whitespace-nowrap">
                             {copied ? 'Copied!' : 'Copy'}
                         </span>
                         {copied ? <Check size={16} className="text-green-400" /> : <Copy size={16} />}
@@ -180,7 +189,7 @@ Civilization: ${geminiData.civilization}`;
                         aria-label="Close Stellar Telemetry"
                         title="Close [Esc]"
                     >
-                        <span className="absolute -top-6 left-1/2 -translate-x-1/2 text-[10px] text-[#C084FC] opacity-0 group-hover/close:opacity-100 transition-opacity whitespace-nowrap">
+                        <span className="absolute -top-6 left-1/2 -translate-x-1/2 text-[10px] text-[#C084FC] opacity-0 group-hover/close:opacity-100 group-focus-visible/close:opacity-100 transition-opacity whitespace-nowrap">
                             [Esc] Close
                         </span>
                         <X size={20} />
@@ -224,7 +233,7 @@ Civilization: ${geminiData.civilization}`;
                                 aria-label={isPaused ? "Play Simulation" : "Pause Simulation"}
                                 title={isPaused ? "Play Simulation" : "Pause Simulation"}
                             >
-                                <span className="absolute -top-6 left-1/2 -translate-x-1/2 text-[10px] text-[#C084FC] opacity-0 group-hover/pause:opacity-100 transition-opacity whitespace-nowrap">
+                                <span className="absolute -top-6 left-1/2 -translate-x-1/2 text-[10px] text-[#C084FC] opacity-0 group-hover/pause:opacity-100 group-focus-visible/pause:opacity-100 transition-opacity whitespace-nowrap">
                                     [P]
                                 </span>
                                 {isPaused ? <Play size={14} /> : <Pause size={14} />}
@@ -257,7 +266,7 @@ Civilization: ${geminiData.civilization}`;
                 <div className="mt-4 pt-4 border-t border-[rgba(126,184,255,0.1)]">
                     <button 
                         onClick={analyzeSystem}
-                        disabled={isAnalyzing}
+                        disabled={isAnalyzing || cooldown > 0}
                         aria-busy={isAnalyzing}
                         className="w-full py-2 bg-[#C084FC]/20 hover:bg-[#C084FC]/40 text-[#C084FC] hover:text-white border border-[#C084FC]/30 rounded transition-all text-[10px] uppercase tracking-widest disabled:opacity-50 flex items-center justify-center gap-2"
                     >
@@ -266,6 +275,8 @@ Civilization: ${geminiData.civilization}`;
                                 <Loader2 size={14} className="animate-spin" />
                                 <span>Analyzing...</span>
                             </>
+                        ) : cooldown > 0 ? (
+                            `Cooldown: ${cooldown}s`
                         ) : (
                             "Gemini AI: Deep Scan"
                         )}
