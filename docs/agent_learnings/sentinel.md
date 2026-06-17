@@ -22,3 +22,8 @@
 **Vulnerability:** Risk of payload-based DoS and untrusted data from LLM response.
 **Learning:** Even with schema enforcement, LLM responses should be treated as untrusted. Sanitizing outputs protects the client. Setting overly restrictive payload limits (e.g., 1kb) can break legitimate requests; a balanced limit (e.g., 10kb-1mb) is safer.
 **Prevention:** Implement strict whitelisting for AI response fields and set realistic payload limits on the server.
+
+## 2026-05-30 - [ADQL Injection in MCP]
+**Vulnerability:** Unsanitized user input was used directly in ADQL (Astronomical Data Query Language) queries to SIMBAD in the stellar-catalog MCP.
+**Learning:** ADQL is SQL-like and vulnerable to similar injection patterns. Single quotes were not escaped, and input length was not capped, creating risk of both data exfiltration and DoS.
+**Prevention:** Always sanitize or parameterize ADQL queries. Use a helper to truncate string input (to prevent escape splitting) and escape single quotes before embedding in query strings.
