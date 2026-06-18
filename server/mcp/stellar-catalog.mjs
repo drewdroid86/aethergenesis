@@ -386,6 +386,22 @@ function findPresetStar(name) {
   });
 }
 
+/**
+ * Security: Sanitize ADQL input by truncating and escaping single quotes.
+ */
+function sanitizeAdql(val) {
+  if (typeof val !== 'string') return '';
+  // Truncate to 64 chars before escaping to prevent split escape sequences
+  return val.substring(0, 64).replace(/'/g, "''");
+}
+
+/**
+ * Security: Validate numeric parameters.
+ */
+function isValidNumber(v) {
+  return typeof v === 'number' && !isNaN(v) && isFinite(v);
+}
+
 // Register tools
 server.setRequestHandler(ListToolsRequestSchema, async () => {
   return {
@@ -455,6 +471,10 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     }
 
     if (name === 'get_exoplanet_systems') {
+      // Security: Validate numeric parameters
+      if (args.esi_min !== undefined && !isValidNumber(args.esi_min)) throw new Error('Invalid esi_min parameter');
+      if (args.limit !== undefined && !isValidNumber(args.limit)) throw new Error('Invalid limit parameter');
+
       const esiMin = args.esi_min !== undefined ? args.esi_min : 0.7;
       const limit = args.limit || 10;
       
@@ -471,6 +491,9 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
     if (name === 'get_star_by_name') {
       const starName = args.name;
+
+      // Security: Sanitize input for ADQL
+      const sanitizedStarName = sanitizeAdql(starName);
       
       // 1. Check presets first
       const preset = findPresetStar(starName);
@@ -491,7 +514,8 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       // 2. Query SIMBAD TAP
       try {
         // Query SIMBAD for the star
-        const adql = `SELECT TOP 1 main_id, sp_type, plx_value FROM basic WHERE main_id = '${starName}' OR main_id LIKE '% ${starName}'`;
+        // Security: Use sanitized input in ADQL query
+        const adql = `SELECT TOP 1 main_id, sp_type, plx_value FROM basic WHERE main_id = '${sanitizedStarName}' OR main_id LIKE '% ${sanitizedStarName}'`;
         const data = await querySimbad(adql);
         
         if (data && data.data && data.data.length > 0) {
@@ -551,17 +575,26 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     }
 
     if (name === 'search_stars') {
+      // Security: Validate numeric parameters
+      if (args.mass_min_solar !== undefined && !isValidNumber(args.mass_min_solar)) throw new Error('Invalid mass_min_solar parameter');
+      if (args.mass_max_solar !== undefined && !isValidNumber(args.mass_max_solar)) throw new Error('Invalid mass_max_solar parameter');
+      if (args.distance_max_ly !== undefined && !isValidNumber(args.distance_max_ly)) throw new Error('Invalid distance_max_ly parameter');
+      if (args.limit !== undefined && !isValidNumber(args.limit)) throw new Error('Invalid limit parameter');
+
       const spClass = args.spectral_class;
       const massMin = args.mass_min_solar;
       const massMax = args.mass_max_solar;
       const distMax = args.distance_max_ly;
       const limit = Math.min(20, args.limit || 10);
 
+      // Security: Sanitize input for ADQL
+      const sanitizedSpClass = spClass ? sanitizeAdql(spClass) : null;
+
       // Try SIMBAD TAP
       try {
         let filters = ["sp_type IS NOT NULL", "plx_value IS NOT NULL", "plx_value > 0"];
-        if (spClass) {
-          filters.push(`sp_type LIKE '${spClass}%'`);
+        if (sanitizedSpClass) {
+          filters.push(`sp_type LIKE '${sanitizedSpClass}%'`);
         }
         if (distMax) {
           // plx in mas = 3261.56 / distance_ly
