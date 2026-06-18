@@ -58,6 +58,10 @@ export class Engine {
     private _backgroundStarGeo: THREE.BufferGeometry;
     private _backgroundStarMat: THREE.PointsMaterial;
 
+    // BOLT: Persistent buffers for Sweep and Prune
+    private _activeStarBuffer: HeroStarSystem[] = [];
+    private _xSortComparator = (a: HeroStarSystem, b: HeroStarSystem) => a.position.x - b.position.x;
+
     constructor(container: HTMLElement) {
         this.container = container;
         this.stellarState = createStellarState('hero_star', 1.0, 0.02, 0);
@@ -158,19 +162,28 @@ export class Engine {
             const minDistSq = minDist * minDist;
             const invMinDist = 1.0 / minDist; // BOLT: Hoist reciprocal
 
+            // BOLT: Populate and sort buffer for Sweep and Prune (X-axis spatial partitioning)
+            this._activeStarBuffer.length = 0;
             for (let i = 0; i < this.activeHeroStarCount; i++) {
-                const s1 = this.heroStars[i];
+                this._activeStarBuffer.push(this.heroStars[i]);
+            }
+            this._activeStarBuffer.sort(this._xSortComparator);
+
+            for (let i = 0; i < this.activeHeroStarCount; i++) {
+                const s1 = this._activeStarBuffer[i];
                 const p1 = s1.position;
                 const p1x = p1.x; // BOLT: Hoist position components
                 const p1y = p1.y;
                 const p1z = p1.z;
 
                 for (let j = i + 1; j < this.activeHeroStarCount; j++) {
-                    const s2 = this.heroStars[j];
+                    const s2 = this._activeStarBuffer[j];
                     const p2 = s2.position;
 
-                    let dx = p1x - p2.x;
-                    if (Math.abs(dx) > minDist) continue; // Manhattan pruning
+                    // BOLT: Sweep and Prune early exit — since stars are sorted by X,
+                    // we can stop as soon as the X-distance exceeds minDist.
+                    const dx_abs = p2.x - p1x; // p2.x >= p1x due to sort
+                    if (dx_abs > minDist) break;
 
                     let dy = p1y - p2.y;
                     if (Math.abs(dy) > minDist) continue;
@@ -178,6 +191,7 @@ export class Engine {
                     let dz = p1z - p2.z;
                     if (Math.abs(dz) > minDist) continue;
 
+                    const dx = p1x - p2.x; // Re-calculate signed dx for force direction
                     let distSq = dx*dx + dy*dy + dz*dz;
                     
                     if (distSq === 0) {
