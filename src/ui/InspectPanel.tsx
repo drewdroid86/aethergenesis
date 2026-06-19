@@ -113,7 +113,7 @@ Civilization: ${geminiData.civilization}`;
     };
 
     const analyzeSystem = async () => {
-        if (!selectedStar || isAnalyzing) return;
+        if (!selectedStar || isAnalyzing || cooldownRemaining > 0) return;
 
         const now = Date.now();
         const timeSinceLast = now - lastAnalysisTimeRef.current;
