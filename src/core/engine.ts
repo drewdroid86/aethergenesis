@@ -57,6 +57,8 @@ export class Engine {
     private _projScreenMatrix = new THREE.Matrix4();
     private _backgroundStarGeo: THREE.BufferGeometry;
     private _backgroundStarMat: THREE.PointsMaterial;
+    private _activeStarBuffer: HeroStarSystem[] = []; // BOLT: Persistent buffer to avoid per-frame slice()
+    private _xSortComparator = (a: HeroStarSystem, b: HeroStarSystem) => a.position.x - b.position.x;
 
     constructor(container: HTMLElement) {
         this.container = container;
@@ -158,25 +160,39 @@ export class Engine {
             const minDistSq = minDist * minDist;
             const invMinDist = 1.0 / minDist; // BOLT: Hoist reciprocal
 
+            // BOLT: Populate persistent buffer to avoid per-frame allocation
+            if (this._activeStarBuffer.length !== this.activeHeroStarCount) {
+                this._activeStarBuffer = this.heroStars.slice(0, this.activeHeroStarCount);
+            } else {
+                for (let i = 0; i < this.activeHeroStarCount; i++) {
+                    this._activeStarBuffer[i] = this.heroStars[i];
+                }
+            }
+
+            // BOLT: Sort active stars by X-axis for Sweep and Prune
+            this._activeStarBuffer.sort(this._xSortComparator);
+
             for (let i = 0; i < this.activeHeroStarCount; i++) {
-                const s1 = this.heroStars[i];
+                const s1 = this._activeStarBuffer[i];
                 const p1 = s1.position;
-                const p1x = p1.x; // BOLT: Hoist position components
+                const p1x = p1.x;
                 const p1y = p1.y;
                 const p1z = p1.z;
 
                 for (let j = i + 1; j < this.activeHeroStarCount; j++) {
-                    const s2 = this.heroStars[j];
+                    const s2 = this._activeStarBuffer[j];
                     const p2 = s2.position;
 
-                    let dx = p1x - p2.x;
-                    if (Math.abs(dx) > minDist) continue; // Manhattan pruning
+                    // BOLT: X-axis spatial pruning - since we're sorted by X and j > i,
+                    // p2.x >= p1x, so dx is p1x - p2.x (negative or zero).
+                    const dx = p1x - p2.x;
+                    if (dx < -minDist) break; // Break early as all subsequent p2.x will be even further
 
-                    let dy = p1y - p2.y;
-                    if (Math.abs(dy) > minDist) continue;
+                    const dy = p1y - p2.y;
+                    if (dy > minDist || dy < -minDist) continue;
 
-                    let dz = p1z - p2.z;
-                    if (Math.abs(dz) > minDist) continue;
+                    const dz = p1z - p2.z;
+                    if (dz > minDist || dz < -minDist) continue;
 
                     let distSq = dx*dx + dy*dy + dz*dz;
                     
@@ -223,16 +239,20 @@ export class Engine {
                 star.position.y += star.velocity.y * delta;
                 star.position.z += star.velocity.z * delta;
 
-                if (star.position.lengthSq() > MAX_WORLD_RADIUS_SQ) {
-                    star.position.normalize().multiplyScalar(MAX_WORLD_RADIUS);
+                const lSq = star.position.lengthSq();
+                if (lSq > MAX_WORLD_RADIUS_SQ) {
+                    // BOLT: Avoid normalize() which does redundant sqrt. Use pre-calc lSq.
+                    star.position.multiplyScalar(MAX_WORLD_RADIUS / Math.sqrt(lSq));
                     // Also zero out velocity to prevent bounce oscillation:
                     if (star.velocity) { star.velocity.set(0, 0, 0); }
                 }
 
                 star.velocity.multiplyScalar(0.97); // Damping
 
-                if (star.velocity.lengthSq() > MAX_SPEED_SQ) {
-                    star.velocity.normalize().multiplyScalar(MAX_SPEED);
+                const vSq = star.velocity.lengthSq();
+                if (vSq > MAX_SPEED_SQ) {
+                    // BOLT: Avoid normalize() for speed capping
+                    star.velocity.multiplyScalar(MAX_SPEED / Math.sqrt(vSq));
                 }
             }
 

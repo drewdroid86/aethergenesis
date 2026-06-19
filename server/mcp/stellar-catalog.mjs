@@ -287,6 +287,14 @@ const EXOPLANETS = [
 ];
 
 /**
+ * Sanitizes input strings for ADQL queries by escaping single quotes.
+ */
+function sanitize(str) {
+  if (typeof str !== 'string') return '';
+  return str.replace(/'/g, "''");
+}
+
+/**
  * Estimates stellar physical properties based on spectral class.
  */
 function estimateParams(spType) {
@@ -579,7 +587,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       try {
         let filters = ["sp_type IS NOT NULL", "plx_value IS NOT NULL", "plx_value > 0"];
         if (spClass) {
-          filters.push(`sp_type LIKE '${spClass}%'`);
+          filters.push(`sp_type LIKE '${sanitize(spClass)}%'`);
         }
         if (distMax) {
           // plx in mas = 3261.56 / distance_ly
