@@ -42,6 +42,8 @@ ${planet.civilizationTier > 0 ? `- Civilization: Type ${planet.civilizationTier}
             initial={{ opacity: 0, x: -20, filter: 'blur(10px)' }}
             animate={{ opacity: 1, x: 0, filter: 'blur(0px)' }}
             exit={{ opacity: 0, x: -20, filter: 'blur(10px)' }}
+            role="region"
+            aria-label="Astrobiology Report"
             className="absolute left-6 top-24 w-80 max-h-[calc(100vh-8rem)] overflow-y-auto pointer-events-auto custom-scrollbar"
         >
             <div className="bg-black/40 backdrop-blur-md border border-white/10 rounded-2xl p-5 shadow-2xl">
