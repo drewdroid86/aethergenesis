@@ -14,10 +14,6 @@
 **Learning:** High-resolution post-processing passes like `UnrealBloomPass` can be a significant GPU bottleneck. Halving the resolution of these passes (e.g., `pass.resolution.set(w/2, h/2)`) can reclaim substantial GPU cycles with minimal impact on perceived visual fidelity.
 **Action:** Scale down expensive post-processing effects by default to ensure smooth performance across a wider range of hardware.
 
-## 2025-05-17 - [Sweep and Prune for O(N^2) Pruning]
-**Learning:** For repulsion physics or collision detection, Manhattan pruning (AABB) is a good first step, but Sweep and Prune (sorting along one axis) allows for an early-exit `break` in the inner loop. This reduces the complexity from $O(N^2)$ towards $O(N \log N)$, significantly improving performance as the number of active objects increases.
-**Action:** Implement Sweep and Prune for all many-body interaction loops. Maintain a persistent buffer to avoid per-frame GC pressure and use a hoisted comparator to prevent function allocation overhead.
-
-## 2025-05-17 - [Vite 8 Manual Chunks Compatibility]
-**Learning:** In Vite 8 (using Rolldown), `manualChunks` in `rollupOptions` must be defined as a function `(id) => string` rather than an object map. Using an object results in a `TypeError: manualChunks is not a function` during the build process.
-**Action:** Always use the functional form of `manualChunks` to ensure compatibility with modern Vite/Rolldown build environments.
+## 2026-06-15 - [Vite 8/Rolldown manualChunks Requirement]
+**Learning:** In Vite 8 with the Rolldown bundler, `manualChunks` in `rollupOptions.output` must be provided as a function `(id) => string` rather than an object mapping. Providing an object causes the build to fail with a `TypeError: manualChunks is not a function`.
+**Action:** Always use the function syntax for `manualChunks` in Vite 8+ environments to ensure cross-bundler compatibility and prevent build failures.
