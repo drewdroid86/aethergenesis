@@ -28,14 +28,19 @@ export default defineConfig(() => {
         output: {
           manualChunks: (id) => {
             if (id.includes('node_modules')) {
-              if (id.includes('three')) return 'vendor-three';
-              if (id.includes('react') || id.includes('motion')) return 'vendor-react';
-              return 'vendor';
+              if (id.includes('three/addons/postprocessing/EffectComposer.js')) {
+                return 'postprocessing';
+              }
+              if (id.includes('three')) {
+                return 'three';
+              }
+              if (id.includes('react') || id.includes('motion')) {
+                return 'vendor-core';
+              }
             }
-          }
-        }
-      }
+          },
+        },
+      },
     }
   };
 });
-

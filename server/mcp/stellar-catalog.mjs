@@ -17,6 +17,17 @@ const server = new Server(
 
 const SIMBAD_BASE_URL = process.env.SIMBAD_BASE_URL || 'https://simbad.u-strasbg.fr/simbad/sim-tap/sync';
 
+/**
+ * Security: Sanitizes user input for ADQL queries to prevent injection.
+ * Escapes single quotes by doubling them and enforces length limits.
+ * Note: Truncates BEFORE escaping to prevent splitting an escape pair.
+ */
+function sanitizeAdql(input, maxLength = 64) {
+  if (typeof input !== 'string') return '';
+  const truncated = input.substring(0, maxLength);
+  return truncated.replace(/'/g, "''");
+}
+
 // Preset library: 10 stars from literature
 const PRESETS = [
   {
@@ -276,21 +287,11 @@ const EXOPLANETS = [
 ];
 
 /**
- * Sanitizes user input for ADQL queries.
- * Truncates to avoid DoS and escapes single quotes to prevent injection.
- * Truncation happens BEFORE escaping to ensure escape characters aren't split.
+ * Sanitizes input strings for ADQL queries by escaping single quotes.
  */
-function sanitizeAdql(val, maxLength = 64) {
-  if (typeof val !== 'string') return '';
-  const truncated = val.substring(0, maxLength);
-  return truncated.replace(/'/g, "''");
-}
-
-/**
- * Validates numeric inputs are finite numbers.
- */
-function isValidNumber(val) {
-  return typeof val === 'number' && !isNaN(val) && isFinite(val);
+function sanitize(str) {
+  if (typeof str !== 'string') return '';
+  return str.replace(/'/g, "''");
 }
 
 /**
@@ -367,6 +368,22 @@ function estimateParams(spType) {
     metallicity_Z: metallicity
   };
 }
+
+/**
+ * Security: Sanitize ADQL string inputs to prevent injection.
+ * Truncates to 64 chars and escapes single quotes.
+ */
+function sanitizeAdql(input) {
+  if (typeof input !== 'string') return '';
+  // Security: Truncate BEFORE escaping to prevent splitting an escape sequence
+  const truncated = input.substring(0, 64);
+  return truncated.replace(/'/g, "''");
+}
+
+/**
+ * Security: Strict numeric validation helper.
+ */
+const isValidNumber = (v) => typeof v === 'number' && !isNaN(v) && isFinite(v);
 
 /**
  * Executes a TAP query on SIMBAD with a 5s timeout.
@@ -475,11 +492,6 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     if (name === 'get_exoplanet_systems') {
       const esiMin = args.esi_min !== undefined ? args.esi_min : 0.7;
       const limit = args.limit || 10;
-
-      // Security: Validate numeric input
-      if (!isValidNumber(esiMin)) {
-        throw new Error('Invalid esi_min: must be a finite number');
-      }
       
       const filtered = EXOPLANETS.filter(p => p.earth_similarity_index >= esiMin).slice(0, limit);
       return {
@@ -494,12 +506,9 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
     if (name === 'get_star_by_name') {
       const starName = args.name;
-      if (typeof starName !== 'string') throw new Error('Star name must be a string');
+      if (!starName || typeof starName !== 'string') throw new Error('Invalid star name provided');
       
-      // Security: Sanitize input for ADQL query
-      const sanitizedName = sanitizeAdql(starName);
-
-      // 1. Check presets first (use raw name for preset matching)
+      // 1. Check presets first
       const preset = findPresetStar(starName);
       if (preset) {
         return {
@@ -517,8 +526,11 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
       // 2. Query SIMBAD TAP
       try {
-        // Query SIMBAD for the star using sanitized name
-        const adql = `SELECT TOP 1 main_id, sp_type, plx_value FROM basic WHERE main_id = '${sanitizedName}' OR main_id LIKE '% ${sanitizedName}'`;
+        // Security: Sanitize only for the ADQL query
+        const safeName = sanitizeAdql(starName);
+
+        // Query SIMBAD for the star
+        const adql = `SELECT TOP 1 main_id, sp_type, plx_value FROM basic WHERE main_id = '${safeName}' OR main_id LIKE '% ${safeName}'`;
         const data = await querySimbad(adql);
         
         if (data && data.data && data.data.length > 0) {
@@ -578,26 +590,23 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     }
 
     if (name === 'search_stars') {
-      const spClass = args.spectral_class;
-      const massMin = args.mass_min_solar;
-      const massMax = args.mass_max_solar;
-      const distMax = args.distance_max_ly;
-      const limit = Math.min(20, args.limit || 10);
+      const spClass = sanitizeAdql(args.spectral_class);
 
-      // Security: Validate numeric filters
-      if (massMin !== undefined && !isValidNumber(massMin)) throw new Error('Invalid mass_min_solar');
-      if (massMax !== undefined && !isValidNumber(massMax)) throw new Error('Invalid mass_max_solar');
-      if (distMax !== undefined && !isValidNumber(distMax)) throw new Error('Invalid distance_max_ly');
+      // Security: Validate numeric inputs
+      const isValidNum = (v) => typeof v === 'number' && !isNaN(v) && isFinite(v);
+      const massMin = isValidNum(args.mass_min_solar) ? args.mass_min_solar : undefined;
+      const massMax = isValidNum(args.mass_max_solar) ? args.mass_max_solar : undefined;
+      const distMax = isValidNum(args.distance_max_ly) ? args.distance_max_ly : undefined;
+      const limit = Math.min(20, (isValidNum(args.limit) && args.limit > 0) ? args.limit : 10);
 
       // Try SIMBAD TAP
       try {
         let filters = ["sp_type IS NOT NULL", "plx_value IS NOT NULL", "plx_value > 0"];
         if (spClass) {
-          // Security: Sanitize spectral class input
-          const sanitizedSp = sanitizeAdql(spClass, 16);
-          filters.push(`sp_type LIKE '${sanitizedSp}%'`);
+          filters.push(`sp_type LIKE '${sanitizeAdql(spClass)}%'`);
         }
-        if (distMax) {
+        // Security: Strict validation for numeric distance parameter
+        if (isValidNumber(distMax) && distMax > 0) {
           // plx in mas = 3261.56 / distance_ly
           const plxMin = 3261.56 / distMax;
           filters.push(`plx_value >= ${plxMin}`);
@@ -617,8 +626,8 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
             const params = estimateParams(spType);
 
             // Mass filters
-            if (massMin !== undefined && params.mass_solar < massMin) continue;
-            if (massMax !== undefined && params.mass_solar > massMax) continue;
+            if (isValidNumber(massMin) && params.mass_solar < massMin) continue;
+            if (isValidNumber(massMax) && params.mass_solar > massMax) continue;
 
             results.push({
               name: mainId,
@@ -662,13 +671,13 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       if (spClass) {
         results = results.filter(r => r.spectral_class.toUpperCase().startsWith(spClass.toUpperCase()));
       }
-      if (massMin !== undefined) {
+      if (isValidNumber(massMin)) {
         results = results.filter(r => r.mass_solar >= massMin);
       }
-      if (massMax !== undefined) {
+      if (isValidNumber(massMax)) {
         results = results.filter(r => r.mass_solar <= massMax);
       }
-      if (distMax !== undefined) {
+      if (isValidNumber(distMax)) {
         results = results.filter(r => r.distance_ly <= distMax);
       }
 

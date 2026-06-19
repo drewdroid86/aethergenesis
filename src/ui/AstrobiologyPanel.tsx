@@ -11,6 +11,12 @@ interface AstrobiologyPanelProps {
 
 export const AstrobiologyPanel: React.FC<AstrobiologyPanelProps> = ({ data, selectedStar, onClose }) => {
     const [copied, setCopied] = useState(false);
+    const [announcement, setAnnouncement] = useState('');
+
+    const announce = (msg: string) => {
+        setAnnouncement(msg);
+        setTimeout(() => setAnnouncement(''), 3000);
+    };
 
     const copyReport = () => {
         const report = data.map((planet, i) => {
@@ -26,6 +32,7 @@ ${planet.civilizationTier > 0 ? `- Civilization: Type ${planet.civilizationTier}
 
         navigator.clipboard.writeText(header + report).then(() => {
             setCopied(true);
+            announce('Astrobiology report copied to clipboard');
             setTimeout(() => setCopied(false), 2000);
         });
     };
@@ -35,6 +42,8 @@ ${planet.civilizationTier > 0 ? `- Civilization: Type ${planet.civilizationTier}
             initial={{ opacity: 0, x: -20, filter: 'blur(10px)' }}
             animate={{ opacity: 1, x: 0, filter: 'blur(0px)' }}
             exit={{ opacity: 0, x: -20, filter: 'blur(10px)' }}
+            role="region"
+            aria-label="Astrobiology Report"
             className="absolute left-6 top-24 w-80 max-h-[calc(100vh-8rem)] overflow-y-auto pointer-events-auto custom-scrollbar"
         >
             <div className="bg-black/40 backdrop-blur-md border border-white/10 rounded-2xl p-5 shadow-2xl">
@@ -50,7 +59,7 @@ ${planet.civilizationTier > 0 ? `- Civilization: Type ${planet.civilizationTier}
                             aria-label={copied ? "Astrobiology Report Copied" : "Copy Astrobiology Report"}
                             title="Copy Report"
                         >
-                            <span className="absolute -top-6 right-0 text-[10px] text-[#C084FC] opacity-0 group-hover/copy:opacity-100 transition-opacity whitespace-nowrap">
+                            <span className={`absolute -top-6 right-0 text-[10px] text-[#C084FC] transition-opacity whitespace-nowrap ${copied ? 'opacity-100' : 'opacity-0 group-hover/copy:opacity-100'}`}>
                                 {copied ? 'Copied!' : 'Copy'}
                             </span>
                             {copied ? <Check size={16} className="text-green-400" /> : <Copy size={16} />}
@@ -146,6 +155,10 @@ ${planet.civilizationTier > 0 ? `- Civilization: Type ${planet.civilizationTier}
                         ))}
                     </AnimatePresence>
                 </div>
+            </div>
+            {/* Screen Reader Announcements */}
+            <div className="sr-only" role="region" aria-live="polite">
+                {announcement}
             </div>
         </motion.div>
     );

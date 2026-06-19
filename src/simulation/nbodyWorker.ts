@@ -10,6 +10,7 @@ let tickTimeout: any = null;
 
 // BOLT: Persistent buffers for zero-allocation
 let forceBuffer = new Float32Array(0);
+let invMassBuffer = new Float32Array(0);
 let forcesValid = false;
 
 const G_mu = 4.0 * Math.PI * Math.PI;
@@ -111,6 +112,9 @@ function physicsTick() {
         forceBuffer = new Float32Array(n * 3);
         forcesValid = false;
     }
+    if (invMassBuffer.length !== n) {
+        invMassBuffer = new Float32Array(n);
+    }
 
     // Velocity Verlet Integrator (optimized to 1 force calc per tick)
     
@@ -122,17 +126,16 @@ function physicsTick() {
 
     const dt_half = dt_yr * 0.5;
 
-    // BOLT: Consolidate invMass calculation once per tick per body
-    const invMasses = new Float32Array(n);
+    // BOLT: Reuse invMassBuffer to eliminate per-frame allocations
     for (let i = 0; i < n; i++) {
-        invMasses[i] = 1.0 / bodies[i].mass_solar;
+        invMassBuffer[i] = 1.0 / bodies[i].mass_solar;
     }
 
     // 2. First half-step: v(t + dt/2) = v(t) + a(t) * dt/2
     //    And full-step position: r(t + dt) = r(t) + v(t + dt/2) * dt
     for (let i = 0; i < n; i++) {
         const b = bodies[i];
-        const invMass = invMasses[i];
+        const invMass = invMassBuffer[i];
 
         const ax = forceBuffer[i * 3 + 0] * invMass;
         const ay = forceBuffer[i * 3 + 1] * invMass;
@@ -153,7 +156,7 @@ function physicsTick() {
     // 4. Second half-step: v(t + dt) = v(t + dt/2) + a(t + dt) * dt/2
     for (let i = 0; i < n; i++) {
         const b = bodies[i];
-        const invMass = invMasses[i];
+        const invMass = invMassBuffer[i];
 
         const ax = forceBuffer[i * 3 + 0] * invMass;
         const ay = forceBuffer[i * 3 + 1] * invMass;
