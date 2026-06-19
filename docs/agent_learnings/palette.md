@@ -25,3 +25,11 @@
 ## 2025-05-16 - [Keyboard Navigation for Custom Sliders]
 **Learning:** Custom slider components (implemented as divs with `role="slider"`) require explicit `tabIndex={0}` and keyboard event handlers (`onKeyDown`) to be accessible. In performance-sensitive Three.js apps where state updates are throttled or ref-driven, using direct DOM manipulation (`setAttribute`) for `aria-valuenow` and `aria-valuetext` ensures that screen readers remain synchronized with the visual state without triggering expensive React re-renders.
 **Action:** Always implement Arrow, Home, and End key support for custom sliders and synchronize ARIA attributes directly when using ref-based state management.
+
+## 2026-06-15 - [State-Driven Feedback vs. Hover States]
+**Learning:** Tooltips for action confirmations (like "Copied!") that rely on CSS `:hover` are easily missed if the user moves their cursor immediately after clicking. Decoupling confirmation visibility from the hover state using transient React state and a fixed timer ensures the feedback is perceived regardless of subsequent mouse movement.
+**Action:** Use local state and `setTimeout` to manage the visibility of confirmation tooltips, rather than relying on the mouse remaining over the element.
+
+## 2026-06-15 - [Throttled UI Feedback with Countdowns]
+**Learning:** Throttled or rate-limited interactions (like AI 'Deep Scans') can appear unresponsive if the UI doesn't explicitly communicate the cooldown. Providing a visible countdown directly on the button during the lockout period transforms a "dead" interaction into a predictable system state.
+**Action:** Implement visual countdowns or duration-based progress indicators for all rate-limited UI actions.
