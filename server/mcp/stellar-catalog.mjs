@@ -370,6 +370,22 @@ function estimateParams(spType) {
 }
 
 /**
+ * Security: Sanitize ADQL string inputs to prevent injection.
+ * Truncates to 64 chars and escapes single quotes.
+ */
+function sanitizeAdql(input) {
+  if (typeof input !== 'string') return '';
+  // Security: Truncate BEFORE escaping to prevent splitting an escape sequence
+  const truncated = input.substring(0, 64);
+  return truncated.replace(/'/g, "''");
+}
+
+/**
+ * Security: Strict numeric validation helper.
+ */
+const isValidNumber = (v) => typeof v === 'number' && !isNaN(v) && isFinite(v);
+
+/**
  * Executes a TAP query on SIMBAD with a 5s timeout.
  */
 async function querySimbad(adql) {
@@ -587,9 +603,10 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       try {
         let filters = ["sp_type IS NOT NULL", "plx_value IS NOT NULL", "plx_value > 0"];
         if (spClass) {
-          filters.push(`sp_type LIKE '${sanitize(spClass)}%'`);
+          filters.push(`sp_type LIKE '${sanitizeAdql(spClass)}%'`);
         }
-        if (distMax) {
+        // Security: Strict validation for numeric distance parameter
+        if (isValidNumber(distMax) && distMax > 0) {
           // plx in mas = 3261.56 / distance_ly
           const plxMin = 3261.56 / distMax;
           filters.push(`plx_value >= ${plxMin}`);
@@ -609,8 +626,8 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
             const params = estimateParams(spType);
 
             // Mass filters
-            if (massMin !== undefined && params.mass_solar < massMin) continue;
-            if (massMax !== undefined && params.mass_solar > massMax) continue;
+            if (isValidNumber(massMin) && params.mass_solar < massMin) continue;
+            if (isValidNumber(massMax) && params.mass_solar > massMax) continue;
 
             results.push({
               name: mainId,
@@ -654,13 +671,13 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       if (spClass) {
         results = results.filter(r => r.spectral_class.toUpperCase().startsWith(spClass.toUpperCase()));
       }
-      if (massMin !== undefined) {
+      if (isValidNumber(massMin)) {
         results = results.filter(r => r.mass_solar >= massMin);
       }
-      if (massMax !== undefined) {
+      if (isValidNumber(massMax)) {
         results = results.filter(r => r.mass_solar <= massMax);
       }
-      if (distMax !== undefined) {
+      if (isValidNumber(distMax)) {
         results = results.filter(r => r.distance_ly <= distMax);
       }
 
