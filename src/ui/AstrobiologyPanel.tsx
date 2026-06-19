@@ -11,6 +11,12 @@ interface AstrobiologyPanelProps {
 
 export const AstrobiologyPanel: React.FC<AstrobiologyPanelProps> = ({ data, selectedStar, onClose }) => {
     const [copied, setCopied] = useState(false);
+    const [announcement, setAnnouncement] = useState('');
+
+    const announce = (msg: string) => {
+        setAnnouncement(msg);
+        setTimeout(() => setAnnouncement(''), 3000);
+    };
 
     const copyReport = () => {
         const report = data.map((planet, i) => {
@@ -26,6 +32,7 @@ ${planet.civilizationTier > 0 ? `- Civilization: Type ${planet.civilizationTier}
 
         navigator.clipboard.writeText(header + report).then(() => {
             setCopied(true);
+            announce('Astrobiology report copied to clipboard');
             setTimeout(() => setCopied(false), 2000);
         });
     };
@@ -148,6 +155,10 @@ ${planet.civilizationTier > 0 ? `- Civilization: Type ${planet.civilizationTier}
                         ))}
                     </AnimatePresence>
                 </div>
+            </div>
+            {/* Screen Reader Announcements */}
+            <div className="sr-only" role="region" aria-live="polite">
+                {announcement}
             </div>
         </motion.div>
     );

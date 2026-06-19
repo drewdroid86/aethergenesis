@@ -22,3 +22,8 @@
 **Vulnerability:** Risk of payload-based DoS and untrusted data from LLM response.
 **Learning:** Even with schema enforcement, LLM responses should be treated as untrusted. Sanitizing outputs protects the client. Setting overly restrictive payload limits (e.g., 1kb) can break legitimate requests; a balanced limit (e.g., 10kb-1mb) is safer.
 **Prevention:** Implement strict whitelisting for AI response fields and set realistic payload limits on the server.
+
+## 2025-05-24 - [ADQL Injection Prevention]
+**Vulnerability:** Unsanitized user input concatenated into ADQL queries for the SIMBAD TAP service.
+**Learning:** MCP servers that proxy queries to external SQL-like services (like SIMBAD's TAP ADQL) are vulnerable to injection if they don't escape control characters like single quotes.
+**Prevention:** Always sanitize user-provided strings by escaping single quotes (replace `'` with `''`) before interpolating them into ADQL/SQL query strings.

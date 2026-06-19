@@ -216,7 +216,7 @@ export const Hud: React.FC<HudProps> = ({
                                     </span>
                                     <button 
                                         onClick={() => setTimeScale('cosmic')}
-                                        className={`px-3 py-1 text-[9px] uppercase tracking-wider rounded-full transition-colors ${timeScale === 'cosmic' ? 'bg-[#7EB8FF]/20 text-[#7EB8FF]' : 'text-white/40 hover:text-white'}`}
+                                        className={`px-3 py-1 text-[9px] uppercase tracking-wider rounded-full transition-colors focus-visible:ring-1 focus-visible:ring-[#7EB8FF] outline-none ${timeScale === 'cosmic' ? 'bg-[#7EB8FF]/20 text-[#7EB8FF]' : 'text-white/40 hover:text-white'}`}
                                         title="1 second = 200 Million Years"
                                         role="radio"
                                         aria-checked={timeScale === 'cosmic'}
@@ -225,7 +225,7 @@ export const Hud: React.FC<HudProps> = ({
                                     </button>
                                     <button 
                                         onClick={() => setTimeScale('realtime')}
-                                        className={`px-3 py-1 text-[9px] uppercase tracking-wider rounded-full transition-colors ${timeScale === 'realtime' ? 'bg-[#C084FC]/20 text-[#C084FC]' : 'text-white/40 hover:text-white'}`}
+                                        className={`px-3 py-1 text-[9px] uppercase tracking-wider rounded-full transition-colors focus-visible:ring-1 focus-visible:ring-[#C084FC] outline-none ${timeScale === 'realtime' ? 'bg-[#C084FC]/20 text-[#C084FC]' : 'text-white/40 hover:text-white'}`}
                                         title="1 second = 1 second"
                                         role="radio"
                                         aria-checked={timeScale === 'realtime'}
