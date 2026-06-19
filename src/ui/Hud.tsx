@@ -140,7 +140,7 @@ export const Hud: React.FC<HudProps> = ({
                         className="font-mono text-sm uppercase text-indigo-300 hover:text-white transition-colors focus-visible:ring-2 focus-visible:ring-[#C084FC] outline-none rounded relative group/uid pointer-events-auto"
                         aria-label={idCopied ? "Universe ID Copied" : "Copy Universe ID"}
                     >
-                        <span className="absolute -top-6 left-1/2 -translate-x-1/2 text-[10px] text-[#C084FC] opacity-0 group-hover/uid:opacity-100 transition-opacity whitespace-nowrap">
+                        <span className={`absolute -top-6 left-1/2 -translate-x-1/2 text-[10px] text-[#C084FC] transition-opacity whitespace-nowrap ${idCopied ? 'opacity-100' : 'opacity-0 group-hover/uid:opacity-100'}`}>
                             {idCopied ? 'Copied!' : 'Copy'}
                         </span>
                         {currentSeed.substring(0, 8)}
@@ -188,7 +188,7 @@ export const Hud: React.FC<HudProps> = ({
                         aria-label={copied ? "Coordinates Copied" : "Copy Coordinates"}
                         title="Copy Coordinates"
                     >
-                        <span className="absolute -top-6 right-0 text-[10px] text-[#C084FC] opacity-0 group-hover/copy:opacity-100 transition-opacity whitespace-nowrap">
+                        <span className={`absolute -top-6 right-0 text-[10px] text-[#C084FC] transition-opacity whitespace-nowrap ${copied ? 'opacity-100' : 'opacity-0 group-hover/copy:opacity-100'}`}>
                             {copied ? 'Copied!' : 'Copy'}
                         </span>
                         {copied ? <Check size={12} className="text-green-400" /> : <Copy size={12} />}
@@ -216,7 +216,7 @@ export const Hud: React.FC<HudProps> = ({
                                     </span>
                                     <button 
                                         onClick={() => setTimeScale('cosmic')}
-                                        className={`px-3 py-1 text-[9px] uppercase tracking-wider rounded-full transition-colors ${timeScale === 'cosmic' ? 'bg-[#7EB8FF]/20 text-[#7EB8FF]' : 'text-white/40 hover:text-white'}`}
+                                        className={`px-3 py-1 text-[9px] uppercase tracking-wider rounded-full transition-colors focus-visible:ring-1 focus-visible:ring-[#7EB8FF] outline-none ${timeScale === 'cosmic' ? 'bg-[#7EB8FF]/20 text-[#7EB8FF]' : 'text-white/40 hover:text-white'}`}
                                         title="1 second = 200 Million Years"
                                         role="radio"
                                         aria-checked={timeScale === 'cosmic'}
@@ -225,7 +225,7 @@ export const Hud: React.FC<HudProps> = ({
                                     </button>
                                     <button 
                                         onClick={() => setTimeScale('realtime')}
-                                        className={`px-3 py-1 text-[9px] uppercase tracking-wider rounded-full transition-colors ${timeScale === 'realtime' ? 'bg-[#C084FC]/20 text-[#C084FC]' : 'text-white/40 hover:text-white'}`}
+                                        className={`px-3 py-1 text-[9px] uppercase tracking-wider rounded-full transition-colors focus-visible:ring-1 focus-visible:ring-[#C084FC] outline-none ${timeScale === 'realtime' ? 'bg-[#C084FC]/20 text-[#C084FC]' : 'text-white/40 hover:text-white'}`}
                                         title="1 second = 1 second"
                                         role="radio"
                                         aria-checked={timeScale === 'realtime'}

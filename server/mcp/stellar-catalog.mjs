@@ -17,6 +17,17 @@ const server = new Server(
 
 const SIMBAD_BASE_URL = process.env.SIMBAD_BASE_URL || 'https://simbad.u-strasbg.fr/simbad/sim-tap/sync';
 
+/**
+ * Security: Sanitizes user input for ADQL queries to prevent injection.
+ * Escapes single quotes by doubling them and enforces length limits.
+ * Note: Truncates BEFORE escaping to prevent splitting an escape pair.
+ */
+function sanitizeAdql(input, maxLength = 64) {
+  if (typeof input !== 'string') return '';
+  const truncated = input.substring(0, maxLength);
+  return truncated.replace(/'/g, "''");
+}
+
 // Preset library: 10 stars from literature
 const PRESETS = [
   {
@@ -276,6 +287,14 @@ const EXOPLANETS = [
 ];
 
 /**
+ * Sanitizes input strings for ADQL queries by escaping single quotes.
+ */
+function sanitize(str) {
+  if (typeof str !== 'string') return '';
+  return str.replace(/'/g, "''");
+}
+
+/**
  * Estimates stellar physical properties based on spectral class.
  */
 function estimateParams(spType) {
@@ -471,6 +490,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
     if (name === 'get_star_by_name') {
       const starName = args.name;
+      if (!starName || typeof starName !== 'string') throw new Error('Invalid star name provided');
       
       // 1. Check presets first
       const preset = findPresetStar(starName);
@@ -490,8 +510,11 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
       // 2. Query SIMBAD TAP
       try {
+        // Security: Sanitize only for the ADQL query
+        const safeName = sanitizeAdql(starName);
+
         // Query SIMBAD for the star
-        const adql = `SELECT TOP 1 main_id, sp_type, plx_value FROM basic WHERE main_id = '${starName}' OR main_id LIKE '% ${starName}'`;
+        const adql = `SELECT TOP 1 main_id, sp_type, plx_value FROM basic WHERE main_id = '${safeName}' OR main_id LIKE '% ${safeName}'`;
         const data = await querySimbad(adql);
         
         if (data && data.data && data.data.length > 0) {
@@ -551,17 +574,20 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     }
 
     if (name === 'search_stars') {
-      const spClass = args.spectral_class;
-      const massMin = args.mass_min_solar;
-      const massMax = args.mass_max_solar;
-      const distMax = args.distance_max_ly;
-      const limit = Math.min(20, args.limit || 10);
+      const spClass = sanitizeAdql(args.spectral_class);
+
+      // Security: Validate numeric inputs
+      const isValidNum = (v) => typeof v === 'number' && !isNaN(v) && isFinite(v);
+      const massMin = isValidNum(args.mass_min_solar) ? args.mass_min_solar : undefined;
+      const massMax = isValidNum(args.mass_max_solar) ? args.mass_max_solar : undefined;
+      const distMax = isValidNum(args.distance_max_ly) ? args.distance_max_ly : undefined;
+      const limit = Math.min(20, (isValidNum(args.limit) && args.limit > 0) ? args.limit : 10);
 
       // Try SIMBAD TAP
       try {
         let filters = ["sp_type IS NOT NULL", "plx_value IS NOT NULL", "plx_value > 0"];
         if (spClass) {
-          filters.push(`sp_type LIKE '${spClass}%'`);
+          filters.push(`sp_type LIKE '${sanitize(spClass)}%'`);
         }
         if (distMax) {
           // plx in mas = 3261.56 / distance_ly
