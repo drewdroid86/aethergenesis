@@ -153,12 +153,12 @@ export class Engine {
         // Dark Matter affects background star visibility
         this._backgroundStarMat.opacity = 0.1 + (physics.darkMatter || 0) * 2.0;
 
-        // Repulsion physics using softening
+        // BOLT: Sweep and Prune (X-axis spatial pruning) for star repulsion
         const softening = physics.softening || 0.1;
         if (!this.isPaused && !isScrubbing) {
             const minDist = 20 * softening;
             const minDistSq = minDist * minDist;
-            const invMinDist = 1.0 / minDist; // BOLT: Hoist reciprocal
+            const invMinDist = 1.0 / minDist;
 
             // BOLT: Populate persistent buffer to avoid per-frame allocation
             if (this._activeStarBuffer.length !== this.activeHeroStarCount) {
@@ -171,7 +171,6 @@ export class Engine {
 
             // BOLT: Sort active stars by X-axis for Sweep and Prune
             this._activeStarBuffer.sort(this._xSortComparator);
-
             for (let i = 0; i < this.activeHeroStarCount; i++) {
                 const s1 = this._activeStarBuffer[i];
                 const p1 = s1.position;
@@ -194,19 +193,13 @@ export class Engine {
                     const dz = p1z - p2.z;
                     if (dz > minDist || dz < -minDist) continue;
 
-                    let distSq = dx*dx + dy*dy + dz*dz;
-                    
-                    if (distSq === 0) {
-                        distSq = 1e-6;
-                    }
-
+                    let distSq = dx * dx + dy * dy + dz * dz;
                     if (distSq < minDistSq) {
+                        if (distSq === 0) distSq = 1e-6;
                         const dist = Math.sqrt(distSq);
                         const invDist = 1.0 / dist;
-                        // BOLT: Cap the magnitude (mag) rather than mag/dist to ensure strong repulsion at close range
                         const rawMag = (minDist - dist) * invMinDist * delta * 30;
-                        const mag = Math.min(rawMag, 10.0);
-                        const f = mag * invDist;
+                        const f = Math.min(rawMag, 10.0) * invDist;
 
                         const fx = dx * f;
                         const fy = dy * f;
