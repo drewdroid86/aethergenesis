@@ -42,6 +42,18 @@ export class HeroStarSystem extends THREE.Group {
 
     private _activePhase: number = -1;
     private _lastL: number = -1;
+    private _msLuminosity: number;
+
+    // BOLT: State guards to prevent redundant Three.js updates
+    private _lastOpP: number = -1;
+    private _lastVisP: boolean = false;
+    private _lastOpM: number = -1;
+    private _lastVisM: boolean = false;
+    private _lastOpR: number = -1;
+    private _lastVisR: boolean = false;
+    private _lastOpS: number = -1;
+    private _lastVisS: boolean = false;
+
     private _opP: number = 0;
     private _opM: number = 0;
     private _opR: number = 0;
@@ -131,6 +143,7 @@ export class HeroStarSystem extends THREE.Group {
         const baryonFactor = (DEFAULT_CONSTANTS.baryon || 0.05) / 0.05; 
         this.tHeat = 5778 * Math.pow(this.mass, 0.5) * baryonFactor;
         this.baseRadius = Math.pow(this.mass, 0.8) * 0.8;
+        this._msLuminosity = Math.pow(this.mass, STELLAR_CONSTANTS.PHYSICS.MASS_LUMINOSITY_EXPONENT);
 
         // Hit mesh for raycaster
         this.hitMesh = new THREE.Mesh(
@@ -215,15 +228,15 @@ export class HeroStarSystem extends THREE.Group {
             this.phase = newPhase;
         }
 
-        // BOLT: Culling & LOD Logic
+        // BOLT: Frustum culling early return (skip distance/LOD math for off-screen stars)
         const isVisible = frustum ? frustum.containsPoint(this.position) : true;
-        const distSq = this.position.distanceToSquared(cameraPos);
-        const lowDetail = distSq > STELLAR_CONSTANTS.TRANSITIONS.FADE_THRESHOLD; 
-
         if (!isVisible && overrideT === undefined) {
-            // Note: Phase transitions handled above, ensuring robustness when returning to screen
             return;
         }
+
+        // BOLT: LOD Logic (only for visible or selected stars)
+        const distSq = this.position.distanceToSquared(cameraPos);
+        const lowDetail = distSq > STELLAR_CONSTANTS.TRANSITIONS.FADE_THRESHOLD;
 
         this.isSupernovaFlashing = false;
 
@@ -246,7 +259,7 @@ export class HeroStarSystem extends THREE.Group {
             this.protostarPhase.update(delta, appTime, cameraPos, physics, this.t, lowDetail);
             
             this.currentTemp = STELLAR_CONSTANTS.TEMPERATURES.PROTOSTAR_START + normT * (this.tHeat - STELLAR_CONSTANTS.TEMPERATURES.PROTOSTAR_START);
-            this.currentLum = normT * Math.pow(this.mass, STELLAR_CONSTANTS.PHYSICS.MASS_LUMINOSITY_EXPONENT);
+            this.currentLum = normT * this._msLuminosity;
 
         } else if (this.phase === PHASES.MAIN_SEQUENCE) {
             targetMain = 1;
@@ -256,7 +269,7 @@ export class HeroStarSystem extends THREE.Group {
             }
             
             this.currentTemp = this.tHeat;
-            this.currentLum = Math.pow(this.mass, STELLAR_CONSTANTS.PHYSICS.MASS_LUMINOSITY_EXPONENT);
+            this.currentLum = this._msLuminosity;
 
         } else if (this.phase === PHASES.RED_GIANT) {
             targetRed = 1;
@@ -297,50 +310,97 @@ export class HeroStarSystem extends THREE.Group {
             }
         }
         
-        // BOLT: Optimize transition opacities with caching and guarded assignments
+        // BOLT: Optimize transition opacities with state-guarded assignments to reduce Three.js overhead
         const speed = delta * STELLAR_CONSTANTS.TRANSITIONS.DEFAULT_SPEED;
+
+        // 1. Protostar Transition
         this._opP = stepOp(this._opP, targetProto, speed);
         if (this._opP > STELLAR_CONSTANTS.TRANSITIONS.VISIBILITY_THRESHOLD) {
-            this.protostarPhase.setOpacity(targetProto > 0 ? this._opP * (flicker ?? 1.0) : this._opP);
-            if (this.protostarPhase.protostarGroup.visible !== true) {
+            const finalOpP = targetProto > 0 ? this._opP * (flicker ?? 1.0) : this._opP;
+            // Always update if targetProto > 0 because of flicker, else use guard
+            if (targetProto > 0 || this._lastOpP !== finalOpP) {
+                this.protostarPhase.setOpacity(finalOpP);
+                this._lastOpP = finalOpP;
+            }
+            if (!this._lastVisP) {
                 this.protostarPhase.protostarGroup.visible = true;
+                this._lastVisP = true;
             }
         } else if (this._protostarPhase) {
-            this.protostarPhase.setOpacity(0);
-            this.protostarPhase.protostarGroup.visible = false;
+            if (this._lastOpP !== 0) {
+                this.protostarPhase.setOpacity(0);
+                this._lastOpP = 0;
+            }
+            if (this._lastVisP) {
+                this.protostarPhase.protostarGroup.visible = false;
+                this._lastVisP = false;
+            }
         }
 
+        // 2. Main Sequence Transition
         this._opM = stepOp(this._opM, targetMain, speed);
         if (this._opM > STELLAR_CONSTANTS.TRANSITIONS.VISIBILITY_THRESHOLD) {
-            this.mainSequencePhase.setOpacity(this._opM);
-            if (this.mainSequencePhase.mainSeqGroup.visible !== true) {
+            if (this._lastOpM !== this._opM) {
+                this.mainSequencePhase.setOpacity(this._opM);
+                this._lastOpM = this._opM;
+            }
+            if (!this._lastVisM) {
                 this.mainSequencePhase.mainSeqGroup.visible = true;
+                this._lastVisM = true;
             }
         } else if (this._mainSequencePhase) {
-            this.mainSequencePhase.setOpacity(0);
-            this.mainSequencePhase.mainSeqGroup.visible = false;
+            if (this._lastOpM !== 0) {
+                this.mainSequencePhase.setOpacity(0);
+                this._lastOpM = 0;
+            }
+            if (this._lastVisM) {
+                this.mainSequencePhase.mainSeqGroup.visible = false;
+                this._lastVisM = false;
+            }
         }
 
+        // 3. Red Giant Transition
         this._opR = stepOp(this._opR, targetRed, speed);
         if (this._opR > STELLAR_CONSTANTS.TRANSITIONS.VISIBILITY_THRESHOLD) {
-            this.redGiantPhase.setOpacity(this._opR);
-            if (this.redGiantPhase.redGiantGroup.visible !== true) {
+            if (this._lastOpR !== this._opR) {
+                this.redGiantPhase.setOpacity(this._opR);
+                this._lastOpR = this._opR;
+            }
+            if (!this._lastVisR) {
                 this.redGiantPhase.redGiantGroup.visible = true;
+                this._lastVisR = true;
             }
         } else if (this._redGiantPhase) {
-            this.redGiantPhase.setOpacity(0);
-            this.redGiantPhase.redGiantGroup.visible = false;
+            if (this._lastOpR !== 0) {
+                this.redGiantPhase.setOpacity(0);
+                this._lastOpR = 0;
+            }
+            if (this._lastVisR) {
+                this.redGiantPhase.redGiantGroup.visible = false;
+                this._lastVisR = false;
+            }
         }
 
+        // 4. Supernova Transition
         this._opS = stepOp(this._opS, targetSuper, speed);
         if (this._opS > STELLAR_CONSTANTS.TRANSITIONS.VISIBILITY_THRESHOLD) {
-            this.supernovaPhase.setOpacity(this._opS);
-            if (this.supernovaPhase.supernovaGroup.visible !== true) {
+            if (this._lastOpS !== this._opS) {
+                this.supernovaPhase.setOpacity(this._opS);
+                this._lastOpS = this._opS;
+            }
+            if (!this._lastVisS) {
                 this.supernovaPhase.supernovaGroup.visible = true;
+                this._lastVisS = true;
             }
         } else if (this._supernovaPhase) {
-            this.supernovaPhase.setOpacity(0);
-            this.supernovaPhase.supernovaGroup.visible = false;
+            if (this._lastOpS !== 0) {
+                this.supernovaPhase.setOpacity(0);
+                this._lastOpS = 0;
+            }
+            if (this._lastVisS) {
+                this.supernovaPhase.supernovaGroup.visible = false;
+                this._lastVisS = false;
+            }
         }
 
         if (targetNs > 0 || (this._remnantPhase && this._opNs > 0)) {
