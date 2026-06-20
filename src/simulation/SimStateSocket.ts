@@ -99,7 +99,18 @@ export function broadcastSimState(state: SimBroadcast, exclude?: WebSocket): voi
 export function initWebSocketServer(server: http.Server, allowedOrigins: string[]): void {
     wss = new WebSocketServer({
         server,
-        maxPayload: 102400 // Security: 100KB limit to prevent DoS
+        maxPayload: 102400, // Security: 100KB limit to prevent DoS
+        handleProtocols: (protocols) => {
+            const expectedToken = process.env.WS_TOKEN || 'default_secret';
+            const isProduction = process.env.NODE_ENV === 'production';
+            if (isProduction && expectedToken === 'default_secret') {
+                return false;
+            }
+            if (protocols.has(expectedToken)) {
+                return expectedToken;
+            }
+            return false;
+        }
     });
     
     wss.on('connection', (ws: WebSocket, req: http.IncomingMessage) => {
@@ -107,23 +118,6 @@ export function initWebSocketServer(server: http.Server, allowedOrigins: string[
         const origin = req.headers.origin;
         if (!origin || !allowedOrigins.includes(origin)) {
             ws.close(1008, 'Forbidden: Unauthorized origin');
-            return;
-        }
-
-        // Security: Token authentication
-        const url = new URL(req.url || '', `http://${req.headers.host}`);
-        const token = url.searchParams.get('token');
-        const expectedToken = process.env.WS_TOKEN || 'default_secret';
-
-        // Security: Reject insecure 'default_secret' in production
-        const isProduction = process.env.NODE_ENV === 'production';
-        if (isProduction && expectedToken === 'default_secret') {
-            ws.close(1008, 'Forbidden: WS_TOKEN must be configured in production');
-            return;
-        }
-
-        if (token !== expectedToken) {
-            ws.close(1008, 'Forbidden: Invalid token');
             return;
         }
 

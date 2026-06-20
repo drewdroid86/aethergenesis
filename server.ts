@@ -76,6 +76,16 @@ const analysisLimitMap = new LRUCache<string, RateLimitData>({
 const apiKey = process.env.GEMINI_API_KEY;
 const ai = apiKey ? new GoogleGenAI({ apiKey }) : null;
 
+app.get('/health', (_req, res) => {
+  res.setHeader('Cache-Control', 'no-store');
+  res.json({
+    status: 'ok',
+    timestamp: new Date().toISOString(),
+    env: process.env.NODE_ENV || 'development',
+    aiEnabled: !!ai
+  });
+});
+
 app.post('/api/analyze', async (req, res) => {
   if (!ai) {
     // Security: Generic error message to avoid leaking server config
@@ -164,7 +174,7 @@ app.post('/api/analyze', async (req, res) => {
     try {
       data = JSON.parse(response.text);
     } catch (parseError) {
-      throw new Error('Invalid JSON response from Gemini API');
+      throw new Error('Invalid JSON response from Gemini API', { cause: parseError });
     }
 
     // Security: Strict output sanitization - ensure only expected fields are returned and clamped
@@ -203,7 +213,25 @@ app.use((err: any, _req: express.Request, res: express.Response, _next: express.
 import { initWebSocketServer } from './src/simulation/SimStateSocket';
 
 const server = app.listen(port, () => {
-  console.log(`Server listening at http://localhost:${port}`);
+  console.log(`Server listening at http://localhost:${port} in ${process.env.NODE_ENV || 'development'} mode`);
 });
 
 initWebSocketServer(server, allowedOrigins);
+
+// Graceful shutdown handler to allow active connections to drain
+function handleShutdown(signal: string) {
+  console.log(`Received ${signal}. Shutting down server gracefully...`);
+  server.close(() => {
+    console.log('HTTP and WebSocket server closed.');
+    process.exit(0);
+  });
+
+  // Force close after 10 seconds if connections are keeping server alive
+  setTimeout(() => {
+    console.error('Forceful shutdown: active connections did not close within timeout.');
+    process.exit(1);
+  }, 10000);
+}
+
+process.on('SIGTERM', () => handleShutdown('SIGTERM'));
+process.on('SIGINT', () => handleShutdown('SIGINT'));

@@ -10,10 +10,10 @@
 
 *13.8 billion years of cosmic evolution — your rules, your physics, your universe.*
 
-[![TypeScript](https://img.shields.io/badge/TypeScript-5.8-3178C6?style=flat-square&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
+[![TypeScript](https://img.shields.io/badge/TypeScript-6-3178C6?style=flat-square&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
 [![React](https://img.shields.io/badge/React-19-61DAFB?style=flat-square&logo=react&logoColor=black)](https://react.dev/)
 [![Three.js](https://img.shields.io/badge/Three.js-r184-000000?style=flat-square&logo=threedotjs&logoColor=white)](https://threejs.org/)
-[![Vite](https://img.shields.io/badge/Vite-6-646CFF?style=flat-square&logo=vite&logoColor=white)](https://vitejs.dev/)
+[![Vite](https://img.shields.io/badge/Vite-8-646CFF?style=flat-square&logo=vite&logoColor=white)](https://vitejs.dev/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow?style=flat-square)](LICENSE)
 
 </div>
@@ -47,12 +47,12 @@ Powered by **Three.js**, **WebGL/GLSL shaders**, and the **Gemini AI API**, it's
 
 | Layer | Technology |
 |-------|-----------|
-| **Frontend** | React 19, TypeScript 5.8, Vite 6 |
+| **Frontend** | React 19, TypeScript 6, Vite 8 |
 | **3D Rendering** | Three.js r184, WebGL, Custom GLSL Shaders |
 | **Animation** | Framer Motion 12 |
 | **Physics** | Custom Velocity Verlet n-body (Web Worker) |
 | **AI** | Google Gemini API (`@google/genai`) |
-| **Backend** | Express 4, WebSocket (`ws`) |
+| **Backend** | Express 5, WebSocket (`ws`) |
 | **Styling** | Tailwind CSS 4 |
 | **Deployment** | GitHub Pages (frontend) + Render (backend) |
 

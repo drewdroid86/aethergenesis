@@ -40,13 +40,13 @@ export function useSimulation(containerRef: React.RefObject<HTMLDivElement | nul
         }
 
         const wsToken = import.meta.env.VITE_WS_TOKEN || 'default_secret';
-        const wsUrl = `${protocol}//${host}${port ? `:${port}` : ''}?token=${wsToken}`;
+        const wsUrl = `${protocol}//${host}${port ? `:${port}` : ''}`;
         let socket: any = null;
         let reconnectTimeout: any;
 
         const connect = () => {
-            console.log(`Connecting simulation to WebSocket at ${wsUrl}...`);
-            socket = new WebSocket(wsUrl);
+            console.log(`Connecting simulation to WebSocket at ${wsUrl} (using subprotocol auth)...`);
+            socket = new WebSocket(wsUrl, wsToken);
             wsRef.current = socket;
 
             socket.onmessage = (event: any) => {

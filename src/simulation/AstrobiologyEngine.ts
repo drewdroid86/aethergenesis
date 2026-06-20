@@ -61,13 +61,9 @@ export class AstrobiologyEngine {
     // Add greenhouse effect roughly (+33K like Earth)
     const T_actual = T_surface + (planetMass_kg > 1e23 ? 33 : 0);
     
-    let thermalScore = 0;
-    if (T_actual >= 273 && T_actual <= 373) {
-      thermalScore = 1.0;
-    } else {
-      const dist = Math.min(Math.abs(T_actual - 273), Math.abs(T_actual - 373));
-      thermalScore = Math.max(0, 1.0 - dist / 50.0);
-    }
+    const thermalScore = (T_actual >= 273 && T_actual <= 373)
+      ? 1.0
+      : Math.max(0, 1.0 - Math.min(Math.abs(T_actual - 273), Math.abs(T_actual - 373)) / 50.0);
 
     // 3. Atmosphere Score
     const v_esc = Math.sqrt((2 * CONSTANTS.G * planetMass_kg) / planetRadius_m);

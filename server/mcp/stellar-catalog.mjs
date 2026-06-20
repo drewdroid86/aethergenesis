@@ -286,13 +286,7 @@ const EXOPLANETS = [
   }
 ];
 
-/**
- * Sanitizes input strings for ADQL queries by escaping single quotes.
- */
-function sanitize(str) {
-  if (typeof str !== 'string') return '';
-  return str.replace(/'/g, "''");
-}
+
 
 /**
  * Estimates stellar physical properties based on spectral class.
@@ -369,16 +363,7 @@ function estimateParams(spType) {
   };
 }
 
-/**
- * Security: Sanitize ADQL string inputs to prevent injection.
- * Truncates to 64 chars and escapes single quotes.
- */
-function sanitizeAdql(input) {
-  if (typeof input !== 'string') return '';
-  // Security: Truncate BEFORE escaping to prevent splitting an escape sequence
-  const truncated = input.substring(0, 64);
-  return truncated.replace(/'/g, "''");
-}
+
 
 /**
  * Security: Strict numeric validation helper.

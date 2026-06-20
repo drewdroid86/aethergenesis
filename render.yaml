@@ -7,5 +7,13 @@ services:
     envVars:
       - key: GEMINI_API_KEY
         sync: false
+      - key: WS_TOKEN
+        sync: false
+      - key: VITE_WS_TOKEN
+        sync: false
+      - key: APP_URL
+        sync: false
+      - key: ALLOWED_ORIGINS
+        sync: false
       - key: NODE_ENV
         value: production

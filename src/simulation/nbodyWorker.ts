@@ -84,7 +84,7 @@ function calculateForces(targetBuffer: Float32Array): void {
             const dist = Math.sqrt(distSoftSq);
 
             // BOLT: fMag = (G * m1 * m2) / r^3. Use dist * distSoftSq to save one multiplication.
-            let fMag = (G_mu * mi * bj.mass_solar) / (dist * distSoftSq);
+            const fMag = (G_mu * mi * bj.mass_solar) / (dist * distSoftSq);
             if (!isFinite(fMag) || fMag > 1e6) continue;
             const fx = fMag * dx;
             const fy = fMag * dy;

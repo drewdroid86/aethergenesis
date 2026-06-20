@@ -21,7 +21,6 @@ export class Pipeline {
             new THREE.Vector2(window.innerWidth, window.innerHeight), 
             1.6, 0.4, 0.1
         );
-        this.bloomPass.strength = 1.6;
         this.bloomPass.radius = 0.75;
         this.bloomPass.threshold = 0.08;
         this.composer.addPass(this.bloomPass);
@@ -30,16 +29,21 @@ export class Pipeline {
         this.composer.addPass(this.cinematicPass);
     }
 
-    public render(appTime: number, delta: number): void {
+    public render(appTime: number, _delta: number): void {
         if (this.cinematicPass.uniforms.time) this.cinematicPass.uniforms.time.value = appTime;
         this.composer.render();
     }
 
     setSize(width: number, height: number) {
         this.composer.setSize(width, height);
+        this.bloomPass.resolution.set(width, height);
     }
 
     setBloomStrength(strength: number) {
         this.bloomPass.strength = strength;
+    }
+
+    dispose() {
+        this.composer.dispose();
     }
 }
