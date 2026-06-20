@@ -15,8 +15,8 @@ export function useWebSocket({ engineRef, selectedStarRef }: UseWebSocketProps) 
         const host = window.location.hostname || 'localhost';
         let port = window.location.port;
 
-        // Development override: if on localhost:3000, use 3001 for backend
-        if (host === 'localhost' && (port === '3000' || !port)) {
+        // Development override: if on port 3000, use 3001 for backend
+        if (port === '3000' || !port) {
             port = '3001';
         }
 

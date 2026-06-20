@@ -116,7 +116,18 @@ export function initWebSocketServer(server: http.Server, allowedOrigins: string[
     wss.on('connection', (ws: WebSocket, req: http.IncomingMessage) => {
         // Security: Origin validation to prevent CSWH
         const origin = req.headers.origin;
-        if (!origin || !allowedOrigins.includes(origin)) {
+        const isDev = process.env.NODE_ENV !== 'production';
+        const isAllowed = origin && (
+            allowedOrigins.includes(origin) || 
+            (isDev && (
+                origin.startsWith('http://localhost:') || 
+                origin.startsWith('http://127.0.0.1:') || 
+                origin.startsWith('http://100.') || 
+                origin.startsWith('http://192.168.') || 
+                origin.startsWith('http://10.')
+            ))
+        );
+        if (!origin || !isAllowed) {
             ws.close(1008, 'Forbidden: Unauthorized origin');
             return;
         }

@@ -51,7 +51,18 @@ app.use((_req, res, next) => {
 app.use((req, res, next) => { 
     res.setHeader('Vary', 'Origin');
     const origin = req.headers.origin; 
-    if (origin && allowedOrigins.includes(origin)) { 
+    const isDev = process.env.NODE_ENV !== 'production';
+    const isAllowed = origin && (
+        allowedOrigins.includes(origin) || 
+        (isDev && (
+            origin.startsWith('http://localhost:') || 
+            origin.startsWith('http://127.0.0.1:') || 
+            origin.startsWith('http://100.') || 
+            origin.startsWith('http://192.168.') || 
+            origin.startsWith('http://10.')
+        ))
+    );
+    if (origin && isAllowed) { 
         res.setHeader('Access-Control-Allow-Origin', origin); 
         res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS'); 
         res.setHeader('Access-Control-Allow-Headers', 'Content-Type'); 
