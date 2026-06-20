@@ -18,10 +18,24 @@ const server = new Server(
 const HORIZONS_BASE_URL = process.env.HORIZONS_BASE_URL || 'https://ssd.jpl.nasa.gov/api/horizons.api';
 
 /**
+ * Security: Fetch wrapper with timeout to prevent resource exhaustion.
+ */
+async function fetchWithTimeout(url, timeout = 10000) {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeout);
+  try {
+    const response = await fetch(url, { signal: controller.signal });
+    return response;
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+
+/**
  * Helper to fetch from Horizons, with automatic disambiguation for comets/asteroids index lists.
  */
 async function fetchHorizons(url, bodyId) {
-  const response = await fetch(url);
+  const response = await fetchWithTimeout(url);
   if (response.status !== 200) {
     const errorData = await response.json().catch(() => ({}));
     throw new Error(errorData.message || `JPL Horizons returned status ${response.status}`);
@@ -55,7 +69,7 @@ async function fetchHorizons(url, bodyId) {
       
       console.error(`Retry URL: ${newUrl}`);
 
-      const retryResponse = await fetch(newUrl);
+      const retryResponse = await fetchWithTimeout(newUrl);
       if (retryResponse.status !== 200) {
         throw new Error(`JPL Horizons returned status ${retryResponse.status} on retry`);
       }
@@ -326,7 +340,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
       let results = [];
       try {
-        const response = await fetch(url);
+        const response = await fetchWithTimeout(url);
         if (response.status !== 200) {
           throw new Error(`JPL SBDB Query API returned status ${response.status}`);
         }
