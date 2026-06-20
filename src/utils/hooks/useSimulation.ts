@@ -6,110 +6,174 @@ import { HeroStarSystem } from '../../rendering/systems/HeroStarSystem';
 import { NebulaSystem } from '../../rendering/systems/NebulaSystem';
 import { PHASE_NAMES } from '../../core/constants';
 import { PhysicsConstants, DEFAULT_CONSTANTS } from '../../types/physics';
-import { 
-    detectPerformanceTier, 
-    getNumStarsForTier, 
-    FPS_THRESHOLD,
-    CONSECUTIVE_FRAMES_THRESHOLD,
-    BANNER_DISPLAY_DURATION
-} from '../../utils/performance';
+import { detectPerformanceTier, getNumStarsForTier } from '../../utils/performance';
 import { AstrobiologyEngine } from '../../simulation/AstrobiologyEngine';
 import { OrbitalBody, keplerianToCartesian } from '../../simulation/OrbitalMechanics';
+
+// Sub-hooks
+import { useWebSocket } from './useWebSocket';
+import { useCosmicAge } from './useCosmicAge';
+import { usePerformanceAutoTuning } from './usePerformanceAutoTuning';
+import { useStarSelection } from './useStarSelection';
+import { useKeyboardShortcuts } from './useKeyboardShortcuts';
 
 export function useSimulation(containerRef: React.RefObject<HTMLDivElement | null>) {
     const engineRef = useRef<Engine | null>(null);
     const nebulaSystemRef = useRef<NebulaSystem | null>(null);
     const controlsRef = useRef<OrbitControls | null>(null);
-    const [selectedStar, setSelectedStar] = useState<HeroStarSystem | null>(null);
-    const selectedStarRef = useRef<HeroStarSystem | null>(null);
     const [isPaused, setIsPaused] = useState(false);
     const isPausedRef = useRef(isPaused);
     useEffect(() => { isPausedRef.current = isPaused; }, [isPaused]);
     const [fatalError, setFatalError] = useState<string | null>(null);
-    const isScrubbingRef = useRef(false);
-    const wsRef = useRef<any>(null);
 
-    useEffect(() => {
-        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-        const host = window.location.hostname || 'localhost';
-        let port = window.location.port;
+    // Physics Constants State
+    const [physics, setPhysics] = useState<PhysicsConstants>(() => {
+        const params = new URLSearchParams(window.location.search);
+        const seed = params.get('seed');
+        if (seed) return decodeSeed(seed);
+        return DEFAULT_CONSTANTS;
+    });
+    const physicsRef = useRef(physics);
+    useEffect(() => { 
+        physicsRef.current = physics; 
+    }, [physics]);
 
-        // Development override: if on localhost:3000, use 3001 for backend
-        if (host === 'localhost' && (port === '3000' || !port)) {
-            port = '3001';
-        }
+    // Cosmic Age & Time Scale State
+    const [timeScale, setTimeScale] = useState<'cosmic' | 'realtime'>('cosmic');
+    const timeScaleRef = useRef(timeScale);
+    useEffect(() => { timeScaleRef.current = timeScale; }, [timeScale]);
 
-        const wsToken = import.meta.env.VITE_WS_TOKEN || 'default_secret';
-        const wsUrl = `${protocol}//${host}${port ? `:${port}` : ''}`;
-        let socket: any = null;
-        let reconnectTimeout: any;
-
-        const connect = () => {
-            console.log(`Connecting simulation to WebSocket at ${wsUrl} (using subprotocol auth)...`);
-            socket = new WebSocket(wsUrl, wsToken);
-            wsRef.current = socket;
-
-            socket.onmessage = (event: any) => {
-                try {
-                    const msg = JSON.parse(event.data);
-                    if (msg.type === 'event') {
-                        console.log('Received event command from WS:', msg);
-                        if (msg.event === 'force_supernova' && selectedStarRef.current) {
-                            selectedStarRef.current.t = 0.88;
-                            if (engineRef.current) engineRef.current.forceSupernova();
-                        } else if (msg.event === 'reset') {
-                            window.location.reload();
-                        } else if (msg.event === 'advance_1gyr' && selectedStarRef.current) {
-                            selectedStarRef.current.currentRealAge += 1000;
-                            if (engineRef.current) engineRef.current.advanceTime(1e9);
-                        }
-                    }
-                } catch (err) {
-                    console.error('Error handling WebSocket message:', err);
-                }
-            };
-
-            socket.onclose = () => {
-                console.log('Simulation WebSocket closed. Reconnecting in 3s...');
-                reconnectTimeout = setTimeout(connect, 3000);
-            };
-
-            socket.onerror = (err: any) => {
-                console.error('Simulation WebSocket error:', err);
-            };
-        };
-
-        connect();
-
-        return () => {
-            if (socket) {
-                socket.onclose = null;
-                socket.close();
-            }
-            clearTimeout(reconnectTimeout);
-        };
-    }, []);
-
-    // Performance State
+    // Performance State Owned by Main Hook for Rebuilding
     const [currentTier, setCurrentTier] = useState<'low' | 'medium' | 'high' | 'ultra'>('medium');
     const currentTierRef = useRef(currentTier);
-    const [fps, setFps] = useState(0);
-    const [showTierDownIndicator, setShowTierDownIndicator] = useState(false);
-    const consecutiveFramesBelowThresholdRef = useRef(0);
-    const tierDownIndicatorTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-    const lastDowngradeTimeRef = useRef(0);
+
+    // Astrobiology UI State
+    const [astrobiologyData, setAstrobiologyData] = useState<any[]>([]);
+
+    // UI Panel State
+    const [isConstantsOpen, setIsConstantsOpen] = useState(false);
+
+    // HUD & UI Refs
+    const hudRefs = {
+        hudX: useRef<HTMLSpanElement>(null),
+        hudY: useRef<HTMLSpanElement>(null),
+        hudZ: useRef<HTMLSpanElement>(null),
+        hudAge: useRef<HTMLSpanElement>(null),
+        globalTimelineFill: useRef<HTMLDivElement>(null),
+        globalSlider: useRef<HTMLDivElement>(null),
+        tierDownIndicator: useRef<HTMLDivElement>(null),
+    };
+
+    const uiRefs = {
+        phase: useRef<HTMLSpanElement>(null),
+        temp: useRef<HTMLSpanElement>(null),
+        mass: useRef<HTMLSpanElement>(null),
+        age: useRef<HTMLSpanElement>(null),
+        lum: useRef<HTMLSpanElement>(null),
+        timelineFill: useRef<HTMLDivElement>(null),
+        stellarSlider: useRef<HTMLDivElement>(null),
+    };
+
+    const nbodyBufferRef = useRef<Float32Array | null>(null);
+    const nbodyWorkerRef = useRef<Worker | null>(null);
+    const astrobiologyEngineRef = useRef<AstrobiologyEngine | null>(null);
+    const lastAnalysisTimeRef = useRef(0);
+
+    const disposeStarSystem = (star: HeroStarSystem) => {
+        star.dispose();
+    };
+
+    const rebuildStarfieldGeometry = useCallback(() => {
+        if (!engineRef.current || !engineRef.current.scene) return;
+
+        engineRef.current.heroStars.forEach((star) => {
+            engineRef.current?.scene.remove(star);
+            disposeStarSystem(star);
+        });
+        engineRef.current.heroStars = [];
+
+        engineRef.current.createHeroStars(
+            getNumStarsForTier(currentTierRef.current),
+            physicsRef.current
+        );
+    }, []);
+
+    // Initialize sub-hooks
+    const {
+        cosmicAge,
+        setCosmicAge,
+        cosmicAgeRef,
+        isPlayingCosmic,
+        setIsPlayingCosmic,
+        isPlayingCosmicRef,
+        isGlobalScrubbingRef,
+        onGlobalScrubStart,
+        onGlobalScrubMove,
+        onGlobalScrubEnd
+    } = useCosmicAge();
+
+    const {
+        currentTier: _tier,
+        fps,
+        showTierDownIndicator,
+        registerFrameDelta,
+        handleTierChange
+    } = usePerformanceAutoTuning({
+        rebuildStarfieldGeometry
+    });
+
+    // Sync performance auto-tuning tier to our local state
+    useEffect(() => {
+        if (_tier !== currentTierRef.current) {
+            currentTierRef.current = _tier;
+            setCurrentTier(_tier);
+        }
+    }, [_tier]);
+
+    const {
+        selectedStar,
+        setSelectedStar,
+        selectedStarRef,
+        isScrubbingRef,
+        centerOnStar,
+        resetCamera,
+        onScrubStart,
+        onScrubMove,
+        onScrubEnd
+    } = useStarSelection({
+        engineRef,
+        controlsRef
+    });
+
+    useWebSocket({
+        engineRef,
+        selectedStarRef
+    });
+
+    useKeyboardShortcuts({
+        selectedStarRef,
+        setSelectedStar,
+        setIsPlayingCosmic,
+        setIsPaused,
+        setIsConstantsOpen,
+        setTimeScale,
+        setPhysics,
+        controlsRef,
+        engineRef,
+        centerOnStar
+    });
 
     // Universe Seed Logic
-    const encodeSeed = useCallback((p: PhysicsConstants): string => {
+    function encodeSeed(p: PhysicsConstants): string {
         const values = [
             p.G, p.alpha, p.strongForce, p.weakForce,
             p.lambda, p.c, p.hbar, p.darkMatter,
             p.baryon, p.H0, p.softening
         ];
         return btoa(JSON.stringify(values.map(v => parseFloat((v || 0).toFixed(4)))));
-    }, []);
+    }
 
-    const decodeSeed = useCallback((seed: string): PhysicsConstants => {
+    function decodeSeed(seed: string): PhysicsConstants {
         try {
             const values = JSON.parse(atob(seed));
             return {
@@ -129,111 +193,13 @@ export function useSimulation(containerRef: React.RefObject<HTMLDivElement | nul
             console.error("Failed to decode seed:", e);
             return DEFAULT_CONSTANTS;
         }
-    }, []);
-
-    // Physics Constants State
-    const [physics, setPhysics] = useState<PhysicsConstants>(() => {
-        const params = new URLSearchParams(window.location.search);
-        const seed = params.get('seed');
-        if (seed) return decodeSeed(seed);
-        return DEFAULT_CONSTANTS;
-    });
-    const physicsRef = useRef(physics);
-    useEffect(() => { 
-        physicsRef.current = physics; 
-    }, [physics]);
-
-    // Cosmic Age & Time Scale State
-    const [timeScale, setTimeScale] = useState<'cosmic' | 'realtime'>('cosmic');
-    const timeScaleRef = useRef(timeScale);
-    useEffect(() => { timeScaleRef.current = timeScale; }, [timeScale]);
-
-    const [cosmicAge, setCosmicAge] = useState(13.8);
-    const cosmicAgeRef = useRef(cosmicAge);
-    const [isPlayingCosmic, setIsPlayingCosmic] = useState(true);
-    const isPlayingCosmicRef = useRef(isPlayingCosmic);
-    const isGlobalScrubbingRef = useRef(false);
-    
-    // Astrobiology UI State
-    const [astrobiologyData, setAstrobiologyData] = useState<any[]>([]);
-    useEffect(() => { cosmicAgeRef.current = cosmicAge; }, [cosmicAge]);
-    useEffect(() => { isPlayingCosmicRef.current = isPlayingCosmic; }, [isPlayingCosmic]);
-
-    // UI Panel State
-    const [isConstantsOpen, setIsConstantsOpen] = useState(false);
-
-    // HUD & UI Refs
-    const hudRefs = {
-        hudX: useRef<HTMLSpanElement>(null),
-        hudY: useRef<HTMLSpanElement>(null),
-        hudZ: useRef<HTMLSpanElement>(null),
-        hudAge: useRef<HTMLSpanElement>(null),
-        globalTimelineFill: useRef<HTMLDivElement>(null),
-        globalSlider: useRef<HTMLDivElement>(null),
-        tierDownIndicator: useRef<HTMLDivElement>(null),
-    };
-
-    const nbodyBufferRef = useRef<Float32Array | null>(null);
-    const nbodyWorkerRef = useRef<Worker | null>(null);
-    const astrobiologyEngineRef = useRef<AstrobiologyEngine | null>(null);
-    const lastAnalysisTimeRef = useRef(0);
-
-    const uiRefs = {
-        phase: useRef<HTMLSpanElement>(null),
-        temp: useRef<HTMLSpanElement>(null),
-        mass: useRef<HTMLSpanElement>(null),
-        age: useRef<HTMLSpanElement>(null),
-        lum: useRef<HTMLSpanElement>(null),
-        timelineFill: useRef<HTMLDivElement>(null),
-        stellarSlider: useRef<HTMLDivElement>(null),
-    };
-
-    const disposeStarSystem = (star: HeroStarSystem) => {
-        star.dispose();
-    };
-
-    const rebuildStarfieldGeometry = useCallback(() => {
-        if (!engineRef.current || !engineRef.current.scene) return;
-
-        engineRef.current.heroStars.forEach((star) => {
-            engineRef.current?.scene.remove(star);
-            disposeStarSystem(star);
-        });
-        engineRef.current.heroStars = [];
-
-        engineRef.current.createHeroStars(
-            getNumStarsForTier(currentTierRef.current),
-            physicsRef.current
-        );
-    }, []); 
-
-    const handleTierChange = useCallback((newTier: 'low' | 'medium' | 'high' | 'ultra') => {
-        if (newTier === currentTierRef.current) return;
-
-        const previousTier = currentTierRef.current;
-        currentTierRef.current = newTier;
-        setCurrentTier(newTier);
-
-        const isDowngrade = ['low', 'medium', 'high', 'ultra'].indexOf(newTier) < ['low', 'medium', 'high', 'ultra'].indexOf(previousTier);
-        if (isDowngrade) {
-            setShowTierDownIndicator(true); 
-
-            if (tierDownIndicatorTimeoutRef.current) {
-                clearTimeout(tierDownIndicatorTimeoutRef.current);
-            }
-            tierDownIndicatorTimeoutRef.current = setTimeout(() => {
-                setShowTierDownIndicator(false);
-            }, BANNER_DISPLAY_DURATION);
-        }
-
-        rebuildStarfieldGeometry();
-    }, [rebuildStarfieldGeometry]); 
+    }
 
     useEffect(() => {
         const initialTier = detectPerformanceTier();
         currentTierRef.current = initialTier;
         setCurrentTier(initialTier);
-    }, [handleTierChange]); 
+    }, []);
 
     useEffect(() => {
         if (!containerRef.current) return;
@@ -353,8 +319,6 @@ export function useSimulation(containerRef: React.RefObject<HTMLDivElement | nul
 
             let frameId: number;
             let lastAnimationTime = performance.now();
-            const fpsHistory: number[] = [];
-            let lastFpsUpdateTime = 0;
             let lastStateSendTime = 0;
 
             const animate = () => {
@@ -364,30 +328,7 @@ export function useSimulation(containerRef: React.RefObject<HTMLDivElement | nul
                     const delta = Math.max(0.001, Math.min((currentTime - lastAnimationTime) / 1000, 0.05)); 
                     lastAnimationTime = currentTime;
 
-                    fpsHistory.push(1 / delta); 
-                    if (fpsHistory.length > 60) fpsHistory.shift(); 
-                    const currentFps = fpsHistory.reduce((sum, val) => sum + val, 0) / fpsHistory.length;
-                    if (currentTime - lastFpsUpdateTime > 1000) {
-                        setFps(Math.round(currentFps));
-                        lastFpsUpdateTime = currentTime;
-                    }
-
-                    if (currentFps < FPS_THRESHOLD) {
-                        consecutiveFramesBelowThresholdRef.current++;
-                    } else {
-                        consecutiveFramesBelowThresholdRef.current = 0;
-                    }
-
-                    if (consecutiveFramesBelowThresholdRef.current >= CONSECUTIVE_FRAMES_THRESHOLD) {
-                        const tiers: ('low' | 'medium' | 'high' | 'ultra')[] = ['low', 'medium', 'high', 'ultra'];
-                        const currentTierIndex = tiers.indexOf(currentTierRef.current);
-                        if (currentTierIndex > 0 && (performance.now() - lastDowngradeTimeRef.current > 10000)) {
-                            const newTier = tiers[currentTierIndex - 1];
-                            handleTierChange(newTier);
-                            lastDowngradeTimeRef.current = performance.now();
-                            consecutiveFramesBelowThresholdRef.current = 0; 
-                        }
-                    }
+                    registerFrameDelta(delta, currentTime);
 
                     if (isPlayingCosmicRef.current && !isGlobalScrubbingRef.current) {
                         cosmicAgeRef.current += timeScaleRef.current === 'cosmic' ? delta * 0.2 : (delta / 31557600) / 1e9; 
@@ -411,8 +352,7 @@ export function useSimulation(containerRef: React.RefObject<HTMLDivElement | nul
                     
                     // Send simulation state to WebSocket server at 5Hz (every 200ms)
                     if (currentTime - lastStateSendTime > 200) {
-                        const socket = wsRef.current;
-                        if (socket && socket.readyState === 1 /* WebSocket.OPEN */ && engineRef.current) {
+                        if (engineRef.current) {
                             const star = selectedStarRef.current || engineRef.current.heroStars[0];
                             if (star) {
                                 const realStellarState = engineRef.current.getStellarState();
@@ -524,20 +464,6 @@ export function useSimulation(containerRef: React.RefObject<HTMLDivElement | nul
                                 if (star.planetarySystem) {
                                     star.planetarySystem.updateAstrobiology(astrobiologyStates);
                                 }
-
-                                const statePayload = {
-                                    type: 'state',
-                                    data: {
-                                        timestamp_ms: Date.now(),
-                                        stellar: {
-                                            ...realStellarState,
-                                            sim_time_yr: engine.appTime * 1e6
-                                        },
-                                        orbital: orbitalStates,
-                                        astrobiology: astrobiologyStates
-                                    }
-                                };
-                                socket.send(JSON.stringify(statePayload));
                             }
                         }
                         lastStateSendTime = currentTime;
@@ -582,85 +508,14 @@ export function useSimulation(containerRef: React.RefObject<HTMLDivElement | nul
                 engine.resize(window.innerWidth, window.innerHeight);
             };
 
-            const handleGlobalKeyDown = (e: KeyboardEvent) => {
-                // Ignore if typing in an input/textarea or contenteditable element
-                const active = document.activeElement;
-                if (active && (
-                    active.tagName === 'INPUT' ||
-                    active.tagName === 'TEXTAREA' ||
-                    (active as HTMLElement).isContentEditable ||
-                    active.closest('[contenteditable="true"]')
-                )) {
-                    return;
-                }
-
-                // Alt+R for resetting physics constants
-                if (e.altKey && (e.key === 'r' || e.key === 'R')) {
-                    e.preventDefault();
-                    setPhysics(DEFAULT_CONSTANTS);
-                    return;
-                }
-
-                // Ignore if any other modifier key is pressed
-                if (e.ctrlKey || e.metaKey || e.altKey || e.shiftKey) return;
-
-                switch (e.key) {
-                    case ' ': // Space
-                        e.preventDefault();
-                        setIsPlayingCosmic(prev => !prev);
-                        break;
-                    case 'p':
-                    case 'P':
-                        e.preventDefault();
-                        setIsPaused(prev => !prev);
-                        break;
-                    case 'r':
-                    case 'R':
-                        e.preventDefault();
-                        controlsRef.current?.reset();
-                        break;
-                    case 'f':
-                    case 'F':
-                        e.preventDefault();
-                        if (selectedStarRef.current && controlsRef.current && engineRef.current) {
-                            const targetPos = selectedStarRef.current.position.clone();
-                            const camOffset = engineRef.current.camera.position.clone().sub(controlsRef.current.target).normalize().multiplyScalar(40);
-                            engineRef.current.camera.position.copy(targetPos).add(camOffset);
-                            controlsRef.current.target.copy(targetPos);
-                            controlsRef.current.update();
-                        }
-                        break;
-                    case 'c':
-                    case 'C':
-                        e.preventDefault();
-                        setIsConstantsOpen(prev => !prev);
-                        break;
-                    case 't':
-                    case 'T':
-                        e.preventDefault();
-                        setTimeScale(prev => prev === 'cosmic' ? 'realtime' : 'cosmic');
-                        break;
-                    case 'Escape':
-                        selectedStarRef.current = null;
-                        setSelectedStar(null);
-                        setIsConstantsOpen(false);
-                        break;
-                }
-            };
-
             window.addEventListener('resize', handleResize);
-            window.addEventListener('keydown', handleGlobalKeyDown);
 
             return () => {
                 window.removeEventListener('resize', handleResize);
-                window.removeEventListener('keydown', handleGlobalKeyDown);
                 window.removeEventListener('pointerdown', onPointerDown);
                 window.removeEventListener('pointermove', onPointerMove);
                 window.removeEventListener('pointerup', onPointerUp);
                 cancelAnimationFrame(frameId);
-                if (tierDownIndicatorTimeoutRef.current) {
-                    clearTimeout(tierDownIndicatorTimeoutRef.current);
-                }
 
                 if (nebulaSystemRef.current) {
                     nebulaSystemRef.current.dispose();
@@ -673,38 +528,11 @@ export function useSimulation(containerRef: React.RefObject<HTMLDivElement | nul
         } catch (err: any) {
             setFatalError(err.message);
         }
-    }, [handleTierChange, rebuildStarfieldGeometry]); 
-
-    const handleScrub = (e: React.PointerEvent) => {
-        if (!selectedStarRef.current || !isScrubbingRef.current) return;
-        const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
-        const x = Math.max(0, Math.min(e.clientX - rect.left, rect.width));
-        const percentage = x / rect.width;
-        selectedStarRef.current.t = percentage;
-        const perc = Math.round(percentage * 100);
-        e.currentTarget.setAttribute('aria-valuenow', perc.toString());
-        e.currentTarget.setAttribute('aria-valuetext', `${perc}% of Stellar Lifecycle (${PHASE_NAMES[selectedStarRef.current.phase]})`);
-    };
-
-    const handleGlobalScrub = (e: React.PointerEvent) => {
-        if (!isGlobalScrubbingRef.current) return;
-        const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
-        const x = Math.max(0, Math.min(e.clientX - rect.left, rect.width));
-        const percentage = x / rect.width;
-        const newAge = percentage * 14.0;
-        setCosmicAge(newAge);
-        cosmicAgeRef.current = newAge;
-        const formattedAge = newAge.toFixed(2);
-        e.currentTarget.setAttribute('aria-valuenow', formattedAge);
-        e.currentTarget.setAttribute('aria-valuetext', `${formattedAge} Billion Years`);
-    };
+    }, [handleTierChange, rebuildStarfieldGeometry]);
 
     return {
         selectedStar,
-        setSelectedStar: (s: HeroStarSystem | null) => {
-            selectedStarRef.current = s;
-            setSelectedStar(s);
-        },
+        setSelectedStar,
         isPaused,
         setIsPaused,
         fatalError,
@@ -723,28 +551,12 @@ export function useSimulation(containerRef: React.RefObject<HTMLDivElement | nul
         fps, 
         showTierDownIndicator, 
         numHeroStars: engineRef.current?.heroStars.length ?? 0,
-        onScrubStart: (e: React.PointerEvent) => {
-            (e.currentTarget as HTMLDivElement).setPointerCapture(e.pointerId);
-            isScrubbingRef.current = true;
-            handleScrub(e);
-        },
-        onScrubMove: (e: React.PointerEvent) => {
-            if (isScrubbingRef.current) handleScrub(e);
-        },
-        onScrubEnd: () => {
-            isScrubbingRef.current = false;
-        },
-        onGlobalScrubStart: (e: React.PointerEvent) => {
-            (e.currentTarget as HTMLDivElement).setPointerCapture(e.pointerId);
-            isGlobalScrubbingRef.current = true;
-            handleGlobalScrub(e);
-        },
-        onGlobalScrubMove: (e: React.PointerEvent) => {
-            if (isGlobalScrubbingRef.current) handleGlobalScrub(e);
-        },
-        onGlobalScrubEnd: () => {
-            isGlobalScrubbingRef.current = false;
-        },
+        onScrubStart,
+        onScrubMove,
+        onScrubEnd,
+        onGlobalScrubStart,
+        onGlobalScrubMove,
+        onGlobalScrubEnd,
         onKeyDown: (e: React.KeyboardEvent, global: boolean) => {
             const k = e.key;
             if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(k)) return;
@@ -765,18 +577,8 @@ export function useSimulation(containerRef: React.RefObject<HTMLDivElement | nul
             }
         },
         currentSeed: encodeSeed(physics),
-        resetCamera: () => {
-            controlsRef.current?.reset();
-        },
-        centerOnStar: () => {
-            if (selectedStarRef.current && controlsRef.current && engineRef.current) {
-                const targetPos = selectedStarRef.current.position.clone();
-                const camOffset = engineRef.current.camera.position.clone().sub(controlsRef.current.target).normalize().multiplyScalar(40);
-                engineRef.current.camera.position.copy(targetPos).add(camOffset);
-                controlsRef.current.target.copy(targetPos);
-                controlsRef.current.update();
-            }
-        },
+        resetCamera,
+        centerOnStar,
         timeScale,
         setTimeScale,
         astrobiologyData
