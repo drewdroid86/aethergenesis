@@ -114,6 +114,13 @@ export function initWebSocketServer(server: http.Server, allowedOrigins: string[
     });
     
     wss.on('connection', (ws: WebSocket, req: http.IncomingMessage) => {
+        // Security: Enforce subprotocol-based authentication
+        const expectedToken = process.env.WS_TOKEN || 'default_secret';
+        if (ws.protocol !== expectedToken) {
+            ws.close(1008, 'Forbidden: Authentication token required');
+            return;
+        }
+
         // Security: Origin validation to prevent CSWH
         const origin = req.headers.origin;
         const isDev = process.env.NODE_ENV !== 'production';
