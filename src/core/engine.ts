@@ -77,7 +77,7 @@ export class Engine {
         this.container = container;
         this.stellarState = createStellarState('hero_star', 1.0, 0.02, 0);
         this.scene = new THREE.Scene();
-        this.camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 2000);
+        this.camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 8000);
         this.camera.position.z = 5;
 
         this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
@@ -107,9 +107,9 @@ export class Engine {
             const phi = Math.acos(2 * Math.random() - 1);
             const c = _bgStarPalette[Math.floor(Math.random() * _bgStarPalette.length)];
             starVertices.push(
-                900 * Math.sin(phi) * Math.cos(theta),
-                900 * Math.sin(phi) * Math.sin(theta),
-                900 * Math.cos(phi)
+                4000 * Math.sin(phi) * Math.cos(theta),
+                4000 * Math.sin(phi) * Math.sin(theta),
+                4000 * Math.cos(phi)
             );
             starColors.push(c.r, c.g, c.b);
         }
@@ -133,8 +133,8 @@ export class Engine {
             const _u2 = Math.random();
             const _u3 = Math.max(1e-9, Math.random());
             const _u4 = Math.random();
-            const _mag1 = Math.sqrt(-2.0 * Math.log(_u1)) * 180;
-            const _mag2 = Math.sqrt(-2.0 * Math.log(_u3)) * 180;
+            const _mag1 = Math.sqrt(-2.0 * Math.log(_u1)) * 700;
+            const _mag2 = Math.sqrt(-2.0 * Math.log(_u3)) * 700;
             star.position.set(
                 _mag1 * Math.cos(2 * Math.PI * _u2),
                 _mag2 * Math.sin(2 * Math.PI * _u4) * 0.3,
@@ -233,7 +233,7 @@ export class Engine {
         const protostarFlicker = 0.8 + 0.2 * Math.sin(this.appTime * 20.0);
 
         // BOLT: Constant squared thresholds for zero-sqrt checks
-        const MAX_WORLD_RADIUS = 200;
+        const MAX_WORLD_RADIUS = 800;
         const MAX_WORLD_RADIUS_SQ = MAX_WORLD_RADIUS * MAX_WORLD_RADIUS;
         const MAX_SPEED = 2.0;
         const MAX_SPEED_SQ = MAX_SPEED * MAX_SPEED;

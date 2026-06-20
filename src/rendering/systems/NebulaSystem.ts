@@ -20,7 +20,7 @@ const vertexShader = `
         vec4 mvPosition = viewMatrix * worldPosition;
         
         // Size attenuation: scale point size by distance to camera
-        gl_PointSize = pSize * (600.0 / -mvPosition.z);
+        gl_PointSize = pSize * (2000.0 / -mvPosition.z);
         gl_Position = projectionMatrix * mvPosition;
     }
 `;
@@ -95,10 +95,10 @@ export class NebulaSystem {
         
         for (let i = 0; i < numFormations; i++) {
             const particlesPerCloud = 30 + Math.floor(Math.random() * 40);
-            const cloudRadius = 150 + Math.random() * 200;
+            const cloudRadius = 600 + Math.random() * 800;
             
             // Position the entire formation further away (behind hero stars)
-            const dist = 1400 + Math.random() * 400;
+            const dist = 5000 + Math.random() * 1500;
             const t = Math.random() * Math.PI * 2;
             const p = Math.acos(2 * Math.random() - 1);
             
@@ -139,7 +139,7 @@ export class NebulaSystem {
                 pColors[index * 3 + 1] = formation.color.g;
                 pColors[index * 3 + 2] = formation.color.b;
                 
-                pSizes[index] = 80 + Math.random() * 160;
+                pSizes[index] = 320 + Math.random() * 640;
                 
                 index++;
             }

@@ -215,7 +215,7 @@ export function useSimulation(containerRef: React.RefObject<HTMLDivElement | nul
             const controls = new OrbitControls(engine.camera, engine.renderer.domElement);
             controls.enableDamping = true;
             controls.dampingFactor = 0.05;
-            controls.maxDistance = 600;
+            controls.maxDistance = 2500;
             controls.minDistance = 2;
             controlsRef.current = controls;
 
