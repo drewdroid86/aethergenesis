@@ -32,10 +32,9 @@ export class AsteroidBeltSystem {
             // Initial pos in x-z plane
             const x = Math.cos(angle) * radius;
             let z = Math.sin(angle) * radius;
-            let y = (Math.random() - 0.5) * 0.1; // slight thickness
             
-            // apply inclination
-            y = z * Math.sin(inc);
+            // apply inclination + slight thickness offset
+            const y = z * Math.sin(inc) + (Math.random() - 0.5) * 0.1;
             z = z * Math.cos(inc);
             
             pos.set(x, y, z);

@@ -1,7 +1,11 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { detectPerformanceTier, FPS_THRESHOLD, CONSECUTIVE_FRAMES_THRESHOLD, BANNER_DISPLAY_DURATION } from '../../utils/performance';
 
-export function usePerformanceMonitor(onTierChangeCallback: (newTier: 'low' | 'medium' | 'high' | 'ultra') => void) {
+interface UsePerformanceAutoTuningProps {
+    rebuildStarfieldGeometry: () => void;
+}
+
+export function usePerformanceAutoTuning({ rebuildStarfieldGeometry }: UsePerformanceAutoTuningProps) {
     const [currentTier, setCurrentTier] = useState<'low' | 'medium' | 'high' | 'ultra'>('medium');
     const currentTierRef = useRef(currentTier);
     const [fps, setFps] = useState(0);
@@ -32,8 +36,8 @@ export function usePerformanceMonitor(onTierChangeCallback: (newTier: 'low' | 'm
             }, BANNER_DISPLAY_DURATION);
         }
 
-        onTierChangeCallback(newTier);
-    }, [onTierChangeCallback]);
+        rebuildStarfieldGeometry();
+    }, [rebuildStarfieldGeometry]);
 
     useEffect(() => {
         const initialTier = detectPerformanceTier();
@@ -84,6 +88,7 @@ export function usePerformanceMonitor(onTierChangeCallback: (newTier: 'low' | 'm
         currentTierRef,
         fps,
         showTierDownIndicator,
-        registerFrameDelta
+        registerFrameDelta,
+        handleTierChange
     };
 }

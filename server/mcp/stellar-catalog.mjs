@@ -287,6 +287,8 @@ const EXOPLANETS = [
 ];
 
 
+
+
 /**
  * Estimates stellar physical properties based on spectral class.
  */
@@ -361,6 +363,8 @@ function estimateParams(spType) {
     metallicity_Z: metallicity
   };
 }
+
+
 
 
 /**
