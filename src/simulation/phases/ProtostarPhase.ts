@@ -28,7 +28,8 @@ export class ProtostarPhase implements PhaseComponent {
                 uColor: { value: new THREE.Color(0xff3300) },
                 uTurbulence: { value: 2.0 },
                 uOpacity: { value: 0.0 },
-                uHbar: { value: 1.0 }
+                uHbar: { value: 1.0 },
+                uLowDetail: { value: 0.0 }
             },
             transparent: true, blending: THREE.AdditiveBlending
         });
@@ -99,6 +100,7 @@ export class ProtostarPhase implements PhaseComponent {
         
         this.protostarMat.uniforms.uTime.value = appTime;
         this.protostarMat.uniforms.uHbar.value = physics.hbar || 1.0;
+        this.protostarMat.uniforms.uLowDetail.value = lowDetail ? 1.0 : 0.0;
         this.protostarDisk.rotation.z += delta;
 
         const jetOpacity = this.protostarMat.uniforms.uOpacity?.value ?? 0;

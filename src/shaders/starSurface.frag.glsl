@@ -2,6 +2,7 @@ uniform float uTime;
 uniform vec3 uColor;
 uniform float uTurbulence;
 uniform float uOpacity;
+uniform float uLowDetail;
 
 varying vec3 vLocalPosition;
 varying vec3 vWorldPosition;
@@ -10,9 +11,18 @@ varying vec3 vNormal;
 #include <noise>
 
 void main() {
-    float n1 = fbm(vLocalPosition * 5.0 * uTurbulence + uTime * 0.5);
-    float n2 = fbm(vLocalPosition * 10.0 * uTurbulence - uTime * 0.8);
-    float noiseVal = (n1 + n2) * 0.5;
+    float noiseVal;
+
+    // BOLT: GPU Branching for LOD optimization
+    // Distant stars use 3-octave FBM (3 noise samples)
+    // Close stars use 2x 5-octave FBM (10 noise samples)
+    if (uLowDetail > 0.5) {
+        noiseVal = fbm_3(vLocalPosition * 5.0 * uTurbulence + uTime * 0.5);
+    } else {
+        float n1 = fbm(vLocalPosition * 5.0 * uTurbulence + uTime * 0.5);
+        float n2 = fbm(vLocalPosition * 10.0 * uTurbulence - uTime * 0.8);
+        noiseVal = (n1 + n2) * 0.5;
+    }
     
     vec3 finalColor = mix(uColor * 0.5, uColor * 1.5, noiseVal);
     
