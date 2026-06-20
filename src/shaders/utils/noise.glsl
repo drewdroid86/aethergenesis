@@ -17,8 +17,21 @@ float noise_3d(vec3 x) {
 float fbm(vec3 p) {
     float v = 0.0;
     float a = 0.5;
-    vec3 shift = vec3(100);
+    vec3 shift = vec3(100.0, -120.0, 80.0); // Improved shifts to reduce axis correlation
     for (int i = 0; i < 5; ++i) {
+        v += a * noise_3d(p);
+        p = p * 2.0 + shift;
+        a *= 0.5;
+    }
+    return v;
+}
+
+// High-performance 3-octave FBM for volumetric rendering
+float fbm_3(vec3 p) {
+    float v = 0.0;
+    float a = 0.5;
+    vec3 shift = vec3(100.0, -120.0, 80.0);
+    for (int i = 0; i < 3; ++i) {
         v += a * noise_3d(p);
         p = p * 2.0 + shift;
         a *= 0.5;

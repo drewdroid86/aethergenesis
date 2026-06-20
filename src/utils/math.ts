@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 
-export function getStellarColor(index: number): THREE.Color {
+export function getStellarColor(_index: number): THREE.Color {
   const roll = Math.random();
   // Realistic stellar distribution by spectral class
   if (roll < 0.0003) return new THREE.Color(0.6, 0.7, 1.0);      // O — blue-white

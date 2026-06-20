@@ -58,7 +58,20 @@ export class Engine {
     private _backgroundStarGeo: THREE.BufferGeometry;
     private _backgroundStarMat: THREE.PointsMaterial;
     private _activeStarBuffer: HeroStarSystem[] = []; // BOLT: Persistent buffer to avoid per-frame slice()
-    private _xSortComparator = (a: HeroStarSystem, b: HeroStarSystem) => a.position.x - b.position.x;
+
+    private _insertionSort(arr: HeroStarSystem[]): void {
+        const len = arr.length;
+        for (let i = 1; i < len; i++) {
+            const key = arr[i];
+            const keyX = key.position.x;
+            let j = i - 1;
+            while (j >= 0 && arr[j].position.x > keyX) {
+                arr[j + 1] = arr[j];
+                j--;
+            }
+            arr[j + 1] = key;
+        }
+    }
 
     constructor(container: HTMLElement) {
         this.container = container;
@@ -113,7 +126,7 @@ export class Engine {
         this.setHeroStarCount(getNumStarsForTier(detectPerformanceTier()), initialPhysics);
     }
 
-    createHeroStars(count: number, physicsConstants: PhysicsConstants) {
+    createHeroStars(count: number, _physicsConstants: PhysicsConstants) {
         for (let i = 0; i < count; i++) {
             const star = new HeroStarSystem();
             const _u1 = Math.max(1e-9, Math.random());
@@ -169,8 +182,8 @@ export class Engine {
                 }
             }
 
-            // BOLT: Sort active stars by X-axis for Sweep and Prune
-            this._activeStarBuffer.sort(this._xSortComparator);
+            // BOLT: Sort active stars by X-axis for Sweep and Prune using custom O(N) insertion sort for nearly-sorted arrays
+            this._insertionSort(this._activeStarBuffer);
             for (let i = 0; i < this.activeHeroStarCount; i++) {
                 const s1 = this._activeStarBuffer[i];
                 const p1 = s1.position;

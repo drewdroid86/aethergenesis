@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { StellarState } from '../../simulation/StellarPhysics';
+import { solveKepler } from '../../simulation/OrbitalMechanics';
 
 const COMET_VS = `
 attribute float cScale;
@@ -117,7 +118,7 @@ export class CometSystem {
     private _crossVec = new THREE.Vector3();
     private _dustDir = new THREE.Vector3();
 
-    constructor(scene: THREE.Scene, camera: THREE.Camera) {
+    constructor(scene: THREE.Scene, _camera: THREE.Camera) {
         this.group = new THREE.Group();
         scene.add(this.group);
 
@@ -204,13 +205,10 @@ export class CometSystem {
 
         for (let i = 0; i < 5; i++) {
             const data = this.precalcData[i];
-            // Kepler's equation — Newton-Raphson convergence (5 iterations is sufficient)
+            // Kepler's equation — solved via standard OrbitalMechanics Kepler solver
             const visualYear = appTime * 100.0;
             const M = (visualYear * data.twoPiOverP) % (2 * Math.PI);
-            let E = M;
-            for (let j = 0; j < 5; j++) {
-                E = E - (E - data.e * Math.sin(E) - M) / (1 - data.e * Math.cos(E));
-            }
+            const E = solveKepler(M, data.e);
             const theta = 2 * Math.atan2(
                 data.sqrt1pe * Math.sin(E / 2),
                 data.sqrt1me * Math.cos(E / 2)

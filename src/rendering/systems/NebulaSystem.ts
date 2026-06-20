@@ -9,12 +9,12 @@ import noiseGLSL from '../../shaders/utils/noise.glsl?raw';
 
 const vertexShader = `
     attribute float pSize;
+    attribute vec3 pColor;
     varying vec3 vWorldPosition;
     varying vec3 vColor;
-    uniform vec3 uColor;
 
     void main() {
-        vColor = uColor;
+        vColor = pColor;
         vec4 worldPosition = modelMatrix * vec4(position, 1.0);
         vWorldPosition = worldPosition.xyz;
         vec4 mvPosition = viewMatrix * worldPosition;
@@ -64,7 +64,8 @@ const fragmentShader = `
 
 export class NebulaSystem {
     private scene: THREE.Scene;
-    private nebulae: THREE.Points[] = [];
+    private points?: THREE.Points;
+    private material?: THREE.ShaderMaterial;
 
     constructor(scene: THREE.Scene) {
         this.scene = scene;
@@ -72,78 +73,99 @@ export class NebulaSystem {
     }
 
     /**
-     * Initializes 8-12 nebula formations distributed in the background.
+     * Initializes 8-12 nebula formations distributed in the background, merged into a single draw call.
      */
     private init() {
         const numFormations = 8 + Math.floor(Math.random() * 5); // 8-12 formations
         
+        const formations: {
+            particlesCount: number;
+            cloudRadius: number;
+            center: THREE.Vector3;
+            color: THREE.Color;
+        }[] = [];
+        
+        let totalParticles = 0;
+        const nebulaColors = [
+            new THREE.Color(0.1, 0.8, 0.9),   // OIII — teal/cyan
+            new THREE.Color(0.9, 0.15, 0.2),  // H-alpha — deep red
+            new THREE.Color(0.95, 0.4, 0.1),  // SII — orange
+            new THREE.Color(0.4, 0.1, 0.9),   // NII — violet
+        ];
+        
         for (let i = 0; i < numFormations; i++) {
-            // Each formation is a cluster of points to create a "volumetric" feel
             const particlesPerCloud = 30 + Math.floor(Math.random() * 40);
-            const positions = new Float32Array(particlesPerCloud * 3);
-            const pSizes = new Float32Array(particlesPerCloud);
-            
             const cloudRadius = 150 + Math.random() * 200;
-            
-            for (let j = 0; j < particlesPerCloud; j++) {
-                // Distribute particles in a spherical cluster
-                const r = Math.pow(Math.random(), 0.7) * cloudRadius;
-                const theta = Math.random() * Math.PI * 2;
-                const phi = Math.acos(2 * Math.random() - 1);
-                
-                positions[j * 3] = r * Math.sin(phi) * Math.cos(theta);
-                positions[j * 3 + 1] = r * Math.sin(phi) * Math.sin(theta);
-                positions[j * 3 + 2] = r * Math.cos(phi);
-                
-                // Individual particle sizes for variation
-                pSizes[j] = 80 + Math.random() * 160;
-            }
-
-            const geometry = new THREE.BufferGeometry();
-            geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-            geometry.setAttribute('pSize', new THREE.BufferAttribute(pSizes, 1));
-
-            // Nebula emission line palette — OIII teal, H-alpha red, SII orange
-            const nebulaColors = [
-                new THREE.Color(0.1, 0.8, 0.9),   // OIII — teal/cyan
-                new THREE.Color(0.9, 0.15, 0.2),  // H-alpha — deep red
-                new THREE.Color(0.95, 0.4, 0.1),  // SII — orange
-                new THREE.Color(0.4, 0.1, 0.9),   // NII — violet
-            ];
-            const baseColor = nebulaColors[Math.floor(Math.random() * nebulaColors.length)];
-
-            const material = new THREE.ShaderMaterial({
-                uniforms: {
-                    uTime: { value: 0 },
-                    uColor: { value: new THREE.Vector3(baseColor.r, baseColor.g, baseColor.b) }
-                },
-                vertexShader,
-                fragmentShader,
-                transparent: true,
-                blending: THREE.AdditiveBlending,
-                depthWrite: false,
-                depthTest: true,
-            });
-
-            const points = new THREE.Points(geometry, material);
             
             // Position the entire formation further away (behind hero stars)
             const dist = 1400 + Math.random() * 400;
             const t = Math.random() * Math.PI * 2;
             const p = Math.acos(2 * Math.random() - 1);
             
-            points.position.set(
+            const center = new THREE.Vector3(
                 dist * Math.sin(p) * Math.cos(t),
                 dist * Math.sin(p) * Math.sin(t),
                 dist * Math.cos(p)
             );
-
-            // Ensure they are rendered early or sorted correctly
-            points.renderOrder = -10;
             
-            this.scene.add(points);
-            this.nebulae.push(points);
+            const color = nebulaColors[Math.floor(Math.random() * nebulaColors.length)];
+            
+            formations.push({
+                particlesCount: particlesPerCloud,
+                cloudRadius,
+                center,
+                color
+            });
+            totalParticles += particlesPerCloud;
         }
+
+        const positions = new Float32Array(totalParticles * 3);
+        const pColors = new Float32Array(totalParticles * 3);
+        const pSizes = new Float32Array(totalParticles);
+
+        let index = 0;
+        for (const formation of formations) {
+            for (let j = 0; j < formation.particlesCount; j++) {
+                // Distribute particles in a spherical cluster
+                const r = Math.pow(Math.random(), 0.7) * formation.cloudRadius;
+                const theta = Math.random() * Math.PI * 2;
+                const phi = Math.acos(2 * Math.random() - 1);
+                
+                positions[index * 3]     = formation.center.x + r * Math.sin(phi) * Math.cos(theta);
+                positions[index * 3 + 1] = formation.center.y + r * Math.sin(phi) * Math.sin(theta);
+                positions[index * 3 + 2] = formation.center.z + r * Math.cos(phi);
+                
+                pColors[index * 3]     = formation.color.r;
+                pColors[index * 3 + 1] = formation.color.g;
+                pColors[index * 3 + 2] = formation.color.b;
+                
+                pSizes[index] = 80 + Math.random() * 160;
+                
+                index++;
+            }
+        }
+
+        const geometry = new THREE.BufferGeometry();
+        geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+        geometry.setAttribute('pColor', new THREE.BufferAttribute(pColors, 3));
+        geometry.setAttribute('pSize', new THREE.BufferAttribute(pSizes, 1));
+
+        this.material = new THREE.ShaderMaterial({
+            uniforms: {
+                uTime: { value: 0 }
+            },
+            vertexShader,
+            fragmentShader,
+            transparent: true,
+            blending: THREE.AdditiveBlending,
+            depthWrite: false,
+            depthTest: true,
+        });
+
+        this.points = new THREE.Points(geometry, this.material);
+        this.points.renderOrder = -10;
+        
+        this.scene.add(this.points);
     }
 
     /**
@@ -152,9 +174,8 @@ export class NebulaSystem {
      * @param time Total elapsed time for noise animation
      */
     update(_delta: number, time: number): void {
-        for (let i = 0; i < this.nebulae.length; i++) {
-            const material = this.nebulae[i].material as THREE.ShaderMaterial;
-            material.uniforms.uTime.value = time;
+        if (this.material) {
+            this.material.uniforms.uTime.value = time;
         }
     }
 
@@ -162,12 +183,14 @@ export class NebulaSystem {
      * Cleans up GPU resources.
      */
     dispose(): void {
-        for (let i = 0; i < this.nebulae.length; i++) {
-            const points = this.nebulae[i];
-            this.scene.remove(points);
-            points.geometry.dispose();
-            (points.material as THREE.ShaderMaterial).dispose();
+        if (this.points) {
+            this.scene.remove(this.points);
+            this.points.geometry.dispose();
+            this.points = undefined;
         }
-        this.nebulae = [];
+        if (this.material) {
+            this.material.dispose();
+            this.material = undefined;
+        }
     }
 }
