@@ -41,6 +41,7 @@ void main() {
 
 const PLANET_FS = `
 uniform float uTime;
+varying vec2 vUv;
 varying vec3 vNormal;
 varying vec3 vPosition;
 varying float vType;
