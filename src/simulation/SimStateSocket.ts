@@ -97,15 +97,20 @@ export function broadcastSimState(state: SimBroadcast, exclude?: WebSocket): voi
 }
 
 export function initWebSocketServer(server: http.Server, allowedOrigins: string[]): void {
+    const isProduction = process.env.NODE_ENV === 'production';
+    const wsToken = process.env.WS_TOKEN;
+
+    // Security: Enforce authentication token in production; fallback only in development
+    if (isProduction && (!wsToken || wsToken === 'default_secret')) {
+        console.error('FATAL: WS_TOKEN must be configured in production environments.');
+        process.exit(1);
+    }
+    const expectedToken = wsToken || 'default_secret';
+
     wss = new WebSocketServer({
         server,
         maxPayload: 102400, // Security: 100KB limit to prevent DoS
         handleProtocols: (protocols) => {
-            const expectedToken = process.env.WS_TOKEN || 'default_secret';
-            const isProduction = process.env.NODE_ENV === 'production';
-            if (isProduction && expectedToken === 'default_secret') {
-                return false;
-            }
             if (protocols.has(expectedToken)) {
                 return expectedToken;
             }
@@ -114,6 +119,14 @@ export function initWebSocketServer(server: http.Server, allowedOrigins: string[
     });
     
     wss.on('connection', (ws: WebSocket, req: http.IncomingMessage) => {
+        // Security: Explicitly verify that the client has been authenticated via subprotocol.
+        // The handleProtocols hook only runs if the client sends a Sec-WebSocket-Protocol header;
+        // if omitted, we must manually reject the connection here.
+        if (ws.protocol !== expectedToken) {
+            ws.close(1008, 'Forbidden: Authentication required via subprotocol');
+            return;
+        }
+
         // Security: Origin validation to prevent CSWH
         const origin = req.headers.origin;
         const isDev = process.env.NODE_ENV !== 'production';
