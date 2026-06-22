@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from "motion/react";
-import { Scan, Zap, Pause, Play, X, Copy, Check, Loader2 } from 'lucide-react';
+import { Scan, Zap, Pause, Play, X, Copy, Check, Loader2, Sparkles } from 'lucide-react';
 import { PHASE_NAMES } from '../core/constants';
 import { HeroStarSystem } from '../rendering/systems/HeroStarSystem';
 import { PhysicsConstants } from '../types/physics';
@@ -47,6 +47,7 @@ export const InspectPanel: React.FC<InspectPanelProps> = ({
     onKeyDown,
     uiRefs
 }) => {
+    const ANALYSIS_COOLDOWN = 5000;
     const [isAnalyzing, setIsAnalyzing] = useState(false);
     const [geminiData, setGeminiData] = useState<GeminiAnalysisResult | null>(null);
     const [analysisFailed, setAnalysisFailed] = useState(false);
@@ -117,12 +118,12 @@ Civilization: ${geminiData.civilization}`;
 
         const now = Date.now();
         const timeSinceLast = now - lastAnalysisTimeRef.current;
-        if (timeSinceLast < 5000) {
-            setCooldownRemaining(5000 - timeSinceLast);
+        if (timeSinceLast < ANALYSIS_COOLDOWN) {
+            setCooldownRemaining(ANALYSIS_COOLDOWN - timeSinceLast);
             return;
         }
         lastAnalysisTimeRef.current = now;
-        setCooldownRemaining(5000);
+        setCooldownRemaining(ANALYSIS_COOLDOWN);
 
         try {
             setIsAnalyzing(true);
@@ -278,19 +279,30 @@ Civilization: ${geminiData.civilization}`;
                 <div className="mt-4 pt-4 border-t border-[rgba(126,184,255,0.1)]">
                     <button 
                         onClick={analyzeSystem}
-                        disabled={isAnalyzing || (cooldownRemaining > 0 && cooldownRemaining < 4900)}
+                        disabled={isAnalyzing || cooldownRemaining > 0}
                         aria-busy={isAnalyzing}
-                        className="w-full py-2 bg-[#C084FC]/20 hover:bg-[#C084FC]/40 text-[#C084FC] hover:text-white border border-[#C084FC]/30 rounded transition-all text-[10px] uppercase tracking-widest disabled:opacity-50 flex items-center justify-center gap-2"
+                        className="w-full py-2 bg-[#C084FC]/10 hover:bg-[#C084FC]/20 text-[#C084FC] hover:text-white border border-[#C084FC]/30 rounded transition-all text-[10px] uppercase tracking-widest disabled:cursor-not-allowed flex items-center justify-center gap-2 relative overflow-hidden group/scan"
+                        style={{
+                            background: cooldownRemaining > 0
+                                ? `linear-gradient(90deg, rgba(192, 132, 252, 0.2) ${(1 - cooldownRemaining / ANALYSIS_COOLDOWN) * 100}%, transparent 0%)`
+                                : undefined
+                        }}
                     >
                         {isAnalyzing ? (
                             <>
                                 <Loader2 size={14} className="animate-spin" />
                                 <span>Analyzing...</span>
                             </>
-                        ) : cooldownRemaining > 0 && cooldownRemaining < 4900 ? (
-                            `Cooldown (${(cooldownRemaining / 1000).toFixed(1)}s)`
+                        ) : cooldownRemaining > 0 ? (
+                            <>
+                                <Loader2 size={12} className="opacity-40 animate-spin" />
+                                <span>Cooldown: {(cooldownRemaining / 1000).toFixed(1)}s</span>
+                            </>
                         ) : (
-                            "Gemini AI: Deep Scan"
+                            <>
+                                <Sparkles size={14} className="group-hover/scan:animate-pulse" />
+                                <span>Gemini AI: Deep Scan</span>
+                            </>
                         )}
                     </button>
                     <AnimatePresence>
