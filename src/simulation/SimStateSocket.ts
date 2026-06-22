@@ -114,6 +114,18 @@ export function initWebSocketServer(server: http.Server, allowedOrigins: string[
     });
     
     wss.on('connection', (ws: WebSocket, req: http.IncomingMessage) => {
+        // Security: Subprotocol-based authentication verification
+        // handleProtocols hook only runs if the client sends a Sec-WebSocket-Protocol header.
+        // We must explicitly verify the protocol here to prevent bypass by omitting the header.
+        const expectedToken = process.env.WS_TOKEN || 'default_secret';
+        const isProduction = process.env.NODE_ENV === 'production';
+        const isTokenInvalid = isProduction && expectedToken === 'default_secret';
+
+        if (isTokenInvalid || ws.protocol !== expectedToken) {
+            ws.close(1008, 'Forbidden: Invalid or missing authentication subprotocol');
+            return;
+        }
+
         // Security: Origin validation to prevent CSWH
         const origin = req.headers.origin;
         const isDev = process.env.NODE_ENV !== 'production';
