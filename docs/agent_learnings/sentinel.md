@@ -27,3 +27,8 @@
 **Vulnerability:** Unsanitized user input concatenated into ADQL queries for the SIMBAD TAP service.
 **Learning:** MCP servers that proxy queries to external SQL-like services (like SIMBAD's TAP ADQL) are vulnerable to injection if they don't escape control characters like single quotes.
 **Prevention:** Always sanitize user-provided strings by escaping single quotes (replace `'` with `''`) before interpolating them into ADQL/SQL query strings.
+
+## 2026-06-23 - [WebSocket Auth Bypass via handleProtocols]
+**Vulnerability:** Authentication bypass in WebSocket servers using only `handleProtocols`.
+**Learning:** The `handleProtocols` hook in the `ws` library is only triggered if the client sends a `Sec-WebSocket-Protocol` header. If the client omits this header, they can bypass subprotocol-based authentication entirely.
+**Prevention:** Use `verifyClient` or manually handle the `upgrade` event to enforce that an authentication token is present and valid before accepting the connection. Additionally, always validate the `Origin` header to prevent Cross-Site WebSocket Hijacking (CSWH).
