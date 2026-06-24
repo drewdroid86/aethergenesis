@@ -55,7 +55,8 @@ export class MainSequencePhase implements PhaseComponent {
                 uColor: { value: new THREE.Color(msColor) },
                 uTurbulence: { value: 1.0 },
                 uOpacity: { value: 0.0 },
-                uHbar: { value: 1.0 }
+                uHbar: { value: 1.0 },
+                uLowDetail: { value: 0.0 }
             },
             transparent: true, blending: THREE.AdditiveBlending
         });
@@ -212,6 +213,7 @@ export class MainSequencePhase implements PhaseComponent {
         // BOLT: Removed redundant scale assignment
         this.starMat.uniforms.uTime.value = appTime;
         this.starMat.uniforms.uHbar.value = physics.hbar || 1.0;
+        this.starMat.uniforms.uLowDetail.value = (lowDetail || false) ? 1.0 : 0.0;
         this.flareMat.uniforms.uTime.value = appTime;
 
         if (!lowDetail) {
