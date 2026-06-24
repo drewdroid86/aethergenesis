@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from "motion/react";
-import { Scan, Zap, Pause, Play, X, Copy, Check, Loader2 } from 'lucide-react';
+import { Scan, Zap, Pause, Play, X, Copy, Check, Loader2, Sparkles } from 'lucide-react';
 import { PHASE_NAMES } from '../core/constants';
 import { HeroStarSystem } from '../rendering/systems/HeroStarSystem';
 import { PhysicsConstants } from '../types/physics';
@@ -278,19 +278,30 @@ Civilization: ${geminiData.civilization}`;
                 <div className="mt-4 pt-4 border-t border-[rgba(126,184,255,0.1)]">
                     <button 
                         onClick={analyzeSystem}
-                        disabled={isAnalyzing || (cooldownRemaining > 0 && cooldownRemaining < 4900)}
+                        disabled={isAnalyzing || cooldownRemaining > 0}
                         aria-busy={isAnalyzing}
-                        className="w-full py-2 bg-[#C084FC]/20 hover:bg-[#C084FC]/40 text-[#C084FC] hover:text-white border border-[#C084FC]/30 rounded transition-all text-[10px] uppercase tracking-widest disabled:opacity-50 flex items-center justify-center gap-2"
+                        className="w-full py-2 bg-[#C084FC]/20 hover:bg-[#C084FC]/40 text-[#C084FC] hover:text-white border border-[#C084FC]/30 rounded transition-all text-[10px] uppercase tracking-widest disabled:opacity-70 flex items-center justify-center gap-2 relative overflow-hidden group/scan"
+                        style={{
+                            background: cooldownRemaining > 0
+                                ? `linear-gradient(90deg, rgba(192, 132, 252, 0.2) ${100 - (cooldownRemaining / 5000) * 100}%, rgba(0, 0, 0, 0.4) ${100 - (cooldownRemaining / 5000) * 100}%)`
+                                : undefined
+                        }}
                     >
                         {isAnalyzing ? (
                             <>
                                 <Loader2 size={14} className="animate-spin" />
                                 <span>Analyzing...</span>
                             </>
-                        ) : cooldownRemaining > 0 && cooldownRemaining < 4900 ? (
-                            `Cooldown (${(cooldownRemaining / 1000).toFixed(1)}s)`
+                        ) : cooldownRemaining > 0 ? (
+                            <>
+                                <Loader2 size={14} className="animate-spin opacity-50" />
+                                <span>Recharging ({(cooldownRemaining / 1000).toFixed(1)}s)</span>
+                            </>
                         ) : (
-                            "Gemini AI: Deep Scan"
+                            <>
+                                <Sparkles size={14} className="group-hover/scan:animate-pulse" />
+                                <span>Gemini AI: Deep Scan</span>
+                            </>
                         )}
                     </button>
                     <AnimatePresence>
