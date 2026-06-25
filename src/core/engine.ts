@@ -143,6 +143,8 @@ export class Engine {
             this.scene.add(star);
             this.heroStars.push(star);
         }
+        // BOLT: Invalidate buffer when stars are added to ensure next update rebuilds it
+        this._activeStarBuffer = [];
     }
 
     setHeroStarCount(count: number, physicsConstants: PhysicsConstants) {
@@ -173,13 +175,10 @@ export class Engine {
             const minDistSq = minDist * minDist;
             const invMinDist = 1.0 / minDist;
 
-            // BOLT: Populate persistent buffer to avoid per-frame allocation
+            // BOLT: Populate persistent buffer only if count changed or invalidated.
+            // Keeping the buffer across frames allows insertion sort to run in O(N).
             if (this._activeStarBuffer.length !== this.activeHeroStarCount) {
                 this._activeStarBuffer = this.heroStars.slice(0, this.activeHeroStarCount);
-            } else {
-                for (let i = 0; i < this.activeHeroStarCount; i++) {
-                    this._activeStarBuffer[i] = this.heroStars[i];
-                }
             }
 
             // BOLT: Sort active stars by X-axis for Sweep and Prune using custom O(N) insertion sort for nearly-sorted arrays
