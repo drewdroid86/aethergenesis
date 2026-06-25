@@ -97,15 +97,57 @@ export function broadcastSimState(state: SimBroadcast, exclude?: WebSocket): voi
 }
 
 export function initWebSocketServer(server: http.Server, allowedOrigins: string[]): void {
+    const expectedToken = process.env.WS_TOKEN || 'default_secret';
+    const isProduction = process.env.NODE_ENV === 'production';
+
     wss = new WebSocketServer({
         server,
         maxPayload: 102400, // Security: 100KB limit to prevent DoS
-        handleProtocols: (protocols) => {
-            const expectedToken = process.env.WS_TOKEN || 'default_secret';
-            const isProduction = process.env.NODE_ENV === 'production';
-            if (isProduction && expectedToken === 'default_secret') {
-                return false;
+        verifyClient: (info, cb) => {
+            // Security: Origin validation to prevent Cross-Site WebSocket Hijacking (CSWH)
+            const origin = info.origin;
+            const isDev = process.env.NODE_ENV !== 'production';
+            const isAllowed = origin && (
+                allowedOrigins.includes(origin) ||
+                (isDev && (
+                    origin.startsWith('http://localhost:') ||
+                    origin.startsWith('http://127.0.0.1:') ||
+                    origin.startsWith('http://100.') ||
+                    origin.startsWith('http://192.168.') ||
+                    origin.startsWith('http://10.')
+                ))
+            );
+
+            if (!origin || !isAllowed) {
+                cb(false, 403, 'Forbidden: Unauthorized origin');
+                return;
             }
+
+            // Security: Mandatory subprotocol-based authentication
+            // handleProtocols alone allows bypass if no protocol is sent; verifyClient enforces its presence.
+            if (isProduction && expectedToken === 'default_secret') {
+                cb(false, 500, 'Internal Server Error: Secure token not configured');
+                return;
+            }
+
+            const protocolHeader = info.req.headers['sec-websocket-protocol'];
+            if (!protocolHeader) {
+                cb(false, 401, 'Unauthorized: Missing security token');
+                return;
+            }
+
+            // Parse CSV protocol header correctly
+            const protocols = protocolHeader.split(',').map(p => p.trim());
+            if (!protocols.includes(expectedToken)) {
+                cb(false, 401, 'Unauthorized: Invalid security token');
+                return;
+            }
+
+            cb(true);
+        },
+        handleProtocols: (protocols) => {
+            // Security: Negotiate and return the expected token to the client.
+            // This is required for browser-based WebSocket clients to successfully complete the handshake.
             if (protocols.has(expectedToken)) {
                 return expectedToken;
             }
@@ -113,24 +155,7 @@ export function initWebSocketServer(server: http.Server, allowedOrigins: string[
         }
     });
     
-    wss.on('connection', (ws: WebSocket, req: http.IncomingMessage) => {
-        // Security: Origin validation to prevent CSWH
-        const origin = req.headers.origin;
-        const isDev = process.env.NODE_ENV !== 'production';
-        const isAllowed = origin && (
-            allowedOrigins.includes(origin) || 
-            (isDev && (
-                origin.startsWith('http://localhost:') || 
-                origin.startsWith('http://127.0.0.1:') || 
-                origin.startsWith('http://100.') || 
-                origin.startsWith('http://192.168.') || 
-                origin.startsWith('http://10.')
-            ))
-        );
-        if (!origin || !isAllowed) {
-            ws.close(1008, 'Forbidden: Unauthorized origin');
-            return;
-        }
+    wss.on('connection', (ws: WebSocket) => {
 
         // Security: Limit concurrent connections
         if (clients.size >= MAX_CLIENTS) {
