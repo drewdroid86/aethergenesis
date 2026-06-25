@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { PHASES } from '../../core/constants';
+import { GEOMETRIES } from '../../simulation/phases/geometries';
 
 /**
  * BOLT: PlanetarySystem manages a collection of orbital bodies
@@ -197,7 +198,8 @@ export class PlanetarySystem {
         // Maximum 50 bodies
         const numBodies = 50; 
         
-        const geometry = new THREE.SphereGeometry(1, 16, 16);
+        // BOLT: Use shared GEOMETRIES.planet to save GPU memory
+        const geometry = GEOMETRIES.planet;
         this.material = new THREE.ShaderMaterial({
             uniforms: {
                 uTime: { value: 0 },
@@ -245,11 +247,12 @@ export class PlanetarySystem {
 
     /**
      * Update orbits based on Float32Array from nbodyWorker.ts
+     * BOLT: Implement lowDetail culling to skip matrix updates for distant stars
      */
-    updateFromBuffer(buffer: Float32Array, delta: number): void {
+    updateFromBuffer(buffer: Float32Array, delta: number, lowDetail?: boolean): void {
         const star = this.parent as any;
         
-        if (star.phase !== PHASES.MAIN_SEQUENCE) {
+        if (star.phase !== PHASES.MAIN_SEQUENCE || lowDetail) {
             this.group.visible = false;
             return;
         }
@@ -286,7 +289,7 @@ export class PlanetarySystem {
      */
     dispose() {
         this.material.dispose();
-        this.instancedMesh.geometry.dispose();
+        // BOLT: InstancedMesh geometry is shared GEOMETRIES.planet, do NOT dispose here
         if (this.parent) {
             this.parent.remove(this.group);
         }
