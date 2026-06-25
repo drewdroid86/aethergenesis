@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from "motion/react";
-import { Scan, Zap, Pause, Play, X, Copy, Check, Loader2 } from 'lucide-react';
+import { Scan, Zap, Pause, Play, X, Copy, Check, Loader2, Sparkles } from 'lucide-react';
 import { PHASE_NAMES } from '../core/constants';
 import { HeroStarSystem } from '../rendering/systems/HeroStarSystem';
 import { PhysicsConstants } from '../types/physics';
@@ -190,7 +190,7 @@ Civilization: ${geminiData.civilization}`;
                         aria-label={copied ? "Telemetry Copied" : "Copy Telemetry"}
                         title="Copy Telemetry"
                     >
-                        <span className={`absolute -top-6 right-0 text-[10px] text-[#C084FC] transition-opacity whitespace-nowrap ${copied ? 'opacity-100' : 'opacity-0 group-hover/copy:opacity-100'}`}>
+                        <span className={`absolute -top-6 right-0 text-[10px] text-[#C084FC] transition-opacity whitespace-nowrap ${copied ? 'opacity-100' : 'opacity-0 group-hover/copy:opacity-100 group-focus-visible/copy:opacity-100'}`}>
                             {copied ? 'Copied!' : 'Copy'}
                         </span>
                         {copied ? <Check size={16} className="text-green-400" /> : <Copy size={16} />}
@@ -201,7 +201,7 @@ Civilization: ${geminiData.civilization}`;
                         aria-label="Close Stellar Telemetry"
                         title="Close [Esc]"
                     >
-                        <span className="absolute -top-6 left-1/2 -translate-x-1/2 text-[10px] text-[#C084FC] opacity-0 group-hover/close:opacity-100 transition-opacity whitespace-nowrap">
+                        <span className="absolute -top-6 left-1/2 -translate-x-1/2 text-[10px] text-[#C084FC] opacity-0 group-hover/close:opacity-100 group-focus-visible/close:opacity-100 transition-opacity whitespace-nowrap">
                             [Esc] Close
                         </span>
                         <X size={20} />
@@ -236,7 +236,7 @@ Civilization: ${geminiData.civilization}`;
                 <div className="mt-8 pt-6 border-t border-[rgba(126,184,255,0.1)] group/timeline">
                     <div className="flex justify-between items-center mb-3">
                         <span className="text-[10px] text-[#7EB8FF]/50 uppercase tracking-widest">
-                            Time Override <span className="opacity-0 group-hover/timeline:opacity-100 transition-opacity ml-1 text-[8px] text-[#C084FC] hidden sm:inline">[Arrows to Seek]</span>
+                            Time Override <span className="opacity-0 group-hover/timeline:opacity-100 group-focus-within/timeline:opacity-100 transition-opacity ml-1 text-[8px] text-[#C084FC] hidden sm:inline">[Arrows to Seek]</span>
                         </span>
                         <div className="flex gap-2">
                             <button
@@ -245,7 +245,7 @@ Civilization: ${geminiData.civilization}`;
                                 aria-label={isPaused ? "Play Simulation" : "Pause Simulation"}
                                 title={isPaused ? "Play Simulation" : "Pause Simulation"}
                             >
-                                <span className="absolute -top-6 left-1/2 -translate-x-1/2 text-[10px] text-[#C084FC] opacity-0 group-hover/pause:opacity-100 transition-opacity whitespace-nowrap">
+                                <span className="absolute -top-6 left-1/2 -translate-x-1/2 text-[10px] text-[#C084FC] opacity-0 group-hover/pause:opacity-100 group-focus-visible/pause:opacity-100 transition-opacity whitespace-nowrap">
                                     [P]
                                 </span>
                                 {isPaused ? <Play size={14} /> : <Pause size={14} />}
@@ -280,7 +280,12 @@ Civilization: ${geminiData.civilization}`;
                         onClick={analyzeSystem}
                         disabled={isAnalyzing || (cooldownRemaining > 0 && cooldownRemaining < 4900)}
                         aria-busy={isAnalyzing}
-                        className="w-full py-2 bg-[#C084FC]/20 hover:bg-[#C084FC]/40 text-[#C084FC] hover:text-white border border-[#C084FC]/30 rounded transition-all text-[10px] uppercase tracking-widest disabled:opacity-50 flex items-center justify-center gap-2"
+                        style={{
+                            background: cooldownRemaining > 0 && cooldownRemaining < 4900
+                                ? `linear-gradient(to right, rgba(192, 132, 252, 0.4) ${(1 - (cooldownRemaining / 5000)) * 100}%, rgba(192, 132, 252, 0.1) ${(1 - (cooldownRemaining / 5000)) * 100}%)`
+                                : undefined
+                        }}
+                        className={`w-full py-2 ${cooldownRemaining > 0 && cooldownRemaining < 4900 ? 'text-[#C084FC]/70' : 'bg-[#C084FC]/20 hover:bg-[#C084FC]/40 text-[#C084FC]'} hover:text-white border border-[#C084FC]/30 rounded transition-all text-[10px] uppercase tracking-widest disabled:opacity-50 flex items-center justify-center gap-2 relative group/scan overflow-hidden`}
                     >
                         {isAnalyzing ? (
                             <>
@@ -288,9 +293,15 @@ Civilization: ${geminiData.civilization}`;
                                 <span>Analyzing...</span>
                             </>
                         ) : cooldownRemaining > 0 && cooldownRemaining < 4900 ? (
-                            `Cooldown (${(cooldownRemaining / 1000).toFixed(1)}s)`
+                            <>
+                                <Loader2 size={12} className="opacity-50" />
+                                <span>Cooldown ({(cooldownRemaining / 1000).toFixed(1)}s)</span>
+                            </>
                         ) : (
-                            "Gemini AI: Deep Scan"
+                            <>
+                                <Sparkles size={14} className="group-hover/scan:animate-pulse transition-transform duration-300 group-hover/scan:scale-110" />
+                                <span>Gemini AI: Deep Scan</span>
+                            </>
                         )}
                     </button>
                     <AnimatePresence>
