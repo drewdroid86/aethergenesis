@@ -220,6 +220,7 @@ export const Hud: React.FC<HudProps> = ({
                                         title="1 second = 200 Million Years"
                                         role="radio"
                                         aria-checked={timeScale === 'cosmic'}
+                                        aria-label="Cosmic timescale: 1 second equals 200 Million Years"
                                     >
                                         Cosmic
                                     </button>
@@ -229,14 +230,15 @@ export const Hud: React.FC<HudProps> = ({
                                         title="1 second = 1 second"
                                         role="radio"
                                         aria-checked={timeScale === 'realtime'}
+                                        aria-label="Realtime timescale: 1 second equals 1 second"
                                     >
                                         Realtime
                                     </button>
                                 </div>
                                 <button
                                     onClick={shareUniverse}
-                                    className="flex items-center gap-1.5 px-3 py-1 bg-[#C084FC]/10 border border-[#C084FC]/30 rounded-full text-[9px] uppercase tracking-wider text-[#C084FC] hover:bg-[#C084FC]/20 transition-colors pointer-events-auto"
-                                    aria-label={shareCopied ? "Universe Seed URL Copied" : "Share current universe seed"}
+                                    className="flex items-center gap-1.5 px-3 py-1 bg-[#C084FC]/10 border border-[#C084FC]/30 rounded-full text-[9px] uppercase tracking-wider text-[#C084FC] hover:bg-[#C084FC]/20 transition-colors pointer-events-auto focus-visible:ring-2 focus-visible:ring-[#C084FC] outline-none"
+                                    aria-label={shareCopied ? "Universe Seed URL Copied" : "Copy Universe Seed URL to clipboard"}
                                     title="Copy Universe Seed URL"
                                 >
                                     {shareCopied ? <Check size={10} /> : <Copy size={10} />}
@@ -284,7 +286,7 @@ export const Hud: React.FC<HudProps> = ({
                     <button 
                         onClick={resetCamera}
                         className="w-10 h-10 flex items-center justify-center bg-[rgba(8,8,20,0.6)] border border-[rgba(126,184,255,0.2)] rounded-md backdrop-blur-md transition-colors hover:bg-[rgba(126,184,255,0.1)] cursor-pointer focus-visible:ring-2 focus-visible:ring-[#C084FC] outline-none relative group/reset"
-                        aria-label="Reset Camera" title="Reset Camera"
+                        aria-label="Reset camera position and orientation" title="Reset Camera [R]"
                     >
                     <span className="absolute -top-6 left-1/2 -translate-x-1/2 text-[10px] text-[#C084FC] opacity-0 group-hover/reset:opacity-100 transition-opacity whitespace-nowrap">
                         [R] Reset
@@ -294,7 +296,7 @@ export const Hud: React.FC<HudProps> = ({
                     <button 
                         onClick={centerOnStar}
                         className="w-10 h-10 flex items-center justify-center bg-[rgba(8,8,20,0.6)] border border-[rgba(126,184,255,0.2)] rounded-md backdrop-blur-md transition-colors hover:bg-[rgba(126,184,255,0.1)] cursor-pointer focus-visible:ring-2 focus-visible:ring-[#C084FC] outline-none relative group/focus"
-                        aria-label="Center on Star" title="Center on Star"
+                        aria-label="Center camera on selected star" title="Focus on Star [F]"
                     >
                     <span className="absolute -top-6 left-1/2 -translate-x-1/2 text-[10px] text-[#C084FC] opacity-0 group-hover/focus:opacity-100 transition-opacity whitespace-nowrap">
                         [F] Focus
