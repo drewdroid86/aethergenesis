@@ -37,7 +37,8 @@ export class RedGiantPhase implements PhaseComponent {
                 uColor: { value: new THREE.Color(0xff4400) },
                 uTurbulence: { value: 0.5 },
                 uOpacity: { value: 0.0 },
-                uHbar: { value: 1.0 }
+                uHbar: { value: 1.0 },
+                uLowDetail: { value: 0.0 }
             },
             transparent: true, blending: THREE.AdditiveBlending
         });
@@ -106,6 +107,7 @@ export class RedGiantPhase implements PhaseComponent {
         
         this.redGiantMat.uniforms.uTime.value = appTime;
         this.redGiantMat.uniforms.uHbar.value = physics.hbar || 1.0;
+        this.redGiantMat.uniforms.uLowDetail.value = (lowDetail || false) ? 1.0 : 0.0;
         this.flareMat.uniforms.uTime.value = appTime;
 
         if (!lowDetail) {
