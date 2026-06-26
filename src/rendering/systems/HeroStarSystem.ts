@@ -133,7 +133,11 @@ export class HeroStarSystem extends THREE.Group {
         } else {
             this.mass = 0.4 + Math.random() * 3;        // Main sequence 76%
         }
-        this.lifespanReal = 10000 * Math.pow(this.mass, -2.5);
+        const m2 = this.mass * this.mass;
+        const sqrtM = Math.sqrt(this.mass);
+
+        // BOLT: Optimized Math.pow(x, -2.5) -> 1 / (x^2 * sqrt(x))
+        this.lifespanReal = 10000 / (m2 * sqrtM);
         this.loopDuration = 40 + Math.random() * 20; 
         
         this.birthAge = 0.5 + Math.random() * 9.5;
@@ -141,9 +145,11 @@ export class HeroStarSystem extends THREE.Group {
 
         // BOLT: Baryon ratio affects base heat distribution
         const baryonFactor = (DEFAULT_CONSTANTS.baryon || 0.05) / 0.05; 
-        this.tHeat = 5778 * Math.pow(this.mass, 0.5) * baryonFactor;
+        // BOLT: Optimized Math.pow(x, 0.5) -> sqrt(x)
+        this.tHeat = 5778 * sqrtM * baryonFactor;
         this.baseRadius = Math.pow(this.mass, 0.8) * 0.8;
-        this._msLuminosity = Math.pow(this.mass, STELLAR_CONSTANTS.PHYSICS.MASS_LUMINOSITY_EXPONENT);
+        // BOLT: Optimized Math.pow(x, 3.5) -> x^3 * sqrt(x)
+        this._msLuminosity = m2 * this.mass * sqrtM;
 
         // Hit mesh for raycaster
         this.hitMesh = new THREE.Mesh(
