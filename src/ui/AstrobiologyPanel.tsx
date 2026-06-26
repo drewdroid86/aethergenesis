@@ -43,7 +43,7 @@ ${planet.civilizationTier > 0 ? `- Civilization: Type ${planet.civilizationTier}
             animate={{ opacity: 1, x: 0, filter: 'blur(0px)' }}
             exit={{ opacity: 0, x: -20, filter: 'blur(10px)' }}
             role="region"
-            aria-label="Astrobiology Report"
+            aria-label={`Astrobiology Report for System ${selectedStar?.physicsId?.substring(0, 8) || ''}`}
             className="absolute left-6 top-24 w-80 max-h-[calc(100vh-8rem)] overflow-y-auto pointer-events-auto custom-scrollbar"
         >
             <div className="bg-black/40 backdrop-blur-md border border-white/10 rounded-2xl p-5 shadow-2xl">
@@ -87,7 +87,8 @@ ${planet.civilizationTier > 0 ? `- Civilization: Type ${planet.civilizationTier}
                                 key={planet.planet_id}
                                 initial={{ opacity: 0, y: 10 }}
                                 animate={{ opacity: 1, y: 0 }}
-                                className="bg-white/5 rounded-xl p-4 border border-white/5 relative overflow-hidden"
+                                transition={{ delay: i * 0.1 }}
+                                className="bg-white/5 rounded-xl p-4 border border-white/5 relative overflow-hidden hover:border-white/20 hover:bg-white/10 transition-all duration-300 hover:scale-[1.02]"
                             >
                                 <div className="flex justify-between items-start mb-3">
                                     <h3 className="text-white/80 font-mono text-sm capitalize flex items-center">
@@ -125,7 +126,7 @@ ${planet.civilizationTier > 0 ? `- Civilization: Type ${planet.civilizationTier}
                                     {/* Biomass progress bar */}
                                     <div className="pt-2 mt-2 border-t border-white/10">
                                         <div className="flex justify-between mb-1 text-[10px]">
-                                            <span id={`biomass-label-${planet.planet_id}`}>Biomass</span>
+                                            <span id={`biomass-label-${planet.planet_id}`}>Planet {i + 1} Biomass</span>
                                             <span>{(planet.biomass * 100).toFixed(1)}%</span>
                                         </div>
                                         <div
