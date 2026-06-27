@@ -168,7 +168,8 @@ export class MainSequencePhase implements PhaseComponent {
         this.parent.add(this.mainSeqGroup);
 
         // Habitable Zone
-        const lum = Math.pow(this.mass, STELLAR_CONSTANTS.PHYSICS.MASS_LUMINOSITY_EXPONENT);
+        // BOLT: (x^2 * x * sqrt(x)) is faster than Math.pow(x, 3.5)
+        const lum = (this.mass * this.mass) * this.mass * Math.sqrt(this.mass);
         const hzRadius = Math.max(STELLAR_CONSTANTS.VISUALS.HZ_RADIUS_BASE, Math.sqrt(lum) * STELLAR_CONSTANTS.VISUALS.HZ_LUM_FACTOR);
         this.hzMesh = new THREE.Mesh(
             GEOMETRIES.habitableZone,

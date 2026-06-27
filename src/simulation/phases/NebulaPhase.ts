@@ -38,7 +38,8 @@ export class NebulaPhase implements PhaseComponent {
         const dustPos = new Float32Array(500 * 3);
         const dustSize = new Float32Array(500);
         for(let i=0; i<500; i++) {
-            const r = 2 + Math.pow(Math.random(), 2) * 15;
+            // BOLT: (x ** 2) is faster than Math.pow(x, 2)
+            const r = 2 + (Math.random() ** 2) * 15;
             const a = Math.random() * Math.PI * 2;
             const h = (Math.random() - 0.5) * Math.max(0.5, r * 0.2);
             dustPos[i*3] = Math.cos(a) * r;

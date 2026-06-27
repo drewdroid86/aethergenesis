@@ -73,7 +73,8 @@ export class SupernovaPhase implements PhaseComponent {
 
             this.snRing.visible = true;
             this.snRing.scale.setScalar((1.0 + normT * STELLAR_CONSTANTS.VISUALS.SUPERNOVA_RING_SCALE_HIGH_MASS) * (physics.strongForce || 1.0));
-            (this.snRing.material as THREE.MeshBasicMaterial).opacity = 1.0 - Math.pow(normT, 2);
+            // BOLT: (x * x) is faster than Math.pow(x, 2)
+            (this.snRing.material as THREE.MeshBasicMaterial).opacity = 1.0 - (normT * normT);
             (this.snRing.material as THREE.MeshBasicMaterial).color.setHex(normT < 0.2 ? 0xffffff : 0xff5500);
             
             this.ejectaMesh.visible = true;
