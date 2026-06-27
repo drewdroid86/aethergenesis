@@ -52,15 +52,10 @@ app.use((req, res, next) => {
     res.setHeader('Vary', 'Origin');
     const origin = req.headers.origin; 
     const isDev = process.env.NODE_ENV !== 'production';
+    const LOCAL_ORIGIN_REGEX = /^https?:\/\/(?:localhost|127\.0\.0\.1|10\.\d+\.\d+\.\d+|192\.168\.\d+\.\d+|172\.(?:1[6-9]|2\d|3[01])\.\d+\.\d+|100\.(?:6[4-9]|[7-9]\d|1[01]\d|12[0-7])\.\d+\.\d+)(?::\d+)?$/;
     const isAllowed = origin && (
         allowedOrigins.includes(origin) || 
-        (isDev && (
-            origin.startsWith('http://localhost:') || 
-            origin.startsWith('http://127.0.0.1:') || 
-            origin.startsWith('http://100.') || 
-            origin.startsWith('http://192.168.') || 
-            origin.startsWith('http://10.')
-        ))
+        (isDev && LOCAL_ORIGIN_REGEX.test(origin))
     );
     if (origin && isAllowed) { 
         res.setHeader('Access-Control-Allow-Origin', origin); 
