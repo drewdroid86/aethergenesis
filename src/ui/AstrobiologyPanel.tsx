@@ -49,7 +49,7 @@ ${planet.civilizationTier > 0 ? `- Civilization: Type ${planet.civilizationTier}
             <div className="bg-black/40 backdrop-blur-md border border-white/10 rounded-2xl p-5 shadow-2xl">
                 <div className="flex items-center justify-between mb-4 pb-4 border-b border-white/10 group/header">
                     <div className="flex items-center space-x-3">
-                        <Activity className="w-5 h-5 text-emerald-400" />
+                        <Activity className="w-5 h-5 text-emerald-400" aria-hidden="true" />
                         <h2 className="text-lg font-medium text-white/90 font-mono tracking-wider">Astrobiology</h2>
                     </div>
                     <div className="flex items-center gap-2">
@@ -80,18 +80,21 @@ ${planet.civilizationTier > 0 ? `- Civilization: Type ${planet.civilizationTier}
                     </div>
                 </div>
 
-                <div className="space-y-4">
+                <div className="space-y-4" role="list">
                     <AnimatePresence>
                         {data.map((planet, i) => (
                             <motion.div 
                                 key={planet.planet_id}
-                                initial={{ opacity: 0, y: 10 }}
-                                animate={{ opacity: 1, y: 0 }}
-                                className="bg-white/5 rounded-xl p-4 border border-white/5 relative overflow-hidden"
+                                role="listitem"
+                                initial={{ opacity: 0, y: 20, filter: 'blur(5px)' }}
+                                animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
+                                transition={{ duration: 0.4, delay: i * 0.1, ease: "easeOut" }}
+                                whileHover={{ scale: 1.02, backgroundColor: 'rgba(255, 255, 255, 0.08)', borderColor: 'rgba(126, 184, 255, 0.3)' }}
+                                className="bg-white/5 rounded-xl p-4 border border-white/5 relative overflow-hidden transition-colors cursor-default"
                             >
                                 <div className="flex justify-between items-start mb-3">
                                     <h3 className="text-white/80 font-mono text-sm capitalize flex items-center">
-                                        <Globe className="w-4 h-4 mr-2 opacity-70" />
+                                        <Globe className="w-4 h-4 mr-2 opacity-70" aria-hidden="true" />
                                         Planet {i + 1}
                                     </h3>
                                     <div className={`px-2 py-0.5 rounded text-xs font-mono font-medium ${
@@ -106,17 +109,17 @@ ${planet.civilizationTier > 0 ? `- Civilization: Type ${planet.civilizationTier}
 
                                 <div className="space-y-2 text-xs font-mono text-white/60">
                                     <div className="flex justify-between">
-                                        <span className="flex items-center"><Thermometer className="w-3 h-3 mr-1" /> Temp</span>
+                                        <span className="flex items-center"><Thermometer className="w-3 h-3 mr-1" aria-hidden="true" /> Temp</span>
                                         <span className={planet.surfaceTemperature_K > 273 && planet.surfaceTemperature_K < 373 ? "text-emerald-400" : ""}>
                                             {(planet.surfaceTemperature_K - 273.15).toFixed(1)}°C
                                         </span>
                                     </div>
                                     <div className="flex justify-between">
-                                        <span className="flex items-center"><Droplets className="w-3 h-3 mr-1" /> Habitability</span>
+                                        <span className="flex items-center"><Droplets className="w-3 h-3 mr-1" aria-hidden="true" /> Habitability</span>
                                         <span>{(planet.compositeScore * 100).toFixed(1)}%</span>
                                     </div>
                                     <div className="flex justify-between">
-                                        <span className="flex items-center"><ShieldAlert className="w-3 h-3 mr-1" /> Extinction Risk</span>
+                                        <span className="flex items-center"><ShieldAlert className="w-3 h-3 mr-1" aria-hidden="true" /> Extinction Risk</span>
                                         <span className={planet.extinctionRiskLevel !== 'none' ? 'text-red-400' : 'text-emerald-400'}>
                                             {planet.extinctionRiskLevel.replace('_', ' ')}
                                         </span>
@@ -125,13 +128,13 @@ ${planet.civilizationTier > 0 ? `- Civilization: Type ${planet.civilizationTier}
                                     {/* Biomass progress bar */}
                                     <div className="pt-2 mt-2 border-t border-white/10">
                                         <div className="flex justify-between mb-1 text-[10px]">
-                                            <span id={`biomass-label-${planet.planet_id}`}>Biomass</span>
+                                            <span>Biomass</span>
                                             <span>{(planet.biomass * 100).toFixed(1)}%</span>
                                         </div>
                                         <div
                                             className="w-full h-1.5 bg-black/50 rounded-full overflow-hidden"
                                             role="progressbar"
-                                            aria-labelledby={`biomass-label-${planet.planet_id}`}
+                                            aria-label={`Planet ${i + 1} Biomass`}
                                             aria-valuenow={Math.round(planet.biomass * 100)}
                                             aria-valuemin={0}
                                             aria-valuemax={100}
