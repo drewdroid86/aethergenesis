@@ -265,7 +265,7 @@ export class HeroStarSystem extends THREE.Group {
             targetMain = 1;
             this.mainSequencePhase.update(delta, appTime, cameraPos, physics, this.t, lowDetail);
             if (nbodyBuffer) {
-                this.planetarySystem?.updateFromBuffer(nbodyBuffer, delta);
+                this.planetarySystem?.updateFromBuffer(nbodyBuffer, delta, lowDetail);
             }
             
             this.currentTemp = this.tHeat;
