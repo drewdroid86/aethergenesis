@@ -57,7 +57,6 @@ ${planet.civilizationTier > 0 ? `- Civilization: Type ${planet.civilizationTier}
                             onClick={copyReport}
                             className="text-[#7EB8FF]/70 hover:text-white transition-colors focus-visible:ring-2 focus-visible:ring-[#C084FC] outline-none rounded p-1 relative group/copy"
                             aria-label={copied ? "Astrobiology Report Copied" : "Copy Astrobiology Report"}
-                            title="Copy Report"
                         >
                             <span className={`absolute -top-6 right-0 text-[10px] text-[#C084FC] transition-opacity whitespace-nowrap ${copied ? 'opacity-100' : 'opacity-0 group-hover/copy:opacity-100'}`}>
                                 {copied ? 'Copied!' : 'Copy'}
@@ -69,7 +68,6 @@ ${planet.civilizationTier > 0 ? `- Civilization: Type ${planet.civilizationTier}
                                 onClick={onClose}
                                 className="text-[#7EB8FF]/70 hover:text-white transition-colors focus-visible:ring-2 focus-visible:ring-[#C084FC] outline-none rounded p-1 relative group/close"
                                 aria-label="Close Astrobiology Report"
-                                title="Close [Esc]"
                             >
                                 <span className="absolute -top-6 left-1/2 -translate-x-1/2 text-[10px] text-[#C084FC] opacity-0 group-hover/close:opacity-100 transition-opacity whitespace-nowrap">
                                     [Esc] Close
@@ -80,14 +78,16 @@ ${planet.civilizationTier > 0 ? `- Civilization: Type ${planet.civilizationTier}
                     </div>
                 </div>
 
-                <div className="space-y-4">
-                    <AnimatePresence>
+                <div className="space-y-4" role="list">
+                    <AnimatePresence mode="popLayout">
                         {data.map((planet, i) => (
                             <motion.div 
                                 key={planet.planet_id}
-                                initial={{ opacity: 0, y: 10 }}
-                                animate={{ opacity: 1, y: 0 }}
-                                className="bg-white/5 rounded-xl p-4 border border-white/5 relative overflow-hidden"
+                                role="listitem"
+                                initial={{ opacity: 0, y: 20, filter: 'blur(5px)' }}
+                                animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
+                                transition={{ duration: 0.4, delay: i * 0.1, ease: 'easeOut' }}
+                                className="bg-white/5 rounded-xl p-4 border border-white/5 relative overflow-hidden transition-colors cursor-default"
                             >
                                 <div className="flex justify-between items-start mb-3">
                                     <h3 className="text-white/80 font-mono text-sm capitalize flex items-center">
@@ -125,7 +125,10 @@ ${planet.civilizationTier > 0 ? `- Civilization: Type ${planet.civilizationTier}
                                     {/* Biomass progress bar */}
                                     <div className="pt-2 mt-2 border-t border-white/10">
                                         <div className="flex justify-between mb-1 text-[10px]">
-                                            <span id={`biomass-label-${planet.planet_id}`}>Biomass</span>
+                                            <span id={`biomass-label-${planet.planet_id}`}>
+                                                <span className="sr-only">Planet {i + 1} </span>
+                                                Biomass
+                                            </span>
                                             <span>{(planet.biomass * 100).toFixed(1)}%</span>
                                         </div>
                                         <div
