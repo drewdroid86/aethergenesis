@@ -80,13 +80,15 @@ ${planet.civilizationTier > 0 ? `- Civilization: Type ${planet.civilizationTier}
                     </div>
                 </div>
 
-                <div className="space-y-4">
+                <div className="space-y-4" role="list">
                     <AnimatePresence>
                         {data.map((planet, i) => (
                             <motion.div 
                                 key={planet.planet_id}
-                                initial={{ opacity: 0, y: 10 }}
-                                animate={{ opacity: 1, y: 0 }}
+                                role="listitem"
+                                initial={{ opacity: 0, y: 20, filter: 'blur(5px)' }}
+                                animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
+                                transition={{ duration: 0.4, delay: i * 0.1, ease: 'easeOut' }}
                                 className="bg-white/5 rounded-xl p-4 border border-white/5 relative overflow-hidden"
                             >
                                 <div className="flex justify-between items-start mb-3">
