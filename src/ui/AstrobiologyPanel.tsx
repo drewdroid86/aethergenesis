@@ -44,7 +44,8 @@ ${planet.civilizationTier > 0 ? `- Civilization: Type ${planet.civilizationTier}
             exit={{ opacity: 0, x: -20, filter: 'blur(10px)' }}
             role="region"
             aria-label="Astrobiology Report"
-            className="absolute left-6 top-24 w-80 max-h-[calc(100vh-8rem)] overflow-y-auto pointer-events-auto custom-scrollbar"
+            tabIndex={0}
+            className="absolute left-6 top-24 w-80 max-h-[calc(100vh-8rem)] overflow-y-auto pointer-events-auto custom-scrollbar focus-visible:ring-2 focus-visible:ring-[#C084FC] outline-none"
         >
             <div className="bg-black/40 backdrop-blur-md border border-white/10 rounded-2xl p-5 shadow-2xl">
                 <div className="flex items-center justify-between mb-4 pb-4 border-b border-white/10 group/header">
@@ -80,13 +81,15 @@ ${planet.civilizationTier > 0 ? `- Civilization: Type ${planet.civilizationTier}
                     </div>
                 </div>
 
-                <div className="space-y-4">
+                <div className="space-y-4" role="list">
                     <AnimatePresence>
                         {data.map((planet, i) => (
                             <motion.div 
                                 key={planet.planet_id}
-                                initial={{ opacity: 0, y: 10 }}
-                                animate={{ opacity: 1, y: 0 }}
+                                role="listitem"
+                                initial={{ opacity: 0, y: 20, filter: 'blur(5px)' }}
+                                animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
+                                transition={{ duration: 0.4, delay: i * 0.1, ease: 'easeOut' }}
                                 className="bg-white/5 rounded-xl p-4 border border-white/5 relative overflow-hidden"
                             >
                                 <div className="flex justify-between items-start mb-3">
@@ -125,7 +128,9 @@ ${planet.civilizationTier > 0 ? `- Civilization: Type ${planet.civilizationTier}
                                     {/* Biomass progress bar */}
                                     <div className="pt-2 mt-2 border-t border-white/10">
                                         <div className="flex justify-between mb-1 text-[10px]">
-                                            <span id={`biomass-label-${planet.planet_id}`}>Biomass</span>
+                                            <span id={`biomass-label-${planet.planet_id}`}>
+                                                <span className="sr-only">Planet {i + 1} </span>Biomass
+                                            </span>
                                             <span>{(planet.biomass * 100).toFixed(1)}%</span>
                                         </div>
                                         <div
