@@ -227,6 +227,9 @@ export class RemnantPhase implements PhaseComponent {
             const c = nsChildren[i] as THREE.Mesh;
             if (c.material) (c.material as THREE.Material).dispose();
         }
+        // beamMat lives on beam1/beam2, nested inside pulsarGroup (a grandchild
+        // of neutronStarGroup), so the loop above never reaches it.
+        this.beamMat.dispose();
 
         const nsLinesChildren = this.nsMagneticLines.children;
         for (let i = 0; i < nsLinesChildren.length; i++) {

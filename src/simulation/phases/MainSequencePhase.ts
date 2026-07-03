@@ -10,6 +10,7 @@ export interface PlanetInfo {
     mesh: THREE.Mesh;
     dist: number;
     speed: number;
+    baseColor: number;
 }
 
 // BOLT: Static scratchpad to eliminate per-frame allocations
@@ -70,6 +71,7 @@ export class MainSequencePhase implements PhaseComponent {
             GEOMETRIES.mainSeq,
             new THREE.MeshBasicMaterial({ color: msColor, transparent: true, opacity: 0.1, side: THREE.BackSide, blending: THREE.AdditiveBlending })
         );
+        (this as any)._haloMat = haloMesh.material;
         haloMesh.scale.setScalar(this.baseRadius * STELLAR_CONSTANTS.VISUALS.HALO_SCALE_FACTOR);
         
         this.mainSeqGroup.add(this.starMesh);
@@ -110,6 +112,7 @@ export class MainSequencePhase implements PhaseComponent {
         const corona = new THREE.Mesh(coronaGeo, coronaMat);
         (this as any)._coronaMat = coronaMat;
         (this as any)._coronaMesh = corona;
+        (this as any)._coronaGeo = coronaGeo;
         this.mainSeqGroup.add(corona);
 
         this.mainSeqGroup.add(this.coronaMesh);
@@ -203,7 +206,7 @@ export class MainSequencePhase implements PhaseComponent {
             const speed = (0.5 + Math.random()) / Math.sqrt(dist);
             pivot.add(pMesh);
             this.parent.add(pivot);
-            this.planetsInfo.push({ pivot, mesh: pMesh, dist, speed });
+            this.planetsInfo.push({ pivot, mesh: pMesh, dist, speed, baseColor: pColor });
         }
         
         this.hide();
@@ -218,7 +221,17 @@ export class MainSequencePhase implements PhaseComponent {
 
         if (!lowDetail) {
             for (let i = 0; i < this.planetsInfo.length; i++) {
-                this.planetsInfo[i].pivot.rotation.y += this.planetsInfo[i].speed * delta;
+                const p = this.planetsInfo[i];
+                p.pivot.rotation.y += p.speed * delta;
+                // Restore pristine appearance in case RedGiantPhase left burn
+                // damage from a previous forward/rewind cycle through red giant.
+                const mat = p.mesh.material as THREE.MeshStandardMaterial;
+                if (mat.emissiveIntensity !== 0) {
+                    mat.color.setHex(p.baseColor);
+                    mat.emissive.setHex(0x000000);
+                    mat.emissiveIntensity = 0;
+                    p.mesh.scale.setScalar(1.0);
+                }
             }
         }
 
@@ -262,6 +275,12 @@ export class MainSequencePhase implements PhaseComponent {
         (this.coronaMesh.material as THREE.Material).dispose();
         if ((this as any)._coronaMesh) {
             (this as any)._coronaMesh.material.dispose();
+        }
+        if ((this as any)._coronaGeo) {
+            (this as any)._coronaGeo.dispose();
+        }
+        if ((this as any)._haloMat) {
+            (this as any)._haloMat.dispose();
         }
         (this.hzMesh.material as THREE.Material).dispose();
         for (let i = 0; i < this.planetsInfo.length; i++) {

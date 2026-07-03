@@ -75,6 +75,18 @@ src/
 
 ---
 
+### docs/update-project-log — Master Project Log Update
+**Date:** July 3, 2026
+**AI:** Antigravity (Flash)
+**Branch:** docs/update-project-log
+
+**Changes:**
+- **Stale Bug Cleanup:** Removed the stale "GEMINI AI DEEP SCAN button in InspectPanel — not wired up" row from the CURRENT BUGS table since the feature is already fully implemented.
+
+**State at end:** Stale bug removed from log.
+
+---
+
 ### v2.5 — Phase 2 Stellar Genesis Wiring
 **Date:** May 20, 2026
 **AI:** Gemini CLI (executor)
@@ -112,11 +124,27 @@ src/
 
 ---
 
+### v2.7 — Memory Leak Resolution & Timescale Alignment
+**Date:** July 3, 2026
+**AI:** Antigravity (Flash)
+**Branch:** docs/update-project-log
+
+**Changes:**
+- **Nbody Worker & OrbitControls Leak Fix:** Cleaned up the animation frame loop, terminated the Nbody worker thread, and disposed of the OrbitControls instance in the `useEffect` cleanup handler of `useSimulation.ts`, preventing memory/GPU leaks on React.StrictMode remount.
+- **Astrobiology Timescale Correction:** Aligned the astrobiology simulation speed with `engine.ts`. Switched the realtime `deltaTime_yr` from wall-clock seconds `delta / 31557600` to `delta * 1000` to allow biosphere and Kardashev civilization tiers to develop at the same pace as stellar physics in realtime mode.
+- **Phase Disposal Leak Cleanup:** Fixed geometry and material memory leaks across phase lifecycles:
+  - `MainSequencePhase`: Tracked and disposed of the dynamic `coronaGeo` (SphereGeometry) and `haloMesh` material.
+  - `RemnantPhase`: Added a direct call to dispose of `beamMat` (MeshBasicMaterial) since it is nested in the `pulsarGroup` and skipped by parent traversal.
+- **Scrubbing Damage Reset:** Stored the planet's original `baseColor` in `PlanetInfo` and implemented a restoration path in `MainSequencePhase` to reset color, scale, and emissive properties, ensuring planets regain their pristine appearance when scrubbing time backwards out of the red giant damage zone.
+
+**State at end:** Code builds cleanly. StrictMode memory/thread leaks resolved, and backward scrubbing damage states reset correctly.
+
+---
+
 ## CURRENT BUGS (as of last session)
 
 | Priority | Bug | File | Fix |
 |----------|-----|------|-----|
-| LOW | GEMINI AI DEEP SCAN button in InspectPanel — not wired up | `InspectPanel.tsx` | Wire to Gemini API call |
 | LOW | README launch link points to `#` | `README.md` | Update after deploy |
 
 

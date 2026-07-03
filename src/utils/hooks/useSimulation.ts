@@ -404,7 +404,7 @@ export function useSimulation(containerRef: React.RefObject<HTMLDivElement | nul
                                 }
                                 
                                 const astrobiologyStates: any[] = [];
-                                const deltaTime_yr = timeScaleRef.current === 'cosmic' ? delta * 200000000 : delta / 31557600;
+                                const deltaTime_yr = timeScaleRef.current === 'cosmic' ? delta * 200000000 : delta * 1000;
                                 
                                 for (let i = 0; i < orbitalStates.length; i++) {
                                     const o = orbitalStates[i];
@@ -516,6 +516,16 @@ export function useSimulation(containerRef: React.RefObject<HTMLDivElement | nul
                 window.removeEventListener('pointermove', onPointerMove);
                 window.removeEventListener('pointerup', onPointerUp);
                 cancelAnimationFrame(frameId);
+
+                if (nbodyWorkerRef.current) {
+                    nbodyWorkerRef.current.terminate();
+                    nbodyWorkerRef.current = null;
+                }
+
+                if (controlsRef.current) {
+                    controlsRef.current.dispose();
+                    controlsRef.current = null;
+                }
 
                 if (nebulaSystemRef.current) {
                     nebulaSystemRef.current.dispose();
