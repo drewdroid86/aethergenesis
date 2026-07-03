@@ -67,8 +67,7 @@ export class RemnantPhase implements PhaseComponent {
         );
         
         // Accretion disk with custom shader material for high-quality gradient and animation
-        this.bhDiskGeometry = new THREE.RingGeometry(8, 12, 64);
-        this.bhDiskGeometry.rotateX(Math.PI / 2);
+        const bhDiskGeometry = GEOMETRIES.blackHoleDisk;
         this.bhDiskMaterial = new THREE.ShaderMaterial({
             uniforms: { uTime: { value: 0 } },
             transparent: true,
@@ -94,7 +93,7 @@ export class RemnantPhase implements PhaseComponent {
                 }
             `
         });
-        const diskMesh = new THREE.Mesh(this.bhDiskGeometry, this.bhDiskMaterial);
+        const diskMesh = new THREE.Mesh(bhDiskGeometry, this.bhDiskMaterial);
         this.blackHoleGroup.add(bhCore);
         this.blackHoleGroup.add(diskMesh);
 
@@ -247,7 +246,6 @@ export class RemnantPhase implements PhaseComponent {
             const mat = c.material;
             if (mat instanceof THREE.Material && mat !== this.bhDiskMaterial) mat.dispose();
         }
-        if (this.bhDiskGeometry) this.bhDiskGeometry.dispose();
         if (this.bhDiskMaterial) this.bhDiskMaterial.dispose();
         this.parent.remove(this.neutronStarGroup);
         this.parent.remove(this.blackHoleGroup);

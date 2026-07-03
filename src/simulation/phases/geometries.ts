@@ -36,6 +36,20 @@ export const GEOMETRIES = {
         return geo;
     })(),
     blackHoleCore: new THREE.SphereGeometry(0.5, 32, 32),
+    blackHoleDisk: (() => {
+        const geo = new THREE.RingGeometry(8, 12, 64);
+        geo.rotateX(Math.PI / 2);
+        return geo;
+    })(),
+    flare: (() => {
+        const curve = new THREE.QuadraticBezierCurve3(
+            new THREE.Vector3(0.8, 0, 0),
+            new THREE.Vector3(1.5, 1.5, 0),
+            new THREE.Vector3(0, 0, 0.8)
+        );
+        return new THREE.TubeGeometry(curve, 16, 0.05, 4, false);
+    })(),
+    protostarJet: new THREE.CylinderGeometry(0.05, 0.4, 8.0, 12, 1, true),
     hit: new THREE.SphereGeometry(8, 16, 16),
     magneticTubes: (() => {
         const tubes: THREE.TubeGeometry[] = [];
