@@ -74,7 +74,7 @@ export class ProtostarPhase implements PhaseComponent {
             depthWrite: false,
             side: THREE.DoubleSide
         });
-        const jetGeo = new THREE.CylinderGeometry(0.05, 0.4, 8.0, 12, 1, true);
+        const jetGeo = GEOMETRIES.protostarJet;
         const jet1 = new THREE.Mesh(jetGeo, jetMat);
         jet1.position.y = 4.5;
         const jetMat2 = jetMat.clone();
@@ -126,12 +126,9 @@ export class ProtostarPhase implements PhaseComponent {
     }
 
     dispose(): void {
-        // BOLT: protostarMesh and disk use shared GEOMETRIES, do NOT dispose
+        // BOLT: protostarMesh, disk, and jets use shared GEOMETRIES, do NOT dispose
         this.protostarMat.dispose();
         (this.protostarDisk.material as THREE.Material).dispose();
-        if ((this as any)._jetGeo) {
-            (this as any)._jetGeo.dispose();
-        }
         if ((this as any)._jetMat1) {
             (this as any)._jetMat1.dispose();
         }
