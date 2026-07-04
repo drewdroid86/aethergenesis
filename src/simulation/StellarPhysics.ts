@@ -64,7 +64,9 @@ export interface PhaseTransitionEvent {
  * @returns Main sequence lifetime in years
  */
 export function computeMainSequenceLifetime(mass_solar: number): number {
-  return 1e10 * Math.pow(mass_solar, -2.5);
+  // BOLT: Expand Math.pow(x, -2.5) to 1 / (x^2 * sqrt(x))
+  const m2 = mass_solar * mass_solar;
+  return 1e10 / (m2 * Math.sqrt(mass_solar));
 }
 
 /**
@@ -85,7 +87,9 @@ export function computeMainSequenceLifetime(mass_solar: number): number {
  */
 export function computeLuminosity(mass_solar: number): number {
   if (mass_solar > 0.43) {
-    return Math.pow(mass_solar, 4.0);
+    // BOLT: Expand Math.pow(x, 4) to (x^2 * x^2)
+    const m2 = mass_solar * mass_solar;
+    return m2 * m2;
   }
   return 0.23 * Math.pow(mass_solar, 2.3);
 }
@@ -120,7 +124,9 @@ export function computeRadius(
     case 'main_sequence':
       return r_ms;
     case 'red_giant': {
-      const raw = r_ms * Math.pow(age_yr / tau_ms, 2) * 100;
+      // BOLT: Expand Math.pow(x, 2) to x * x
+      const ratio = age_yr / tau_ms;
+      const raw = r_ms * (ratio * ratio) * 100;
       return Math.min(raw, 500);
     }
     case 'supernova':
@@ -154,10 +160,10 @@ export function computeTemperature(
   radius_solar: number
 ): number {
   if (radius_solar <= 0) return 0;
-  return 5778 * Math.pow(
-    luminosity_solar / (radius_solar * radius_solar),
-    0.25
-  );
+  // BOLT: Expand Math.pow(x, 0.25) to sqrt(sqrt(x))
+  return 5778 * Math.sqrt(Math.sqrt(
+    luminosity_solar / (radius_solar * radius_solar)
+  ));
 }
 
 /**
@@ -223,9 +229,8 @@ export function computeRemnantType(mass_solar: number): RemnantType {
  * @returns Schwarzschild radius in kilometers
  */
 export function computeSchwarzschild(mass_solar: number): number {
-  const mass_kg = mass_solar * 1.989e30;
-  const r_s_m = (2 * 6.674e-11 * mass_kg) / (3e8 * 3e8);
-  return r_s_m / 1000;
+  // BOLT: Simplified to single constant multiplication (2.95325 km per solar mass)
+  return mass_solar * 2.95325;
 }
 
 /**
@@ -301,7 +306,7 @@ function computeCurrentMass(
       return initialMass_solar;
     case 'red_giant': {
       const rgFraction = Math.min((age_yr - tau_ms) / (tau_ms * 0.2), 1.0);
-      return initialMass_solar * (1 - rgFraction * 0.4);
+      return initialMass_solar * (1.0 - rgFraction * 0.4);
     }
     case 'supernova':
     case 'remnant':

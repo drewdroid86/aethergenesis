@@ -171,12 +171,7 @@ void main() {
 }
 `;
 
-// BOLT: Static scratchpads to eliminate per-frame allocations
-const _matrix = new THREE.Matrix4();
-const _posV = new THREE.Vector3();
-const _scaleV = new THREE.Vector3();
-const _rotQ = new THREE.Quaternion();
-const _yAxis = new THREE.Vector3(0, 1, 0);
+// BOLT: Static scratchpads removed in favor of direct matrix manipulation
 
 export class PlanetarySystem {
     private instancedMesh: THREE.InstancedMesh;
@@ -246,6 +241,7 @@ export class PlanetarySystem {
 
     /**
      * Update orbits based on Float32Array from nbodyWorker.ts
+     * BOLT: Optimized direct matrix manipulation to avoid object overhead and method calls
      */
     updateFromBuffer(buffer: Float32Array, delta: number, lowDetail?: boolean): void {
         const star = this.parent as any;
@@ -259,22 +255,42 @@ export class PlanetarySystem {
         
         // Buffer has 7 floats per body: x, y, z, vx, vy, vz, type
         const numBodies = Math.min(this.bodies.length, buffer.length / 7);
+        const array = this.instancedMesh.instanceMatrix.array;
 
         for (let i = 0; i < numBodies; i++) {
             const b = this.bodies[i];
+            const offset = i * 16;
             
             const x = buffer[i * 7 + 0];
             const y = buffer[i * 7 + 1];
             const z = buffer[i * 7 + 2];
+            const s = b.scale;
             
-            _posV.set(x, y, z);
-            _scaleV.setScalar(b.scale);
-            
-            // Subtle self-rotation
-            _rotQ.setFromAxisAngle(_yAxis, (buffer[i*7+0] + buffer[i*7+1]) * 0.01 + b.seed);
-            
-            _matrix.compose(_posV, _rotQ, _scaleV);
-            this.instancedMesh.setMatrixAt(i, _matrix);
+            // Subtle self-rotation around Y axis
+            const theta = (x + y) * 0.01 + b.seed;
+            const cosT = Math.cos(theta);
+            const sinT = Math.sin(theta);
+
+            // Column-major Matrix4: T * R * S
+            array[offset + 0] = s * cosT;
+            array[offset + 1] = 0;
+            array[offset + 2] = -s * sinT;
+            array[offset + 3] = 0;
+
+            array[offset + 4] = 0;
+            array[offset + 5] = s;
+            array[offset + 6] = 0;
+            array[offset + 7] = 0;
+
+            array[offset + 8] = s * sinT;
+            array[offset + 9] = 0;
+            array[offset + 10] = s * cosT;
+            array[offset + 11] = 0;
+
+            array[offset + 12] = x;
+            array[offset + 13] = y;
+            array[offset + 14] = z;
+            array[offset + 15] = 1;
         }
 
         // BOLT: Setting .count natively handles hiding unused instances, removing redundant loop

@@ -57,7 +57,8 @@ export class AstrobiologyEngine {
 
     // 2. Thermal Score
     // T_eq = 278.5 * (L_star / d^2)^0.25 * (1 - albedo)^0.25
-    const T_surface = 278.5 * Math.pow(S_eff, 0.25) * Math.pow(1 - planetAlbedo, 0.25);
+    // BOLT: Expand Math.pow(x, 0.25) to sqrt(sqrt(x))
+    const T_surface = 278.5 * Math.sqrt(Math.sqrt(S_eff)) * Math.sqrt(Math.sqrt(1 - planetAlbedo));
     // Add greenhouse effect roughly (+33K like Earth)
     const T_actual = T_surface + (planetMass_kg > 1e23 ? 33 : 0);
     
