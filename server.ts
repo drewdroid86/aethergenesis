@@ -20,6 +20,9 @@ app.set('trust proxy', 1);
 // Security: Limit payload size to mitigate DoS risks
 app.use(express.json({ limit: '10kb' }));
 
+// Security: Timeout for external AI service to prevent resource exhaustion
+const GEN_AI_TIMEOUT = 10000;
+
 const allowedOrigins = (process.env.ALLOWED_ORIGINS || 'http://localhost:3000,http://localhost:5173').split(',').map(o => o.trim());
 if (process.env.APP_URL && !allowedOrigins.includes(process.env.APP_URL)) {
   allowedOrigins.push(process.env.APP_URL);
@@ -33,13 +36,20 @@ app.use((_req, res, next) => {
   res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
   const scriptSrc = process.env.NODE_ENV === 'production' ? "'self'" : "'self' 'unsafe-eval'";
 
-  // Security: Restrict connect-src to self and specific allowed origins for WebSockets
+  // Security: Restrict connect-src to self and specific allowed origins for WebSockets and APIs
   const wsPort = process.env.SIM_PORT || '3001';
-  const wsOrigins = allowedOrigins.map(o => {
-    const wsBase = o.replace(/^http/, 'ws');
-    return `${wsBase} ${wsBase}:${wsPort}`;
+  const connectSrcOrigins = allowedOrigins.flatMap(o => {
+    try {
+      const url = new URL(o);
+      const wsProtocol = url.protocol === 'https:' ? 'wss:' : 'ws:';
+      const wsOrigin = `${wsProtocol}//${url.host}`;
+      const wsWithSimPort = `${wsProtocol}//${url.hostname}:${wsPort}`;
+      return [o, wsOrigin, wsWithSimPort];
+    } catch {
+      return [o];
+    }
   }).join(' ');
-  const connectSrc = `'self' ${wsOrigins}`;
+  const connectSrc = `'self' ${connectSrcOrigins}`;
 
   res.setHeader('Content-Security-Policy', `default-src 'self'; script-src ${scriptSrc}; style-src 'self' 'unsafe-inline'; connect-src ${connectSrc}; img-src 'self' data: https:; font-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; upgrade-insecure-requests;`);
   res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
@@ -96,7 +106,7 @@ app.post('/api/analyze', async (req, res) => {
   }
 
   // Security: Guard against malformed request bodies before processing
-  if (!req.body || typeof req.body !== 'object') {
+  if (!req.body || typeof req.body !== 'object' || Array.isArray(req.body)) {
     return res.status(400).json({ error: 'Invalid request body.' });
   }
 
@@ -158,16 +168,23 @@ app.post('/api/analyze', async (req, res) => {
       required: ["planet_name", "life_stage", "dominant_species", "civilization", "biome"],
     };
 
-    const response = await ai.models.generateContent({
-      model: "gemini-2.0-flash",
-      contents: prompt,
-      config: {
-        systemInstruction: "You are an astrobiology analytical engine. Generate creative but scientifically cohesive species and civilizations based on the star's phase, temp, and constants.",
-        responseMimeType: "application/json",
-        responseSchema: schema,
-        maxOutputTokens: 256, // Security: Resource exhaustion protection
-      }
-    });
+    const timeoutPromise = new Promise((_, reject) =>
+      setTimeout(() => reject(new Error('TIMEOUT')), GEN_AI_TIMEOUT)
+    );
+
+    const response = await Promise.race([
+      ai.models.generateContent({
+        model: "gemini-2.0-flash",
+        contents: prompt,
+        config: {
+          systemInstruction: "You are an astrobiology analytical engine. Generate creative but scientifically cohesive species and civilizations based on the star's phase, temp, and constants.",
+          responseMimeType: "application/json",
+          responseSchema: schema,
+          maxOutputTokens: 256, // Security: Resource exhaustion protection
+        }
+      }),
+      timeoutPromise
+    ]) as any;
 
     if (!response.text) {
       throw new Error('No response text from Gemini API');
@@ -192,6 +209,10 @@ app.post('/api/analyze', async (req, res) => {
     res.json(sanitized);
   } catch (error: any) {
     // Security: Log only essential error message, avoid leaking details
+    if (error?.message === 'TIMEOUT') {
+      console.error('Gemini Analysis Error: Service timed out');
+      return res.status(504).json({ error: 'Analysis service timed out.' });
+    }
     console.error('Gemini Analysis Error:', error?.message || 'Unknown error');
     res.status(500).json({ error: 'Internal Server Error' });
   }
