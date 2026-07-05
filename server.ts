@@ -70,6 +70,7 @@ interface RateLimitData {
 }
 const RATE_LIMIT_WINDOW = 60 * 1000; // 1 minute
 const MAX_REQUESTS_PER_WINDOW = 5;
+const GEN_AI_TIMEOUT = 10000; // 10 seconds
 
 const analysisLimitMap = new LRUCache<string, RateLimitData>({
   max: 1000,
@@ -96,7 +97,8 @@ app.post('/api/analyze', async (req, res) => {
   }
 
   // Security: Guard against malformed request bodies before processing
-  if (!req.body || typeof req.body !== 'object') {
+  // Using !Array.isArray to strictly exclude arrays as typeof {} is 'object'
+  if (!req.body || typeof req.body !== 'object' || Array.isArray(req.body)) {
     return res.status(400).json({ error: 'Invalid request body.' });
   }
 
@@ -158,39 +160,56 @@ app.post('/api/analyze', async (req, res) => {
       required: ["planet_name", "life_stage", "dominant_species", "civilization", "biome"],
     };
 
-    const response = await ai.models.generateContent({
-      model: "gemini-2.0-flash",
-      contents: prompt,
-      config: {
-        systemInstruction: "You are an astrobiology analytical engine. Generate creative but scientifically cohesive species and civilizations based on the star's phase, temp, and constants.",
-        responseMimeType: "application/json",
-        responseSchema: schema,
-        maxOutputTokens: 256, // Security: Resource exhaustion protection
-      }
+    // Security: External AI service calls implement a timeout via Promise.race to prevent resource exhaustion
+    let timeoutId: NodeJS.Timeout;
+    const timeoutPromise = new Promise((_, reject) => {
+      timeoutId = setTimeout(() => reject(new Error('GEN_AI_TIMEOUT')), GEN_AI_TIMEOUT);
     });
 
-    if (!response.text) {
-      throw new Error('No response text from Gemini API');
-    }
-
-    let data;
     try {
-      data = JSON.parse(response.text);
-    } catch (parseError) {
-      throw new Error('Invalid JSON response from Gemini API', { cause: parseError });
+      const response = await Promise.race([
+        ai.models.generateContent({
+          model: "gemini-2.0-flash",
+          contents: prompt,
+          config: {
+            systemInstruction: "You are an astrobiology analytical engine. Generate creative but scientifically cohesive species and civilizations based on the star's phase, temp, and constants.",
+            responseMimeType: "application/json",
+            responseSchema: schema,
+            maxOutputTokens: 256, // Security: Resource exhaustion protection
+          }
+        }),
+        timeoutPromise
+      ]) as any;
+
+      if (!response.text) {
+        throw new Error('No response text from Gemini API');
+      }
+
+      let data;
+      try {
+        data = JSON.parse(response.text);
+      } catch (parseError) {
+        throw new Error('Invalid JSON response from Gemini API', { cause: parseError });
+      }
+
+      // Security: Strict output sanitization - ensure only expected fields are returned and clamped
+      const sanitized = {
+        planet_name: String(data?.planet_name || "Unknown").substring(0, 50),
+        life_stage: Math.max(0, Math.min(10, Number(data?.life_stage || 0))),
+        dominant_species: String(data?.dominant_species || "Unknown").substring(0, 100),
+        civilization: String(data?.civilization || "Unknown").substring(0, 100),
+        biome: String(data?.biome || "Unknown").substring(0, 100)
+      };
+
+      res.json(sanitized);
+    } finally {
+      clearTimeout(timeoutId!);
     }
 
-    // Security: Strict output sanitization - ensure only expected fields are returned and clamped
-    const sanitized = {
-      planet_name: String(data?.planet_name || "Unknown").substring(0, 50),
-      life_stage: Math.max(0, Math.min(10, Number(data?.life_stage || 0))),
-      dominant_species: String(data?.dominant_species || "Unknown").substring(0, 100),
-      civilization: String(data?.civilization || "Unknown").substring(0, 100),
-      biome: String(data?.biome || "Unknown").substring(0, 100)
-    };
-
-    res.json(sanitized);
   } catch (error: any) {
+    if (error?.message === 'GEN_AI_TIMEOUT') {
+      return res.status(504).json({ error: 'Analysis service timed out. Please try again.' });
+    }
     // Security: Log only essential error message, avoid leaking details
     console.error('Gemini Analysis Error:', error?.message || 'Unknown error');
     res.status(500).json({ error: 'Internal Server Error' });
