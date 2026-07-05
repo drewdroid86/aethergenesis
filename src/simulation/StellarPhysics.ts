@@ -64,7 +64,8 @@ export interface PhaseTransitionEvent {
  * @returns Main sequence lifetime in years
  */
 export function computeMainSequenceLifetime(mass_solar: number): number {
-  return 1e10 * Math.pow(mass_solar, -2.5);
+  // BOLT: Algebraic expansion for M^-2.5: 1 / (M^2 * sqrt(M))
+  return 1e10 / (mass_solar * mass_solar * Math.sqrt(mass_solar));
 }
 
 /**
@@ -85,7 +86,9 @@ export function computeMainSequenceLifetime(mass_solar: number): number {
  */
 export function computeLuminosity(mass_solar: number): number {
   if (mass_solar > 0.43) {
-    return Math.pow(mass_solar, 4.0);
+    // BOLT: M^4.0 optimization
+    const m2 = mass_solar * mass_solar;
+    return m2 * m2;
   }
   return 0.23 * Math.pow(mass_solar, 2.3);
 }
@@ -154,10 +157,8 @@ export function computeTemperature(
   radius_solar: number
 ): number {
   if (radius_solar <= 0) return 0;
-  return 5778 * Math.pow(
-    luminosity_solar / (radius_solar * radius_solar),
-    0.25
-  );
+  // BOLT: x^0.25 optimization using nested sqrt
+  return 5778 * Math.sqrt(Math.sqrt(luminosity_solar / (radius_solar * radius_solar)));
 }
 
 /**
@@ -223,9 +224,8 @@ export function computeRemnantType(mass_solar: number): RemnantType {
  * @returns Schwarzschild radius in kilometers
  */
 export function computeSchwarzschild(mass_solar: number): number {
-  const mass_kg = mass_solar * 1.989e30;
-  const r_s_m = (2 * 6.674e-11 * mass_kg) / (3e8 * 3e8);
-  return r_s_m / 1000;
+  // BOLT: Simplified constant multiplication (2GM/c^2 per solar mass)
+  return mass_solar * 2.95325;
 }
 
 /**
