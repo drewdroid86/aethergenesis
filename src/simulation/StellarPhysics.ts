@@ -64,7 +64,8 @@ export interface PhaseTransitionEvent {
  * @returns Main sequence lifetime in years
  */
 export function computeMainSequenceLifetime(mass_solar: number): number {
-  return 1e10 * Math.pow(mass_solar, -2.5);
+  // BOLT: Algebraic expansion of Math.pow(x, -2.5) -> 1 / (x^2 * sqrt(x))
+  return 1e10 * (1.0 / (mass_solar * mass_solar * Math.sqrt(mass_solar)));
 }
 
 /**
@@ -85,7 +86,9 @@ export function computeMainSequenceLifetime(mass_solar: number): number {
  */
 export function computeLuminosity(mass_solar: number): number {
   if (mass_solar > 0.43) {
-    return Math.pow(mass_solar, 4.0);
+    // BOLT: Algebraic expansion of Math.pow(x, 4.0) -> (x^2 * x^2)
+    const mSq = mass_solar * mass_solar;
+    return mSq * mSq;
   }
   return 0.23 * Math.pow(mass_solar, 2.3);
 }
@@ -120,7 +123,9 @@ export function computeRadius(
     case 'main_sequence':
       return r_ms;
     case 'red_giant': {
-      const raw = r_ms * Math.pow(age_yr / tau_ms, 2) * 100;
+      // BOLT: Avoid Math.pow for squaring
+      const ageRatio = age_yr / tau_ms;
+      const raw = r_ms * (ageRatio * ageRatio) * 100;
       return Math.min(raw, 500);
     }
     case 'supernova':
@@ -154,10 +159,10 @@ export function computeTemperature(
   radius_solar: number
 ): number {
   if (radius_solar <= 0) return 0;
-  return 5778 * Math.pow(
-    luminosity_solar / (radius_solar * radius_solar),
-    0.25
-  );
+  // BOLT: Math.pow(x, 0.25) -> sqrt(sqrt(x))
+  return 5778 * Math.sqrt(Math.sqrt(
+    luminosity_solar / (radius_solar * radius_solar)
+  ));
 }
 
 /**
@@ -223,9 +228,8 @@ export function computeRemnantType(mass_solar: number): RemnantType {
  * @returns Schwarzschild radius in kilometers
  */
 export function computeSchwarzschild(mass_solar: number): number {
-  const mass_kg = mass_solar * 1.989e30;
-  const r_s_m = (2 * 6.674e-11 * mass_kg) / (3e8 * 3e8);
-  return r_s_m / 1000;
+  // BOLT: Pre-calculated constant for 2GM/c^2 per solar mass in km
+  return mass_solar * 2.95325;
 }
 
 /**
