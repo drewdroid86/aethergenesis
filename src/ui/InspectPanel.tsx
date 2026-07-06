@@ -190,7 +190,7 @@ Civilization: ${geminiData.civilization}`;
                         aria-label={copied ? "Telemetry Copied" : "Copy Telemetry"}
                         title="Copy Telemetry"
                     >
-                        <span className={`absolute -top-6 right-0 text-[10px] text-[#C084FC] transition-opacity whitespace-nowrap ${copied ? 'opacity-100' : 'opacity-0 group-hover/copy:opacity-100'}`}>
+                        <span className={`absolute -top-6 right-0 text-[10px] text-[#C084FC] transition-opacity whitespace-nowrap ${copied ? 'opacity-100' : 'opacity-0 group-hover/copy:opacity-100 group-focus-visible/copy:opacity-100'}`}>
                             {copied ? 'Copied!' : 'Copy'}
                         </span>
                         {copied ? <Check size={16} className="text-green-400" /> : <Copy size={16} />}
@@ -201,7 +201,7 @@ Civilization: ${geminiData.civilization}`;
                         aria-label="Close Stellar Telemetry"
                         title="Close [Esc]"
                     >
-                        <span className="absolute -top-6 left-1/2 -translate-x-1/2 text-[10px] text-[#C084FC] opacity-0 group-hover/close:opacity-100 transition-opacity whitespace-nowrap">
+                        <span className="absolute -top-6 left-1/2 -translate-x-1/2 text-[10px] text-[#C084FC] opacity-0 group-hover/close:opacity-100 group-focus-visible/close:opacity-100 transition-opacity whitespace-nowrap">
                             [Esc] Close
                         </span>
                         <X size={20} />
@@ -233,10 +233,10 @@ Civilization: ${geminiData.civilization}`;
                     <span ref={uiRefs.age} className="text-white">-</span>
                 </div>
                 
-                <div className="mt-8 pt-6 border-t border-[rgba(126,184,255,0.1)] group/timeline">
+                <div className="mt-8 pt-6 border-t border-[rgba(126,184,255,0.1)] group/timeline focus-within:ring-0">
                     <div className="flex justify-between items-center mb-3">
                         <span className="text-[10px] text-[#7EB8FF]/50 uppercase tracking-widest">
-                            Time Override <span className="opacity-0 group-hover/timeline:opacity-100 transition-opacity ml-1 text-[8px] text-[#C084FC] hidden sm:inline">[Arrows to Seek]</span>
+                            Time Override <span className="opacity-0 group-hover/timeline:opacity-100 group-focus-within/timeline:opacity-100 transition-opacity ml-1 text-[8px] text-[#C084FC] hidden sm:inline">[Arrows to Seek]</span>
                         </span>
                         <div className="flex gap-2">
                             <button
@@ -245,7 +245,7 @@ Civilization: ${geminiData.civilization}`;
                                 aria-label={isPaused ? "Play Simulation" : "Pause Simulation"}
                                 title={isPaused ? "Play Simulation" : "Pause Simulation"}
                             >
-                                <span className="absolute -top-6 left-1/2 -translate-x-1/2 text-[10px] text-[#C084FC] opacity-0 group-hover/pause:opacity-100 transition-opacity whitespace-nowrap">
+                                <span className="absolute -top-6 left-1/2 -translate-x-1/2 text-[10px] text-[#C084FC] opacity-0 group-hover/pause:opacity-100 group-focus-visible/pause:opacity-100 transition-opacity whitespace-nowrap">
                                     [P]
                                 </span>
                                 {isPaused ? <Play size={14} /> : <Pause size={14} />}
@@ -267,7 +267,7 @@ Civilization: ${geminiData.civilization}`;
                         onKeyDown={onKeyDown}
                     >
                         <div ref={uiRefs.timelineFill} className="h-full bg-gradient-to-r from-blue-500 via-fuchsia-500 to-red-500" style={{width: '0%'}}></div>
-                        <div className="absolute inset-0 bg-white/20 opacity-0 group-hover:opacity-100 transition-opacity"></div>
+                        <div className="absolute inset-0 bg-white/20 opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100 transition-opacity"></div>
                     </div>
                     <div className="flex justify-between mt-2 text-[9px] text-[#7EB8FF]/40 uppercase tracking-widest">
                         <span>Genesis</span>
