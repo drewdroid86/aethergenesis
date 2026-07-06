@@ -33,11 +33,21 @@ app.use((_req, res, next) => {
   res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
   const scriptSrc = process.env.NODE_ENV === 'production' ? "'self'" : "'self' 'unsafe-eval'";
 
-  // Security: Restrict connect-src to self and specific allowed origins for WebSockets
+  // Security: Restrict connect-src to self and specific allowed origins for WebSockets.
+  // Uses URL API for robust protocol and port mapping to avoid brittle string manipulation.
   const wsPort = process.env.SIM_PORT || '3001';
-  const wsOrigins = allowedOrigins.map(o => {
-    const wsBase = o.replace(/^http/, 'ws');
-    return `${wsBase} ${wsBase}:${wsPort}`;
+  const wsOrigins = allowedOrigins.flatMap(o => {
+    try {
+      const url = new URL(o);
+      url.protocol = url.protocol === 'https:' ? 'wss:' : 'ws:';
+      const baseWs = url.origin.replace(/^http/, 'ws');
+
+      // Include both base origin and origin with explicit SIM_PORT
+      const portWs = `${url.protocol}//${url.hostname}:${wsPort}`;
+      return [baseWs, portWs];
+    } catch {
+      return [];
+    }
   }).join(' ');
   const connectSrc = `'self' ${wsOrigins}`;
 
