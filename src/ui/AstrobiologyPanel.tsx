@@ -59,7 +59,7 @@ ${planet.civilizationTier > 0 ? `- Civilization: Type ${planet.civilizationTier}
                             aria-label={copied ? "Astrobiology Report Copied" : "Copy Astrobiology Report"}
                             title="Copy Report"
                         >
-                            <span className={`absolute -top-6 right-0 text-[10px] text-[#C084FC] transition-opacity whitespace-nowrap ${copied ? 'opacity-100' : 'opacity-0 group-hover/copy:opacity-100'}`}>
+                            <span className={`absolute -top-6 right-0 text-[10px] text-[#C084FC] transition-opacity whitespace-nowrap ${copied ? 'opacity-100' : 'opacity-0 group-hover/copy:opacity-100 group-focus-visible/copy:opacity-100 group-focus-within/copy:opacity-100'}`}>
                                 {copied ? 'Copied!' : 'Copy'}
                             </span>
                             {copied ? <Check size={16} className="text-green-400" /> : <Copy size={16} />}
@@ -71,7 +71,7 @@ ${planet.civilizationTier > 0 ? `- Civilization: Type ${planet.civilizationTier}
                                 aria-label="Close Astrobiology Report"
                                 title="Close [Esc]"
                             >
-                                <span className="absolute -top-6 left-1/2 -translate-x-1/2 text-[10px] text-[#C084FC] opacity-0 group-hover/close:opacity-100 transition-opacity whitespace-nowrap">
+                                <span className="absolute -top-6 left-1/2 -translate-x-1/2 text-[10px] text-[#C084FC] opacity-0 group-hover/close:opacity-100 group-focus-visible/close:opacity-100 group-focus-within/close:opacity-100 transition-opacity whitespace-nowrap">
                                     [Esc] Close
                                 </span>
                                 <X size={20} />
@@ -81,12 +81,13 @@ ${planet.civilizationTier > 0 ? `- Civilization: Type ${planet.civilizationTier}
                 </div>
 
                 <div className="space-y-4">
-                    <AnimatePresence>
+                    <AnimatePresence mode="popLayout">
                         {data.map((planet, i) => (
                             <motion.div 
                                 key={planet.planet_id}
-                                initial={{ opacity: 0, y: 10 }}
-                                animate={{ opacity: 1, y: 0 }}
+                                initial={{ opacity: 0, y: 15, filter: 'blur(5px)' }}
+                                animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
+                                transition={{ duration: 0.4, delay: i * 0.1, ease: 'easeOut' }}
                                 className="bg-white/5 rounded-xl p-4 border border-white/5 relative overflow-hidden"
                             >
                                 <div className="flex justify-between items-start mb-3">
@@ -131,7 +132,7 @@ ${planet.civilizationTier > 0 ? `- Civilization: Type ${planet.civilizationTier}
                                         <div
                                             className="w-full h-1.5 bg-black/50 rounded-full overflow-hidden"
                                             role="progressbar"
-                                            aria-labelledby={`biomass-label-${planet.planet_id}`}
+                                            aria-label={`Planet ${i + 1} Biomass`}
                                             aria-valuenow={Math.round(planet.biomass * 100)}
                                             aria-valuemin={0}
                                             aria-valuemax={100}
