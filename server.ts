@@ -34,11 +34,20 @@ app.use((_req, res, next) => {
   const scriptSrc = process.env.NODE_ENV === 'production' ? "'self'" : "'self' 'unsafe-eval'";
 
   // Security: Restrict connect-src to self and specific allowed origins for WebSockets
+  // Uses native URL API to correctly handle protocol mapping and port configurations
   const wsPort = process.env.SIM_PORT || '3001';
-  const wsOrigins = allowedOrigins.map(o => {
-    const wsBase = o.replace(/^http/, 'ws');
-    return `${wsBase} ${wsBase}:${wsPort}`;
-  }).join(' ');
+  const wsOrigins = Array.from(new Set(allowedOrigins.flatMap(o => {
+    try {
+      const url = new URL(o);
+      const protocol = url.protocol === 'https:' ? 'wss:' : 'ws:';
+      const base = `${protocol}//${url.host}`;
+      url.port = wsPort;
+      const withPort = `${protocol}//${url.host}`;
+      return [base, withPort];
+    } catch {
+      return [];
+    }
+  }))).join(' ');
   const connectSrc = `'self' ${wsOrigins}`;
 
   res.setHeader('Content-Security-Policy', `default-src 'self'; script-src ${scriptSrc}; style-src 'self' 'unsafe-inline'; connect-src ${connectSrc}; img-src 'self' data: https:; font-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; upgrade-insecure-requests;`);
@@ -95,8 +104,9 @@ app.post('/api/analyze', async (req, res) => {
     return res.status(503).json({ error: 'Analysis service currently unavailable.' });
   }
 
-  // Security: Guard against malformed request bodies before processing
-  if (!req.body || typeof req.body !== 'object') {
+  // Security: Guard against malformed request bodies before processing.
+  // Explicitly exclude arrays as typeof [] === 'object' in JS.
+  if (!req.body || typeof req.body !== 'object' || Array.isArray(req.body)) {
     return res.status(400).json({ error: 'Invalid request body.' });
   }
 
