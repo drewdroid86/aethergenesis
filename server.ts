@@ -36,9 +36,16 @@ app.use((_req, res, next) => {
   // Security: Restrict connect-src to self and specific allowed origins for WebSockets
   const wsPort = process.env.SIM_PORT || '3001';
   const wsOrigins = allowedOrigins.map(o => {
-    const wsBase = o.replace(/^http/, 'ws');
-    return `${wsBase} ${wsBase}:${wsPort}`;
-  }).join(' ');
+    try {
+      const url = new URL(o);
+      const wsProtocol = url.protocol === 'https:' ? 'wss:' : 'ws:';
+      const baseWs = `${wsProtocol}//${url.host}`;
+      // Also allow explicit port if not already present in the host
+      return url.port ? baseWs : `${baseWs} ${baseWs}:${wsPort}`;
+    } catch {
+      return '';
+    }
+  }).filter(Boolean).join(' ');
   const connectSrc = `'self' ${wsOrigins}`;
 
   res.setHeader('Content-Security-Policy', `default-src 'self'; script-src ${scriptSrc}; style-src 'self' 'unsafe-inline'; connect-src ${connectSrc}; img-src 'self' data: https:; font-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; upgrade-insecure-requests;`);
@@ -96,7 +103,8 @@ app.post('/api/analyze', async (req, res) => {
   }
 
   // Security: Guard against malformed request bodies before processing
-  if (!req.body || typeof req.body !== 'object') {
+  // typeof body === 'object' returns true for arrays, so we must explicitly exclude them.
+  if (!req.body || typeof req.body !== 'object' || Array.isArray(req.body)) {
     return res.status(400).json({ error: 'Invalid request body.' });
   }
 
@@ -143,6 +151,13 @@ app.post('/api/analyze', async (req, res) => {
     return res.status(400).json({ error: 'Invalid input parameters.' });
   }
 
+  const GEN_AI_TIMEOUT = 10000;
+  let timeoutHandle: NodeJS.Timeout;
+
+  const timeoutPromise = new Promise((_, reject) => {
+    timeoutHandle = setTimeout(() => reject(new Error('TIMEOUT')), GEN_AI_TIMEOUT);
+  });
+
   try {
     const prompt = `Analyze a generic star based on physical constants (G=${G}, alpha=${alpha}) and its star properties (Temp=${temp}K, Mass=${mass}M, Lum=${lum}L, Age=${age}Myr, Phase=${phase}). Return a JSON with properties: planet_name (string), life_stage (number), dominant_species (string), civilization (string), biome (string).`;
 
@@ -158,7 +173,7 @@ app.post('/api/analyze', async (req, res) => {
       required: ["planet_name", "life_stage", "dominant_species", "civilization", "biome"],
     };
 
-    const response = await ai.models.generateContent({
+    const aiPromise = ai.models.generateContent({
       model: "gemini-2.0-flash",
       contents: prompt,
       config: {
@@ -168,6 +183,8 @@ app.post('/api/analyze', async (req, res) => {
         maxOutputTokens: 256, // Security: Resource exhaustion protection
       }
     });
+
+    const response = await Promise.race([aiPromise, timeoutPromise]) as any;
 
     if (!response.text) {
       throw new Error('No response text from Gemini API');
@@ -191,9 +208,14 @@ app.post('/api/analyze', async (req, res) => {
 
     res.json(sanitized);
   } catch (error: any) {
+    if (error?.message === 'TIMEOUT') {
+      return res.status(504).json({ error: 'Analysis service timed out.' });
+    }
     // Security: Log only essential error message, avoid leaking details
     console.error('Gemini Analysis Error:', error?.message || 'Unknown error');
     res.status(500).json({ error: 'Internal Server Error' });
+  } finally {
+    if (timeoutHandle!) clearTimeout(timeoutHandle);
   }
 });
 
