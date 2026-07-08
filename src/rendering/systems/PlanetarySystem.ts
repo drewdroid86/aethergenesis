@@ -171,13 +171,6 @@ void main() {
 }
 `;
 
-// BOLT: Static scratchpads to eliminate per-frame allocations
-const _matrix = new THREE.Matrix4();
-const _posV = new THREE.Vector3();
-const _scaleV = new THREE.Vector3();
-const _rotQ = new THREE.Quaternion();
-const _yAxis = new THREE.Vector3(0, 1, 0);
-
 export class PlanetarySystem {
     private instancedMesh: THREE.InstancedMesh;
     public bodies: {
@@ -189,6 +182,8 @@ export class PlanetarySystem {
     private group: THREE.Group;
     private parent: THREE.Object3D;
     private material: THREE.ShaderMaterial;
+    private biomassAttr!: THREE.InstancedBufferAttribute;
+    private civAttr!: THREE.InstancedBufferAttribute;
 
     constructor(star: THREE.Object3D) {
         this.parent = star;
@@ -235,11 +230,14 @@ export class PlanetarySystem {
         
         const biomassArray = new Float32Array(numBodies).fill(0);
         const civArray = new Float32Array(numBodies).fill(0);
+
+        this.biomassAttr = new THREE.InstancedBufferAttribute(biomassArray, 1);
+        this.civAttr = new THREE.InstancedBufferAttribute(civArray, 1);
         
         geometry.setAttribute('planetType', new THREE.InstancedBufferAttribute(types, 1));
         geometry.setAttribute('planetSeed', new THREE.InstancedBufferAttribute(seeds, 1));
-        geometry.setAttribute('biomass', new THREE.InstancedBufferAttribute(biomassArray, 1));
-        geometry.setAttribute('civilizationTier', new THREE.InstancedBufferAttribute(civArray, 1));
+        geometry.setAttribute('biomass', this.biomassAttr);
+        geometry.setAttribute('civilizationTier', this.civAttr);
         
         this.group.add(this.instancedMesh);
     }
@@ -259,22 +257,47 @@ export class PlanetarySystem {
         
         // Buffer has 7 floats per body: x, y, z, vx, vy, vz, type
         const numBodies = Math.min(this.bodies.length, buffer.length / 7);
+        const array = this.instancedMesh.instanceMatrix.array;
 
         for (let i = 0; i < numBodies; i++) {
             const b = this.bodies[i];
+            const offset = i * 16;
             
             const x = buffer[i * 7 + 0];
             const y = buffer[i * 7 + 1];
             const z = buffer[i * 7 + 2];
+
+            const s = b.scale;
+            const angle = (x + y) * 0.01 + b.seed;
+            const cos = Math.cos(angle) * s;
+            const sin = Math.sin(angle) * s;
+
+            // BOLT: Manual column-major matrix construction (Translation * RotationY * Scale)
+            // Bypasses THREE.Matrix4.compose() and setMatrixAt() validation overhead.
             
-            _posV.set(x, y, z);
-            _scaleV.setScalar(b.scale);
+            // Col 0
+            array[offset + 0] = cos;
+            array[offset + 1] = 0;
+            array[offset + 2] = -sin;
+            array[offset + 3] = 0;
             
-            // Subtle self-rotation
-            _rotQ.setFromAxisAngle(_yAxis, (buffer[i*7+0] + buffer[i*7+1]) * 0.01 + b.seed);
+            // Col 1
+            array[offset + 4] = 0;
+            array[offset + 5] = s;
+            array[offset + 6] = 0;
+            array[offset + 7] = 0;
             
-            _matrix.compose(_posV, _rotQ, _scaleV);
-            this.instancedMesh.setMatrixAt(i, _matrix);
+            // Col 2
+            array[offset + 8] = sin;
+            array[offset + 9] = 0;
+            array[offset + 10] = cos;
+            array[offset + 11] = 0;
+
+            // Col 3
+            array[offset + 12] = x;
+            array[offset + 13] = y;
+            array[offset + 14] = z;
+            array[offset + 15] = 1;
         }
 
         // BOLT: Setting .count natively handles hiding unused instances, removing redundant loop
@@ -297,27 +320,29 @@ export class PlanetarySystem {
      * Updates biosphere shaders based on AstrobiologyEngine output
      */
     updateAstrobiology(astrobiologyStates: any[]): void {
-        const biomassAttr = this.instancedMesh.geometry.getAttribute('biomass') as THREE.InstancedBufferAttribute;
-        const civAttr = this.instancedMesh.geometry.getAttribute('civilizationTier') as THREE.InstancedBufferAttribute;
-        
-        if (!biomassAttr || !civAttr) return;
+        const biomassArray = this.biomassAttr.array as Float32Array;
+        const civArray = this.civAttr.array as Float32Array;
 
         let maxBiomass = 0;
         let maxCiv = 0;
 
         for (let i = 0; i < astrobiologyStates.length; i++) {
             const state = astrobiologyStates[i];
-            biomassAttr.setX(i, state.biomass || 0.0);
-            civAttr.setX(i, state.civilizationTier || 0.0);
+            const biomass = state.biomass || 0.0;
+            const civ = state.civilizationTier || 0.0;
+
+            // BOLT: Direct array access bypasses setX() method call overhead
+            biomassArray[i] = biomass;
+            civArray[i] = civ;
             
-            if (state.biomass > maxBiomass) maxBiomass = state.biomass;
-            if (state.civilizationTier > maxCiv) maxCiv = state.civilizationTier;
+            if (biomass > maxBiomass) maxBiomass = biomass;
+            if (civ > maxCiv) maxCiv = civ;
         }
 
         this.material.uniforms.u_biomass.value = maxBiomass;
         this.material.uniforms.u_kardashevTier.value = maxCiv;
 
-        biomassAttr.needsUpdate = true;
-        civAttr.needsUpdate = true;
+        this.biomassAttr.needsUpdate = true;
+        this.civAttr.needsUpdate = true;
     }
 }
