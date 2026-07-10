@@ -23,7 +23,7 @@ export const ConstantsPanel: React.FC<ConstantsPanelProps> = ({
                 title="Open Physical Constants"
                 aria-label="Open Physical Constants"
             >
-                <span className="absolute -top-6 left-1/2 -translate-x-1/2 text-[10px] text-[#C084FC] opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
+                <span className="absolute -top-6 left-1/2 -translate-x-1/2 text-[10px] text-[#C084FC] opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity whitespace-nowrap">
                     [C] Open
                 </span>
                 <Settings2 size={24} className="group-hover:text-[#C084FC] transition-colors" />
@@ -45,7 +45,7 @@ export const ConstantsPanel: React.FC<ConstantsPanelProps> = ({
                         aria-label="Reset to Defaults"
                         title="Reset to Defaults"
                     >
-                        <span className="absolute -top-6 left-1/2 -translate-x-1/2 text-[10px] text-[#C084FC] opacity-0 group-hover/reset:opacity-100 transition-opacity whitespace-nowrap">
+                        <span className="absolute -top-6 left-1/2 -translate-x-1/2 text-[10px] text-[#C084FC] opacity-0 group-hover/reset:opacity-100 group-focus-within/reset:opacity-100 transition-opacity whitespace-nowrap">
                             [Alt+R] Reset
                         </span>
                         <RotateCcw size={16} className="group-hover/reset:rotate-[-45deg] transition-transform" />
@@ -55,7 +55,7 @@ export const ConstantsPanel: React.FC<ConstantsPanelProps> = ({
                         className="text-[#7EB8FF]/70 hover:text-white transition-colors focus-visible:ring-2 focus-visible:ring-[#C084FC] outline-none rounded p-1 relative group/close"
                         aria-label="Close Physical Constants"
                     >
-                        <span className="absolute -top-6 left-1/2 -translate-x-1/2 text-[10px] text-[#C084FC] opacity-0 group-hover/close:opacity-100 transition-opacity whitespace-nowrap">
+                        <span className="absolute -top-6 left-1/2 -translate-x-1/2 text-[10px] text-[#C084FC] opacity-0 group-hover/close:opacity-100 group-focus-within/close:opacity-100 transition-opacity whitespace-nowrap">
                             [C] Close
                         </span>
                         <X size={20} />
