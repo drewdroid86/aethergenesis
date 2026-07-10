@@ -33,12 +33,20 @@ app.use((_req, res, next) => {
   res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
   const scriptSrc = process.env.NODE_ENV === 'production' ? "'self'" : "'self' 'unsafe-eval'";
 
-  // Security: Restrict connect-src to self and specific allowed origins for WebSockets
+  // Security: Restrict connect-src to self and specific allowed origins for WebSockets.
+  // Use native URL API for robust protocol mapping and origin construction.
   const wsPort = process.env.SIM_PORT || '3001';
   const wsOrigins = allowedOrigins.map(o => {
-    const wsBase = o.replace(/^http/, 'ws');
-    return `${wsBase} ${wsBase}:${wsPort}`;
-  }).join(' ');
+    try {
+      const url = new URL(o);
+      url.protocol = url.protocol.replace('http', 'ws');
+      const base = url.origin.replace(/^http/, 'ws');
+      // If the origin already has a port, just return the base; otherwise add the wsPort.
+      return url.port ? base : `${base} ${base}:${wsPort}`;
+    } catch {
+      return '';
+    }
+  }).filter(Boolean).join(' ');
   const connectSrc = `'self' ${wsOrigins}`;
 
   res.setHeader('Content-Security-Policy', `default-src 'self'; script-src ${scriptSrc}; style-src 'self' 'unsafe-inline'; connect-src ${connectSrc}; img-src 'self' data: https:; font-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; upgrade-insecure-requests;`);
@@ -96,7 +104,8 @@ app.post('/api/analyze', async (req, res) => {
   }
 
   // Security: Guard against malformed request bodies before processing
-  if (!req.body || typeof req.body !== 'object') {
+  // typeof body === 'object' includes arrays; strictly exclude them.
+  if (!req.body || typeof req.body !== 'object' || Array.isArray(req.body)) {
     return res.status(400).json({ error: 'Invalid request body.' });
   }
 
@@ -124,6 +133,13 @@ app.post('/api/analyze', async (req, res) => {
   analysisLimitMap.set(ip, record);
 
   const { temp, mass, lum, age, phase, G, alpha } = req.body;
+
+  // Security: External AI service calls implement a 10s timeout to prevent resource exhaustion
+  const GEN_AI_TIMEOUT = 10000;
+  let timeoutId: NodeJS.Timeout;
+  const timeoutPromise = new Promise((_, reject) => {
+    timeoutId = setTimeout(() => reject(new Error('GEN_AI_TIMEOUT')), GEN_AI_TIMEOUT);
+  });
 
   // Security: Input validation and sanitization to prevent prompt injection and malformed requests
   const VALID_PHASES = [
@@ -158,16 +174,19 @@ app.post('/api/analyze', async (req, res) => {
       required: ["planet_name", "life_stage", "dominant_species", "civilization", "biome"],
     };
 
-    const response = await ai.models.generateContent({
-      model: "gemini-2.0-flash",
-      contents: prompt,
-      config: {
-        systemInstruction: "You are an astrobiology analytical engine. Generate creative but scientifically cohesive species and civilizations based on the star's phase, temp, and constants.",
-        responseMimeType: "application/json",
-        responseSchema: schema,
-        maxOutputTokens: 256, // Security: Resource exhaustion protection
-      }
-    });
+    const response = await Promise.race([
+      ai.models.generateContent({
+        model: "gemini-2.0-flash",
+        contents: prompt,
+        config: {
+          systemInstruction: "You are an astrobiology analytical engine. Generate creative but scientifically cohesive species and civilizations based on the star's phase, temp, and constants.",
+          responseMimeType: "application/json",
+          responseSchema: schema,
+          maxOutputTokens: 256, // Security: Resource exhaustion protection
+        }
+      }),
+      timeoutPromise
+    ]) as any;
 
     if (!response.text) {
       throw new Error('No response text from Gemini API');
@@ -191,9 +210,14 @@ app.post('/api/analyze', async (req, res) => {
 
     res.json(sanitized);
   } catch (error: any) {
+    if (error?.message === 'GEN_AI_TIMEOUT') {
+      return res.status(504).json({ error: 'Analysis service timed out.' });
+    }
     // Security: Log only essential error message, avoid leaking details
     console.error('Gemini Analysis Error:', error?.message || 'Unknown error');
     res.status(500).json({ error: 'Internal Server Error' });
+  } finally {
+    clearTimeout(timeoutId!);
   }
 });
 
@@ -202,7 +226,9 @@ const __dirname = path.dirname(__filename);
 if (process.env.NODE_ENV === 'production') {
   const distPath = path.join(__dirname, 'dist');
   app.use(express.static(distPath));
-  app.get('*', (_req, res) => {
+  // Security & Compatibility: Use a regex literal for the catch-all route to avoid
+  // conflicts with API routes in Express 5.
+  app.get(/^(?!\/api).*/, (_req, res) => {
     res.sendFile(path.join(distPath, 'index.html'));
   });
 }
