@@ -140,7 +140,7 @@ export const Hud: React.FC<HudProps> = ({
                         className="font-mono text-sm uppercase text-indigo-300 hover:text-white transition-colors focus-visible:ring-2 focus-visible:ring-[#C084FC] outline-none rounded relative group/uid pointer-events-auto"
                         aria-label={idCopied ? "Universe ID Copied" : "Copy Universe ID"}
                     >
-                        <span className={`absolute -top-6 left-1/2 -translate-x-1/2 text-[10px] text-[#C084FC] transition-opacity whitespace-nowrap ${idCopied ? 'opacity-100' : 'opacity-0 group-hover/uid:opacity-100'}`}>
+                        <span className={`absolute -top-6 left-1/2 -translate-x-1/2 text-[10px] text-[#C084FC] transition-opacity whitespace-nowrap ${idCopied ? 'opacity-100' : 'opacity-0 group-hover/uid:opacity-100 group-focus-visible/uid:opacity-100'}`}>
                             {idCopied ? 'Copied!' : 'Copy'}
                         </span>
                         {currentSeed.substring(0, 8)}
@@ -176,7 +176,7 @@ export const Hud: React.FC<HudProps> = ({
 
             {/* Bottom HUD */}
             <div className="absolute bottom-0 w-full p-8 flex justify-between items-end z-20 pointer-events-none">
-                <div className="font-mono text-[10px] text-[#7EB8FF]/60 space-y-1 border-l border-[#C084FC]/50 pl-4 bg-[rgba(8,8,20,0.4)] backdrop-blur-md py-3 pr-4 rounded-r border-y-0 border-r-0 pointer-events-auto group/telemetry">
+                <div className="font-mono text-[10px] text-[#7EB8FF]/60 space-y-1 border-l border-[#C084FC]/50 pl-4 bg-[rgba(8,8,20,0.4)] backdrop-blur-md py-3 pr-4 rounded-r border-y-0 border-r-0 pointer-events-auto group/telemetry" tabIndex={-1}>
                 <div className="flex items-center justify-between gap-4 mb-2 pb-1 border-b border-[rgba(126,184,255,0.2)]">
                     <div className="flex items-center gap-2">
                         <span className="inline-block w-2 h-2 rounded-full bg-[#C084FC] animate-pulse shadow-[0_0_5px_#C084FC]" />
@@ -184,11 +184,11 @@ export const Hud: React.FC<HudProps> = ({
                     </div>
                     <button
                         onClick={copyCoordinates}
-                        className="text-[#7EB8FF]/40 hover:text-white transition-colors focus-visible:ring-2 focus-visible:ring-[#C084FC] outline-none rounded relative group/copy"
+                        className="text-[#7EB8FF]/40 hover:text-white transition-colors focus-visible:ring-2 focus-visible:ring-[#C084FC] outline-none rounded p-0.5 relative group/copy"
                         aria-label={copied ? "Coordinates Copied" : "Copy Coordinates"}
                         title="Copy Coordinates"
                     >
-                        <span className={`absolute -top-6 right-0 text-[10px] text-[#C084FC] transition-opacity whitespace-nowrap ${copied ? 'opacity-100' : 'opacity-0 group-hover/copy:opacity-100'}`}>
+                        <span className={`absolute -top-6 right-0 text-[10px] text-[#C084FC] transition-opacity whitespace-nowrap ${copied ? 'opacity-100' : 'opacity-0 group-hover/copy:opacity-100 group-focus-visible/copy:opacity-100'}`}>
                             {copied ? 'Copied!' : 'Copy'}
                         </span>
                         {copied ? <Check size={12} className="text-green-400" /> : <Copy size={12} />}
@@ -203,15 +203,16 @@ export const Hud: React.FC<HudProps> = ({
                     <div className="w-full px-8 py-4 bg-[rgba(8,8,20,0.6)] backdrop-blur-2xl border border-[rgba(126,184,255,0.2)] rounded-2xl flex flex-col items-center group">
                         <div className="flex justify-between w-full items-center mb-3">
                             <span className="text-[9px] uppercase tracking-widest text-[#7EB8FF]">
-                                Global Cosmic Age (Gyr) <span className="opacity-0 group-hover:opacity-100 transition-opacity ml-2 text-[8px] text-[#C084FC] hidden sm:inline">[Arrows to Seek]</span>
+                                Global Cosmic Age (Gyr) <span className="opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity ml-2 text-[8px] text-[#C084FC] hidden sm:inline">[Arrows to Seek]</span>
                             </span>
                             <div className="flex gap-2">
                                 <div
                                     className="flex bg-[rgba(8,8,20,0.8)] border border-[rgba(126,184,255,0.2)] rounded-full p-0.5 pointer-events-auto mr-2 relative group/timescale"
                                     role="radiogroup"
                                     aria-label="Simulation timescale"
+                                    aria-keyshortcuts="t"
                                 >
-                                    <span className="absolute -top-6 left-1/2 -translate-x-1/2 text-[10px] text-[#C084FC] opacity-0 group-hover/timescale:opacity-100 transition-opacity whitespace-nowrap">
+                                    <span className="absolute -top-6 left-1/2 -translate-x-1/2 text-[10px] text-[#C084FC] opacity-0 group-hover/timescale:opacity-100 group-focus-within/timescale:opacity-100 transition-opacity whitespace-nowrap">
                                         [T] Scale
                                     </span>
                                     <button 
@@ -249,8 +250,9 @@ export const Hud: React.FC<HudProps> = ({
                                     className="text-white/40 hover:text-white transition-colors focus-visible:ring-2 focus-visible:ring-[#C084FC] outline-none rounded relative group/play"
                                     aria-label={isPlayingCosmic ? "Pause cosmic simulation" : "Play cosmic simulation"}
                                     title={isPlayingCosmic ? "Pause Cosmic Simulation" : "Play Cosmic Simulation"}
+                                    aria-keyshortcuts="Space"
                                 >
-                                    <span className="absolute -top-6 left-1/2 -translate-x-1/2 text-[10px] text-[#C084FC] opacity-0 group-hover/play:opacity-100 transition-opacity whitespace-nowrap">
+                                    <span className="absolute -top-6 left-1/2 -translate-x-1/2 text-[10px] text-[#C084FC] opacity-0 group-hover/play:opacity-100 group-focus-visible/play:opacity-100 transition-opacity whitespace-nowrap">
                                         [Space]
                                     </span>
                                     {isPlayingCosmic ? <Pause size={14} /> : <Play size={14} />}
@@ -287,8 +289,9 @@ export const Hud: React.FC<HudProps> = ({
                         onClick={resetCamera}
                         className="w-10 h-10 flex items-center justify-center bg-[rgba(8,8,20,0.6)] border border-[rgba(126,184,255,0.2)] rounded-md backdrop-blur-md transition-colors hover:bg-[rgba(126,184,255,0.1)] cursor-pointer focus-visible:ring-2 focus-visible:ring-[#C084FC] outline-none relative group/reset"
                         aria-label="Reset camera position and orientation" title="Reset Camera [R]"
+                        aria-keyshortcuts="r"
                     >
-                    <span className="absolute -top-6 left-1/2 -translate-x-1/2 text-[10px] text-[#C084FC] opacity-0 group-hover/reset:opacity-100 transition-opacity whitespace-nowrap">
+                    <span className="absolute -top-6 left-1/2 -translate-x-1/2 text-[10px] text-[#C084FC] opacity-0 group-hover/reset:opacity-100 group-focus-visible/reset:opacity-100 transition-opacity whitespace-nowrap">
                         [R] Reset
                     </span>
                     <Crosshair size={16} className="text-[#7EB8FF]" />
@@ -297,8 +300,9 @@ export const Hud: React.FC<HudProps> = ({
                         onClick={centerOnStar}
                         className="w-10 h-10 flex items-center justify-center bg-[rgba(8,8,20,0.6)] border border-[rgba(126,184,255,0.2)] rounded-md backdrop-blur-md transition-colors hover:bg-[rgba(126,184,255,0.1)] cursor-pointer focus-visible:ring-2 focus-visible:ring-[#C084FC] outline-none relative group/focus"
                         aria-label="Center camera on selected star" title="Focus on Star [F]"
+                        aria-keyshortcuts="f"
                     >
-                    <span className="absolute -top-6 left-1/2 -translate-x-1/2 text-[10px] text-[#C084FC] opacity-0 group-hover/focus:opacity-100 transition-opacity whitespace-nowrap">
+                    <span className="absolute -top-6 left-1/2 -translate-x-1/2 text-[10px] text-[#C084FC] opacity-0 group-hover/focus:opacity-100 group-focus-visible/focus:opacity-100 transition-opacity whitespace-nowrap">
                         [F] Focus
                     </span>
                     <Navigation size={16} className="text-[#C084FC]" />
