@@ -418,12 +418,16 @@ export function useSimulation(containerRef: React.RefObject<HTMLDivElement | nul
                                 const astrobiologyStates: any[] = [];
                                 const deltaTime_yr = timeScaleRef.current === 'cosmic' ? delta * 200000000 : delta * 1000;
                                 
+                                // BOLT: Pre-calculated constants for planet estimation
+                                const mass_earth = 5.97e24;
+                                const r_earth = 6371000;
+                                const simTimeYr = engine.appTime * 1e6;
+                                let maxK = 0;
+
                                 for (let i = 0; i < orbitalStates.length; i++) {
                                     const o = orbitalStates[i];
                                     
                                     // Estimate physical properties based on body type
-                                    const mass_earth = 5.97e24;
-                                    const r_earth = 6371000;
                                     let mass = mass_earth;
                                     let radius = r_earth;
                                     let albedo = 0.3;
@@ -456,14 +460,18 @@ export function useSimulation(containerRef: React.RefObject<HTMLDivElement | nul
                                         deltaTime_yr
                                     );
                                     
+                                    // BOLT: Merge maxK calculation into main loop to reduce complexity O(2n) -> O(n)
+                                    if (habState.civilizationTier > maxK) {
+                                        maxK = habState.civilizationTier;
+                                    }
+
                                     // Make sure sim_time_yr is included
                                     astrobiologyStates.push({
                                         ...habState,
-                                        sim_time_yr: engine.appTime * 1e6
+                                        sim_time_yr: simTimeYr
                                     });
                                 }
 
-                                const maxK = astrobiologyStates.reduce((max, s) => Math.max(max, s.civilizationTier), 0);
                                 engine.highestKardashevTier = maxK;
 
                                 // Avoid rapid React state updates by throttling UI state to 1Hz
