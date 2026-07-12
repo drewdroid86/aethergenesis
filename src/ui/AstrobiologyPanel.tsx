@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Activity, Droplets, Thermometer, ShieldAlert, Globe, Copy, Check, X } from 'lucide-react';
+import { Activity, Droplets, Thermometer, ShieldAlert, Copy, Check, X, Snowflake, CloudRain, Sun, Waves, Sparkles, Dna } from 'lucide-react';
 import { HabitabilityState } from '../simulation/AstrobiologyEngine';
 
 interface AstrobiologyPanelProps {
@@ -12,6 +12,15 @@ interface AstrobiologyPanelProps {
 export const AstrobiologyPanel: React.FC<AstrobiologyPanelProps> = ({ data, selectedStar, onClose }) => {
     const [copied, setCopied] = useState(false);
     const [announcement, setAnnouncement] = useState('');
+
+    const getClimateIcon = (state: string) => {
+        switch (state) {
+            case 'snowball': return <Snowflake className="w-4 h-4 mr-2 text-blue-300" aria-hidden="true" />;
+            case 'moist_greenhouse': return <CloudRain className="w-4 h-4 mr-2 text-orange-300" aria-hidden="true" />;
+            case 'habitable': return <Waves className="w-4 h-4 mr-2 text-emerald-300" aria-hidden="true" />;
+            default: return <Sun className="w-4 h-4 mr-2 text-red-300" aria-hidden="true" />;
+        }
+    };
 
     const announce = (msg: string) => {
         setAnnouncement(msg);
@@ -95,7 +104,7 @@ ${planet.civilizationTier > 0 ? `- Civilization: Type ${planet.civilizationTier}
                             >
                                 <div className="flex justify-between items-start mb-3">
                                     <h3 className="text-white/80 font-mono text-sm capitalize flex items-center">
-                                        <Globe className="w-4 h-4 mr-2 opacity-70" />
+                                        {getClimateIcon(planet.climateState)}
                                         Planet {i + 1}
                                     </h3>
                                     <div className={`px-2 py-0.5 rounded text-xs font-mono font-medium ${
@@ -129,8 +138,9 @@ ${planet.civilizationTier > 0 ? `- Civilization: Type ${planet.civilizationTier}
                                     {/* Biomass progress bar */}
                                     <div className="pt-2 mt-2 border-t border-white/10">
                                         <div className="flex justify-between mb-1 text-[10px]">
-                                            <span id={`biomass-label-${planet.planet_id}`}>
+                                            <span id={`biomass-label-${planet.planet_id}`} className="flex items-center">
                                                 <span className="sr-only">Planet {i + 1} </span>
+                                                <Dna className="w-3 h-3 mr-1 opacity-60" aria-hidden="true" />
                                                 Biomass
                                             </span>
                                             <span>{(planet.biomass * 100).toFixed(1)}%</span>
@@ -153,7 +163,10 @@ ${planet.civilizationTier > 0 ? `- Civilization: Type ${planet.civilizationTier}
                                     {/* Civilization Level */}
                                     {planet.civilizationTier > 0 && (
                                         <div className="pt-2 mt-2 border-t border-white/10 flex justify-between items-center text-xs font-mono">
-                                            <span className="text-yellow-400/80">Civilization</span>
+                                            <span className="text-yellow-400/80 flex items-center">
+                                                <Sparkles className={`w-3 h-3 mr-1.5 ${planet.civilizationTier >= 2 ? 'animate-pulse' : ''}`} aria-hidden="true" />
+                                                Civilization
+                                            </span>
                                             <span className="text-yellow-400 font-bold">Type {planet.civilizationTier}</span>
                                         </div>
                                     )}
