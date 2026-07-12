@@ -25,6 +25,9 @@ export class RemnantPhase implements PhaseComponent {
     private bhDiskMaterial?: THREE.ShaderMaterial;
     private bhDiskGeometry?: THREE.RingGeometry;
 
+    private _lensMat?: THREE.ShaderMaterial;
+    private _lensMesh?: THREE.Mesh;
+
     // BOLT: Shared materials cached to eliminate per-frame O(N) loops and lookups
     private nsMat!: THREE.MeshBasicMaterial;
     private tubeMat!: THREE.MeshBasicMaterial;
@@ -142,8 +145,8 @@ export class RemnantPhase implements PhaseComponent {
             depthWrite: false
         });
         const lensSphere = new THREE.Mesh(lensGeo, lensMat);
-        (this as any)._lensMat = lensMat;
-        (this as any)._lensMesh = lensSphere;
+        this._lensMat = lensMat;
+        this._lensMesh = lensSphere;
         this.blackHoleGroup.add(lensSphere);
 
         this.parent.add(this.blackHoleGroup);
@@ -161,10 +164,10 @@ export class RemnantPhase implements PhaseComponent {
                 this.bhDiskMaterial.uniforms.uTime.value = appTime;
             }
 
-            if ((this as any)._lensMat) {
-                (this as any)._lensMat.uniforms.uTime.value = appTime;
-                (this as any)._lensMat.uniforms.uStrength.value = THREE.MathUtils.lerp(
-                    (this as any)._lensMat.uniforms.uStrength.value,
+            if (this._lensMat) {
+                this._lensMat.uniforms.uTime.value = appTime;
+                this._lensMat.uniforms.uStrength.value = THREE.MathUtils.lerp(
+                    this._lensMat.uniforms.uStrength.value,
                     1.0,
                     delta * 2.0
                 );
@@ -237,8 +240,8 @@ export class RemnantPhase implements PhaseComponent {
             if (c.material) (c.material as THREE.Material).dispose();
         }
 
-        if ((this as any)._lensMesh) {
-            (this as any)._lensMesh.geometry.dispose();
+        if (this._lensMesh) {
+            this._lensMesh.geometry.dispose();
         }
 
         const bhChildren = this.blackHoleGroup.children;

@@ -128,7 +128,8 @@ function physicsTick() {
 
     // BOLT: Reuse invMassBuffer to eliminate per-frame allocations
     for (let i = 0; i < n; i++) {
-        invMassBuffer[i] = 1.0 / bodies[i].mass_solar;
+        const mass = bodies[i].mass_solar;
+        invMassBuffer[i] = mass > 1e-18 ? 1.0 / mass : 0.0;
     }
 
     // 2. First half-step: v(t + dt/2) = v(t) + a(t) * dt/2

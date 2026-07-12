@@ -42,5 +42,8 @@ export class DysonSwarmSystem {
     dispose(): void {
         this.swarm.geometry.dispose();
         (this.swarm.material as THREE.Material).dispose();
+        if (this.swarm.parent) {
+            this.swarm.parent.remove(this.swarm);
+        }
     }
 }

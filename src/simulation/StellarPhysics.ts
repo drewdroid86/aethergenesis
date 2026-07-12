@@ -11,6 +11,8 @@
  * @module StellarPhysics
  */
 
+import { STELLAR_CONSTANTS } from '../core/constants';
+
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 export type StellarPhase =
@@ -252,8 +254,8 @@ export function computePhase(
   if (age_yr < tau_ms * 0.001) return 'nebula';
   if (age_yr < tau_ms * 0.01) return 'protostar';
   if (age_yr < tau_ms) return 'main_sequence';
-  if (age_yr < tau_ms * 1.5 && mass_solar > 8) return 'supernova';
   if (age_yr < tau_ms * 1.2) return 'red_giant';
+  if (age_yr < tau_ms * 1.5 && mass_solar > STELLAR_CONSTANTS.PHYSICS.MASS_THRESHOLD_SUPERNOVA) return 'supernova';
   return 'remnant';
 }
 
@@ -306,7 +308,7 @@ function computeCurrentMass(
     case 'supernova':
     case 'remnant':
       // Core mass after envelope ejection
-      if (initialMass_solar <= 8) {
+      if (initialMass_solar <= STELLAR_CONSTANTS.PHYSICS.MASS_THRESHOLD_SUPERNOVA) {
         return Math.max(0.5, 0.394 + 0.109 * initialMass_solar);
       }
       return Math.max(1.4, initialMass_solar * 0.2);

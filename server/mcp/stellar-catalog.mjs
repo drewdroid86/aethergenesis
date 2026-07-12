@@ -555,7 +555,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
             ],
           };
         }
-      } catch (err) {
+      } catch (_err) {
         // Fallback to closest matching preset or cached preset
         console.error('get_star_by_name query failed. Falling back to cached preset Sun.');
       }
@@ -637,7 +637,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
             ],
           };
         }
-      } catch (err) {
+      } catch (_err) {
         console.error('search_stars failed. Falling back to local presets.');
       }
 

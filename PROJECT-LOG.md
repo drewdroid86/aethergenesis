@@ -66,11 +66,6 @@ src/
 
 ---
 
-## ARCHITECTURE OVERVIEW
-... (rest of architecture overview)
-
----
-
 ## SESSION LOG
 
 ---

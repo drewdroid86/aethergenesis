@@ -231,6 +231,16 @@ export class CometSystem {
             comaColors[i * 3 + 2] = 1.0;
 
             const dist = this._posV.length();
+
+            // Calculate velocity direction for dust tail (update prevPosition every frame to avoid staleness)
+            const prev = this.prevPositions[i];
+            if (prev.lengthSq() > 0) {
+                this._vel.set(x - prev.x, y - prev.y, z - prev.z).normalize();
+            } else {
+                this._vel.set(0, 0, 0);
+            }
+            prev.set(x, y, z);
+
             if (dist < 3.0) {
                 comaActives[i] = 1.0;
                 comaScales[i]  = Math.max(0.5, (3.0 - dist) * 0.8);
@@ -248,15 +258,6 @@ export class CometSystem {
                     ionColors[i * 3 + 0] = 0.2;
                     ionColors[i * 3 + 1] = 0.5;
                     ionColors[i * 3 + 2] = 1.0;
-
-                    // Calculate velocity direction for dust tail
-                    const prev = this.prevPositions[i];
-                    if (prev.lengthSq() > 0) {
-                        this._vel.set(x - prev.x, y - prev.y, z - prev.z).normalize();
-                    } else {
-                        this._vel.set(0, 0, 0);
-                    }
-                    prev.set(x, y, z);
 
                     // Dust tail: slightly offset direction, broader
                     this._dustDir.copy(this._ionDir).addScaledVector(this._vel, -0.5).normalize();

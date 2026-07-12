@@ -13,6 +13,10 @@ export class ProtostarPhase implements PhaseComponent {
     private parent!: THREE.Group;
     private baseRadius: number;
 
+    private _jetMat1?: THREE.ShaderMaterial;
+    private _jetMat2?: THREE.ShaderMaterial;
+    private _jetGeo?: THREE.CylinderGeometry;
+
     constructor(baseRadius: number) {
         this.baseRadius = baseRadius;
     }
@@ -84,9 +88,9 @@ export class ProtostarPhase implements PhaseComponent {
         this.protostarGroup.add(jet1);
         this.protostarGroup.add(jet2);
         
-        (this as any)._jetMat1 = jetMat;
-        (this as any)._jetMat2 = jetMat2;
-        (this as any)._jetGeo = jetGeo;
+        this._jetMat1 = jetMat;
+        this._jetMat2 = jetMat2;
+        this._jetGeo = jetGeo;
 
         this.parent.add(this.protostarGroup);
         
@@ -104,11 +108,11 @@ export class ProtostarPhase implements PhaseComponent {
         this.protostarDisk.rotation.z += delta;
 
         const jetOpacity = this.protostarMat.uniforms.uOpacity?.value ?? 0;
-        if ((this as any)._jetMat1) {
-            (this as any)._jetMat1.uniforms.uTime.value = appTime;
-            (this as any)._jetMat1.uniforms.uOpacity.value = jetOpacity;
-            (this as any)._jetMat2.uniforms.uTime.value = appTime;
-            (this as any)._jetMat2.uniforms.uOpacity.value = jetOpacity;
+        if (this._jetMat1 && this._jetMat2) {
+            this._jetMat1.uniforms.uTime.value = appTime;
+            this._jetMat1.uniforms.uOpacity.value = jetOpacity;
+            this._jetMat2.uniforms.uTime.value = appTime;
+            this._jetMat2.uniforms.uOpacity.value = jetOpacity;
         }
     }
 
@@ -129,14 +133,14 @@ export class ProtostarPhase implements PhaseComponent {
         // BOLT: protostarMesh and disk use shared GEOMETRIES, do NOT dispose
         this.protostarMat.dispose();
         (this.protostarDisk.material as THREE.Material).dispose();
-        if ((this as any)._jetGeo) {
-            (this as any)._jetGeo.dispose();
+        if (this._jetGeo) {
+            this._jetGeo.dispose();
         }
-        if ((this as any)._jetMat1) {
-            (this as any)._jetMat1.dispose();
+        if (this._jetMat1) {
+            this._jetMat1.dispose();
         }
-        if ((this as any)._jetMat2) {
-            (this as any)._jetMat2.dispose();
+        if (this._jetMat2) {
+            this._jetMat2.dispose();
         }
         this.parent.remove(this.protostarGroup);
     }

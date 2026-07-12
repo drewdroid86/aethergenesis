@@ -154,9 +154,7 @@ export class Engine {
         this.activeHeroStarCount = count;
         
         for (let i = 0; i < this.heroStars.length; i++) {
-            if (i >= this.activeHeroStarCount) {
-                this.heroStars[i].visible = false;
-            }
+            this.heroStars[i].visible = i < this.activeHeroStarCount;
         }
     }
 
@@ -307,8 +305,8 @@ export class Engine {
     }
 
     dispose() {
-        if (this.pipeline && typeof (this.pipeline as any).dispose === 'function') {
-            (this.pipeline as any).dispose();
+        if (this.pipeline) {
+            this.pipeline.dispose();
         }
         if (this.container.contains(this.renderer.domElement)) {
             this.container.removeChild(this.renderer.domElement);

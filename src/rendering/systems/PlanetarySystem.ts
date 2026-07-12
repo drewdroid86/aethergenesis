@@ -32,7 +32,7 @@ void main() {
     // Transform normal and position for lighting
     vec4 worldPos = instanceMatrix * vec4(position, 1.0);
     vWorldPosition = (modelMatrix * worldPos).xyz;
-    vNormal = normalize(mat3(instanceMatrix) * normal);
+    vNormal = normalize(mat3(modelMatrix) * mat3(instanceMatrix) * normal);
     vLightDir = normalize(-worldPos.xyz); // Light comes from star at local (0,0,0)
     
     gl_Position = projectionMatrix * viewMatrix * vec4(vWorldPosition, 1.0);
@@ -255,6 +255,9 @@ export class PlanetarySystem {
         }
         this.group.visible = true;
         this.material.uniforms.uTime.value += delta;
+        
+        // Copy the world position of the parent star into u_starPosition uniform
+        this.parent.getWorldPosition(this.material.uniforms.u_starPosition.value);
         
         // Buffer has 7 floats per body: x, y, z, vx, vy, vz, type
         const numBodies = Math.min(this.bodies.length, buffer.length / 7);

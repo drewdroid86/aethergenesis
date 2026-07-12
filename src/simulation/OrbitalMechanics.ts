@@ -83,11 +83,8 @@ export function keplerianToCartesian(elements: KeplerianElements, centralMass_so
     const p_x = r * Math.cos(nu);
     const p_y = r * Math.sin(nu);
 
-    // Velocity in orbital plane
-    const h = Math.sqrt(mu * a * (1.0 - e * e));
-    const p = a * (1.0 - e * e); // semi-latus rectum
-    
-    // Vis-viva equation can also be used, but this is standard radial/transverse
+    // Velocity in orbital plane (radial/transverse form via semi-latus rectum)
+    const p = a * (1.0 - e * e);
     const v_x = Math.sqrt(mu / p) * -Math.sin(nu);
     const v_y = Math.sqrt(mu / p) * (e + Math.cos(nu));
 

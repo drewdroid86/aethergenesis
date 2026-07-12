@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useRef, useState, useEffect } from 'react';
 import { Check, Copy, Crosshair, Navigation, Pause, Play } from 'lucide-react';
 
 interface HudProps {
@@ -51,11 +51,11 @@ export const Hud: React.FC<HudProps> = ({
     const [idCopied, setIdCopied] = useState(false);
     const [announcement, setAnnouncement] = useState('');
     const [isDragging, setIsDragging] = useState(false);
-    const [isFirstRender, setIsFirstRender] = useState(true);
+    const isFirstRenderRef = useRef(true);
 
     useEffect(() => {
-        if (isFirstRender) {
-            setIsFirstRender(false);
+        if (isFirstRenderRef.current) {
+            isFirstRenderRef.current = false;
             return;
         }
         announce(`Timescale changed to ${timeScale}`);

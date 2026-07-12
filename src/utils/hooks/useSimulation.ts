@@ -83,22 +83,7 @@ export function useSimulation(containerRef: React.RefObject<HTMLDivElement | nul
         star.dispose();
     };
 
-    const rebuildStarfieldGeometry = useCallback(() => {
-        if (!engineRef.current || !engineRef.current.scene) return;
-
-        engineRef.current.heroStars.forEach((star) => {
-            engineRef.current?.scene.remove(star);
-            disposeStarSystem(star);
-        });
-        engineRef.current.heroStars = [];
-
-        engineRef.current.createHeroStars(
-            getNumStarsForTier(currentTierRef.current),
-            physicsRef.current
-        );
-    }, []);
-
-    // Initialize sub-hooks
+    // Initialize sub-hooks (selection first so rebuild can clear it safely)
     const {
         cosmicAge,
         setCosmicAge,
@@ -111,24 +96,6 @@ export function useSimulation(containerRef: React.RefObject<HTMLDivElement | nul
         onGlobalScrubMove,
         onGlobalScrubEnd
     } = useCosmicAge();
-
-    const {
-        currentTier: _tier,
-        fps,
-        showTierDownIndicator,
-        registerFrameDelta,
-        handleTierChange
-    } = usePerformanceAutoTuning({
-        rebuildStarfieldGeometry
-    });
-
-    // Sync performance auto-tuning tier to our local state
-    useEffect(() => {
-        if (_tier !== currentTierRef.current) {
-            currentTierRef.current = _tier;
-            setCurrentTier(_tier);
-        }
-    }, [_tier]);
 
     const {
         selectedStar,
@@ -144,6 +111,41 @@ export function useSimulation(containerRef: React.RefObject<HTMLDivElement | nul
         engineRef,
         controlsRef
     });
+
+    const rebuildStarfieldGeometry = useCallback(() => {
+        if (!engineRef.current || !engineRef.current.scene) return;
+
+        // Dispose replaces every HeroStarSystem; drop selection so UI/refs
+        // never point at disposed objects.
+        setSelectedStar(null);
+
+        engineRef.current.heroStars.forEach((star) => {
+            engineRef.current?.scene.remove(star);
+            disposeStarSystem(star);
+        });
+        engineRef.current.heroStars = [];
+
+        const count = getNumStarsForTier(currentTierRef.current);
+        engineRef.current.createHeroStars(count, physicsRef.current);
+        engineRef.current.activeHeroStarCount = count;
+    }, [setSelectedStar]);
+
+    const {
+        currentTier: _tier,
+        fps,
+        showTierDownIndicator,
+        registerFrameDelta,
+    } = usePerformanceAutoTuning({
+        rebuildStarfieldGeometry
+    });
+
+    // Sync performance auto-tuning tier to our local state
+    useEffect(() => {
+        if (_tier !== currentTierRef.current) {
+            currentTierRef.current = _tier;
+            setCurrentTier(_tier);
+        }
+    }, [_tier]);
 
     useWebSocket({
         engineRef,
@@ -176,18 +178,28 @@ export function useSimulation(containerRef: React.RefObject<HTMLDivElement | nul
     function decodeSeed(seed: string): PhysicsConstants {
         try {
             const values = JSON.parse(atob(seed));
+            if (!Array.isArray(values)) {
+                throw new Error("Seed is not an array");
+            }
+            const getSafeVal = (val: any, min: number, max: number, fallback: number): number => {
+                const num = Number(val);
+                if (typeof num !== 'number' || isNaN(num) || !isFinite(num)) {
+                    return fallback;
+                }
+                return Math.max(min, Math.min(max, num));
+            };
             return {
-                G: values[0] ?? 1.0, 
-                alpha: values[1] ?? 1.0, 
-                strongForce: values[2] ?? 1.0, 
-                weakForce: values[3] ?? 1.0,
-                lambda: values[4] ?? 1.0, 
-                c: values[5] ?? 1.0, 
-                hbar: values[6] ?? 1.0, 
-                darkMatter: values[7] ?? 0.25,
-                baryon: values[8] ?? 0.05, 
-                H0: values[9] ?? 0.01, 
-                softening: values[10] ?? 0.1
+                G: getSafeVal(values[0], 0.1, 5.0, 1.0),
+                alpha: getSafeVal(values[1], 0.1, 2.0, 1.0),
+                strongForce: getSafeVal(values[2], 0.1, 5.0, 1.0),
+                weakForce: getSafeVal(values[3], 0.1, 5.0, 1.0),
+                lambda: getSafeVal(values[4], 0.1, 3.0, 1.0),
+                c: getSafeVal(values[5], 0.1, 3.0, 1.0),
+                hbar: getSafeVal(values[6], 0.1, 3.0, 1.0), // slider min in UI is 0.0, but let's clamp at 0.1 for physical meaning
+                darkMatter: getSafeVal(values[7], 0.0, 1.0, 0.25),
+                baryon: getSafeVal(values[8], 0.01, 0.2, 0.05),
+                H0: getSafeVal(values[9], 0.001, 1.0, 0.01),
+                softening: getSafeVal(values[10], 0.01, 1.0, 0.1)
             };
         } catch (e) {
             console.error("Failed to decode seed:", e);
@@ -538,7 +550,11 @@ export function useSimulation(containerRef: React.RefObject<HTMLDivElement | nul
         } catch (err: any) {
             setFatalError(err.message);
         }
-    }, [handleTierChange, rebuildStarfieldGeometry]);
+    // Engine mount effect: run once. Dynamic values are read from refs
+    // (selectedStarRef, physicsRef, etc.); re-running would dispose and
+    // re-init Three.js incorrectly.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
 
     return {
         selectedStar,

@@ -147,7 +147,7 @@ Civilization: ${geminiData.civilization}`;
             const data = await response.json() as GeminiAnalysisResult;
             setGeminiData(data);
             setAnalysisFailed(false);
-        } catch (err) {
+        } catch (_err) {
             console.warn("Analysis unavailable - using predictive fallback.");
             setAnalysisFailed(true);
             setGeminiData({

@@ -14,7 +14,6 @@ export function AetherGenesis() {
     isPaused,
     setIsPaused,
     fatalError,
-    setFatalError,
     hudRefs,
     uiRefs,
     physics,
@@ -42,6 +41,24 @@ export function AetherGenesis() {
     setTimeScale,
     astrobiologyData
   } = useSimulation(mountRef);
+
+  if (fatalError) {
+    return (
+      <div className="relative w-full h-screen bg-[#020205] overflow-hidden flex flex-col items-center justify-center font-sans text-white select-none p-6">
+        <div className="max-w-md w-full border border-red-500/40 bg-red-950/40 rounded-lg p-6 shadow-lg">
+          <h1 className="text-lg font-semibold text-red-300 mb-2">Simulation failed to start</h1>
+          <p className="text-sm text-red-100/90 break-words mb-4">{fatalError}</p>
+          <button
+            type="button"
+            className="px-4 py-2 rounded bg-red-600/80 hover:bg-red-500 text-sm font-medium pointer-events-auto"
+            onClick={() => window.location.reload()}
+          >
+            Reload
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="relative w-full h-screen bg-[#020205] overflow-hidden flex flex-col font-sans text-white select-none">
