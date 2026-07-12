@@ -4,6 +4,7 @@ import { GoogleGenAI } from '@google/genai';
 import { fileURLToPath } from 'url';
 import path from 'path';
 import { LRUCache } from 'lru-cache';
+import { isOriginAllowed } from './src/utils/security';
 
 dotenv.config();
 
@@ -52,16 +53,7 @@ app.use((req, res, next) => {
     res.setHeader('Vary', 'Origin');
     const origin = req.headers.origin; 
     const isDev = process.env.NODE_ENV !== 'production';
-    const isAllowed = origin && (
-        allowedOrigins.includes(origin) || 
-        (isDev && (
-            origin.startsWith('http://localhost:') || 
-            origin.startsWith('http://127.0.0.1:') || 
-            origin.startsWith('http://100.') || 
-            origin.startsWith('http://192.168.') || 
-            origin.startsWith('http://10.')
-        ))
-    );
+    const isAllowed = isOriginAllowed(origin, allowedOrigins, isDev);
     if (origin && isAllowed) { 
         res.setHeader('Access-Control-Allow-Origin', origin); 
         res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS'); 

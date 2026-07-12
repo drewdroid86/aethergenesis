@@ -28,6 +28,9 @@ const CONSTANTS = {
   L_sun: 3.828e26, // W
   AU: 1.496e11, // m
   sigma: 5.670374419e-8, // W m^-2 K^-4
+  // BOLT: Pre-calculated factors to reduce redundant operations in hot loops
+  TWO_G: 2 * 6.67430e-11,
+  THREE_KB_OVER_MH2O: (3 * 1.380649e-23) / 2.99e-26,
 };
 
 export class AstrobiologyEngine {
@@ -57,7 +60,8 @@ export class AstrobiologyEngine {
 
     // 2. Thermal Score
     // T_eq = 278.5 * (L_star / d^2)^0.25 * (1 - albedo)^0.25
-    const T_surface = 278.5 * Math.pow(S_eff, 0.25) * Math.pow(1 - planetAlbedo, 0.25);
+    // BOLT: Optimized term combining and using sqrt(sqrt(x)) for pow(x, 0.25)
+    const T_surface = 278.5 * Math.sqrt(Math.sqrt(S_eff * (1 - planetAlbedo)));
     // Add greenhouse effect roughly (+33K like Earth)
     const T_actual = T_surface + (planetMass_kg > 1e23 ? 33 : 0);
     
@@ -66,9 +70,10 @@ export class AstrobiologyEngine {
       : Math.max(0, 1.0 - Math.min(Math.abs(T_actual - 273), Math.abs(T_actual - 373)) / 50.0);
 
     // 3. Atmosphere Score
-    const v_esc = Math.sqrt((2 * CONSTANTS.G * planetMass_kg) / planetRadius_m);
-    const v_thermal = Math.sqrt((3 * CONSTANTS.k_B * T_actual) / CONSTANTS.m_H2O);
-    const atmosphereScore = v_esc > 6 * v_thermal ? 1.0 : Math.max(0, (v_esc / v_thermal) / 6.0);
+    // BOLT: Using squared comparisons to avoid Math.sqrt in hot path
+    const v_esc_sq = (CONSTANTS.TWO_G * planetMass_kg) / planetRadius_m;
+    const v_thermal_sq = CONSTANTS.THREE_KB_OVER_MH2O * T_actual;
+    const atmosphereScore = v_esc_sq > 36 * v_thermal_sq ? 1.0 : Math.max(0, Math.sqrt(v_esc_sq / v_thermal_sq) / 6.0);
     
     // 4. Stellar Activity Score
     let stellarActivityScore = 1.0;
@@ -101,7 +106,7 @@ export class AstrobiologyEngine {
     if (stellarState.phase === 'supernova') {
       extinctionRiskLevel = 'sterilized';
       climateState = 'barren';
-    } else if (v_esc < 6 * v_thermal) {
+    } else if (v_esc_sq < 36 * v_thermal_sq) {
       extinctionRiskLevel = 'atmosphere_loss';
       climateState = 'barren';
     } else if (T_actual < 233) {

@@ -1,6 +1,7 @@
 import { WebSocketServer, WebSocket } from 'ws';
 import * as http from 'http';
 import { StellarState as CoreStellarState } from './StellarPhysics';
+import { isOriginAllowed } from '../utils/security';
 
 export interface StellarState extends Omit<CoreStellarState, 'phase' | 'spectralClass' | 'remnantType'> {
     phase: string;
@@ -107,18 +108,9 @@ export function initWebSocketServer(server: http.Server, allowedOrigins: string[
             // Security: Origin validation to prevent Cross-Site WebSocket Hijacking (CSWH)
             const origin = info.origin;
             const isDev = process.env.NODE_ENV !== 'production';
-            const isAllowed = origin && (
-                allowedOrigins.includes(origin) ||
-                (isDev && (
-                    origin.startsWith('http://localhost:') ||
-                    origin.startsWith('http://127.0.0.1:') ||
-                    origin.startsWith('http://100.') ||
-                    origin.startsWith('http://192.168.') ||
-                    origin.startsWith('http://10.')
-                ))
-            );
+            const isAllowed = isOriginAllowed(origin, allowedOrigins, isDev);
 
-            if (!origin || !isAllowed) {
+            if (!isAllowed) {
                 cb(false, 403, 'Forbidden: Unauthorized origin');
                 return;
             }

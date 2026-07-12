@@ -46,12 +46,7 @@ export class RedGiantPhase implements PhaseComponent {
         this.redGiantGroup.add(this.redGiantMesh);
 
         // Solar Flares
-        const curve = new THREE.QuadraticBezierCurve3(
-            new THREE.Vector3(0.8, 0, 0),
-            new THREE.Vector3(1.5, 1.5, 0),
-            new THREE.Vector3(0, 0, 0.8)
-        );
-        const flareGeo = new THREE.TubeGeometry(curve, 16, 0.05, 4, false);
+        const flareGeo = GEOMETRIES.flare;
         this.flareMat = new THREE.ShaderMaterial({
             uniforms: {
                 uTime: { value: 0 },
@@ -160,10 +155,9 @@ export class RedGiantPhase implements PhaseComponent {
     }
 
     dispose(): void {
-        // BOLT: redGiantMesh uses shared GEOMETRIES.redGiant, do NOT dispose
+        // BOLT: redGiantMesh and flareMesh use shared GEOMETRIES, do NOT dispose
         this.redGiantMat.dispose();
         this.flareMat.dispose();
-        this.flareMesh.geometry.dispose();
         this.parent.remove(this.redGiantGroup);
     }
 }

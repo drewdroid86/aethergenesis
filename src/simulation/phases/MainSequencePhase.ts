@@ -124,12 +124,7 @@ export class MainSequencePhase implements PhaseComponent {
         this.mainSeqGroup.add(haloMesh);
         
         // Solar Flares
-        const curve = new THREE.QuadraticBezierCurve3(
-            new THREE.Vector3(0.8, 0, 0),
-            new THREE.Vector3(1.5, 1.5, 0),
-            new THREE.Vector3(0, 0, 0.8)
-        );
-        const flareGeo = new THREE.TubeGeometry(curve, 16, 0.05, 4, false);
+        const flareGeo = GEOMETRIES.flare;
         this.flareMat = new THREE.ShaderMaterial({
             uniforms: {
                 uTime: { value: 0 },
@@ -224,9 +219,10 @@ export class MainSequencePhase implements PhaseComponent {
         this.starMat.uniforms.uLowDetail.value = (lowDetail || false) ? 1.0 : 0.0;
         this.flareMat.uniforms.uTime.value = appTime;
 
-        if (!lowDetail) {
-            for (let i = 0; i < this.planetsInfo.length; i++) {
-                const p = this.planetsInfo[i];
+        for (let i = 0; i < this.planetsInfo.length; i++) {
+            const p = this.planetsInfo[i];
+            // Only update rotations and planet healing if NOT in lowDetail
+            if (!lowDetail) {
                 p.pivot.rotation.y += p.speed * delta;
                 // Restore pristine appearance in case RedGiantPhase left burn
                 // damage from a previous forward/rewind cycle through red giant.
@@ -273,10 +269,9 @@ export class MainSequencePhase implements PhaseComponent {
     }
 
     dispose(): void {
-        // BOLT: Star, corona, and HZ use shared GEOMETRIES, do NOT dispose
+        // BOLT: Star, corona, flares, and HZ use shared GEOMETRIES, do NOT dispose
         this.starMat.dispose();
         this.flareMat.dispose();
-        this.flareMesh.geometry.dispose();
         (this.coronaMesh.material as THREE.Material).dispose();
         if (this._coronaMesh) {
             (this._coronaMesh.material as THREE.Material).dispose();
