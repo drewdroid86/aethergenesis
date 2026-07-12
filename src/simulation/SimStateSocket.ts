@@ -189,8 +189,17 @@ export function initWebSocketServer(server: http.Server, allowedOrigins: string[
                 if (!data || typeof data !== 'object') return;
 
                 if (data.type === 'state') {
-                    // Forward simulation state to all other clients (specifically MCP servers)
-                    broadcastSimState(data.data, ws);
+                    // Security: Validate state structure and limits before broadcasting to prevent DoS via massive payloads
+                    if (data.data && typeof data.data === 'object') {
+                        const orbitalCount = Array.isArray(data.data.orbital) ? data.data.orbital.length : 0;
+                        const astrobiologyCount = Array.isArray(data.data.astrobiology) ? data.data.astrobiology.length : 0;
+
+                        // Security: Limit number of entities to prevent DoS via broadcast amplification
+                        if (orbitalCount <= 500 && astrobiologyCount <= 500) {
+                            // Forward simulation state to all other clients (specifically MCP servers)
+                            broadcastSimState(data.data, ws);
+                        }
+                    }
                 } else if (data.type === 'event' || data.event) {
                     const eventName = data.event || data.data?.event;
 

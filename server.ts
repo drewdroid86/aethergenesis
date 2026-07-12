@@ -39,9 +39,10 @@ app.use((_req, res, next) => {
     try {
       const url = new URL(o);
       const wsProtocol = url.protocol === 'https:' ? 'wss:' : 'ws:';
-      const baseWs = `${wsProtocol}//${url.host}`;
-      // Also allow explicit port if not already present in the host
-      return url.port ? baseWs : `${baseWs} ${baseWs}:${wsPort}`;
+      // Map both the base origin and the simulation port specifically
+      const baseWs = `${wsProtocol}//${url.hostname}${url.port ? `:${url.port}` : ''}`;
+      const simWs = `${wsProtocol}//${url.hostname}:${wsPort}`;
+      return `${baseWs} ${simWs}`;
     } catch {
       return '';
     }
