@@ -15,6 +15,14 @@ export const ConstantsPanel: React.FC<ConstantsPanelProps> = ({
     isOpen,
     setIsOpen
 }) => {
+    const [resetFeedback, setResetFeedback] = React.useState(false);
+
+    const handleReset = () => {
+        setPhysics(DEFAULT_CONSTANTS);
+        setResetFeedback(true);
+        setTimeout(() => setResetFeedback(false), 2000);
+    };
+
     if (!isOpen) {
         return (
             <button 
@@ -22,8 +30,9 @@ export const ConstantsPanel: React.FC<ConstantsPanelProps> = ({
                 className="absolute left-8 top-32 bg-[rgba(14,14,28,0.7)] backdrop-blur-xl border border-[rgba(126,184,255,0.3)] rounded-full p-4 z-30 shadow-[0_0_30px_rgba(0,0,0,0.5)] transform transition-all pointer-events-auto text-[#7EB8FF]/70 hover:text-white group focus-visible:ring-2 focus-visible:ring-[#C084FC] outline-none relative"
                 title="Open Physical Constants"
                 aria-label="Open Physical Constants"
+                aria-keyshortcuts="c"
             >
-                <span className="absolute -top-6 left-1/2 -translate-x-1/2 text-[10px] text-[#C084FC] opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
+                <span className="absolute -top-6 left-1/2 -translate-x-1/2 text-[10px] text-[#C084FC] opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100 transition-opacity whitespace-nowrap">
                     [C] Open
                 </span>
                 <Settings2 size={24} className="group-hover:text-[#C084FC] transition-colors" />
@@ -40,22 +49,24 @@ export const ConstantsPanel: React.FC<ConstantsPanelProps> = ({
                 </h2>
                 <div className="flex items-center gap-2">
                     <button
-                        onClick={() => setPhysics(DEFAULT_CONSTANTS)}
+                        onClick={handleReset}
                         className="text-[#7EB8FF]/50 hover:text-[#C084FC] transition-all focus-visible:ring-2 focus-visible:ring-[#C084FC] outline-none rounded p-1 relative group/reset"
                         aria-label="Reset to Defaults"
                         title="Reset to Defaults"
+                        aria-keyshortcuts="Alt+r"
                     >
-                        <span className="absolute -top-6 left-1/2 -translate-x-1/2 text-[10px] text-[#C084FC] opacity-0 group-hover/reset:opacity-100 transition-opacity whitespace-nowrap">
-                            [Alt+R] Reset
+                        <span className={`absolute -top-6 left-1/2 -translate-x-1/2 text-[10px] text-[#C084FC] transition-opacity whitespace-nowrap ${resetFeedback ? 'opacity-100' : 'opacity-0 group-hover/reset:opacity-100 group-focus-visible/reset:opacity-100'}`}>
+                            {resetFeedback ? 'Reset!' : '[Alt+R] Reset'}
                         </span>
-                        <RotateCcw size={16} className="group-hover/reset:rotate-[-45deg] transition-transform" />
+                        <RotateCcw size={16} className={`group-hover/reset:rotate-[-45deg] transition-transform ${resetFeedback ? 'text-green-400' : ''}`} />
                     </button>
                     <button
                         onClick={() => setIsOpen(false)}
                         className="text-[#7EB8FF]/70 hover:text-white transition-colors focus-visible:ring-2 focus-visible:ring-[#C084FC] outline-none rounded p-1 relative group/close"
                         aria-label="Close Physical Constants"
+                        aria-keyshortcuts="c"
                     >
-                        <span className="absolute -top-6 left-1/2 -translate-x-1/2 text-[10px] text-[#C084FC] opacity-0 group-hover/close:opacity-100 transition-opacity whitespace-nowrap">
+                        <span className="absolute -top-6 left-1/2 -translate-x-1/2 text-[10px] text-[#C084FC] opacity-0 group-hover/close:opacity-100 group-focus-visible/close:opacity-100 transition-opacity whitespace-nowrap">
                             [C] Close
                         </span>
                         <X size={20} />

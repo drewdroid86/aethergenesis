@@ -59,7 +59,7 @@ ${planet.civilizationTier > 0 ? `- Civilization: Type ${planet.civilizationTier}
                             aria-label={copied ? "Astrobiology Report Copied" : "Copy Astrobiology Report"}
                             title="Copy Report"
                         >
-                            <span className={`absolute -top-6 right-0 text-[10px] text-[#C084FC] transition-opacity whitespace-nowrap ${copied ? 'opacity-100' : 'opacity-0 group-hover/copy:opacity-100'}`}>
+                            <span className={`absolute -top-6 right-0 text-[10px] text-[#C084FC] transition-opacity whitespace-nowrap ${copied ? 'opacity-100' : 'opacity-0 group-hover/copy:opacity-100 group-focus-visible/copy:opacity-100'}`}>
                                 {copied ? 'Copied!' : 'Copy'}
                             </span>
                             {copied ? <Check size={16} className="text-green-400" /> : <Copy size={16} />}
@@ -70,8 +70,9 @@ ${planet.civilizationTier > 0 ? `- Civilization: Type ${planet.civilizationTier}
                                 className="text-[#7EB8FF]/70 hover:text-white transition-colors focus-visible:ring-2 focus-visible:ring-[#C084FC] outline-none rounded p-1 relative group/close"
                                 aria-label="Close Astrobiology Report"
                                 title="Close [Esc]"
+                                aria-keyshortcuts="Escape"
                             >
-                                <span className="absolute -top-6 left-1/2 -translate-x-1/2 text-[10px] text-[#C084FC] opacity-0 group-hover/close:opacity-100 transition-opacity whitespace-nowrap">
+                                <span className="absolute -top-6 left-1/2 -translate-x-1/2 text-[10px] text-[#C084FC] opacity-0 group-hover/close:opacity-100 group-focus-visible/close:opacity-100 transition-opacity whitespace-nowrap">
                                     [Esc] Close
                                 </span>
                                 <X size={20} />
