@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Activity, Droplets, Thermometer, ShieldAlert, Globe, Copy, Check, X } from 'lucide-react';
+import { Activity, Droplets, Thermometer, ShieldAlert, Copy, Check, X, Snowflake, CloudRain, Leaf, Mountain } from 'lucide-react';
 import { HabitabilityState } from '../simulation/AstrobiologyEngine';
 
 interface AstrobiologyPanelProps {
@@ -95,7 +95,10 @@ ${planet.civilizationTier > 0 ? `- Civilization: Type ${planet.civilizationTier}
                             >
                                 <div className="flex justify-between items-start mb-3">
                                     <h3 className="text-white/80 font-mono text-sm capitalize flex items-center">
-                                        <Globe className="w-4 h-4 mr-2 opacity-70" />
+                                        {planet.climateState === 'habitable' ? <Leaf className="w-4 h-4 mr-2 opacity-70 text-emerald-400" /> :
+                                         planet.climateState === 'snowball' ? <Snowflake className="w-4 h-4 mr-2 opacity-70 text-blue-400" /> :
+                                         planet.climateState === 'moist_greenhouse' ? <CloudRain className="w-4 h-4 mr-2 opacity-70 text-orange-400" /> :
+                                         <Mountain className="w-4 h-4 mr-2 opacity-70 text-red-400" />}
                                         Planet {i + 1}
                                     </h3>
                                     <div className={`px-2 py-0.5 rounded text-xs font-mono font-medium ${
