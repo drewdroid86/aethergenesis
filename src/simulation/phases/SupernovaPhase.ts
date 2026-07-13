@@ -68,7 +68,7 @@ export class SupernovaPhase implements PhaseComponent {
         if (!this.ejectaMat?.uniforms?.uColor) return;
         this.isFlashing = false;
         
-        if (this.mass > STELLAR_CONSTANTS.PHYSICS.MASS_THRESHOLD_SUPERNOVA) {
+        if (this.mass >= STELLAR_CONSTANTS.PHYSICS.MASS_THRESHOLD_SUPERNOVA) {
             if (normT < STELLAR_CONSTANTS.VISUALS.SUPERNOVA_FLASH_DURATION) this.isFlashing = true;
 
             this.snRing.visible = true;

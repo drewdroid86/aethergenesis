@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 
 export function useCosmicAge() {
-    const [cosmicAge, setCosmicAge] = useState(13.8);
+    const [cosmicAge, setCosmicAge] = useState(0.0);
     const cosmicAgeRef = useRef(cosmicAge);
     const [isPlayingCosmic, setIsPlayingCosmic] = useState(true);
     const isPlayingCosmicRef = useRef(isPlayingCosmic);

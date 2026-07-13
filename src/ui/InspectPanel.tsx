@@ -100,6 +100,9 @@ Civilization: ${geminiData.civilization}`;
 
     const handlePointerDown = (e: React.PointerEvent) => {
         setIsDragging(true);
+        try {
+            (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+        } catch (_err) {}
         onScrubStart(e);
     };
 
@@ -107,8 +110,11 @@ Civilization: ${geminiData.civilization}`;
         if (isDragging) onScrubMove(e);
     };
 
-    const handlePointerUp = () => {
+    const handlePointerUp = (e: React.PointerEvent) => {
         setIsDragging(false);
+        try {
+            (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId);
+        } catch (_err) {}
         onScrubEnd();
     };
 
@@ -265,7 +271,6 @@ Civilization: ${geminiData.civilization}`;
                         onPointerDown={handlePointerDown}
                         onPointerMove={handlePointerMove}
                         onPointerUp={handlePointerUp}
-                        onPointerLeave={handlePointerUp}
                         onKeyDown={onKeyDown}
                     >
                         <div ref={uiRefs.timelineFill} className="h-full bg-gradient-to-r from-blue-500 via-fuchsia-500 to-red-500" style={{width: '0%'}}></div>

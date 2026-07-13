@@ -59,7 +59,7 @@ export function solveKepler(M: number, e: number, tolerance: number = 1e-6, maxI
  */
 export function keplerianToCartesian(elements: KeplerianElements, centralMass_solar: number): { position: Vector3, velocity: Vector3 } {
     const a = elements.semiMajorAxis_au;
-    const e = elements.eccentricity;
+    const e = Math.max(0, Math.min(0.9999, elements.eccentricity));
     const i = elements.inclination_deg * (Math.PI / 180.0);
     const Omega = elements.longitudeOfAscendingNode_deg * (Math.PI / 180.0);
     const omega = elements.argumentOfPeriapsis_deg * (Math.PI / 180.0);
@@ -72,8 +72,8 @@ export function keplerianToCartesian(elements: KeplerianElements, centralMass_so
     // 1. Solve Kepler's equation for Eccentric Anomaly E
     const E = solveKepler(M, e);
 
-    // 2. Compute True Anomaly nu
-    const nu = 2.0 * Math.atan(Math.sqrt((1.0 + e) / (1.0 - e)) * Math.tan(E / 2.0));
+    // 2. Compute True Anomaly nu using stable atan2
+    const nu = 2.0 * Math.atan2(Math.sqrt(1.0 + e) * Math.sin(E / 2.0), Math.sqrt(1.0 - e) * Math.cos(E / 2.0));
 
     // 3. Distance to central body
     const r = a * (1.0 - e * Math.cos(E));
