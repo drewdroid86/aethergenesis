@@ -252,8 +252,9 @@ export class PlanetarySystem {
         this.group.visible = true;
         this.material.uniforms.uTime.value += delta;
         
-        // Copy the world position of the parent star into u_starPosition uniform
-        this.parent.getWorldPosition(this.material.uniforms.u_starPosition.value);
+        // BOLT: Replace expensive getWorldPosition scene graph traversal with direct position copy.
+        // HeroStarSystem is added directly to the Scene, so local position equals world position.
+        this.material.uniforms.u_starPosition.value.copy(this.parent.position);
         
         // Buffer has 7 floats per body: x, y, z, vx, vy, vz, type
         const numBodies = Math.min(this.bodies.length, buffer.length / 7);
