@@ -44,6 +44,11 @@ export class Pipeline {
     }
 
     dispose() {
+        this.bloomPass.dispose();
+        if (this.cinematicPass.material) {
+            this.cinematicPass.material.dispose();
+        }
+        this.cinematicPass.dispose();
         this.composer.dispose();
     }
 }

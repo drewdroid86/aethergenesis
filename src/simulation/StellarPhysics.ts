@@ -257,7 +257,7 @@ export function computePhase(
   if (age_yr < tau_ms * 0.01) return 'protostar';
   if (age_yr < tau_ms) return 'main_sequence';
   if (age_yr < tau_ms * 1.2) return 'red_giant';
-  if (age_yr < tau_ms * 1.5 && mass_solar > STELLAR_CONSTANTS.PHYSICS.MASS_THRESHOLD_SUPERNOVA) return 'supernova';
+  if (age_yr < tau_ms * 1.5 && mass_solar >= STELLAR_CONSTANTS.PHYSICS.MASS_THRESHOLD_SUPERNOVA) return 'supernova';
   return 'remnant';
 }
 

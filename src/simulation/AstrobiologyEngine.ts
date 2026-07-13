@@ -10,6 +10,7 @@ export interface HabitabilityState {
   ageScore: number;
   
   isInHabitableZone: boolean;
+  hasLiquidWater: boolean;
   surfaceTemperature_K: number;
   extinctionRiskLevel: string; // 'none', 'snowball', 'greenhouse', 'atmosphere_loss', 'sterilized'
   climateState: 'snowball' | 'moist_greenhouse' | 'habitable' | 'barren';
@@ -43,7 +44,8 @@ export class AstrobiologyEngine {
     planetRadius_m: number,
     planetAlbedo: number,
     stellarState: StellarState,
-    delta_yr: number
+    delta_yr: number,
+    bodyType: string = 'rocky'
   ): HabitabilityState {
     
     const L_star = Math.max(0.0001, stellarState.luminosity_solar);
@@ -62,8 +64,19 @@ export class AstrobiologyEngine {
     // T_eq = 278.5 * (L_star / d^2)^0.25 * (1 - albedo)^0.25
     // BOLT: Optimized term combining and using sqrt(sqrt(x)) for pow(x, 0.25)
     const T_surface = 278.5 * Math.sqrt(Math.sqrt(S_eff * (1 - planetAlbedo)));
-    // Add greenhouse effect roughly (+33K like Earth)
-    const T_actual = T_surface + (planetMass_kg > 1e23 ? 33 : 0);
+    
+    // Add greenhouse effect dynamically based on planet biome type
+    let greenhouseAdd = 0;
+    if (planetMass_kg > 1e23) {
+      if (bodyType === 'lava') greenhouseAdd = 150;
+      else if (bodyType === 'ocean') greenhouseAdd = 40;
+      else if (bodyType === 'jungle') greenhouseAdd = 35;
+      else if (bodyType === 'gas_giant') greenhouseAdd = 75;
+      else if (bodyType === 'ice') greenhouseAdd = 15;
+      else if (bodyType === 'desert') greenhouseAdd = 20;
+      else greenhouseAdd = 25; // rocky or standard terrestrial
+    }
+    const T_actual = T_surface + greenhouseAdd;
     
     const thermalScore = (T_actual >= 273 && T_actual <= 373)
       ? 1.0
@@ -152,6 +165,7 @@ export class AstrobiologyEngine {
       stellarActivityScore,
       ageScore,
       isInHabitableZone,
+      hasLiquidWater: T_actual >= 273 && T_actual <= 373,
       surfaceTemperature_K: T_actual,
       extinctionRiskLevel,
       climateState,

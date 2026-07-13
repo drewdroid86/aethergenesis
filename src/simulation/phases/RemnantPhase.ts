@@ -171,7 +171,7 @@ export class RemnantPhase implements PhaseComponent {
                     delta * 2.0
                 );
             }
-        } else if (this.mass > STELLAR_CONSTANTS.PHYSICS.MASS_THRESHOLD_SUPERNOVA) {
+        } else if (this.mass >= STELLAR_CONSTANTS.PHYSICS.MASS_THRESHOLD_SUPERNOVA) {
             if (!lowDetail) {
                 this.pulsarGroup.rotation.y += delta * 5.0 * (physics.weakForce || 1.0);
                 this.nsMagneticLines.rotation.y += delta * 2.0 * (physics.weakForce || 1.0);

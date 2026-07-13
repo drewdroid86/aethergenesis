@@ -133,9 +133,6 @@ export class ProtostarPhase implements PhaseComponent {
         // BOLT: protostarMesh, disk, and jets use shared GEOMETRIES, do NOT dispose
         this.protostarMat.dispose();
         (this.protostarDisk.material as THREE.Material).dispose();
-        if (this._jetGeo) {
-            this._jetGeo.dispose();
-        }
         if (this._jetMat1) {
             this._jetMat1.dispose();
         }

@@ -55,6 +55,7 @@ export class AsteroidBeltSystem {
             // Assuming GM = 1 for simplicity (solar mass)
             this.orbitalPeriods[i] = Math.sqrt(radius * radius * radius);
         }
+        this.instancedMesh.instanceMatrix.needsUpdate = true;
         
         scene.add(this.instancedMesh);
     }

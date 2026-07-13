@@ -264,7 +264,7 @@ export class Engine {
                 this.appTime,
                 this.camera.position, 
                 physics, 
-                star === selectedStar ? selectedStar!.t : undefined, 
+                star === selectedStar && isScrubbing ? selectedStar!.t : undefined, 
                 cosmicAge,
                 this._frustum,
                 protostarFlicker,

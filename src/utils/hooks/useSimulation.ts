@@ -9,6 +9,7 @@ import { PhysicsConstants, DEFAULT_CONSTANTS } from '../../types/physics';
 import { detectPerformanceTier, getNumStarsForTier } from '../../utils/performance';
 import { AstrobiologyEngine } from '../../simulation/AstrobiologyEngine';
 import { OrbitalBody, keplerianToCartesian } from '../../simulation/OrbitalMechanics';
+import { computeSpectralClass, StellarPhase } from '../../simulation/StellarPhysics';
 
 // Sub-hooks
 import { useWebSocket } from './useWebSocket';
@@ -42,6 +43,19 @@ export function useSimulation(containerRef: React.RefObject<HTMLDivElement | nul
     const [timeScale, setTimeScale] = useState<'cosmic' | 'realtime'>('cosmic');
     const timeScaleRef = useRef(timeScale);
     useEffect(() => { timeScaleRef.current = timeScale; }, [timeScale]);
+
+    // Sync worker time scale when timeScale state changes
+    useEffect(() => {
+        if (nbodyWorkerRef.current) {
+            const dt = timeScale === 'cosmic'
+                ? (1.0 / 60) * 200000000 // 200M yrs per sec at 60Hz
+                : (1.0 / 60) * 1000;      // 1000 yrs per sec at 60Hz
+            nbodyWorkerRef.current.postMessage({
+                type: 'UPDATE_TIMESTEP',
+                payload: { dt_yr: dt }
+            });
+        }
+    }, [timeScale]);
 
     // Performance State Owned by Main Hook for Rebuilding
     const [currentTier, setCurrentTier] = useState<'low' | 'medium' | 'high' | 'ultra'>('medium');
@@ -147,7 +161,7 @@ export function useSimulation(containerRef: React.RefObject<HTMLDivElement | nul
         }
     }, [_tier]);
 
-    useWebSocket({
+    const wsRef = useWebSocket({
         engineRef,
         selectedStarRef
     });
@@ -367,14 +381,39 @@ export function useSimulation(containerRef: React.RefObject<HTMLDivElement | nul
                         if (engineRef.current) {
                             const star = selectedStarRef.current || engineRef.current.heroStars[0];
                             if (star) {
-                                const realStellarState = engineRef.current.getStellarState();
+                                const phaseStrMap: Record<number, StellarPhase> = {
+                                    0: 'nebula',
+                                    1: 'protostar',
+                                    2: 'main_sequence',
+                                    3: 'red_giant',
+                                    4: 'supernova',
+                                    5: 'remnant'
+                                };
+                                const perStarState = {
+                                    id: star.physicsId,
+                                    initialMass_solar: star.mass,
+                                    metallicity_Z: 0.02,
+                                    age_yr: star.currentRealAge * 1e6,
+                                    mass_solar: star.mass,
+                                    luminosity_solar: star.currentLum,
+                                    radius_solar: Math.pow(star.mass, 0.8),
+                                    temperature_K: star.currentTemp,
+                                    phase: (phaseStrMap[star.phase] || 'main_sequence'),
+                                    spectralClass: computeSpectralClass(star.currentTemp),
+                                    absoluteMagnitude: 4.83 - 2.5 * Math.log10(Math.max(star.currentLum, 1e-10)),
+                                    hrPosition: {
+                                        logT: Math.log10(Math.max(star.currentTemp, 1)),
+                                        logL: Math.log10(Math.max(star.currentLum, 1e-10))
+                                    },
+                                    sim_time_yr: engine.appTime * 1e6
+                                };
 
                                 // Extract planetary system orbital state
                                 const orbitalStates: any[] = [];
                                 const buffer = nbodyBufferRef.current;
                                 if (buffer) {
                                     const numBodies = buffer.length / 7;
-                                    const G_M = 4.0 * Math.PI * Math.PI * realStellarState.mass_solar;
+                                    const G_M = 4.0 * Math.PI * Math.PI * perStarState.mass_solar;
                                     for (let i = 0; i < numBodies; i++) {
                                         const x = buffer[i * 7 + 0];
                                         const y = buffer[i * 7 + 1];
@@ -444,6 +483,18 @@ export function useSimulation(containerRef: React.RefObject<HTMLDivElement | nul
                                         mass *= 0.5;
                                         radius *= 0.8;
                                         albedo = 0.4;
+                                    } else if (o.body_type === 'ocean') {
+                                        mass *= 1.2;
+                                        radius *= 1.1;
+                                        albedo = 0.2;
+                                    } else if (o.body_type === 'jungle') {
+                                        mass *= 1.0;
+                                        radius *= 1.0;
+                                        albedo = 0.18;
+                                    } else { // rocky or fallback
+                                        mass *= 0.6;
+                                        radius *= 0.75;
+                                        albedo = 0.15;
                                     }
                                     
                                     const habState = astrobiologyEngineRef.current.evaluatePlanet(
@@ -452,8 +503,9 @@ export function useSimulation(containerRef: React.RefObject<HTMLDivElement | nul
                                         mass,
                                         radius,
                                         albedo,
-                                        realStellarState,
-                                        deltaTime_yr
+                                        perStarState as any,
+                                        deltaTime_yr,
+                                        o.body_type
                                     );
                                     
                                     // Make sure sim_time_yr is included
@@ -475,6 +527,17 @@ export function useSimulation(containerRef: React.RefObject<HTMLDivElement | nul
                                 // Update Biosphere & City Light shaders
                                 if (star.planetarySystem) {
                                     star.planetarySystem.updateAstrobiology(astrobiologyStates);
+                                }
+
+                                // Send simulation state to WebSocket server
+                                if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+                                    const outPayload = {
+                                        timestamp_ms: Date.now(),
+                                        stellar: perStarState,
+                                        orbital: orbitalStates,
+                                        astrobiology: astrobiologyStates
+                                    };
+                                    wsRef.current.send(JSON.stringify({ type: 'state', data: outPayload }));
                                 }
                             }
                         }

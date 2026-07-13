@@ -272,7 +272,6 @@ export const Hud: React.FC<HudProps> = ({
                             onPointerDown={handlePointerDown}
                             onPointerMove={handlePointerMove}
                             onPointerUp={handlePointerUp}
-                            onPointerLeave={handlePointerUp}
                             onKeyDown={(e) => onKeyDown(e, true)}
                         >
                             <div ref={uiRefs.globalTimelineFill} className="h-full bg-gradient-to-r from-[#7EB8FF] to-[#C084FC]" style={{width: `${(cosmicAge / 14.0) * 100}%`}}></div>

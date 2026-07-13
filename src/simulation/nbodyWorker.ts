@@ -9,9 +9,13 @@ let dt_yr = 1.0 / 365.25; // default 1 day step
 let tickTimeout: any = null;
 
 // BOLT: Persistent buffers for zero-allocation
-let forceBuffer = new Float32Array(0);
-let invMassBuffer = new Float32Array(0);
-let forcesValid = false;
+let accelBuffer = new Float32Array(0);
+let accelsValid = false;
+
+// BOLT: Double buffering for zero-allocation thread transfers
+let bufferA = new Float32Array(0);
+let bufferB = new Float32Array(0);
+let useA = true;
 
 const G_mu = 4.0 * Math.PI * Math.PI;
 
@@ -21,14 +25,14 @@ self.onmessage = (e) => {
         bodies = payload.bodies || [];
         centralMass_solar = payload.centralMass_solar || 1.0;
         dt_yr = payload.dt_yr || (1.0 / 365.25);
-        forcesValid = false; // BOLT: Reset cache on re-init
+        accelsValid = false; // BOLT: Reset cache on re-init
         if (!isRunning) {
             isRunning = true;
             physicsTick();
         }
     } else if (type === 'ADD_BODY') {
         bodies.push(payload.body);
-        forcesValid = false; // BOLT: Invalidate cache when body added
+        accelsValid = false; // BOLT: Invalidate cache when body added
     } else if (type === 'SET_RUNNING') {
         isRunning = payload.isRunning;
         if (isRunning && !tickTimeout) {
@@ -40,10 +44,10 @@ self.onmessage = (e) => {
 };
 
 /**
- * BOLT: Optimized zero-allocation force calculation
+ * BOLT: Optimized zero-allocation acceleration calculation
  * Writes directly into targetBuffer to avoid object creation.
  */
-function calculateForces(targetBuffer: Float32Array): void {
+function calculateAccelerations(targetBuffer: Float32Array): void {
     const n = bodies.length;
     targetBuffer.fill(0, 0, n * 3);
 
@@ -57,13 +61,12 @@ function calculateForces(targetBuffer: Float32Array): void {
         const rSoftSq = px * px + py * py + pz * pz + softeningSq;
         const r = Math.sqrt(rSoftSq);
         
-        // BOLT: aMag = -G * M / r^3. Use r * rSoftSq to save one multiplication.
+        // aMag = -G * M / r^3. Use r * rSoftSq to save one multiplication.
         const aMag = -(G_mu * centralMass_solar) / (r * rSoftSq);
-        const mass = b.mass_solar;
 
-        targetBuffer[i * 3 + 0] += aMag * px * mass;
-        targetBuffer[i * 3 + 1] += aMag * py * mass;
-        targetBuffer[i * 3 + 2] += aMag * pz * mass;
+        targetBuffer[i * 3 + 0] += aMag * px;
+        targetBuffer[i * 3 + 1] += aMag * py;
+        targetBuffer[i * 3 + 2] += aMag * pz;
     }
 
     // N-Body gravity
@@ -82,21 +85,22 @@ function calculateForces(targetBuffer: Float32Array): void {
             
             const distSoftSq = dx*dx + dy*dy + dz*dz + softeningSq;
             const dist = Math.sqrt(distSoftSq);
+            const dist3 = dist * distSoftSq;
 
-            // BOLT: fMag = (G * m1 * m2) / r^3. Use dist * distSoftSq to save one multiplication.
-            const fMag = (G_mu * mi * bj.mass_solar) / (dist * distSoftSq);
-            if (!isFinite(fMag) || fMag > 1e6) continue;
-            const fx = fMag * dx;
-            const fy = fMag * dy;
-            const fz = fMag * dz;
+            if (dist3 < 1e-6) continue;
 
-            targetBuffer[i * 3 + 0] += fx;
-            targetBuffer[i * 3 + 1] += fy;
-            targetBuffer[i * 3 + 2] += fz;
+            // Acceleration on i due to j: a_i = G * m_j * dir / dist^3
+            const aMag_i = (G_mu * bj.mass_solar) / dist3;
+            // Acceleration on j due to i: a_j = -G * m_i * dir / dist^3
+            const aMag_j = (G_mu * mi) / dist3;
 
-            targetBuffer[j * 3 + 0] -= fx;
-            targetBuffer[j * 3 + 1] -= fy;
-            targetBuffer[j * 3 + 2] -= fz;
+            targetBuffer[i * 3 + 0] += aMag_i * dx;
+            targetBuffer[i * 3 + 1] += aMag_i * dy;
+            targetBuffer[i * 3 + 2] += aMag_i * dz;
+
+            targetBuffer[j * 3 + 0] -= aMag_j * dx;
+            targetBuffer[j * 3 + 1] -= aMag_j * dy;
+            targetBuffer[j * 3 + 2] -= aMag_j * dz;
         }
     }
 }
@@ -108,39 +112,29 @@ function physicsTick() {
     }
 
     const n = bodies.length;
-    if (forceBuffer.length !== n * 3) {
-        forceBuffer = new Float32Array(n * 3);
-        forcesValid = false;
-    }
-    if (invMassBuffer.length !== n) {
-        invMassBuffer = new Float32Array(n);
+    if (accelBuffer.length !== n * 3) {
+        accelBuffer = new Float32Array(n * 3);
+        accelsValid = false;
     }
 
-    // Velocity Verlet Integrator (optimized to 1 force calc per tick)
+    // Velocity Verlet Integrator (optimized to 1 acceleration calc per tick)
     
-    // 1. If we don't have valid forces from last tick, calculate them now
-    if (!forcesValid) {
-        calculateForces(forceBuffer);
-        forcesValid = true;
+    // 1. If we don't have valid accelerations from last tick, calculate them now
+    if (!accelsValid) {
+        calculateAccelerations(accelBuffer);
+        accelsValid = true;
     }
 
     const dt_half = dt_yr * 0.5;
-
-    // BOLT: Reuse invMassBuffer to eliminate per-frame allocations
-    for (let i = 0; i < n; i++) {
-        const mass = bodies[i].mass_solar;
-        invMassBuffer[i] = mass > 1e-18 ? 1.0 / mass : 0.0;
-    }
 
     // 2. First half-step: v(t + dt/2) = v(t) + a(t) * dt/2
     //    And full-step position: r(t + dt) = r(t) + v(t + dt/2) * dt
     for (let i = 0; i < n; i++) {
         const b = bodies[i];
-        const invMass = invMassBuffer[i];
 
-        const ax = forceBuffer[i * 3 + 0] * invMass;
-        const ay = forceBuffer[i * 3 + 1] * invMass;
-        const az = forceBuffer[i * 3 + 2] * invMass;
+        const ax = accelBuffer[i * 3 + 0];
+        const ay = accelBuffer[i * 3 + 1];
+        const az = accelBuffer[i * 3 + 2];
 
         b.velocity_au_yr.x += ax * dt_half;
         b.velocity_au_yr.y += ay * dt_half;
@@ -151,17 +145,16 @@ function physicsTick() {
         b.position_au.z += b.velocity_au_yr.z * dt_yr;
     }
 
-    // 3. Recalculate forces at new positions: a(t + dt)
-    calculateForces(forceBuffer);
+    // 3. Recalculate accelerations at new positions: a(t + dt)
+    calculateAccelerations(accelBuffer);
 
     // 4. Second half-step: v(t + dt) = v(t + dt/2) + a(t + dt) * dt/2
     for (let i = 0; i < n; i++) {
         const b = bodies[i];
-        const invMass = invMassBuffer[i];
 
-        const ax = forceBuffer[i * 3 + 0] * invMass;
-        const ay = forceBuffer[i * 3 + 1] * invMass;
-        const az = forceBuffer[i * 3 + 2] * invMass;
+        const ax = accelBuffer[i * 3 + 0];
+        const ay = accelBuffer[i * 3 + 1];
+        const az = accelBuffer[i * 3 + 2];
 
         b.velocity_au_yr.x += ax * dt_half;
         b.velocity_au_yr.y += ay * dt_half;
@@ -169,7 +162,12 @@ function physicsTick() {
     }
 
     // Pack state for rendering main thread
-    const buffer = new Float32Array(n * 7);
+    const size = n * 7;
+    if (bufferA.length !== size) {
+        bufferA = new Float32Array(size);
+        bufferB = new Float32Array(size);
+    }
+    const buffer = useA ? bufferA : bufferB;
     for (let i = 0; i < n; i++) {
         const b = bodies[i];
         const offset = i * 7;
@@ -184,6 +182,14 @@ function physicsTick() {
 
     // Pass buffer via transferable interface for zero-alloc
     (self as any).postMessage({ type: 'UPDATE', buffer }, [buffer.buffer]);
+
+    // Reallocate the transferred buffer since it was detached/neutered
+    if (useA) {
+        bufferA = new Float32Array(size);
+    } else {
+        bufferB = new Float32Array(size);
+    }
+    useA = !useA;
 
     // Schedule next tick (60Hz targeting)
     tickTimeout = setTimeout(physicsTick, 16);

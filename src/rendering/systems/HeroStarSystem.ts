@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { PHASES, STELLAR_CONSTANTS } from '../../core/constants';
+import { computeLuminosity } from '../../simulation/StellarPhysics';
 import { PhysicsConstants, DEFAULT_CONSTANTS } from '../../types/physics';
 import { NebulaPhase } from '../../simulation/phases/NebulaPhase';
 import { ProtostarPhase } from '../../simulation/phases/ProtostarPhase';
@@ -143,7 +144,7 @@ export class HeroStarSystem extends THREE.Group {
         const baryonFactor = (DEFAULT_CONSTANTS.baryon || 0.05) / 0.05; 
         this.tHeat = 5778 * Math.pow(this.mass, 0.5) * baryonFactor;
         this.baseRadius = Math.pow(this.mass, 0.8) * 0.8;
-        this._msLuminosity = Math.pow(this.mass, STELLAR_CONSTANTS.PHYSICS.MASS_LUMINOSITY_EXPONENT);
+        this._msLuminosity = computeLuminosity(this.mass);
 
         // Hit mesh for raycaster
         this.hitMesh = new THREE.Mesh(
@@ -216,7 +217,9 @@ export class HeroStarSystem extends THREE.Group {
                 this.planetarySystem = new PlanetarySystem(this);
             }
             else if (newPhase === PHASES.RED_GIANT) {
-                this.redGiantPhase.setPlanets(this.mainSequencePhase.planetsInfo);
+                if (this._mainSequencePhase) {
+                    this.redGiantPhase.setPlanets(this._mainSequencePhase.planetsInfo);
+                }
                 this.redGiantPhase.show();
             }
             else if (newPhase === PHASES.SUPERNOVA) {
@@ -283,7 +286,7 @@ export class HeroStarSystem extends THREE.Group {
             this.supernovaPhase.update(delta, appTime, cameraPos, physics, this.t, lowDetail);
             this.isSupernovaFlashing = this.supernovaPhase?.isFlashing ?? false;
 
-            if (this.mass > STELLAR_CONSTANTS.PHYSICS.MASS_THRESHOLD_SUPERNOVA) {
+            if (this.mass >= STELLAR_CONSTANTS.PHYSICS.MASS_THRESHOLD_SUPERNOVA) {
                 this.currentTemp = STELLAR_CONSTANTS.TEMPERATURES.SUPERNOVA_HIGH_MASS;
                 this.currentLum = STELLAR_CONSTANTS.LUMINOSITY.SUPERNOVA_HIGH_MASS;
             } else {
@@ -299,7 +302,7 @@ export class HeroStarSystem extends THREE.Group {
                 this.currentLum = STELLAR_CONSTANTS.LUMINOSITY.REMNANT_BH;
 
 
-            } else if (this.mass > STELLAR_CONSTANTS.PHYSICS.MASS_THRESHOLD_SUPERNOVA) {
+            } else if (this.mass >= STELLAR_CONSTANTS.PHYSICS.MASS_THRESHOLD_SUPERNOVA) {
                 targetNs = 1;
                 this.currentTemp = STELLAR_CONSTANTS.TEMPERATURES.REMNANT_NS_HIGH_MASS;
                 this.currentLum = STELLAR_CONSTANTS.LUMINOSITY.REMNANT_NS_HIGH_MASS;

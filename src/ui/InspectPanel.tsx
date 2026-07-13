@@ -265,7 +265,6 @@ Civilization: ${geminiData.civilization}`;
                         onPointerDown={handlePointerDown}
                         onPointerMove={handlePointerMove}
                         onPointerUp={handlePointerUp}
-                        onPointerLeave={handlePointerUp}
                         onKeyDown={onKeyDown}
                     >
                         <div ref={uiRefs.timelineFill} className="h-full bg-gradient-to-r from-blue-500 via-fuchsia-500 to-red-500" style={{width: '0%'}}></div>

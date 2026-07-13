@@ -24,11 +24,18 @@ export function useWebSocket({ engineRef, selectedStarRef }: UseWebSocketProps) 
         const wsUrl = `${protocol}//${host}${port ? `:${port}` : ''}`;
         let socket: WebSocket | null = null;
         let reconnectTimeout: ReturnType<typeof setTimeout>;
+        let reconnectDelay = 3000;
+        const maxReconnectDelay = 60000;
 
         const connect = () => {
             console.log(`Connecting simulation to WebSocket at ${wsUrl} (using subprotocol auth)...`);
             socket = new WebSocket(wsUrl, wsToken);
             wsRef.current = socket;
+
+            socket.onopen = () => {
+                console.log('Simulation WebSocket connected.');
+                reconnectDelay = 3000; // Reset backoff delay on connection success
+            };
 
             socket.onmessage = (event) => {
                 try {
@@ -51,8 +58,9 @@ export function useWebSocket({ engineRef, selectedStarRef }: UseWebSocketProps) 
             };
 
             socket.onclose = () => {
-                console.log('Simulation WebSocket closed. Reconnecting in 3s...');
-                reconnectTimeout = setTimeout(connect, 3000);
+                console.log(`Simulation WebSocket closed. Reconnecting in ${reconnectDelay / 1000}s...`);
+                reconnectTimeout = setTimeout(connect, reconnectDelay);
+                reconnectDelay = Math.min(reconnectDelay * 2, maxReconnectDelay); // Exponential backoff
             };
 
             socket.onerror = (err) => {
