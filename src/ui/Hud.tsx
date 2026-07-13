@@ -101,7 +101,9 @@ export const Hud: React.FC<HudProps> = ({
         setIsDragging(true);
         try {
             (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
-        } catch (_err) {}
+        } catch (_err) {
+            // Ignored
+        }
         onGlobalScrubStart(e);
     };
 
@@ -113,7 +115,9 @@ export const Hud: React.FC<HudProps> = ({
         setIsDragging(false);
         try {
             (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId);
-        } catch (_err) {}
+        } catch (_err) {
+            // Ignored
+        }
         onGlobalScrubEnd();
     };
 

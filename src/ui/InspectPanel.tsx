@@ -102,7 +102,9 @@ Civilization: ${geminiData.civilization}`;
         setIsDragging(true);
         try {
             (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
-        } catch (_err) {}
+        } catch (_err) {
+            // Ignored
+        }
         onScrubStart(e);
     };
 
@@ -114,7 +116,9 @@ Civilization: ${geminiData.civilization}`;
         setIsDragging(false);
         try {
             (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId);
-        } catch (_err) {}
+        } catch (_err) {
+            // Ignored
+        }
         onScrubEnd();
     };
 
