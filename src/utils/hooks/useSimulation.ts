@@ -557,19 +557,27 @@ export function useSimulation(containerRef: React.RefObject<HTMLDivElement | nul
 
                     if (selectedStarRef.current) {
                         const s = selectedStarRef.current;
-                        const state = engine.getStellarState();
+                        const phaseStrMap: Record<number, string> = {
+                            0: 'nebula',
+                            1: 'protostar',
+                            2: 'main_sequence',
+                            3: 'red_giant',
+                            4: 'supernova',
+                            5: 'remnant'
+                        };
+                        const sPhase = phaseStrMap[s.phase] || 'main_sequence';
                         
-                        if (uiRefs.phase.current) uiRefs.phase.current.innerText = state.phase.replace('_', ' ').toUpperCase();
-                        if (uiRefs.temp.current) uiRefs.temp.current.innerText = Math.round(state.temperature_K).toLocaleString();
-                        if (uiRefs.mass.current) uiRefs.mass.current.innerText = state.mass_solar.toFixed(2);
-                        if (uiRefs.age.current) uiRefs.age.current.innerText = (state.age_yr / 1e6).toFixed(1);
-                        if (uiRefs.lum.current) uiRefs.lum.current.innerText = state.luminosity_solar.toFixed(3);
+                        if (uiRefs.phase.current) uiRefs.phase.current.innerText = sPhase.replace('_', ' ').toUpperCase();
+                        if (uiRefs.temp.current) uiRefs.temp.current.innerText = Math.round(s.currentTemp).toLocaleString();
+                        if (uiRefs.mass.current) uiRefs.mass.current.innerText = s.mass.toFixed(2);
+                        if (uiRefs.age.current) uiRefs.age.current.innerText = s.currentRealAge.toFixed(1);
+                        if (uiRefs.lum.current) uiRefs.lum.current.innerText = s.currentLum.toFixed(3);
                         
                         const perc = Math.round(s.t * 100);
                         if (uiRefs.timelineFill.current) uiRefs.timelineFill.current.style.width = `${perc}%`;
                         if (uiRefs.stellarSlider.current) {
                             uiRefs.stellarSlider.current.setAttribute('aria-valuenow', perc.toString());
-                            uiRefs.stellarSlider.current.setAttribute('aria-valuetext', `${perc}% of Stellar Lifecycle (${state.phase})`);
+                            uiRefs.stellarSlider.current.setAttribute('aria-valuetext', `${perc}% of Stellar Lifecycle (${sPhase})`);
                         }
                     }
                 } catch (err: any) {

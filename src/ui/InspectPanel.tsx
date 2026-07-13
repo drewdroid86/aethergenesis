@@ -100,6 +100,9 @@ Civilization: ${geminiData.civilization}`;
 
     const handlePointerDown = (e: React.PointerEvent) => {
         setIsDragging(true);
+        try {
+            (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+        } catch (_err) {}
         onScrubStart(e);
     };
 
@@ -107,8 +110,11 @@ Civilization: ${geminiData.civilization}`;
         if (isDragging) onScrubMove(e);
     };
 
-    const handlePointerUp = () => {
+    const handlePointerUp = (e: React.PointerEvent) => {
         setIsDragging(false);
+        try {
+            (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId);
+        } catch (_err) {}
         onScrubEnd();
     };
 
