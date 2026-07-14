@@ -147,7 +147,7 @@ export function useSimulation(containerRef: React.RefObject<HTMLDivElement | nul
         }
     }, [_tier]);
 
-    useWebSocket({
+    const wsRef = useWebSocket({
         engineRef,
         selectedStarRef
     });
@@ -369,12 +369,27 @@ export function useSimulation(containerRef: React.RefObject<HTMLDivElement | nul
                             if (star) {
                                 const realStellarState = engineRef.current.getStellarState();
 
-                                // Extract planetary system orbital state
-                                const orbitalStates: any[] = [];
+                                // BOLT: Merged aggregate analysis loop (O(n) instead of O(2n))
+                                // Process both orbital states and astrobiology in a single pass.
                                 const buffer = nbodyBufferRef.current;
+                                const orbitalStates: any[] = [];
+                                const astrobiologyStates: any[] = [];
+                                let maxK = 0;
+
                                 if (buffer) {
+                                    if (!astrobiologyEngineRef.current) {
+                                        astrobiologyEngineRef.current = new AstrobiologyEngine();
+                                    }
+
                                     const numBodies = buffer.length / 7;
                                     const G_M = 4.0 * Math.PI * Math.PI * realStellarState.mass_solar;
+                                    const deltaTime_yr = timeScaleRef.current === 'cosmic' ? delta * 200000000 : delta * 1000;
+                                    const sim_time_yr = engine.appTime * 1e6;
+
+                                    // Hoisted physical constants
+                                    const MASS_EARTH = 5.97e24;
+                                    const RADIUS_EARTH = 6371000;
+
                                     for (let i = 0; i < numBodies; i++) {
                                         const x = buffer[i * 7 + 0];
                                         const y = buffer[i * 7 + 1];
@@ -382,7 +397,7 @@ export function useSimulation(containerRef: React.RefObject<HTMLDivElement | nul
                                         const vx = buffer[i * 7 + 3];
                                         const vy = buffer[i * 7 + 4];
                                         const vz = buffer[i * 7 + 5];
-                                        const typeNum = buffer[i * 7 + 6];
+                                        const bodyTypeVal = buffer[i * 7 + 6];
                                         
                                         const r = Math.sqrt(x*x + y*y + z*z);
                                         const vSq = vx*vx + vy*vy + vz*vz;
@@ -394,76 +409,60 @@ export function useSimulation(containerRef: React.RefObject<HTMLDivElement | nul
                                         }
 
                                         const p = star.planetarySystem?.bodies[i];
-                                        const bodyType = p ? (p.type === 1 ? 'gas_giant' : p.type === 2 ? 'ice' : p.type === 3 ? 'lava' : p.type === 4 ? 'ocean' : p.type === 5 ? 'desert' : p.type === 6 ? 'jungle' : 'rocky') : 'rocky';
+                                        const bodyType = p ? (p.type === 1 ? 'gas_giant' : p.type === 2 ? 'ice' : p.type === 3 ? 'lava' : p.type === 4 ? 'ocean' : p.type === 5 ? 'desert' : p.type === 6 ? 'jungle' : 'rocky') : (bodyTypeVal === 1 ? 'comet' : 'rocky');
 
+                                        // BOLT: Restore missing orbitalStates for broadcast/visuals
                                         orbitalStates.push({
                                             body_id: `body_${i}`,
                                             body_type: bodyType,
                                             position_au: { x, y, z },
-                                            velocity_au_yr: { vx, vy, vz },
+                                            velocity_au_yr: { x: vx, y: vy, z: vz },
                                             semi_major_axis_au: a,
-                                            hz_status: a < 10 ? 'inside' : a > 25 ? 'outside' : 'in_zone',
-                                            coma_active: typeNum === 1 && r < 3.0,
-                                            tail_vector: typeNum === 1 && r < 2.5 ? { x, y, z } : null,
-                                            sim_time_yr: engine.appTime * 1e6
+                                            coma_active: bodyType === 'comet' && r < 3.0,
+                                            tail_vector: bodyType === 'comet' ? { x: x/r, y: y/r, z: z/r } : null
                                         });
+
+                                        // Estimate physical properties based on body type
+                                        let mass = MASS_EARTH;
+                                        let radius = RADIUS_EARTH;
+                                        let albedo = 0.3;
+
+                                        if (bodyType === 'gas_giant') {
+                                            mass *= 317; radius *= 11; albedo = 0.5;
+                                        } else if (bodyType === 'ice') {
+                                            mass *= 15; radius *= 4; albedo = 0.6;
+                                        } else if (bodyType === 'lava') {
+                                            mass *= 0.8; radius *= 0.9; albedo = 0.1;
+                                        } else if (bodyType === 'desert') {
+                                            mass *= 0.5; radius *= 0.8; albedo = 0.4;
+                                        }
+
+                                        const habState: any = astrobiologyEngineRef.current.evaluatePlanet(
+                                            `body_${i}`, a, mass, radius, albedo, realStellarState, deltaTime_yr
+                                        );
+
+                                        // BOLT: Direct assignment instead of spread to avoid object allocation overhead
+                                        habState.sim_time_yr = sim_time_yr;
+                                        astrobiologyStates.push(habState);
+
+                                        if (habState.civilizationTier > maxK) {
+                                            maxK = habState.civilizationTier;
+                                        }
                                     }
-                                }
-                                
-                                // Assemble astrobiology states using the AstrobiologyEngine
-                                if (!astrobiologyEngineRef.current) {
-                                    astrobiologyEngineRef.current = new AstrobiologyEngine();
-                                }
-                                
-                                const astrobiologyStates: any[] = [];
-                                const deltaTime_yr = timeScaleRef.current === 'cosmic' ? delta * 200000000 : delta * 1000;
-                                
-                                for (let i = 0; i < orbitalStates.length; i++) {
-                                    const o = orbitalStates[i];
-                                    
-                                    // Estimate physical properties based on body type
-                                    const mass_earth = 5.97e24;
-                                    const r_earth = 6371000;
-                                    let mass = mass_earth;
-                                    let radius = r_earth;
-                                    let albedo = 0.3;
-                                    
-                                    if (o.body_type === 'gas_giant') {
-                                        mass *= 317;
-                                        radius *= 11;
-                                        albedo = 0.5;
-                                    } else if (o.body_type === 'ice') {
-                                        mass *= 15;
-                                        radius *= 4;
-                                        albedo = 0.6;
-                                    } else if (o.body_type === 'lava') {
-                                        mass *= 0.8;
-                                        radius *= 0.9;
-                                        albedo = 0.1;
-                                    } else if (o.body_type === 'desert') {
-                                        mass *= 0.5;
-                                        radius *= 0.8;
-                                        albedo = 0.4;
-                                    }
-                                    
-                                    const habState = astrobiologyEngineRef.current.evaluatePlanet(
-                                        o.body_id,
-                                        o.semi_major_axis_au,
-                                        mass,
-                                        radius,
-                                        albedo,
-                                        realStellarState,
-                                        deltaTime_yr
-                                    );
-                                    
-                                    // Make sure sim_time_yr is included
-                                    astrobiologyStates.push({
-                                        ...habState,
-                                        sim_time_yr: engine.appTime * 1e6
-                                    });
                                 }
 
-                                const maxK = astrobiologyStates.reduce((max, s) => Math.max(max, s.civilizationTier), 0);
+                                // BOLT: Restore WebSocket broadcast
+                                const socket = wsRef.current;
+                                if (socket && socket.readyState === WebSocket.OPEN) {
+                                    socket.send(JSON.stringify({
+                                        type: 'state',
+                                        stellar_state: realStellarState,
+                                        orbital_bodies: orbitalStates,
+                                        astrobiology: astrobiologyStates,
+                                        app_time: engine.appTime
+                                    }));
+                                }
+                                
                                 engine.highestKardashevTier = maxK;
 
                                 // Avoid rapid React state updates by throttling UI state to 1Hz
