@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Activity, Droplets, Thermometer, ShieldAlert, Globe, Copy, Check, X } from 'lucide-react';
+import { Activity, Droplets, Thermometer, ShieldAlert, Copy, Check, X, Leaf, Snowflake, Flame, CircleOff, Radiation, Wind, Skull } from 'lucide-react';
 import { HabitabilityState } from '../simulation/AstrobiologyEngine';
 
 interface AstrobiologyPanelProps {
@@ -95,7 +95,10 @@ ${planet.civilizationTier > 0 ? `- Civilization: Type ${planet.civilizationTier}
                             >
                                 <div className="flex justify-between items-start mb-3">
                                     <h3 className="text-white/80 font-mono text-sm capitalize flex items-center">
-                                        <Globe className="w-4 h-4 mr-2 opacity-70" />
+                                        {planet.climateState === 'habitable' ? <Leaf className="w-4 h-4 mr-2 text-emerald-400" aria-hidden="true" /> :
+                                         planet.climateState === 'snowball' ? <Snowflake className="w-4 h-4 mr-2 text-blue-300" aria-hidden="true" /> :
+                                         planet.climateState === 'moist_greenhouse' ? <Flame className="w-4 h-4 mr-2 text-orange-400" aria-hidden="true" /> :
+                                         <CircleOff className="w-4 h-4 mr-2 opacity-50" aria-hidden="true" />}
                                         Planet {i + 1}
                                     </h3>
                                     <div className={`px-2 py-0.5 rounded text-xs font-mono font-medium ${
@@ -121,7 +124,11 @@ ${planet.civilizationTier > 0 ? `- Civilization: Type ${planet.civilizationTier}
                                     </div>
                                     <div className="flex justify-between">
                                         <span className="flex items-center"><ShieldAlert className="w-3 h-3 mr-1" /> Extinction Risk</span>
-                                        <span className={planet.extinctionRiskLevel !== 'none' ? 'text-red-400' : 'text-emerald-400'}>
+                                        <span className={`flex items-center gap-1 ${planet.extinctionRiskLevel !== 'none' ? 'text-red-400' : 'text-emerald-400'}`}>
+                                            {planet.extinctionRiskLevel === 'none' && <Check size={10} aria-hidden="true" />}
+                                            {planet.extinctionRiskLevel === 'sterilized' && <Skull size={10} aria-hidden="true" />}
+                                            {planet.extinctionRiskLevel === 'atmosphere_loss' && <Wind size={10} aria-hidden="true" />}
+                                            {(planet.extinctionRiskLevel === 'greenhouse' || planet.extinctionRiskLevel === 'snowball') && <Radiation size={10} aria-hidden="true" />}
                                             {planet.extinctionRiskLevel.replace('_', ' ')}
                                         </span>
                                     </div>
