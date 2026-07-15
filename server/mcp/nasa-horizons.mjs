@@ -284,7 +284,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       const stop = new Date(start.getTime() + 24 * 60 * 60 * 1000);
       const stopStr = stop.toISOString().split('T')[0];
 
-      const url = `${HORIZONS_BASE_URL}?format=json&EPHEM_TYPE=ELEMENTS&COMMAND='${encodeURIComponent(bodyId)}'&MAKE_EPHEM=YES&CENTER=500@10&START_TIME=${epoch}&STOP_TIME=${stopStr}&STEP_SIZE=1d&OBJ_DATA=YES`;
+      const url = `${HORIZONS_BASE_URL}?format=json&EPHEM_TYPE=ELEMENTS&COMMAND='${encodeURIComponent(bodyId)}'&MAKE_EPHEM=YES&CENTER=500@10&START_TIME=${encodeURIComponent(epoch)}&STOP_TIME=${encodeURIComponent(stopStr)}&STEP_SIZE=1d&OBJ_DATA=YES`;
 
       const { resultText, finalUrl } = await fetchHorizons(url, bodyId);
       const parsed = parseOrbitalElements(resultText);
@@ -314,7 +314,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       const stepSize = args.step_size || '1d';
       const center = args.center || '500@0';
 
-      const url = `${HORIZONS_BASE_URL}?format=json&EPHEM_TYPE=VECTORS&COMMAND='${encodeURIComponent(bodyId)}'&MAKE_EPHEM=YES&CENTER=${encodeURIComponent(center)}&START_TIME=${startDate}&STOP_TIME=${stopDate}&STEP_SIZE=${stepSize}&OUT_UNITS=AU-D`;
+      const url = `${HORIZONS_BASE_URL}?format=json&EPHEM_TYPE=VECTORS&COMMAND='${encodeURIComponent(bodyId)}'&MAKE_EPHEM=YES&CENTER=${encodeURIComponent(center)}&START_TIME=${encodeURIComponent(startDate)}&STOP_TIME=${encodeURIComponent(stopDate)}&STEP_SIZE=${encodeURIComponent(stepSize)}&OUT_UNITS=AU-D`;
 
       const { resultText } = await fetchHorizons(url, bodyId);
       const parsed = parseVectors(resultText);

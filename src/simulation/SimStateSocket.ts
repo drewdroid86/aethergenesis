@@ -82,7 +82,18 @@ export function unregisterEventHandler(handler: (event: SimEvent) => void): void
 export function broadcastSimState(state: SimBroadcast, exclude?: WebSocket): void {
     if (!wss) return;
     try {
-        const payload = JSON.stringify({ type: 'state', data: state });
+        // Security: Defensive entity clamping to prevent DoS via broadcast amplification
+        const orbital = Array.isArray(state.orbital) ? state.orbital.slice(0, 500) : [];
+        const astrobiology = Array.isArray(state.astrobiology) ? state.astrobiology.slice(0, 500) : [];
+
+        const payload = JSON.stringify({
+            type: 'state',
+            data: {
+                ...state,
+                orbital,
+                astrobiology
+            }
+        });
         for (const client of clients) {
             if (client !== exclude && client.readyState === WebSocket.OPEN) {
                 try {
