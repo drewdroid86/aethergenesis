@@ -80,8 +80,11 @@ src/
 - **Star Search Endpoint:** Implemented `GET /api/catalog/search` in `server.ts` with spectral class filter, mass/distance constraints, numeric boundary validation, and a fallback from SIMBAD TAP query to local presets.
 - **JPL Horizons Endpoint & URL Encoding:** Implemented `GET /api/horizons/search` in `server.ts` with input sanitization. Fixed a critical URL encoding bug in the ambiguous record retry query where literal semicolons in the template string split query parameters, causing 400 Bad Request responses from the JPL Horizons API.
 - **Stellar Phase Boundaries:** Adjusted Jeans collapse and Kelvin-Helmholtz thresholds in `src/simulation/StellarPhysics.ts` from `0.001` and `0.01` of $\tau_{MS}$ to `0.000001` ($10^{-6}$) and `0.001` ($10^{-3}$) respectively. This aligns the nebula/protostar durations with real astrophysics (10k and 10M years for $1.0\ \text{M}_\odot$ stars) and resolves the cosmic lifecycle integration workload E2E test failure.
+- **PR #220 Merge (Sentinel):** Merged the latest security updates, including parameter injection prevention for the NASA Horizons MCP server and centralized WebSocket broadcast clamping. Resolved minor origin regex conflicts in `src/utils/security.ts`.
+- **PR #219 Merge (Palette):** Merged the latest design updates, featuring context-specific climate and extinction risk icons in `AstrobiologyPanel.tsx` with accessibility helpers. Consolidated the rendering functions to resolve icon-mapping conflicts.
+- **PR #221 Merge (Bolt):** Merged the latest performance optimizations, collating simulation analysis loops to $O(n)$ complexity, restoring WebSocket state streaming, and reducing Three.js vector reallocations in `PlanetarySystem.ts`. Resolved loop integration conflicts in `useSimulation.ts` and `PlanetarySystem.ts`.
 
-**State at end:** All E2E test suites compile and pass successfully.
+**State at end:** All E2E test suites compile and pass successfully, and PR #219, #220, and #221 are successfully merged into the local branch with conflicts fully resolved.
 
 ---
 
