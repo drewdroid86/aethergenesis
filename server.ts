@@ -87,6 +87,20 @@ const analysisLimitMap = new LRUCache<string, RateLimitData>({
 const apiKey = process.env.GEMINI_API_KEY;
 const ai = apiKey ? new GoogleGenAI({ apiKey }) : null;
 
+/**
+ * Security: Fetch wrapper with timeout to prevent resource exhaustion from external APIs.
+ */
+async function fetchWithTimeout(url: string, timeout = 10000) {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeout);
+  try {
+    const response = await fetch(url, { signal: controller.signal });
+    return response;
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+
 // --- Preset catalog and JPL Horizons search logic ---
 
 interface PlanetPreset {
@@ -371,7 +385,7 @@ function estimateParams(spType: string) {
   let temp = 5778;
   let rad = 1.0;
   let lum = 1.0;
-  let metallicity = 0.02;
+  const metallicity = 0.02;
 
   if (!spType) return { mass_solar: mass, temperature_K: temp, radius_solar: rad, luminosity_solar: lum, metallicity_Z: metallicity };
 
@@ -546,7 +560,7 @@ app.get('/api/catalog/search', async (req, res) => {
       const adql = `SELECT TOP 1 main_id, sp_type, plx_value FROM basic WHERE main_id = '${safeName}' OR main_id LIKE '% ${safeName}'`;
       const url = `https://simbad.u-strasbg.fr/simbad/sim-tap/sync?REQUEST=doQuery&LANG=ADQL&FORMAT=json&QUERY=${encodeURIComponent(adql)}`;
       
-      const response = await fetch(url);
+      const response = await fetchWithTimeout(url);
       if (response.status === 200) {
         const data = await response.json();
         if (data && data.data && data.data.length > 0) {
@@ -586,7 +600,7 @@ app.get('/api/catalog/search', async (req, res) => {
   // General search
   // Try SIMBAD
   try {
-    let filters = ["sp_type IS NOT NULL", "plx_value IS NOT NULL", "plx_value > 0"];
+    const filters = ["sp_type IS NOT NULL", "plx_value IS NOT NULL", "plx_value > 0"];
     if (spectralClass) {
       const safeSp = spectralClass.substring(0, 64).replace(/'/g, "''");
       filters.push(`sp_type LIKE '${safeSp}%'`);
@@ -599,7 +613,7 @@ app.get('/api/catalog/search', async (req, res) => {
     const adql = `SELECT TOP 50 main_id, sp_type, plx_value FROM basic WHERE ${filters.join(' AND ')}`;
     const url = `https://simbad.u-strasbg.fr/simbad/sim-tap/sync?REQUEST=doQuery&LANG=ADQL&FORMAT=json&QUERY=${encodeURIComponent(adql)}`;
     
-    const response = await fetch(url);
+    const response = await fetchWithTimeout(url);
     if (response.status === 200) {
       const data = await response.json();
       if (data && data.data && Array.isArray(data.data)) {
@@ -668,8 +682,14 @@ app.get('/api/horizons/search', async (req, res) => {
   const type = req.query.type as string;
   const limit = req.query.limit ? Math.min(50, parseInt(req.query.limit as string)) : 20;
 
+  // Security: Validate numeric parameters
+  if (isNaN(limit) || limit < 1) {
+    return res.status(400).json({ error: 'Invalid limit parameter' });
+  }
+
   if (bodyId) {
     // Security check: validate body_id format and length
+    // eslint-disable-next-line no-useless-escape
     if (bodyId.length > 100 || /[^a-zA-Z0-9\s\/-]/.test(bodyId)) {
       return res.status(400).json({ error: 'Invalid body ID format' });
     }
@@ -679,7 +699,7 @@ app.get('/api/horizons/search', async (req, res) => {
       const stopStr = '2000-01-02';
       const url = `https://ssd.jpl.nasa.gov/api/horizons.api?format=json&EPHEM_TYPE=ELEMENTS&COMMAND='${encodeURIComponent(bodyId)}'&MAKE_EPHEM=YES&CENTER=500@10&START_TIME=${epoch}&STOP_TIME=${stopStr}&STEP_SIZE=1d&OBJ_DATA=YES`;
       
-      const response = await fetch(url);
+      const response = await fetchWithTimeout(url);
       if (response.status !== 200) {
         return res.status(400).json({ error: 'Horizons API returned non-200' });
       }
@@ -703,7 +723,7 @@ app.get('/api/horizons/search', async (req, res) => {
         if (recordNumbers.length > 0) {
           const bestRecord = recordNumbers[recordNumbers.length - 1];
           const retryUrl = `https://ssd.jpl.nasa.gov/api/horizons.api?format=json&EPHEM_TYPE=ELEMENTS&COMMAND=${encodeURIComponent("'" + bestRecord + ";'")}&MAKE_EPHEM=YES&CENTER=500@10&START_TIME=${epoch}&STOP_TIME=${stopStr}&STEP_SIZE=1d&OBJ_DATA=YES`;
-          const retryRes = await fetch(retryUrl);
+          const retryRes = await fetchWithTimeout(retryUrl);
           const retryData = await retryRes.json();
           if (retryData.error || !retryData.result) {
             return res.status(400).json({ error: 'Failed on retry' });
@@ -741,7 +761,7 @@ app.get('/api/horizons/search', async (req, res) => {
     const url = `https://ssd-api.jpl.nasa.gov/sbdb_query.api?fields=spkid,full_name,e,q,i,per${kindParam}&limit=${limit}&phys-par=0`;
 
     try {
-      const response = await fetch(url);
+      const response = await fetchWithTimeout(url);
       if (response.status !== 200) {
         throw new Error('JPL API returned non-200');
       }
@@ -777,7 +797,7 @@ app.get('/api/horizons/search', async (req, res) => {
       }
     } catch (err) {
       // Fallback
-      let results = [];
+      let results;
       if (type === 'comet') {
         results = [
           { naif_id: "1P", name: "1P/Halley", type: "comet", period_yr: 75.3, eccentricity: 0.967, perihelion_au: 0.586, inclination_deg: 162.2, coma_onset_au: 3.0, tail_onset_au: 2.5 },
