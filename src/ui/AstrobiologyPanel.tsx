@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Activity, Droplets, Thermometer, ShieldAlert, Copy, Check, X, Snowflake, CloudRain, Sun, Waves, Sparkles, Dna } from 'lucide-react';
+import { Activity, Droplets, Thermometer, ShieldAlert, Copy, Check, X, Leaf, Snowflake, Flame, CircleOff, Radiation, Wind, Skull, Sparkles, Dna } from 'lucide-react';
 import { HabitabilityState } from '../simulation/AstrobiologyEngine';
 
 interface AstrobiologyPanelProps {
@@ -15,10 +15,10 @@ export const AstrobiologyPanel: React.FC<AstrobiologyPanelProps> = ({ data, sele
 
     const getClimateIcon = (state: string) => {
         switch (state) {
+            case 'habitable': return <Leaf className="w-4 h-4 mr-2 text-emerald-400" aria-hidden="true" />;
             case 'snowball': return <Snowflake className="w-4 h-4 mr-2 text-blue-300" aria-hidden="true" />;
-            case 'moist_greenhouse': return <CloudRain className="w-4 h-4 mr-2 text-orange-300" aria-hidden="true" />;
-            case 'habitable': return <Waves className="w-4 h-4 mr-2 text-emerald-300" aria-hidden="true" />;
-            default: return <Sun className="w-4 h-4 mr-2 text-red-300" aria-hidden="true" />;
+            case 'moist_greenhouse': return <Flame className="w-4 h-4 mr-2 text-orange-400" aria-hidden="true" />;
+            default: return <CircleOff className="w-4 h-4 mr-2 opacity-50" aria-hidden="true" />;
         }
     };
 
@@ -130,7 +130,11 @@ ${planet.civilizationTier > 0 ? `- Civilization: Type ${planet.civilizationTier}
                                     </div>
                                     <div className="flex justify-between">
                                         <span className="flex items-center"><ShieldAlert className="w-3 h-3 mr-1" /> Extinction Risk</span>
-                                        <span className={planet.extinctionRiskLevel !== 'none' ? 'text-red-400' : 'text-emerald-400'}>
+                                        <span className={`flex items-center gap-1 ${planet.extinctionRiskLevel !== 'none' ? 'text-red-400' : 'text-emerald-400'}`}>
+                                            {planet.extinctionRiskLevel === 'none' && <Check size={10} aria-hidden="true" />}
+                                            {planet.extinctionRiskLevel === 'sterilized' && <Skull size={10} aria-hidden="true" />}
+                                            {planet.extinctionRiskLevel === 'atmosphere_loss' && <Wind size={10} aria-hidden="true" />}
+                                            {(planet.extinctionRiskLevel === 'greenhouse' || planet.extinctionRiskLevel === 'snowball') && <Radiation size={10} aria-hidden="true" />}
                                             {planet.extinctionRiskLevel.replace('_', ' ')}
                                         </span>
                                     </div>
