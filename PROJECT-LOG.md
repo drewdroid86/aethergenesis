@@ -70,6 +70,21 @@ src/
 
 ---
 
+### fix/e2e-preset-lifecycle-issues — E2E Test Suite Alignment & Bug Fixes
+**Date:** July 15, 2026
+**AI:** Antigravity (Gemini 3.5 Flash)
+**Branch:** fix/e2e-preset-lifecycle-issues
+
+**Changes:**
+- **Catalog Presets Endpoint:** Implemented `GET /api/catalog/presets` in `server.ts` to return the complete catalog preset library, integrating Trappist-1, Kepler-186, Kepler-22b, and Kepler-442 to resolve preset lookup and loader E2E test failures.
+- **Star Search Endpoint:** Implemented `GET /api/catalog/search` in `server.ts` with spectral class filter, mass/distance constraints, numeric boundary validation, and a fallback from SIMBAD TAP query to local presets.
+- **JPL Horizons Endpoint & URL Encoding:** Implemented `GET /api/horizons/search` in `server.ts` with input sanitization. Fixed a critical URL encoding bug in the ambiguous record retry query where literal semicolons in the template string split query parameters, causing 400 Bad Request responses from the JPL Horizons API.
+- **Stellar Phase Boundaries:** Adjusted Jeans collapse and Kelvin-Helmholtz thresholds in `src/simulation/StellarPhysics.ts` from `0.001` and `0.01` of $\tau_{MS}$ to `0.000001` ($10^{-6}$) and `0.001` ($10^{-3}$) respectively. This aligns the nebula/protostar durations with real astrophysics (10k and 10M years for $1.0\ \text{M}_\odot$ stars) and resolves the cosmic lifecycle integration workload E2E test failure.
+
+**State at end:** All E2E test suites compile and pass successfully.
+
+---
+
 ### docs/update-project-log — Master Project Log Update
 **Date:** July 3, 2026
 **AI:** Antigravity (Flash)
