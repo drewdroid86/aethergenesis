@@ -253,8 +253,8 @@ export function computePhase(
   age_yr: number,
   tau_ms: number
 ): StellarPhase {
-  if (age_yr < tau_ms * 0.001) return 'nebula';
-  if (age_yr < tau_ms * 0.01) return 'protostar';
+  if (age_yr < tau_ms * 0.000001) return 'nebula';
+  if (age_yr < tau_ms * 0.001) return 'protostar';
   if (age_yr < tau_ms) return 'main_sequence';
   if (age_yr < tau_ms * 1.2) return 'red_giant';
   if (age_yr < tau_ms * 1.5 && mass_solar >= STELLAR_CONSTANTS.PHYSICS.MASS_THRESHOLD_SUPERNOVA) return 'supernova';
@@ -458,12 +458,12 @@ export function advanceStellarState(
       case 'protostar':
         trigger_condition =
           `age_yr ${newAge.toExponential(2)} exceeded nebula duration ` +
-          `(${(tau_ms * 0.001).toExponential(2)} yr) — Jeans collapse complete`;
+          `(${(tau_ms * 0.000001).toExponential(2)} yr) — Jeans collapse complete`;
         break;
       case 'main_sequence':
         trigger_condition =
           `age_yr ${newAge.toExponential(2)} exceeded protostar duration ` +
-          `(${(tau_ms * 0.01).toExponential(2)} yr) — core hydrogen ignition at T_c > 10^7 K`;
+          `(${(tau_ms * 0.001).toExponential(2)} yr) — core hydrogen ignition at T_c > 10^7 K`;
         break;
       case 'red_giant':
         trigger_condition =
