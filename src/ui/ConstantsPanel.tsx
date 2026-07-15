@@ -1,5 +1,6 @@
-import React from 'react';
-import { Settings2, X, RotateCcw } from 'lucide-react';
+import React, { useState } from 'react';
+import { motion } from 'motion/react';
+import { Settings2, X, RotateCcw, Copy, Check } from 'lucide-react';
 import { DEFAULT_CONSTANTS, PhysicsConstants } from '../types/physics';
 
 interface ConstantsPanelProps {
@@ -7,15 +8,18 @@ interface ConstantsPanelProps {
     setPhysics: React.Dispatch<React.SetStateAction<PhysicsConstants>>;
     isOpen: boolean;
     setIsOpen: (isOpen: boolean) => void;
+    currentSeed: string;
 }
 
 export const ConstantsPanel: React.FC<ConstantsPanelProps> = ({
     physics,
     setPhysics,
     isOpen,
-    setIsOpen
+    setIsOpen,
+    currentSeed
 }) => {
-    const [resetFeedback, setResetFeedback] = React.useState(false);
+    const [resetFeedback, setResetFeedback] = useState(false);
+    const [copied, setCopied] = useState(false);
 
     const handleReset = () => {
         setPhysics(DEFAULT_CONSTANTS);
@@ -23,11 +27,22 @@ export const ConstantsPanel: React.FC<ConstantsPanelProps> = ({
         setTimeout(() => setResetFeedback(false), 2000);
     };
 
+    const copySeed = () => {
+        navigator.clipboard.writeText(currentSeed).then(() => {
+            setCopied(true);
+            setTimeout(() => setCopied(false), 2000);
+        });
+    };
+
     if (!isOpen) {
         return (
-            <button 
+            <motion.button
+                key="closed"
+                initial={{ opacity: 0, scale: 0.8 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.8 }}
                 onClick={() => setIsOpen(true)} 
-                className="absolute left-8 top-32 bg-[rgba(14,14,28,0.7)] backdrop-blur-xl border border-[rgba(126,184,255,0.3)] rounded-full p-4 z-30 shadow-[0_0_30px_rgba(0,0,0,0.5)] transform transition-all pointer-events-auto text-[#7EB8FF]/70 hover:text-white group focus-visible:ring-2 focus-visible:ring-[#C084FC] outline-none relative"
+                className="absolute left-8 top-32 bg-[rgba(14,14,28,0.7)] backdrop-blur-xl border border-[rgba(126,184,255,0.3)] rounded-full p-4 z-30 shadow-[0_0_30px_rgba(0,0,0,0.5)] pointer-events-auto text-[#7EB8FF]/70 hover:text-white group focus-visible:ring-2 focus-visible:ring-[#C084FC] outline-none relative"
                 title="Open Physical Constants"
                 aria-label="Open Physical Constants"
                 aria-keyshortcuts="c"
@@ -36,18 +51,36 @@ export const ConstantsPanel: React.FC<ConstantsPanelProps> = ({
                     [C] Open
                 </span>
                 <Settings2 size={24} className="group-hover:text-[#C084FC] transition-colors" />
-            </button>
+            </motion.button>
         );
     }
 
     return (
-        <div className="absolute left-8 top-32 w-[min(320px,85vw)] bg-[rgba(14,14,28,0.7)] backdrop-blur-xl border border-[rgba(126,184,255,0.3)] rounded-2xl p-6 z-30 shadow-[0_0_30px_rgba(0,0,0,0.5)] transform transition-all pointer-events-auto">
+        <motion.div
+            key="open"
+            initial={{ opacity: 0, x: -20, filter: 'blur(10px)' }}
+            animate={{ opacity: 1, x: 0, filter: 'blur(0px)' }}
+            exit={{ opacity: 0, x: -20, filter: 'blur(10px)' }}
+            transition={{ duration: 0.4, ease: "easeOut" }}
+            className="absolute left-8 top-32 w-[min(320px,85vw)] bg-[rgba(14,14,28,0.7)] backdrop-blur-xl border border-[rgba(126,184,255,0.3)] rounded-2xl p-6 z-30 shadow-[0_0_30px_rgba(0,0,0,0.5)] transform transition-all pointer-events-auto"
+        >
             <div className="flex items-center justify-between mb-6 pb-4 border-b border-[rgba(126,184,255,0.1)]">
                 <h2 className="text-sm font-bold tracking-widest uppercase text-white flex items-center gap-3">
                     <Settings2 size={20} className="text-[#C084FC]" />
                     Constants
                 </h2>
                 <div className="flex items-center gap-2">
+                    <button
+                        onClick={copySeed}
+                        className="text-[#7EB8FF]/50 hover:text-[#C084FC] transition-all focus-visible:ring-2 focus-visible:ring-[#C084FC] outline-none rounded p-1 relative group/copy"
+                        aria-label={copied ? "Universe Seed Copied" : "Copy Universe Seed"}
+                        title="Copy Seed"
+                    >
+                        <span className={`absolute -top-6 left-1/2 -translate-x-1/2 text-[10px] text-[#C084FC] transition-opacity whitespace-nowrap ${copied ? 'opacity-100' : 'opacity-0 group-hover/copy:opacity-100 group-focus-visible/copy:opacity-100'}`}>
+                            {copied ? 'Copied!' : 'Copy Seed'}
+                        </span>
+                        {copied ? <Check size={16} className="text-green-400" /> : <Copy size={16} />}
+                    </button>
                     <button
                         onClick={handleReset}
                         className="text-[#7EB8FF]/50 hover:text-[#C084FC] transition-all focus-visible:ring-2 focus-visible:ring-[#C084FC] outline-none rounded p-1 relative group/reset"
@@ -65,6 +98,7 @@ export const ConstantsPanel: React.FC<ConstantsPanelProps> = ({
                         className="text-[#7EB8FF]/70 hover:text-white transition-colors focus-visible:ring-2 focus-visible:ring-[#C084FC] outline-none rounded p-1 relative group/close"
                         aria-label="Close Physical Constants"
                         aria-keyshortcuts="c"
+                        title="Close [C]"
                     >
                         <span className="absolute -top-6 left-1/2 -translate-x-1/2 text-[10px] text-[#C084FC] opacity-0 group-hover/close:opacity-100 group-focus-visible/close:opacity-100 transition-opacity whitespace-nowrap">
                             [C] Close
@@ -266,6 +300,6 @@ export const ConstantsPanel: React.FC<ConstantsPanelProps> = ({
                     <p id="desc-baryon" className="text-[9px] text-[#7EB8FF]/50 mt-1">Star color temperature distribution</p>
                 </div>
             </div>
-        </div>
+        </motion.div>
     );
 };

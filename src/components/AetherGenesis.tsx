@@ -113,12 +113,16 @@ export function AetherGenesis() {
         )}
       </AnimatePresence>
 
-      <ConstantsPanel 
-        physics={physics}
-        setPhysics={setPhysics}
-        isOpen={isConstantsOpen}
-        setIsOpen={setIsConstantsOpen}
-      />
+      <AnimatePresence>
+        <ConstantsPanel
+          key={isConstantsOpen ? 'open' : 'closed'}
+          physics={physics}
+          setPhysics={setPhysics}
+          isOpen={isConstantsOpen}
+          setIsOpen={setIsConstantsOpen}
+          currentSeed={currentSeed}
+        />
+      </AnimatePresence>
 
       <div className="absolute inset-0 pointer-events-none bg-[radial-gradient(circle_at_center,transparent_0%,rgba(2,2,5,0.6)_100%)]" />
     </div>
