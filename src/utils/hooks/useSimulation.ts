@@ -7,9 +7,8 @@ import { NebulaSystem } from '../../rendering/systems/NebulaSystem';
 import { PHASE_NAMES } from '../../core/constants';
 import { PhysicsConstants, DEFAULT_CONSTANTS } from '../../types/physics';
 import { detectPerformanceTier, getNumStarsForTier } from '../../utils/performance';
-import { AstrobiologyEngine } from '../../simulation/AstrobiologyEngine';
 import { OrbitalBody, keplerianToCartesian } from '../../simulation/OrbitalMechanics';
-import { computeSpectralClass, StellarPhase } from '../../simulation/StellarPhysics';
+import { SimulationCoordinator } from '../../simulation/SimulationCoordinator';
 
 // Sub-hooks
 import { useWebSocket } from './useWebSocket';
@@ -24,7 +23,10 @@ export function useSimulation(containerRef: React.RefObject<HTMLDivElement | nul
     const controlsRef = useRef<OrbitControls | null>(null);
     const [isPaused, setIsPaused] = useState(false);
     const isPausedRef = useRef(isPaused);
-    useEffect(() => { isPausedRef.current = isPaused; }, [isPaused]);
+    useEffect(() => { 
+        isPausedRef.current = isPaused; 
+        if (engineRef.current) engineRef.current.isPaused = isPaused;
+    }, [isPaused]);
     const [fatalError, setFatalError] = useState<string | null>(null);
 
     // Physics Constants State
@@ -37,12 +39,16 @@ export function useSimulation(containerRef: React.RefObject<HTMLDivElement | nul
     const physicsRef = useRef(physics);
     useEffect(() => { 
         physicsRef.current = physics; 
+        if (engineRef.current) engineRef.current.physicsConstants = physics;
     }, [physics]);
 
     // Cosmic Age & Time Scale State
     const [timeScale, setTimeScale] = useState<'cosmic' | 'realtime'>('cosmic');
     const timeScaleRef = useRef(timeScale);
-    useEffect(() => { timeScaleRef.current = timeScale; }, [timeScale]);
+    useEffect(() => { 
+        timeScaleRef.current = timeScale; 
+        if (engineRef.current) engineRef.current.timeScale = timeScale;
+    }, [timeScale]);
 
     // Sync worker time scale when timeScale state changes
     useEffect(() => {
@@ -90,8 +96,6 @@ export function useSimulation(containerRef: React.RefObject<HTMLDivElement | nul
 
     const nbodyBufferRef = useRef<Float32Array | null>(null);
     const nbodyWorkerRef = useRef<Worker | null>(null);
-    const astrobiologyEngineRef = useRef<AstrobiologyEngine | null>(null);
-    const lastAnalysisTimeRef = useRef(0);
 
     const disposeStarSystem = (star: HeroStarSystem) => {
         star.dispose();
@@ -132,6 +136,9 @@ export function useSimulation(containerRef: React.RefObject<HTMLDivElement | nul
         // Dispose replaces every HeroStarSystem; drop selection so UI/refs
         // never point at disposed objects.
         setSelectedStar(null);
+        if (engineRef.current) {
+            engineRef.current.selectedStar = null;
+        }
 
         engineRef.current.heroStars.forEach((star) => {
             engineRef.current?.scene.remove(star);
@@ -234,6 +241,10 @@ export function useSimulation(containerRef: React.RefObject<HTMLDivElement | nul
         try {
             const engine = new Engine(containerRef.current);
             engineRef.current = engine;
+            engine.physicsConstants = physicsRef.current;
+            engine.isPaused = isPausedRef.current;
+            engine.timeScale = timeScaleRef.current;
+            engine.isPlayingCosmic = isPlayingCosmicRef.current;
 
             const nebulaSystem = new NebulaSystem(engine.scene);
             nebulaSystemRef.current = nebulaSystem;
@@ -252,6 +263,9 @@ export function useSimulation(containerRef: React.RefObject<HTMLDivElement | nul
                 worker.onmessage = (e) => {
                     if (e.data.type === 'UPDATE') {
                         nbodyBufferRef.current = e.data.buffer;
+                        if (engineRef.current) {
+                            engineRef.current.nbodyBuffer = e.data.buffer;
+                        }
                     }
                 };
 
@@ -328,6 +342,7 @@ export function useSimulation(containerRef: React.RefObject<HTMLDivElement | nul
                     const system = hit.parent as HeroStarSystem;
                     selectedStarRef.current = system;
                     setSelectedStar(system);
+                    engine.selectedStar = system;
 
                     const targetPos = system.position.clone();
                     const camOffset = engine.camera.position.clone().sub(controls.target).normalize().multiplyScalar(40);
@@ -336,6 +351,7 @@ export function useSimulation(containerRef: React.RefObject<HTMLDivElement | nul
                 } else {
                     selectedStarRef.current = null;
                     setSelectedStar(null);
+                    engine.selectedStar = null;
                 }
             };
 
@@ -343,196 +359,28 @@ export function useSimulation(containerRef: React.RefObject<HTMLDivElement | nul
             window.addEventListener('pointermove', onPointerMove);
             window.addEventListener('pointerup', onPointerUp);
 
-            let frameId: number;
-            let lastAnimationTime = performance.now();
-            let lastStateSendTime = 0;
+            // Instantiate Simulation Coordinator
+            const coordinator = new SimulationCoordinator(engine, wsRef.current);
+            coordinator.onAstrobiologyUpdate = (data) => {
+                setAstrobiologyData(data);
+            };
 
-            const animate = () => {
-                frameId = requestAnimationFrame(animate);
+            coordinator.onTick = (cosmicAgeVal, delta) => {
                 try {
-                    const currentTime = performance.now();
-                    const delta = Math.max(0.001, Math.min((currentTime - lastAnimationTime) / 1000, 0.05)); 
-                    lastAnimationTime = currentTime;
-
-                    registerFrameDelta(delta, currentTime);
+                    registerFrameDelta(delta, performance.now());
 
                     if (isPlayingCosmicRef.current && !isGlobalScrubbingRef.current) {
-                        cosmicAgeRef.current += timeScaleRef.current === 'cosmic' ? delta * 0.2 : (delta / 31557600) / 1e9; 
-                        if (cosmicAgeRef.current > 14) {
-                            cosmicAgeRef.current = 0; 
-                        }
+                        cosmicAgeRef.current = cosmicAgeVal;
                         if (hudRefs.globalTimelineFill.current) {
-                            hudRefs.globalTimelineFill.current.style.width = `${(cosmicAgeRef.current / 14.0) * 100}%`;
+                            hudRefs.globalTimelineFill.current.style.width = `${(cosmicAgeVal / 14.0) * 100}%`;
                         }
                         if (hudRefs.globalSlider.current) {
-                            hudRefs.globalSlider.current.setAttribute('aria-valuenow', cosmicAgeRef.current.toFixed(2));
-                            hudRefs.globalSlider.current.setAttribute('aria-valuetext', `${cosmicAgeRef.current.toFixed(2)} Billion Years`);
+                            hudRefs.globalSlider.current.setAttribute('aria-valuenow', cosmicAgeVal.toFixed(2));
+                            hudRefs.globalSlider.current.setAttribute('aria-valuetext', `${cosmicAgeVal.toFixed(2)} Billion Years`);
                         }
                         if (Math.floor(engine.appTime * 2) !== Math.floor((engine.appTime - delta) * 2)) {
-                            setCosmicAge(cosmicAgeRef.current);
+                            setCosmicAge(cosmicAgeVal);
                         }
-                    }
-
-                    engine.isPaused = isPausedRef.current;
-                    engine.update(delta, selectedStarRef.current, isScrubbingRef.current, physicsRef.current, cosmicAgeRef.current, timeScaleRef.current, nbodyBufferRef.current);
-                    
-                    // Send simulation state to WebSocket server at 5Hz (every 200ms)
-                    if (currentTime - lastStateSendTime > 200) {
-                        if (engineRef.current) {
-                            const star = selectedStarRef.current || engineRef.current.heroStars[0];
-                            if (star) {
-                                const phaseStrMap: Record<number, StellarPhase> = {
-                                    0: 'nebula',
-                                    1: 'protostar',
-                                    2: 'main_sequence',
-                                    3: 'red_giant',
-                                    4: 'supernova',
-                                    5: 'remnant'
-                                };
-                                const perStarState = {
-                                    id: star.physicsId,
-                                    initialMass_solar: star.mass,
-                                    metallicity_Z: 0.02,
-                                    age_yr: star.currentRealAge * 1e6,
-                                    mass_solar: star.mass,
-                                    luminosity_solar: star.currentLum,
-                                    radius_solar: Math.pow(star.mass, 0.8),
-                                    temperature_K: star.currentTemp,
-                                    phase: (phaseStrMap[star.phase] || 'main_sequence'),
-                                    spectralClass: computeSpectralClass(star.currentTemp),
-                                    absoluteMagnitude: 4.83 - 2.5 * Math.log10(Math.max(star.currentLum, 1e-10)),
-                                    hrPosition: {
-                                        logT: Math.log10(Math.max(star.currentTemp, 1)),
-                                        logL: Math.log10(Math.max(star.currentLum, 1e-10))
-                                    },
-                                    sim_time_yr: engine.appTime * 1e6
-                                };
-
-                                // BOLT: Merged aggregate analysis loop (O(n) instead of O(2n))
-                                // Process both orbital states and astrobiology in a single pass.
-                                const buffer = nbodyBufferRef.current;
-                                const orbitalStates: any[] = [];
-                                const astrobiologyStates: any[] = [];
-                                let maxK = 0;
-
-                                if (buffer) {
-                                    if (!astrobiologyEngineRef.current) {
-                                        astrobiologyEngineRef.current = new AstrobiologyEngine();
-                                    }
-
-                                    const numBodies = buffer.length / 7;
-                                    const G_M = 4.0 * Math.PI * Math.PI * perStarState.mass_solar;
-                                    const deltaTime_yr = timeScaleRef.current === 'cosmic' ? delta * 200000000 : delta * 1000;
-                                    const sim_time_yr = engine.appTime * 1e6;
-
-                                    // Hoisted physical constants
-                                    const MASS_EARTH = 5.97e24;
-                                    const RADIUS_EARTH = 6371000;
-
-                                    for (let i = 0; i < numBodies; i++) {
-                                        const x = buffer[i * 7 + 0];
-                                        const y = buffer[i * 7 + 1];
-                                        const z = buffer[i * 7 + 2];
-                                        const vx = buffer[i * 7 + 3];
-                                        const vy = buffer[i * 7 + 4];
-                                        const vz = buffer[i * 7 + 5];
-                                        const bodyTypeVal = buffer[i * 7 + 6];
-                                        
-                                        const r = Math.sqrt(x*x + y*y + z*z);
-                                        const vSq = vx*vx + vy*vy + vz*vz;
-                                        
-                                        let a = 1.0;
-                                        if (G_M > 0 && r > 0) {
-                                            const invA = 2.0 / r - vSq / G_M;
-                                            a = invA > 0 ? 1.0 / invA : 9999;
-                                        }
-
-                                        const p = star.planetarySystem?.bodies[i];
-                                        const bodyType = p ? (p.type === 1 ? 'gas_giant' : p.type === 2 ? 'ice' : p.type === 3 ? 'lava' : p.type === 4 ? 'ocean' : p.type === 5 ? 'desert' : p.type === 6 ? 'jungle' : 'rocky') : (bodyTypeVal === 1 ? 'comet' : 'rocky');
-
-                                        // BOLT: Restore missing orbitalStates for broadcast/visuals
-                                        orbitalStates.push({
-                                            body_id: `body_${i}`,
-                                            body_type: bodyType,
-                                            position_au: { x, y, z },
-                                            velocity_au_yr: { x: vx, y: vy, z: vz },
-                                            semi_major_axis_au: a,
-                                            coma_active: bodyType === 'comet' && r < 3.0,
-                                            tail_vector: bodyType === 'comet' ? { x: x/r, y: y/r, z: z/r } : null
-                                        });
-
-                                        // Estimate physical properties based on body type
-                                        let mass = MASS_EARTH;
-                                        let radius = RADIUS_EARTH;
-                                        let albedo = 0.3;
-
-                                        if (bodyType === 'gas_giant') {
-                                            mass *= 317; radius *= 11; albedo = 0.5;
-                                        } else if (bodyType === 'ice') {
-                                            mass *= 15; radius *= 4; albedo = 0.6;
-                                        } else if (bodyType === 'lava') {
-                                            mass *= 0.8; radius *= 0.9; albedo = 0.1;
-                                        } else if (bodyType === 'desert') {
-                                            mass *= 0.5; radius *= 0.8; albedo = 0.4;
-                                        } else if (bodyType === 'ocean') {
-                                            mass *= 1.2; radius *= 1.1; albedo = 0.2;
-                                        } else if (bodyType === 'jungle') {
-                                            mass *= 1.0; radius *= 1.0; albedo = 0.18;
-                                        } else { // rocky or fallback
-                                            mass *= 0.6; radius *= 0.75; albedo = 0.15;
-                                        }
-
-                                        const habState: any = astrobiologyEngineRef.current.evaluatePlanet(
-                                            `body_${i}`, a, mass, radius, albedo, perStarState as any, deltaTime_yr, bodyType
-                                        );
-
-                                        // BOLT: Direct assignment instead of spread to avoid object allocation overhead
-                                        habState.sim_time_yr = sim_time_yr;
-                                        astrobiologyStates.push(habState);
-
-                                        if (habState.civilizationTier > maxK) {
-                                            maxK = habState.civilizationTier;
-                                        }
-                                    }
-                                }
-                                // BOLT: Restore WebSocket broadcast
-                                // BOLT: Clamped entities broadcast done safely in SimStateSocket.ts
-                                const socket = wsRef.current;
-                                if (socket && socket.readyState === WebSocket.OPEN) {
-                                    socket.send(JSON.stringify({
-                                        type: 'state',
-                                        stellar_state: perStarState,
-                                        orbital_bodies: orbitalStates,
-                                        astrobiology: astrobiologyStates,
-                                        app_time: engine.appTime
-                                    }));
-                                }
-                                engine.highestKardashevTier = maxK;
-
-                                // Avoid rapid React state updates by throttling UI state to 1Hz
-                                if (currentTime - (lastAnalysisTimeRef.current || 0) > 1000) {
-                                    setAstrobiologyData(astrobiologyStates);
-                                    lastAnalysisTimeRef.current = currentTime;
-                                }
-                                
-                                // Update Biosphere & City Light shaders
-                                if (star.planetarySystem) {
-                                    star.planetarySystem.updateAstrobiology(astrobiologyStates);
-                                }
-
-                                // Send simulation state to WebSocket server
-                                if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-                                    const outPayload = {
-                                        timestamp_ms: Date.now(),
-                                        stellar: perStarState,
-                                        orbital: orbitalStates,
-                                        astrobiology: astrobiologyStates
-                                    };
-                                    wsRef.current.send(JSON.stringify({ type: 'state', data: outPayload }));
-                                }
-                            }
-                        }
-                        lastStateSendTime = currentTime;
                     }
 
                     if (nebulaSystemRef.current) {
@@ -544,7 +392,7 @@ export function useSimulation(containerRef: React.RefObject<HTMLDivElement | nul
                     if (hudRefs.hudX.current) hudRefs.hudX.current.innerText = engine.camera.position.x.toFixed(4);
                     if (hudRefs.hudY.current) hudRefs.hudY.current.innerText = engine.camera.position.y.toFixed(4);
                     if (hudRefs.hudZ.current) hudRefs.hudZ.current.innerText = engine.camera.position.z.toFixed(4);
-                    if (hudRefs.hudAge.current) hudRefs.hudAge.current.innerText = cosmicAgeRef.current.toFixed(2);
+                    if (hudRefs.hudAge.current) hudRefs.hudAge.current.innerText = cosmicAgeVal.toFixed(2);
 
                     if (selectedStarRef.current) {
                         const s = selectedStarRef.current;
@@ -572,11 +420,13 @@ export function useSimulation(containerRef: React.RefObject<HTMLDivElement | nul
                         }
                     }
                 } catch (err: any) {
-                    console.error('[AetherGenesis] Render loop error:', err);
+                    console.error('[AetherGenesis] Tick callback error:', err);
                     setFatalError((prev) => prev || (err.message || 'Unknown render error'));
                 }
             };
-            animate();
+
+            // Start the engine playhead and rendering loop
+            engine.start();
 
             const handleResize = () => {
                 engine.resize(window.innerWidth, window.innerHeight);
@@ -589,7 +439,8 @@ export function useSimulation(containerRef: React.RefObject<HTMLDivElement | nul
                 window.removeEventListener('pointerdown', onPointerDown);
                 window.removeEventListener('pointermove', onPointerMove);
                 window.removeEventListener('pointerup', onPointerUp);
-                cancelAnimationFrame(frameId);
+                
+                engine.stop();
 
                 if (nbodyWorkerRef.current) {
                     nbodyWorkerRef.current.terminate();
@@ -618,6 +469,45 @@ export function useSimulation(containerRef: React.RefObject<HTMLDivElement | nul
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
+    // Sync play/pause cosmic to engine
+    useEffect(() => {
+        if (engineRef.current) {
+            engineRef.current.isPlayingCosmic = isPlayingCosmic;
+        }
+    }, [isPlayingCosmic]);
+
+    // Wrapped scrub handlers to sync to engine properties
+    const wrappedOnGlobalScrubStart = useCallback((e: React.PointerEvent) => {
+        if (engineRef.current) engineRef.current.isGlobalScrubbing = true;
+        onGlobalScrubStart(e);
+    }, [onGlobalScrubStart]);
+
+    const wrappedOnGlobalScrubMove = useCallback((e: React.PointerEvent) => {
+        onGlobalScrubMove(e);
+        if (engineRef.current) {
+            engineRef.current.cosmicAge = cosmicAgeRef.current;
+        }
+    }, [onGlobalScrubMove, cosmicAgeRef]);
+
+    const wrappedOnGlobalScrubEnd = useCallback(() => {
+        if (engineRef.current) engineRef.current.isGlobalScrubbing = false;
+        onGlobalScrubEnd();
+    }, [onGlobalScrubEnd]);
+
+    const wrappedOnScrubStart = useCallback((e: React.PointerEvent) => {
+        if (engineRef.current) engineRef.current.isScrubbing = true;
+        onScrubStart(e);
+    }, [onScrubStart]);
+
+    const wrappedOnScrubMove = useCallback((e: React.PointerEvent) => {
+        onScrubMove(e);
+    }, [onScrubMove]);
+
+    const wrappedOnScrubEnd = useCallback(() => {
+        if (engineRef.current) engineRef.current.isScrubbing = false;
+        onScrubEnd();
+    }, [onScrubEnd]);
+
     return {
         selectedStar,
         setSelectedStar,
@@ -639,12 +529,12 @@ export function useSimulation(containerRef: React.RefObject<HTMLDivElement | nul
         fps, 
         showTierDownIndicator, 
         numHeroStars: engineRef.current?.heroStars.length ?? 0,
-        onScrubStart,
-        onScrubMove,
-        onScrubEnd,
-        onGlobalScrubStart,
-        onGlobalScrubMove,
-        onGlobalScrubEnd,
+        onScrubStart: wrappedOnScrubStart,
+        onScrubMove: wrappedOnScrubMove,
+        onScrubEnd: wrappedOnScrubEnd,
+        onGlobalScrubStart: wrappedOnGlobalScrubStart,
+        onGlobalScrubMove: wrappedOnGlobalScrubMove,
+        onGlobalScrubEnd: wrappedOnGlobalScrubEnd,
         onKeyDown: (e: React.KeyboardEvent, global: boolean) => {
             const k = e.key;
             if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(k)) return;
@@ -653,6 +543,9 @@ export function useSimulation(containerRef: React.RefObject<HTMLDivElement | nul
                 let a = k==='Home'?0 : k==='End'?14 : cosmicAgeRef.current+(k==='ArrowLeft'?-0.1:0.1);
                 a = Math.max(0, Math.min(14, a));
                 setCosmicAge(a); cosmicAgeRef.current = a;
+                if (engineRef.current) {
+                    engineRef.current.cosmicAge = a;
+                }
                 const formattedAge = a.toFixed(2);
                 e.currentTarget.setAttribute('aria-valuenow', formattedAge);
                 e.currentTarget.setAttribute('aria-valuetext', `${formattedAge} Billion Years`);

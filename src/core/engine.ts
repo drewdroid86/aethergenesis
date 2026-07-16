@@ -27,6 +27,54 @@ export class Engine {
     private stellarState: StellarState;
     private phaseTransitionLog: PhaseTransitionEvent[] = [];
 
+    // Decoupled Simulation States
+    selectedStar: HeroStarSystem | null = null;
+    isScrubbing: boolean = false;
+    physicsConstants: PhysicsConstants = DEFAULT_CONSTANTS;
+    cosmicAge: number = 0;
+    timeScale: 'cosmic' | 'realtime' = 'cosmic';
+    nbodyBuffer: Float32Array | null = null;
+    isPlayingCosmic: boolean = true;
+    isGlobalScrubbing: boolean = false;
+
+    private _frameId: number | null = null;
+    private _lastFrameTime: number = 0;
+
+    // Tick callback for decoupled integrations
+    onTick: ((delta: number, appTime: number) => void) | null = null;
+
+    start() {
+        if (this._frameId !== null) return;
+        this._lastFrameTime = performance.now();
+        const loop = () => {
+            this._frameId = requestAnimationFrame(loop);
+            const now = performance.now();
+            const delta = Math.max(0.001, Math.min((now - this._lastFrameTime) / 1000, 0.05));
+            this._lastFrameTime = now;
+            
+            if (this.isPlayingCosmic && !this.isGlobalScrubbing) {
+                this.cosmicAge += this.timeScale === 'cosmic' ? delta * 0.2 : (delta / 31557600) / 1e9;
+                if (this.cosmicAge > 14) {
+                    this.cosmicAge = 0;
+                }
+            }
+
+            this.update(delta);
+
+            if (this.onTick) {
+                this.onTick(delta, this.appTime);
+            }
+        };
+        this._frameId = requestAnimationFrame(loop);
+    }
+
+    stop() {
+        if (this._frameId !== null) {
+            cancelAnimationFrame(this._frameId);
+            this._frameId = null;
+        }
+    }
+
     getStellarState() { return this.stellarState; }
     getPhaseHistory() { return this.phaseTransitionLog; }
 
@@ -158,10 +206,17 @@ export class Engine {
         }
     }
 
-    update(delta: number, selectedStar: HeroStarSystem | null, isScrubbing: boolean, physics: PhysicsConstants, cosmicAge: number, timeScale: 'cosmic' | 'realtime' = 'cosmic', nbodyBuffer: Float32Array | null = null) {
+    update(delta: number) {
         if (!this.isPaused) {
             this.appTime += delta; 
         }
+
+        const physics = this.physicsConstants;
+        const selectedStar = this.selectedStar;
+        const isScrubbing = this.isScrubbing;
+        const cosmicAge = this.cosmicAge;
+        const timeScale = this.timeScale;
+        const nbodyBuffer = this.nbodyBuffer;
 
         // Dark Matter affects background star visibility
         this._backgroundStarMat.opacity = 0.1 + (physics.darkMatter || 0) * 2.0;
