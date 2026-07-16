@@ -17,12 +17,14 @@ void main() {
   vec3 color = vec3(r, g, b);
 
   // Dynamic Film Grain
-  float grain = (random(uv * mod(time, 100.0)) - 0.5) * 0.04;
+  float noise = random(uv + fract(time));
+  float grain = (noise - 0.5) * 0.012;
   color += grain;
 
-  // Vignette
+  // Vignette (avoiding undefined behavior smoothstep(0.8, 0.2) where edge0 > edge1)
   float dist = distance(uv, vec2(0.5));
-  color *= smoothstep(0.8, 0.2, dist * 1.1);
+  float vignette = 1.0 - smoothstep(0.4, 0.8, dist * 1.1);
+  color *= mix(1.0, vignette, 0.25); // Subtle 25% vignette
 
   gl_FragColor = vec4(color, 1.0);
 }

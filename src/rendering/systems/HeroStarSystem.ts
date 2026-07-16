@@ -118,6 +118,7 @@ export class HeroStarSystem extends THREE.Group {
 
     public hitMesh: THREE.Mesh;
     public planetarySystem?: PlanetarySystem;
+    public starLight?: THREE.PointLight;
 
     public baseRadius: number;
     private tHeat: number;
@@ -152,6 +153,10 @@ export class HeroStarSystem extends THREE.Group {
             new THREE.MeshBasicMaterial({visible: false})
         );
         this.add(this.hitMesh);
+
+        // PointLight representing star radiation
+        this.starLight = new THREE.PointLight(0xffffff, 1.0, 500);
+        this.add(this.starLight);
     }
 
 
@@ -408,6 +413,32 @@ export class HeroStarSystem extends THREE.Group {
 
         if (targetNs > 0 || (this._remnantPhase && this._opNs > 0)) {
             this.remnantPhase.updateRemnantOpacity(delta, targetNs);
+        }
+
+        // Dynamic update of star light color and intensity based on temperature and luminosity
+        if (this.starLight) {
+            if (this.phase === PHASES.MAIN_SEQUENCE || this.phase === PHASES.RED_GIANT || this.phase === PHASES.PROTOSTAR || this.phase === PHASES.SUPERNOVA) {
+                this.starLight.intensity = Math.min(50.0, this.currentLum * 2.0);
+                if (this.phase === PHASES.RED_GIANT) {
+                    this.starLight.color.setHex(0xff7733);
+                } else if (this.phase === PHASES.PROTOSTAR) {
+                    this.starLight.color.setHex(0xffaa44);
+                } else if (this.phase === PHASES.SUPERNOVA) {
+                    this.starLight.color.setHex(0xffffff);
+                    this.starLight.intensity = 100.0;
+                } else {
+                    if (this.mass > 8.0) {
+                        this.starLight.color.setHex(0x99ccff);
+                    } else if (this.mass < 0.4) {
+                        this.starLight.color.setHex(0xff3300);
+                    } else {
+                        this.starLight.color.setHex(0xfff3e0);
+                    }
+                }
+                this.starLight.visible = true;
+            } else {
+                this.starLight.visible = false;
+            }
         }
     }
 

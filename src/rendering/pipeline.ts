@@ -3,6 +3,7 @@ import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
+import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { CinematicPassShader } from './shaders/stellar';
 
 export class Pipeline {
@@ -19,14 +20,17 @@ export class Pipeline {
 
         this.bloomPass = new UnrealBloomPass(
             new THREE.Vector2(window.innerWidth, window.innerHeight), 
-            1.6, 0.4, 0.1
+            0.85, 0.4, 1.0
         );
-        this.bloomPass.radius = 0.75;
-        this.bloomPass.threshold = 0.08;
+        this.bloomPass.radius = 0.4;
+        this.bloomPass.threshold = 1.0;
         this.composer.addPass(this.bloomPass);
 
         this.cinematicPass = new ShaderPass(CinematicPassShader);
         this.composer.addPass(this.cinematicPass);
+
+        const outputPass = new OutputPass();
+        this.composer.addPass(outputPass);
     }
 
     public render(appTime: number, _delta: number): void {

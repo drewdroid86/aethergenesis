@@ -14,7 +14,7 @@ class MagneticCurve extends THREE.Curve<THREE.Vector3> {
 }
 
 export const GEOMETRIES = {
-    nebula: new THREE.SphereGeometry(15, 32, 32),
+    nebula: new THREE.SphereGeometry(1, 48, 48),
     protostar: new THREE.SphereGeometry(1, 64, 64),
     protostarDisk: new THREE.TorusGeometry(2, 0.4, 8, 32),
     mainSeq: new THREE.SphereGeometry(1, 64, 64),

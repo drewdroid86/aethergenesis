@@ -43,7 +43,7 @@ void main() {
         
         // Density calculation
         float density = smoothstep(0.3, 0.7, n + sparkles * 0.1);
-        density *= smoothstep(targetR, targetR * 0.6, d); // fade near edge
+        density *= 1.0 - smoothstep(targetR * 0.6, targetR, d); // fade near edge
         
         // Calculate temperatures
         vec3 hotCore = vec3(1.0, 0.8, 0.4);
