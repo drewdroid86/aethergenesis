@@ -142,4 +142,4 @@ Ordered by visual-impact-per-effort. Items 1–3 are the bug fixes above; 4+ are
 ## 6. Performance & Code Quality
 
 - **Per-star unique geometry:** `MainSequencePhase` creates a *new* `SphereGeometry(baseRadius*1.15, 32, 32)` per star for the rim corona (~2 k verts each). At 600 stars on ultra that's 600 unique GPU buffers for what could be one shared unit sphere scaled by the mesh. Same for the pattern in general — audit `new THREE.*Geometry` inside `init()` methods.
-- **Dead corona mesh:** `this.coronaMesh` uses shared `GEOMETRIES.corona` (radius 1.15) and is **never scaled by `baseRadius`** — for any star bigger than ~1.4 M☉ it sits *inside* the star as an invisible additive blob, and f
+- **Dead corona mesh:** `this.coronaMesh` uses shared `GEOMETRIES.corona` (radius 1.15) and is **never scaled by `baseRadius`** — for any star bigger than ~1.4 M☉ it sits *inside* the star as an invisible additive blob, and flatly wastes draw calls and fillrate. Unify or remove it.
