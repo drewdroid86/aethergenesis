@@ -215,8 +215,11 @@ export class PlanetarySystem {
             types[i] = Math.floor(Math.random() * 7);
             seeds[i] = Math.random() * 1000.0;
             
+            const isGasGiant = types[i] === 1;
+            const baseScale = 0.08 + Math.random() * 0.12;
+            const pScale = isGasGiant ? baseScale * 2.5 : baseScale;
             this.bodies.push({
-                scale: 1.5 + Math.random() * 2.0,
+                scale: pScale,
                 type: types[i],
                 seed: seeds[i]
             });
@@ -264,9 +267,10 @@ export class PlanetarySystem {
             const b = this.bodies[i];
             const offset = i * 16;
             
-            const x = buffer[i * 7 + 0];
-            const y = buffer[i * 7 + 1];
-            const z = buffer[i * 7 + 2];
+            const orbitScale = 12.0;
+            const x = buffer[i * 7 + 0] * orbitScale;
+            const y = buffer[i * 7 + 1] * orbitScale;
+            const z = buffer[i * 7 + 2] * orbitScale;
             
             // BOLT: Manual column-major matrix construction (Translation * RotationY * Scale)
             // Bypasses THREE.Matrix4.compose() and setMatrixAt() validation/method overhead.

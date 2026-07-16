@@ -189,25 +189,6 @@ export class MainSequencePhase implements PhaseComponent {
         this.hzMesh.rotation.y = Math.random() * Math.PI * 0.2;
         this.hzMesh.rotation.z = Math.random() * Math.PI * 0.2;
         this.parent.add(this.hzMesh);
-
-        // Planets
-        for(let i=0; i<2; i++) {
-            const dist = hzRadius * STELLAR_CONSTANTS.VISUALS.PLANET_HZ_DIST_FACTOR + Math.random() * 8 + (i * 2); 
-            const pScale = 0.2 + Math.random() * 0.25;
-            const pColor = i === 0 ? 0x8899aa : 0xcc8855;
-            const pMesh = new THREE.Mesh(
-                GEOMETRIES.planet,
-                new THREE.MeshStandardMaterial({color: pColor, roughness: 0.8, metalness: 0.2})
-            );
-            pMesh.scale.setScalar(pScale);
-            pMesh.position.x = dist;
-            const pivot = new THREE.Group();
-            pivot.rotation.y = Math.random() * Math.PI * 2;
-            const speed = (0.5 + Math.random()) / Math.sqrt(dist);
-            pivot.add(pMesh);
-            this.parent.add(pivot);
-            this.planetsInfo.push({ pivot, mesh: pMesh, dist, speed, baseColor: pColor });
-        }
         
         this.hide();
     }
