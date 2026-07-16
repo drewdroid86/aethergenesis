@@ -145,7 +145,9 @@ test('F2-T3-24: Discovery Slider "Comet Activity" Spawns Comets', () => {
 test('F2-T4-25: UI State Tuning Scenario', () => {
   // Simulate user switching from Discovery to Science mode to fine tune, and then back.
   let uiMode = 'discovery';
+  // eslint-disable-next-line prefer-const
   let sliders = { waterLevel: 0.8, stellarHeat: 0.5 };
+  // eslint-disable-next-line prefer-const
   let physics = { G: 1.0, albedo: 0.3 };
 
   // 1. User switches to Science Mode

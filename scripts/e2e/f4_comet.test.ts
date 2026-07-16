@@ -234,6 +234,7 @@ test('F4-T2-46: Volatile-Deficient Asteroid Impact (No Water Delivery)', () => {
 // ==========================================
 
 test('F4-T3-47: Spawning Comets Disallowed in Galaxy Sandbox', () => {
+  // eslint-disable-next-line prefer-const
   let mode = 'galaxy_sandbox';
   let allowedActions: string[] = ['speed', 'mass', 'softening'];
   
