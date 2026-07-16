@@ -117,48 +117,77 @@ function physicsTick() {
         accelsValid = false;
     }
 
-    // Velocity Verlet Integrator (optimized to 1 acceleration calc per tick)
-    
-    // 1. If we don't have valid accelerations from last tick, calculate them now
-    if (!accelsValid) {
+    // Determine substep counts to keep integration stable (max dt per step ~ 0.002 yr)
+    const target_dt = dt_yr;
+    const max_stable_dt = 0.002;
+    const substeps = Math.max(1, Math.min(100, Math.ceil(target_dt / max_stable_dt)));
+    const dt_sub = target_dt / substeps;
+    const dt_half = dt_sub * 0.5;
+
+    for (let step = 0; step < substeps; step++) {
+        // 1. If we don't have valid accelerations from last tick, calculate them now
+        if (!accelsValid) {
+            calculateAccelerations(accelBuffer);
+            accelsValid = true;
+        }
+
+        // 2. First half-step: v(t + dt/2) = v(t) + a(t) * dt/2
+        //    And full-step position: r(t + dt) = r(t) + v(t + dt/2) * dt
+        for (let i = 0; i < n; i++) {
+            const b = bodies[i];
+
+            // NaN guard: reset if calculation exploded
+            if (isNaN(b.position_au.x) || isNaN(b.velocity_au_yr.x)) {
+                b.position_au.x = (i + 1) * 2.0;
+                b.position_au.y = 0.0;
+                b.position_au.z = 0.0;
+                b.velocity_au_yr.x = 0.0;
+                b.velocity_au_yr.y = (2.0 * Math.PI) / Math.sqrt((i + 1) * 2.0);
+                b.velocity_au_yr.z = 0.0;
+                accelsValid = false;
+            }
+
+            const ax = accelBuffer[i * 3 + 0];
+            const ay = accelBuffer[i * 3 + 1];
+            const az = accelBuffer[i * 3 + 2];
+
+            b.velocity_au_yr.x += ax * dt_half;
+            b.velocity_au_yr.y += ay * dt_half;
+            b.velocity_au_yr.z += az * dt_half;
+
+            b.position_au.x += b.velocity_au_yr.x * dt_sub;
+            b.position_au.y += b.velocity_au_yr.y * dt_sub;
+            b.position_au.z += b.velocity_au_yr.z * dt_sub;
+
+            // Clamp maximum distance to 200 AU to prevent infinity propagation
+            const distSq = b.position_au.x * b.position_au.x + b.position_au.y * b.position_au.y + b.position_au.z * b.position_au.z;
+            if (distSq > 40000.0) { // 200 AU squared
+                const scale = Math.sqrt(40000.0 / distSq);
+                b.position_au.x *= scale;
+                b.position_au.y *= scale;
+                b.position_au.z *= scale;
+                b.velocity_au_yr.x *= 0.1;
+                b.velocity_au_yr.y *= 0.1;
+                b.velocity_au_yr.z *= 0.1;
+                accelsValid = false;
+            }
+        }
+
+        // 3. Recalculate accelerations at new positions: a(t + dt)
         calculateAccelerations(accelBuffer);
-        accelsValid = true;
-    }
 
-    const dt_half = dt_yr * 0.5;
+        // 4. Second half-step: v(t + dt) = v(t + dt/2) + a(t + dt) * dt/2
+        for (let i = 0; i < n; i++) {
+            const b = bodies[i];
 
-    // 2. First half-step: v(t + dt/2) = v(t) + a(t) * dt/2
-    //    And full-step position: r(t + dt) = r(t) + v(t + dt/2) * dt
-    for (let i = 0; i < n; i++) {
-        const b = bodies[i];
+            const ax = accelBuffer[i * 3 + 0];
+            const ay = accelBuffer[i * 3 + 1];
+            const az = accelBuffer[i * 3 + 2];
 
-        const ax = accelBuffer[i * 3 + 0];
-        const ay = accelBuffer[i * 3 + 1];
-        const az = accelBuffer[i * 3 + 2];
-
-        b.velocity_au_yr.x += ax * dt_half;
-        b.velocity_au_yr.y += ay * dt_half;
-        b.velocity_au_yr.z += az * dt_half;
-
-        b.position_au.x += b.velocity_au_yr.x * dt_yr;
-        b.position_au.y += b.velocity_au_yr.y * dt_yr;
-        b.position_au.z += b.velocity_au_yr.z * dt_yr;
-    }
-
-    // 3. Recalculate accelerations at new positions: a(t + dt)
-    calculateAccelerations(accelBuffer);
-
-    // 4. Second half-step: v(t + dt) = v(t + dt/2) + a(t + dt) * dt/2
-    for (let i = 0; i < n; i++) {
-        const b = bodies[i];
-
-        const ax = accelBuffer[i * 3 + 0];
-        const ay = accelBuffer[i * 3 + 1];
-        const az = accelBuffer[i * 3 + 2];
-
-        b.velocity_au_yr.x += ax * dt_half;
-        b.velocity_au_yr.y += ay * dt_half;
-        b.velocity_au_yr.z += az * dt_half;
+            b.velocity_au_yr.x += ax * dt_half;
+            b.velocity_au_yr.y += ay * dt_half;
+            b.velocity_au_yr.z += az * dt_half;
+        }
     }
 
     // Pack state for rendering main thread
