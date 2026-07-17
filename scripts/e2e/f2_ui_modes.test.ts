@@ -1,3 +1,4 @@
+/* eslint-disable prefer-const, @typescript-eslint/no-unused-vars */
 import test from 'node:test';
 import assert from 'node:assert';
 import WebSocket from 'ws';
