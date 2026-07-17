@@ -70,6 +70,21 @@ src/
 
 ---
 
+### perf/eager-phase-init — Eager Phase Initialization & Stutter Diagnostics
+**Date:** July 17, 2026
+**AI:** Antigravity (Gemini 3.5 Flash)
+**Branch:** perf/eager-phase-init
+
+**Changes:**
+- **Eager Phase Initialization:** Eagerly instantiated all six stellar lifecycle phases (`NebulaPhase`, `ProtostarPhase`, `MainSequencePhase`, `RedGiantPhase`, `SupernovaPhase`, `RemnantPhase`) inside the `HeroStarSystem` constructor instead of initializing them lazily. Set `customProgramCacheKey` across all phase materials to maximize WebGL program caching and prevent compile stutters.
+- **Stutter & Performance Telemetry Dashboard:** Implemented a togglable diagnostics panel in the HUD (`Hud.tsx`, `usePerformanceAutoTuning.ts`) displaying frame times, 1% low FPS, draw calls, triangles, memory heap usage, long-running tasks, and phase inits/disposals.
+- **Main Thread Block Logging:** Integrated a `PerformanceObserver` targeting `longtask` entries to log, trace, and warn about main thread blockages (>50ms) with a suspect collection size printout.
+- **ESLint & TypeScript Cleanup:** Fixed 14 ESLint error issues across `server.ts`, `SimulationCoordinator.ts`, and test files (fixing `no-useless-assignment` and `prefer-const` warnings-turned-errors).
+
+**State at end:** Code compiles, passes build bundler checks, passes all E2E test suites with zero errors, and runs cleanly with no ESLint errors.
+
+---
+
 ### fix/e2e-preset-lifecycle-issues — E2E Test Suite Alignment & Bug Fixes
 **Date:** July 15, 2026
 **AI:** Antigravity (Gemini 3.5 Flash)
