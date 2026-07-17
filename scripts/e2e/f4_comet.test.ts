@@ -1,3 +1,4 @@
+/* eslint-disable prefer-const */
 import test from 'node:test';
 import assert from 'node:assert';
 import { AstrobiologyEngine, HabitabilityState } from '../../src/simulation/AstrobiologyEngine';
@@ -234,7 +235,7 @@ test('F4-T2-46: Volatile-Deficient Asteroid Impact (No Water Delivery)', () => {
 // ==========================================
 
 test('F4-T3-47: Spawning Comets Disallowed in Galaxy Sandbox', () => {
-  let mode = 'galaxy_sandbox';
+  const mode = 'galaxy_sandbox';
   let allowedActions: string[] = ['speed', 'mass', 'softening'];
   
   if (mode === 'galaxy_sandbox') {

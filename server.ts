@@ -371,7 +371,7 @@ function estimateParams(spType: string) {
   let temp = 5778;
   let rad = 1.0;
   let lum = 1.0;
-  let metallicity = 0.02;
+  const metallicity = 0.02;
 
   if (!spType) return { mass_solar: mass, temperature_K: temp, radius_solar: rad, luminosity_solar: lum, metallicity_Z: metallicity };
 
@@ -586,7 +586,7 @@ app.get('/api/catalog/search', async (req, res) => {
   // General search
   // Try SIMBAD
   try {
-    let filters = ["sp_type IS NOT NULL", "plx_value IS NOT NULL", "plx_value > 0"];
+    const filters = ["sp_type IS NOT NULL", "plx_value IS NOT NULL", "plx_value > 0"];
     if (spectralClass) {
       const safeSp = spectralClass.substring(0, 64).replace(/'/g, "''");
       filters.push(`sp_type LIKE '${safeSp}%'`);
@@ -670,6 +670,7 @@ app.get('/api/horizons/search', async (req, res) => {
 
   if (bodyId) {
     // Security check: validate body_id format and length
+    // eslint-disable-next-line no-useless-escape
     if (bodyId.length > 100 || /[^a-zA-Z0-9\s\/-]/.test(bodyId)) {
       return res.status(400).json({ error: 'Invalid body ID format' });
     }
@@ -777,7 +778,7 @@ app.get('/api/horizons/search', async (req, res) => {
       }
     } catch (err) {
       // Fallback
-      let results = [];
+      let results: any[];
       if (type === 'comet') {
         results = [
           { naif_id: "1P", name: "1P/Halley", type: "comet", period_yr: 75.3, eccentricity: 0.967, perihelion_au: 0.586, inclination_deg: 162.2, coma_onset_au: 3.0, tail_onset_au: 2.5 },

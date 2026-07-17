@@ -9,6 +9,21 @@ export interface SimStatePayload {
     astrobiology: any[];
 }
 
+// BOLT: Lookup table mapping numerical planetary types to strings in O(1) time
+const BODY_TYPE_MAP = ['rocky', 'gas_giant', 'ice', 'lava', 'ocean', 'desert', 'jungle'];
+
+// BOLT: Lookup table of physical constants to eliminate branch-heavy if-else chains
+const BODY_TYPE_PROPERTIES: Record<string, { massMul: number; radiusMul: number; albedo: number }> = {
+    gas_giant: { massMul: 317, radiusMul: 11, albedo: 0.5 },
+    ice: { massMul: 15, radiusMul: 4, albedo: 0.6 },
+    lava: { massMul: 0.8, radiusMul: 0.9, albedo: 0.1 },
+    desert: { massMul: 0.5, radiusMul: 0.8, albedo: 0.4 },
+    ocean: { massMul: 1.2, radiusMul: 1.1, albedo: 0.2 },
+    jungle: { massMul: 1.0, radiusMul: 1.0, albedo: 0.18 },
+    rocky: { massMul: 0.6, radiusMul: 0.75, albedo: 0.15 },
+    comet: { massMul: 0.6, radiusMul: 0.75, albedo: 0.15 }
+};
+
 export class SimulationCoordinator {
     private engine: Engine;
     private astrobiologyEngine: AstrobiologyEngine;
@@ -91,20 +106,23 @@ export class SimulationCoordinator {
 
             const MASS_EARTH = 5.97e24;
             const RADIUS_EARTH = 6371000;
+            // BOLT: Hoist loop-invariant Keplerian gravity constant (4 * pi^2 * mass) out of the loop
+            const G_M = 39.47841760435743 * perStarState.mass_solar;
 
             for (let i = 0; i < numBodies; i++) {
-                const x = buffer[i * 7 + 0];
-                const y = buffer[i * 7 + 1];
-                const z = buffer[i * 7 + 2];
-                const vx = buffer[i * 7 + 3];
-                const vy = buffer[i * 7 + 4];
-                const vz = buffer[i * 7 + 5];
-                const bodyTypeVal = buffer[i * 7 + 6];
+                // BOLT: Cache offset multiplication to avoid redundant math
+                const offset = i * 7;
+                const x = buffer[offset + 0];
+                const y = buffer[offset + 1];
+                const z = buffer[offset + 2];
+                const vx = buffer[offset + 3];
+                const vy = buffer[offset + 4];
+                const vz = buffer[offset + 5];
+                const bodyTypeVal = buffer[offset + 6];
                 
                 const r = Math.sqrt(x*x + y*y + z*z);
                 const vSq = vx*vx + vy*vy + vz*vz;
                 
-                const G_M = 4.0 * Math.PI * Math.PI * perStarState.mass_solar;
                 let a = 1.0;
                 if (G_M > 0 && r > 0) {
                     const invA = 2.0 / r - vSq / G_M;
@@ -112,7 +130,10 @@ export class SimulationCoordinator {
                 }
 
                 const p = star.planetarySystem?.bodies[i];
-                const bodyType = p ? (p.type === 1 ? 'gas_giant' : p.type === 2 ? 'ice' : p.type === 3 ? 'lava' : p.type === 4 ? 'ocean' : p.type === 5 ? 'desert' : p.type === 6 ? 'jungle' : 'rocky') : (bodyTypeVal === 1 ? 'comet' : 'rocky');
+                // BOLT: Use static array lookup mapping instead of branch-heavy ternary operators
+                const bodyType = p
+                    ? (BODY_TYPE_MAP[p.type] || 'rocky')
+                    : (bodyTypeVal === 1 ? 'comet' : 'rocky');
 
                 orbitalStates.push({
                     body_id: `body_${i}`,
@@ -124,25 +145,11 @@ export class SimulationCoordinator {
                     tail_vector: bodyType === 'comet' ? { x: x/r, y: y/r, z: z/r } : null
                 });
 
-                let mass = MASS_EARTH;
-                let radius = RADIUS_EARTH;
-                let albedo = 0.3;
-
-                if (bodyType === 'gas_giant') {
-                    mass *= 317; radius *= 11; albedo = 0.5;
-                } else if (bodyType === 'ice') {
-                    mass *= 15; radius *= 4; albedo = 0.6;
-                } else if (bodyType === 'lava') {
-                    mass *= 0.8; radius *= 0.9; albedo = 0.1;
-                } else if (bodyType === 'desert') {
-                    mass *= 0.5; radius *= 0.8; albedo = 0.4;
-                } else if (bodyType === 'ocean') {
-                    mass *= 1.2; radius *= 1.1; albedo = 0.2;
-                } else if (bodyType === 'jungle') {
-                    mass *= 1.0; radius *= 1.0; albedo = 0.18;
-                } else {
-                    mass *= 0.6; radius *= 0.75; albedo = 0.15;
-                }
+                // BOLT: Use O(1) static properties map to eliminate nested if-else chain branching
+                const props = BODY_TYPE_PROPERTIES[bodyType] || BODY_TYPE_PROPERTIES.rocky;
+                const mass = MASS_EARTH * props.massMul;
+                const radius = RADIUS_EARTH * props.radiusMul;
+                const albedo = props.albedo;
 
                 const habState: any = this.astrobiologyEngine.evaluatePlanet(
                     `body_${i}`, a, mass, radius, albedo, perStarState as any, deltaTime_yr, bodyType
