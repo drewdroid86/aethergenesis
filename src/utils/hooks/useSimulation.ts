@@ -156,9 +156,19 @@ export function useSimulation(containerRef: React.RefObject<HTMLDivElement | nul
         fps,
         showTierDownIndicator,
         registerFrameDelta,
+        diagnosticsEnabled,
+        setDiagnosticsEnabled,
+        diagnostics,
+        resetDiagnostics
     } = usePerformanceAutoTuning({
-        rebuildStarfieldGeometry
+        rebuildStarfieldGeometry,
+        engineRef
     });
+
+    const registerFrameDeltaRef = useRef(registerFrameDelta);
+    useEffect(() => {
+        registerFrameDeltaRef.current = registerFrameDelta;
+    }, [registerFrameDelta]);
 
     // Sync performance auto-tuning tier to our local state
     useEffect(() => {
@@ -245,6 +255,7 @@ export function useSimulation(containerRef: React.RefObject<HTMLDivElement | nul
             engine.isPaused = isPausedRef.current;
             engine.timeScale = timeScaleRef.current;
             engine.isPlayingCosmic = isPlayingCosmicRef.current;
+            engine.cosmicAge = cosmicAgeRef.current;
 
             const nebulaSystem = new NebulaSystem(engine.scene);
             nebulaSystemRef.current = nebulaSystem;
@@ -367,7 +378,7 @@ export function useSimulation(containerRef: React.RefObject<HTMLDivElement | nul
 
             coordinator.onTick = (cosmicAgeVal, delta) => {
                 try {
-                    registerFrameDelta(delta, performance.now());
+                    registerFrameDeltaRef.current(delta, performance.now());
 
                     if (isPlayingCosmicRef.current && !isGlobalScrubbingRef.current) {
                         cosmicAgeRef.current = cosmicAgeVal;
@@ -528,6 +539,10 @@ export function useSimulation(containerRef: React.RefObject<HTMLDivElement | nul
         currentTier, 
         fps, 
         showTierDownIndicator, 
+        diagnosticsEnabled,
+        setDiagnosticsEnabled,
+        diagnostics,
+        resetDiagnostics,
         numHeroStars: engineRef.current?.heroStars.length ?? 0,
         onScrubStart: wrappedOnScrubStart,
         onScrubMove: wrappedOnScrubMove,

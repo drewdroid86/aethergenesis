@@ -3,6 +3,7 @@ uniform vec3 uColor;
 uniform float uCollapse;
 uniform vec3 uCameraPos;
 uniform mat4 uInverseModelMatrix;
+uniform float uOpacity;
 
 varying vec3 vLocalPosition;
 varying vec3 vWorldPosition;
@@ -81,5 +82,5 @@ void main() {
         pos += rayDir * stepSize;
     }
     
-    gl_FragColor = vec4(accCol, alpha * smoothstep(1.0, 0.9, uCollapse));
+    gl_FragColor = vec4(accCol, alpha * smoothstep(1.0, 0.9, uCollapse) * uOpacity);
 }

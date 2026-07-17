@@ -31,3 +31,9 @@ export function getNumStarsForTier(tier: PerformanceTier): number {
         default: return 400;
     }
 }
+
+export const phaseCounters = {
+    inits: 0,
+    disposals: 0,
+    blockedDoubleInits: 0
+};

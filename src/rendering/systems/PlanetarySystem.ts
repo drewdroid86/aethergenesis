@@ -54,6 +54,7 @@ varying vec3 vWorldPosition;
 uniform vec3 u_starPosition;
 uniform float u_biomass;
 uniform int u_kardashevTier;
+uniform float uOpacity;
 
 // Hash function for noise
 float hash(vec2 p) {
@@ -167,7 +168,7 @@ void main() {
         finalColor += vec3(1.0, 0.85, 0.4) * cityLights * u_biomass * 2.0;
     }
 
-    gl_FragColor = vec4(finalColor, 1.0);
+    gl_FragColor = vec4(finalColor, uOpacity);
 }
 `;
 
@@ -200,11 +201,14 @@ export class PlanetarySystem {
                 uTime: { value: 0 },
                 u_starPosition: { value: new THREE.Vector3() },
                 u_biomass: { value: 0.0 },
-                u_kardashevTier: { value: 0 }
+                u_kardashevTier: { value: 0 },
+                uOpacity: { value: 1.0 }
             },
+            transparent: true,
             vertexShader: PLANET_VS,
             fragmentShader: PLANET_FS
         });
+        this.material.customProgramCacheKey = () => 'planetary_system_material';
 
         this.instancedMesh = new THREE.InstancedMesh(geometry, this.material, numBodies);
         
@@ -245,7 +249,7 @@ export class PlanetarySystem {
     /**
      * Update orbits based on Float32Array from nbodyWorker.ts
      */
-    updateFromBuffer(buffer: Float32Array, delta: number, lowDetail?: boolean): void {
+    updateFromBuffer(buffer: Float32Array, delta: number, lowDetail?: boolean, globalFade: number = 1.0): void {
         const star = this.parent as any;
         
         if (star.phase !== PHASES.MAIN_SEQUENCE || lowDetail) {
@@ -254,6 +258,7 @@ export class PlanetarySystem {
         }
         this.group.visible = true;
         this.material.uniforms.uTime.value += delta;
+        this.material.uniforms.uOpacity.value = globalFade;
         
         // BOLT: Optimized u_starPosition update. While .getWorldPosition is safer,
         // caching the result here avoids redundant matrix updates if called frequently.

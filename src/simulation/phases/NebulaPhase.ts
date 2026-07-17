@@ -4,6 +4,7 @@ import { PhysicsConstants } from '../../types/physics';
 import { basicVS, nebulaFS, particleVS, particleFS } from '../../rendering/shaders/stellar';
 import { GEOMETRIES } from './geometries';
 import { STELLAR_CONSTANTS } from '../../core/constants';
+import { phaseCounters } from '../../utils/performance';
 
 export class NebulaPhase implements PhaseComponent {
     private nebulaMat!: THREE.ShaderMaterial;
@@ -11,8 +12,19 @@ export class NebulaPhase implements PhaseComponent {
     private dustCloud!: THREE.Points;
     private parent!: THREE.Group;
     private _matrixInitialized: boolean = false;
+    private initialized = false;
+
+    constructor() {
+        phaseCounters.inits++;
+    }
 
     init(parent: THREE.Group): void {
+        if (this.initialized) {
+            phaseCounters.blockedDoubleInits++;
+            console.warn('[Diagnostics] NebulaPhase already initialized for this star! Guarding duplicate init.');
+            return;
+        }
+        this.initialized = true;
         this.parent = parent;
 
         this.nebulaMat = new THREE.ShaderMaterial({
@@ -23,13 +35,15 @@ export class NebulaPhase implements PhaseComponent {
                 uColor: { value: new THREE.Color(0x3a0088) },
                 uCollapse: { value: 0 },
                 uCameraPos: { value: new THREE.Vector3() },
-                uInverseModelMatrix: { value: new THREE.Matrix4() }
+                uInverseModelMatrix: { value: new THREE.Matrix4() },
+                uOpacity: { value: 1.0 }
             },
             transparent: true,
             depthWrite: false,
             blending: THREE.AdditiveBlending,
             side: THREE.FrontSide
         });
+        this.nebulaMat.customProgramCacheKey = () => 'nebula_phase_material';
         this.nebulaMesh = new THREE.Mesh(GEOMETRIES.nebula, this.nebulaMat);
         this.nebulaMesh.scale.setScalar(15);
         this.parent.add(this.nebulaMesh);
@@ -49,45 +63,55 @@ export class NebulaPhase implements PhaseComponent {
         }
         dustGeo.setAttribute('position', new THREE.BufferAttribute(dustPos, 3));
         dustGeo.setAttribute('size', new THREE.BufferAttribute(dustSize, 1));
-        this.dustCloud = new THREE.Points(
-            dustGeo,
-            new THREE.ShaderMaterial({
-                uniforms: { uColor: { value: new THREE.Color(0xaa66ff) }, uAlpha: { value: 1.0 } },
-                vertexShader: particleVS,
-                fragmentShader: particleFS,
-                transparent: true,
-                depthWrite: false,
-                blending: THREE.AdditiveBlending
-            })
-        );
+        const dustMat = new THREE.ShaderMaterial({
+            uniforms: { uColor: { value: new THREE.Color(0xaa66ff) }, uAlpha: { value: 1.0 } },
+            vertexShader: particleVS,
+            fragmentShader: particleFS,
+            transparent: true,
+            depthWrite: false,
+            blending: THREE.AdditiveBlending
+        });
+        dustMat.customProgramCacheKey = () => 'nebula_dust_cloud_material';
+        this.dustCloud = new THREE.Points(dustGeo, dustMat);
         this.parent.add(this.dustCloud);
         this.hide();
     }
 
-    update(delta: number, appTime: number, cameraPos: THREE.Vector3, physics: PhysicsConstants, t: number, _lowDetail?: boolean): void {
+    update(delta: number, appTime: number, cameraPos: THREE.Vector3, physics: PhysicsConstants, t: number, _lowDetail?: boolean, globalFade: number = 1.0): void {
         const normT = t / STELLAR_CONSTANTS.PHASE_BOUNDARIES.NEBULA_LIMIT;
         
         this.nebulaMat.uniforms.uTime.value = appTime;
         this.nebulaMat.uniforms.uCollapse.value = normT;
         this.nebulaMat.uniforms.uCameraPos.value.copy(cameraPos);
+        this.nebulaMat.uniforms.uOpacity.value = globalFade;
 
         // Update inverse matrix for local space calculations in the shader
         this.nebulaMesh.updateMatrixWorld(true);
         this.nebulaMat.uniforms.uInverseModelMatrix.value.copy(this.nebulaMesh.matrixWorld).invert();
         
         this.dustCloud.rotation.y += delta * STELLAR_CONSTANTS.VISUALS.NEBULA_DUST_ROTATION_SPEED;
-        (this.dustCloud.material as THREE.ShaderMaterial).uniforms.uAlpha.value = 1.0;
+        (this.dustCloud.material as THREE.ShaderMaterial).uniforms.uAlpha.value = globalFade;
         this.dustCloud.scale.setScalar(1.0 - normT * STELLAR_CONSTANTS.VISUALS.NEBULA_DUST_SCALE_REDUCTION);
     }
 
     // Special update for when it's still visible during Protostar phase
-    updateAsSecondary(delta: number, appTime: number, cameraPos: THREE.Vector3, normT: number): void {
-        this.nebulaMesh.visible = true;
+    updateAsSecondary(delta: number, appTime: number, cameraPos: THREE.Vector3, normT: number, globalFade: number = 1.0): void {
+        this.nebulaMesh.visible = globalFade > 0.01;
         this.nebulaMat.uniforms.uCollapse.value = 1.0;
-        this.dustCloud.visible = true;
+        this.nebulaMat.uniforms.uOpacity.value = globalFade;
+        this.dustCloud.visible = globalFade > 0.01;
         this.dustCloud.rotation.y += delta * STELLAR_CONSTANTS.VISUALS.NEBULA_DUST_ROTATION_SPEED_SECONDARY;
-        (this.dustCloud.material as THREE.ShaderMaterial).uniforms.uAlpha.value = 1.0 - normT * STELLAR_CONSTANTS.VISUALS.NEBULA_DUST_ALPHA_REDUCTION;
+        (this.dustCloud.material as THREE.ShaderMaterial).uniforms.uAlpha.value = (1.0 - normT * STELLAR_CONSTANTS.VISUALS.NEBULA_DUST_ALPHA_REDUCTION) * globalFade;
         this.dustCloud.scale.setScalar(STELLAR_CONSTANTS.VISUALS.NEBULA_DUST_SCALE_SECONDARY - normT * STELLAR_CONSTANTS.VISUALS.NEBULA_DUST_SCALE_SECONDARY_REDUCTION);
+    }
+
+    setOpacity(opacity: number): void {
+        if (this.nebulaMat) {
+            this.nebulaMat.uniforms.uOpacity.value = opacity;
+        }
+        if (this.dustCloud) {
+            (this.dustCloud.material as THREE.ShaderMaterial).uniforms.uAlpha.value = opacity;
+        }
     }
 
     show(): void {
@@ -101,6 +125,7 @@ export class NebulaPhase implements PhaseComponent {
     }
 
     dispose(): void {
+        phaseCounters.disposals++;
         // BOLT: nebulaMesh uses shared GEOMETRIES.nebula, do NOT dispose
         this.nebulaMat.dispose();
         this.dustCloud.geometry.dispose(); // Unique per star

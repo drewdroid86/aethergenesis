@@ -31,7 +31,7 @@ export class Engine {
     selectedStar: HeroStarSystem | null = null;
     isScrubbing: boolean = false;
     physicsConstants: PhysicsConstants = DEFAULT_CONSTANTS;
-    cosmicAge: number = 0;
+    cosmicAge: number = 5.0;
     timeScale: 'cosmic' | 'realtime' = 'cosmic';
     nbodyBuffer: Float32Array | null = null;
     isPlayingCosmic: boolean = true;
@@ -48,6 +48,9 @@ export class Engine {
         this._lastFrameTime = performance.now();
         const loop = () => {
             this._frameId = requestAnimationFrame(loop);
+            if (this.renderer) {
+                this.renderer.info.reset();
+            }
             const now = performance.now();
             const delta = Math.max(0.001, Math.min((now - this._lastFrameTime) / 1000, 0.05));
             this._lastFrameTime = now;
@@ -56,6 +59,7 @@ export class Engine {
                 this.cosmicAge += this.timeScale === 'cosmic' ? delta * 0.2 : (delta / 31557600) / 1e9;
                 if (this.cosmicAge > 14) {
                     this.cosmicAge = 0;
+                    this.respawnAllStars();
                 }
             }
 
@@ -128,7 +132,28 @@ export class Engine {
         this.camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 8000);
         this.camera.position.z = 5;
 
+        if (typeof window !== 'undefined') {
+            const originalCompile = WebGLRenderingContext.prototype.compileShader;
+            let isBootstrapped = false;
+            // Wait 5 seconds after boot to let legitimate initial shaders load safely
+            setTimeout(() => {
+                isBootstrapped = true;
+                console.log("=== WEBGL INTERCEPTOR ACTIVE: Tracking post-bootstrap leaks ===");
+            }, 5000);
+            WebGLRenderingContext.prototype.compileShader = function (this: WebGLRenderingContext, shader: WebGLShader) {
+                if (isBootstrapped) {
+                    console.error(
+                        "🚨 LEAK DETECTED: Shader compiled mid-simulation!\n",
+                        "Stack Trace:\n",
+                        new Error().stack
+                    );
+                }
+                return originalCompile.call(this, shader);
+            };
+        }
+
         this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
+        this.renderer.info.autoReset = false;
         this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2)); // BOLT: Clamp to 2 for performance
         this.renderer.setSize(window.innerWidth, window.innerHeight);
         this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
@@ -350,6 +375,12 @@ export class Engine {
 
         // Use pipeline for rendering with post-processing - still render when paused for camera movement
         this.pipeline.render(this.appTime, delta);
+    }
+
+    respawnAllStars() {
+        this.heroStars.forEach(star => {
+            star.respawn();
+        });
     }
 
     resize(width: number, height: number) {

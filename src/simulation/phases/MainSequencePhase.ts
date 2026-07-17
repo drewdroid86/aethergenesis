@@ -4,6 +4,7 @@ import { PhysicsConstants } from '../../types/physics';
 import { subtleDisplacementVS, starSurfaceFS } from '../../rendering/shaders/stellar';
 import { GEOMETRIES } from './geometries';
 import { STELLAR_CONSTANTS } from '../../core/constants';
+import { phaseCounters } from '../../utils/performance';
 
 export interface PlanetInfo {
     pivot: THREE.Group;
@@ -35,12 +36,21 @@ export class MainSequencePhase implements PhaseComponent {
     private _coronaMesh?: THREE.Mesh;
     private _coronaGeo?: THREE.BufferGeometry;
 
+    private initialized = false;
+
     constructor(mass: number, baseRadius: number) {
         this.mass = mass;
         this.baseRadius = baseRadius;
+        phaseCounters.inits++;
     }
 
     init(parent: THREE.Group): void {
+        if (this.initialized) {
+            phaseCounters.blockedDoubleInits++;
+            console.warn('[Diagnostics] MainSequencePhase already initialized for this star! Guarding duplicate init.');
+            return;
+        }
+        this.initialized = true;
         this.parent = parent;
         this.mainSeqGroup = new THREE.Group();
         
@@ -66,6 +76,7 @@ export class MainSequencePhase implements PhaseComponent {
             },
             transparent: true, blending: THREE.AdditiveBlending
         });
+        this.starMat.customProgramCacheKey = () => 'main_sequence_star_material';
         this.starMesh = new THREE.Mesh(GEOMETRIES.mainSeq, this.starMat);
         this.starMesh.scale.setScalar(this.baseRadius); // BOLT: Set scale once
         this.coronaMesh = new THREE.Mesh(
@@ -82,7 +93,6 @@ export class MainSequencePhase implements PhaseComponent {
         this.mainSeqGroup.add(this.starMesh);
 
         // Atmospheric corona glow
-        const coronaGeo = new THREE.SphereGeometry(this.baseRadius * 1.15, 32, 32);
         const coronaMat = new THREE.ShaderMaterial({
             uniforms: {
                 uColor: { value: new THREE.Color().setHSL(0.1, 1.0, 0.7) },
@@ -114,10 +124,11 @@ export class MainSequencePhase implements PhaseComponent {
             depthWrite: false,
             side: THREE.BackSide
         });
-        const corona = new THREE.Mesh(coronaGeo, coronaMat);
+        coronaMat.customProgramCacheKey = () => 'main_sequence_corona_material';
+        const corona = new THREE.Mesh(GEOMETRIES.corona, coronaMat);
+        corona.scale.setScalar(this.baseRadius);
         this._coronaMat = coronaMat;
         this._coronaMesh = corona;
-        this._coronaGeo = coronaGeo;
         this.mainSeqGroup.add(corona);
 
         this.mainSeqGroup.add(this.coronaMesh);
@@ -153,6 +164,7 @@ export class MainSequencePhase implements PhaseComponent {
             blending: THREE.AdditiveBlending,
             depthWrite: false
         });
+        this.flareMat.customProgramCacheKey = () => 'main_sequence_flare_material';
         
         this.flareMesh = new THREE.InstancedMesh(flareGeo, this.flareMat, 4);
         for(let i=0; i<4; i++) {
@@ -175,12 +187,10 @@ export class MainSequencePhase implements PhaseComponent {
         const hzRadius = Math.max(STELLAR_CONSTANTS.VISUALS.HZ_RADIUS_BASE, Math.sqrt(lum) * STELLAR_CONSTANTS.VISUALS.HZ_LUM_FACTOR);
         this.hzMesh = new THREE.Mesh(
             GEOMETRIES.habitableZone,
-            new THREE.MeshPhongMaterial({ 
+            new THREE.MeshBasicMaterial({ 
                 color: 0x00ff88, 
                 transparent: true, 
                 opacity: 0.3, 
-                shininess: 100,
-                emissive: 0x004422,
                 side: THREE.DoubleSide
             })
         );
@@ -250,15 +260,13 @@ export class MainSequencePhase implements PhaseComponent {
     }
 
     dispose(): void {
+        phaseCounters.disposals++;
         // BOLT: Star, corona, flares, and HZ use shared GEOMETRIES, do NOT dispose
         this.starMat.dispose();
         this.flareMat.dispose();
         (this.coronaMesh.material as THREE.Material).dispose();
         if (this._coronaMesh) {
             (this._coronaMesh.material as THREE.Material).dispose();
-        }
-        if (this._coronaGeo) {
-            this._coronaGeo.dispose();
         }
         if (this._haloMat) {
             this._haloMat.dispose();

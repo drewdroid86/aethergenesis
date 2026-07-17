@@ -26,6 +26,10 @@ export function AetherGenesis() {
     currentTier, 
     fps, 
     showTierDownIndicator, 
+    diagnosticsEnabled,
+    setDiagnosticsEnabled,
+    diagnostics,
+    resetDiagnostics,
     numHeroStars,
     currentSeed,
     onScrubStart,
@@ -81,7 +85,11 @@ export function AetherGenesis() {
             tier: currentTier,
             numStars: numHeroStars,
             fps: fps,
-            showIndicator: showTierDownIndicator
+            showIndicator: showTierDownIndicator,
+            diagnosticsEnabled,
+            setDiagnosticsEnabled,
+            diagnostics,
+            resetDiagnostics
         }}
         currentSeed={currentSeed}
       />

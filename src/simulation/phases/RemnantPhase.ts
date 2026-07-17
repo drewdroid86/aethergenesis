@@ -3,6 +3,7 @@ import { PhaseComponent } from './types';
 import { PhysicsConstants } from '../../types/physics';
 import { GEOMETRIES } from './geometries';
 import { STELLAR_CONSTANTS } from '../../core/constants';
+import { phaseCounters } from '../../utils/performance';
 
 // BOLT: Module-level helper to avoid closure overhead
 const stepOp = (current: number, target: number, speed: number) => {
@@ -33,11 +34,20 @@ export class RemnantPhase implements PhaseComponent {
     private tubeMat!: THREE.MeshBasicMaterial;
     private beamMat!: THREE.MeshBasicMaterial;
 
+    private initialized = false;
+
     constructor(mass: number) {
         this.mass = mass;
+        phaseCounters.inits++;
     }
 
     init(parent: THREE.Group): void {
+        if (this.initialized) {
+            phaseCounters.blockedDoubleInits++;
+            console.warn('[Diagnostics] RemnantPhase already initialized for this star! Guarding duplicate init.');
+            return;
+        }
+        this.initialized = true;
         this.parent = parent;
 
         // Neutron Star
@@ -72,7 +82,10 @@ export class RemnantPhase implements PhaseComponent {
         // Accretion disk with custom shader material for high-quality gradient and animation
         const bhDiskGeometry = GEOMETRIES.blackHoleDisk;
         this.bhDiskMaterial = new THREE.ShaderMaterial({
-            uniforms: { uTime: { value: 0 } },
+            uniforms: {
+                uTime: { value: 0 },
+                uOpacity: { value: 1.0 }
+            },
             transparent: true,
             blending: THREE.AdditiveBlending,
             side: THREE.DoubleSide,
@@ -86,27 +99,29 @@ export class RemnantPhase implements PhaseComponent {
             fragmentShader: `
                 varying vec2 vUv;
                 uniform float uTime;
+                uniform float uOpacity;
                 void main() {
                     float dist = vUv.y; // Radial distance: 0 (inner) to 1 (outer)
                     vec3 innerColor = vec3(1.0, 1.0, 0.9); // White-ish hot
                     vec3 outerColor = vec3(1.0, 0.4, 0.0); // Orange cool
                     vec3 color = mix(innerColor, outerColor, pow(dist, 1.5));
                     float alpha = (0.7 + 0.3 * sin(uTime * 4.0)) * (1.0 - dist);
-                    gl_FragColor = vec4(color, alpha * 0.85);
+                    gl_FragColor = vec4(color, alpha * 0.85 * uOpacity);
                 }
             `
         });
+        this.bhDiskMaterial.customProgramCacheKey = () => 'remnant_bh_disk_material';
         const diskMesh = new THREE.Mesh(bhDiskGeometry, this.bhDiskMaterial);
         this.blackHoleGroup.add(bhCore);
         this.blackHoleGroup.add(diskMesh);
 
-        // Gravitational lensing sphere
-        const lensGeo = new THREE.SphereGeometry(this.bhRadius * 3.5, 64, 64);
+        // Gravitational lensing sphere using shared mainSeq geometry scaled
         const lensMat = new THREE.ShaderMaterial({
             uniforms: {
                 uTime: { value: 0 },
                 uStrength: { value: 0.0 },
-                tBackground: { value: null }
+                tBackground: { value: null },
+                uOpacity: { value: 1.0 }
             },
             vertexShader: `
                 varying vec3 vNormal;
@@ -120,6 +135,7 @@ export class RemnantPhase implements PhaseComponent {
             fragmentShader: `
                 uniform float uTime;
                 uniform float uStrength;
+                uniform float uOpacity;
                 varying vec3 vNormal;
                 varying vec3 vWorldPos;
                 void main() {
@@ -136,14 +152,16 @@ export class RemnantPhase implements PhaseComponent {
                     // Shadow region — pure black event horizon
                     float shadow = 1.0 - smoothstep(0.0, 0.3, rim);
                     float alpha = (photonRing + innerRing) * (1.0 - shadow * 0.95);
-                    gl_FragColor = vec4(ringColor, clamp(alpha, 0.0, 1.0));
+                    gl_FragColor = vec4(ringColor, clamp(alpha, 0.0, 1.0) * uOpacity);
                 }
             `,
             transparent: true,
             blending: THREE.AdditiveBlending,
             depthWrite: false
         });
-        const lensSphere = new THREE.Mesh(lensGeo, lensMat);
+        lensMat.customProgramCacheKey = () => 'remnant_gravitational_lensing_material';
+        const lensSphere = new THREE.Mesh(GEOMETRIES.mainSeq, lensMat);
+        lensSphere.scale.setScalar(this.bhRadius * 3.5);
         this._lensMat = lensMat;
         this._lensMesh = lensSphere;
         this.blackHoleGroup.add(lensSphere);
@@ -153,14 +171,15 @@ export class RemnantPhase implements PhaseComponent {
         this.hide();
     }
 
-    update(delta: number, appTime: number, cameraPos: THREE.Vector3, physics: PhysicsConstants, t: number, lowDetail?: boolean): void {
+    update(delta: number, appTime: number, cameraPos: THREE.Vector3, physics: PhysicsConstants, t: number, lowDetail?: boolean, globalFade: number = 1.0): void {
         if (this.mass > STELLAR_CONSTANTS.PHYSICS.MASS_THRESHOLD_BLACK_HOLE) {
-            this.blackHoleGroup.visible = true;
+            this.blackHoleGroup.visible = globalFade > 0.01;
             if (!lowDetail) this.blackHoleGroup.rotation.y += delta;
             this.blackHoleGroup.rotation.z = Math.PI / 8;
 
             if (this.bhDiskMaterial) {
                 this.bhDiskMaterial.uniforms.uTime.value = appTime;
+                this.bhDiskMaterial.uniforms.uOpacity.value = globalFade;
             }
 
             if (this._lensMat) {
@@ -170,6 +189,7 @@ export class RemnantPhase implements PhaseComponent {
                     1.0,
                     delta * 2.0
                 );
+                this._lensMat.uniforms.uOpacity.value = globalFade;
             }
         } else if (this.mass >= STELLAR_CONSTANTS.PHYSICS.MASS_THRESHOLD_SUPERNOVA) {
             if (!lowDetail) {
@@ -182,14 +202,16 @@ export class RemnantPhase implements PhaseComponent {
         }
     }
 
-    updateRemnantOpacity(delta: number, targetNs: number): void {
+    updateRemnantOpacity(delta: number, targetNs: number, globalFade: number = 1.0): void {
         const speed = delta * STELLAR_CONSTANTS.TRANSITIONS.DEFAULT_SPEED;
 
         const nextOpNs = stepOp(this._opNs, targetNs, speed);
         if (this._opNs !== nextOpNs) {
             this._opNs = nextOpNs;
             // BOLT: O(1) opacity update using cached material reference
-            this.nsMat.opacity = this._opNs;
+            this.nsMat.opacity = this._opNs * globalFade;
+        } else {
+            this.nsMat.opacity = this._opNs * globalFade;
         }
 
         const targetLines = targetNs ? 0.3 : 0;
@@ -197,17 +219,19 @@ export class RemnantPhase implements PhaseComponent {
         if (this._opNsLines !== nextOpLines) {
             this._opNsLines = nextOpLines;
             // BOLT: O(1) opacity update for all magnetic lines via shared material
-            this.tubeMat.opacity = this._opNsLines;
+            this.tubeMat.opacity = this._opNsLines * globalFade;
+        } else {
+            this.tubeMat.opacity = this._opNsLines * globalFade;
         }
 
         // Pulsar beams are either on or off for simplicity in opacity guarding
         const targetBeam = targetNs ? 0.6 : 0;
-        if (this.beamMat.opacity !== targetBeam) {
+        if (this.beamMat.opacity !== targetBeam * globalFade) {
             // BOLT: O(1) opacity update for all beams via shared material
-            this.beamMat.opacity = targetBeam;
+            this.beamMat.opacity = targetBeam * globalFade;
         }
         
-        const isVisible = this._opNs > STELLAR_CONSTANTS.TRANSITIONS.VISIBILITY_THRESHOLD || this._opNsLines > STELLAR_CONSTANTS.TRANSITIONS.VISIBILITY_THRESHOLD;
+        const isVisible = (this._opNs > STELLAR_CONSTANTS.TRANSITIONS.VISIBILITY_THRESHOLD || this._opNsLines > STELLAR_CONSTANTS.TRANSITIONS.VISIBILITY_THRESHOLD) && globalFade > 0.01;
         if (this.neutronStarGroup.visible !== isVisible) {
             this.neutronStarGroup.visible = isVisible;
         }
@@ -223,25 +247,11 @@ export class RemnantPhase implements PhaseComponent {
     }
 
     dispose(): void {
-        // BOLT: Stop disposing shared global geometries. Only dispose local materials if unique.
-        const nsChildren = this.neutronStarGroup.children;
-        for (let i = 0; i < nsChildren.length; i++) {
-            const c = nsChildren[i] as THREE.Mesh;
-            if (c.material) (c.material as THREE.Material).dispose();
-        }
-        // beamMat lives on beam1/beam2, nested inside pulsarGroup (a grandchild
-        // of neutronStarGroup), so the loop above never reaches it.
-        this.beamMat.dispose();
-
-        const nsLinesChildren = this.nsMagneticLines.children;
-        for (let i = 0; i < nsLinesChildren.length; i++) {
-            const c = nsLinesChildren[i] as THREE.Mesh;
-            if (c.material) (c.material as THREE.Material).dispose();
-        }
-
-        if (this._lensMesh) {
-            this._lensMesh.geometry.dispose();
-        }
+        phaseCounters.disposals++;
+        // BOLT: Directly dispose of class material references to ensure complete GPU cleanup
+        if (this.nsMat) this.nsMat.dispose();
+        if (this.beamMat) this.beamMat.dispose();
+        if (this.tubeMat) this.tubeMat.dispose();
 
         const bhChildren = this.blackHoleGroup.children;
         for (let i = 0; i < bhChildren.length; i++) {

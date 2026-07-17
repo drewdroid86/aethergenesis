@@ -4,6 +4,7 @@ import { PhysicsConstants } from '../../types/physics';
 import { displacementVS, starSurfaceFS } from '../../rendering/shaders/stellar';
 import { GEOMETRIES } from './geometries';
 import { STELLAR_CONSTANTS } from '../../core/constants';
+import { phaseCounters } from '../../utils/performance';
 
 export class ProtostarPhase implements PhaseComponent {
     public protostarGroup!: THREE.Group;
@@ -17,11 +18,20 @@ export class ProtostarPhase implements PhaseComponent {
     private _jetMat2?: THREE.ShaderMaterial;
     private _jetGeo?: THREE.CylinderGeometry;
 
+    private initialized = false;
+
     constructor(baseRadius: number) {
         this.baseRadius = baseRadius;
+        phaseCounters.inits++;
     }
 
     init(parent: THREE.Group): void {
+        if (this.initialized) {
+            phaseCounters.blockedDoubleInits++;
+            console.warn('[Diagnostics] ProtostarPhase already initialized for this star! Guarding duplicate init.');
+            return;
+        }
+        this.initialized = true;
         this.parent = parent;
         this.protostarGroup = new THREE.Group();
         this.protostarMat = new THREE.ShaderMaterial({
@@ -37,6 +47,7 @@ export class ProtostarPhase implements PhaseComponent {
             },
             transparent: true, blending: THREE.AdditiveBlending
         });
+        this.protostarMat.customProgramCacheKey = () => 'protostar_phase_material';
         this.protostarMesh = new THREE.Mesh(GEOMETRIES.protostar, this.protostarMat);
         this.protostarDisk = new THREE.Mesh(
             GEOMETRIES.protostarDisk,
@@ -78,10 +89,12 @@ export class ProtostarPhase implements PhaseComponent {
             depthWrite: false,
             side: THREE.DoubleSide
         });
+        jetMat.customProgramCacheKey = () => 'protostar_jet_material';
         const jetGeo = GEOMETRIES.protostarJet;
         const jet1 = new THREE.Mesh(jetGeo, jetMat);
         jet1.position.y = 4.5;
         const jetMat2 = jetMat.clone();
+        // Cloned material in Three.js inherits the customProgramCacheKey function!
         const jet2 = new THREE.Mesh(jetGeo, jetMat2);
         jet2.position.y = -4.5;
         jet2.rotation.z = Math.PI;
@@ -130,6 +143,7 @@ export class ProtostarPhase implements PhaseComponent {
     }
 
     dispose(): void {
+        phaseCounters.disposals++;
         // BOLT: protostarMesh, disk, and jets use shared GEOMETRIES, do NOT dispose
         this.protostarMat.dispose();
         (this.protostarDisk.material as THREE.Material).dispose();

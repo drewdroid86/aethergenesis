@@ -4,6 +4,7 @@ import { PhysicsConstants } from '../../types/physics';
 import { GEOMETRIES } from './geometries';
 import { ejectaVS, ejectaFS } from '../../rendering/shaders/stellar';
 import { STELLAR_CONSTANTS } from '../../core/constants';
+import { phaseCounters } from '../../utils/performance';
 
 export class SupernovaPhase implements PhaseComponent {
     public supernovaGroup!: THREE.Group;
@@ -17,12 +18,21 @@ export class SupernovaPhase implements PhaseComponent {
     private baseRadius: number;
     public isFlashing: boolean = false;
 
+    private initialized = false;
+
     constructor(mass: number, baseRadius: number) {
         this.mass = mass;
         this.baseRadius = baseRadius;
+        phaseCounters.inits++;
     }
 
     init(parent: THREE.Group): void {
+        if (this.initialized) {
+            phaseCounters.blockedDoubleInits++;
+            console.warn('[Diagnostics] SupernovaPhase already initialized for this star! Guarding duplicate init.');
+            return;
+        }
+        this.initialized = true;
         this.parent = parent;
         this.supernovaGroup = new THREE.Group();
         this.coreFlashMesh = new THREE.Mesh(
@@ -57,6 +67,7 @@ export class SupernovaPhase implements PhaseComponent {
             fragmentShader: ejectaFS,
             transparent: true, depthWrite: false, blending: THREE.AdditiveBlending
         });
+        this.ejectaMat.customProgramCacheKey = () => 'supernova_ejecta_material';
         this.ejectaMesh = new THREE.Points(ejectaGeo, this.ejectaMat);
         this.parent.add(this.ejectaMesh);
         
@@ -113,6 +124,7 @@ export class SupernovaPhase implements PhaseComponent {
     }
 
     dispose(): void {
+        phaseCounters.disposals++;
         // BOLT: flash and ring use shared GEOMETRIES, do NOT dispose
         (this.coreFlashMesh.material as THREE.Material).dispose();
         (this.snRing.material as THREE.Material).dispose();

@@ -24,6 +24,35 @@ interface HudProps {
         numStars: number;
         fps: number;
         showIndicator: boolean;
+        diagnosticsEnabled?: boolean;
+        setDiagnosticsEnabled?: (enabled: boolean) => void;
+        diagnostics?: {
+            fps: number;
+            onePercentLow: number;
+            frameTime: number;
+            maxFrameTime: number;
+            stutterCount: number;
+            timeSinceLastStutter: number;
+            drawCalls: number;
+            triangles: number;
+            geometries: number;
+            textures: number;
+            memoryUsage: string;
+            longTaskCount: number;
+            lastLongTaskDuration: number;
+            longTasksLog: { duration: number; timestamp: number }[];
+            totalHeroStars: number;
+            activeHeroStars: number;
+            sceneChildren: number;
+            nbodyBodiesCount: number;
+            geometriesInMemory: number;
+            texturesInMemory: number;
+            shaderProgramsInMemory: number;
+            phaseInits: number;
+            phaseDisposals: number;
+            blockedDoubleInits: number;
+        };
+        resetDiagnostics?: () => void;
     };
     currentSeed: string;
     timeScale: 'cosmic' | 'realtime';
@@ -46,6 +75,7 @@ export const Hud: React.FC<HudProps> = ({
     performance,
     currentSeed
 }) => {
+    const isDebugMode = typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('debug') === '1';
     const [copied, setCopied] = useState(false);
     const [shareCopied, setShareCopied] = useState(false);
     const [idCopied, setIdCopied] = useState(false);
@@ -166,6 +196,21 @@ export const Hud: React.FC<HudProps> = ({
                     <span className="text-[9px] uppercase tracking-widest text-[#7EB8FF]">Performance</span>
                     <span className="font-mono text-sm">{performance.fps} <span className="text-[10px] opacity-50">FPS</span></span>
                 </div>
+                {performance.setDiagnosticsEnabled && (
+                    <>
+                        <div className="w-[1px] h-6 bg-[rgba(126,184,255,0.2)]"></div>
+                        <div className="flex flex-col items-center">
+                            <span className="text-[9px] uppercase tracking-widest text-[#7EB8FF]">Diagnostics</span>
+                            <button
+                                onClick={() => performance.setDiagnosticsEnabled?.(!performance.diagnosticsEnabled)}
+                                className={`font-mono text-xs uppercase px-2 py-0.5 pointer-events-auto rounded border focus-visible:ring-1 focus-visible:ring-[#C084FC] outline-none transition-all ${performance.diagnosticsEnabled ? 'bg-red-500/20 text-red-400 border-red-500/30' : 'text-indigo-300 hover:text-white hover:bg-white/5 border-transparent'}`}
+                                aria-label="Toggle performance diagnostics panel"
+                            >
+                                {performance.diagnosticsEnabled ? 'ON' : 'OFF'}
+                            </button>
+                        </div>
+                    </>
+                )}
                 </div>
             </nav>
 
@@ -180,6 +225,189 @@ export const Hud: React.FC<HudProps> = ({
                         <span className="text-orange-400 text-xs font-bold uppercase tracking-[0.2em]">
                             Performance Warning: Optimizing Simulation Tier
                         </span>
+                    </div>
+                </div>
+            )}
+
+            {/* Performance Telemetry Overlay */}
+            {performance.diagnosticsEnabled && performance.diagnostics && (
+                <div 
+                    className="absolute top-24 right-4 bg-[rgba(8,8,20,0.85)] backdrop-blur-xl border border-[rgba(126,184,255,0.25)] rounded-2xl p-6 w-80 text-[#7EB8FF] font-mono text-[11px] space-y-4 shadow-[0_0_30px_rgba(8,8,20,0.8)] z-30 pointer-events-auto"
+                    role="region"
+                    aria-label="Performance Telemetry"
+                >
+                    <div className="flex items-center justify-between border-b border-[rgba(126,184,255,0.2)] pb-2">
+                        <span className="text-xs font-bold uppercase tracking-widest text-white flex items-center gap-1.5">
+                            <span className="w-2.5 h-2.5 rounded-full bg-red-500 animate-pulse shadow-[0_0_6px_rgba(239,68,68,0.8)]" />
+                            Stutter Diagnostics
+                        </span>
+                        <button 
+                            onClick={() => performance.resetDiagnostics?.()} 
+                            className="text-[9px] uppercase bg-white/5 hover:bg-white/10 text-white/70 px-2 py-0.5 rounded border border-[rgba(126,184,255,0.15)] transition-colors"
+                        >
+                            Reset Stats
+                        </button>
+                    </div>
+                    
+                    <div className="grid grid-cols-2 gap-3">
+                        <div className="bg-white/5 rounded-xl p-3 border border-white/5">
+                            <div className="text-[9px] uppercase tracking-wider text-[#7EB8FF]/60 mb-1">FPS (Avg)</div>
+                            <div className="text-lg font-bold text-white flex items-baseline gap-1">
+                                {performance.diagnostics.fps}
+                                <span className="text-[9px] font-normal text-[#7EB8FF]/40">FPS</span>
+                            </div>
+                        </div>
+                        <div className="bg-white/5 rounded-xl p-3 border border-white/5">
+                            <div className="text-[9px] uppercase tracking-wider text-[#7EB8FF]/60 mb-1">1% Low</div>
+                            <div className="text-lg font-bold text-white flex items-baseline gap-1">
+                                {performance.diagnostics.onePercentLow}
+                                <span className="text-[9px] font-normal text-[#7EB8FF]/40">FPS</span>
+                            </div>
+                        </div>
+                        <div className="bg-white/5 rounded-xl p-3 border border-white/5">
+                            <div className="text-[9px] uppercase tracking-wider text-[#7EB8FF]/60 mb-1">Frame Time</div>
+                            <div className="text-lg font-bold text-white flex items-baseline gap-1">
+                                {performance.diagnostics.frameTime.toFixed(1)}
+                                <span className="text-[9px] font-normal text-[#7EB8FF]/40">ms</span>
+                            </div>
+                        </div>
+                        <div className="bg-white/5 rounded-xl p-3 border border-white/5">
+                            <div className="text-[9px] uppercase tracking-wider text-[#7EB8FF]/60 mb-1">Max Frame</div>
+                            <div className="text-lg font-bold text-white flex items-baseline gap-1">
+                                {performance.diagnostics.maxFrameTime.toFixed(1)}
+                                <span className="text-[9px] font-normal text-[#7EB8FF]/40">ms</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="space-y-2 border-t border-[rgba(126,184,255,0.1)] pt-3">
+                        <div className="flex justify-between">
+                            <span className="text-[#7EB8FF]/70">Stutters (&gt;50ms):</span>
+                            <span className={`font-bold ${performance.diagnostics.stutterCount > 0 ? 'text-red-400' : 'text-green-400'}`}>
+                                {performance.diagnostics.stutterCount}
+                            </span>
+                        </div>
+                        <div className="flex justify-between">
+                            <span className="text-[#7EB8FF]/70">Last Stutter:</span>
+                            <span className="text-white">
+                                {performance.diagnostics.timeSinceLastStutter === Infinity || performance.diagnostics.stutterCount === 0 
+                                    ? 'None' 
+                                    : `${(performance.diagnostics.timeSinceLastStutter / 1000).toFixed(1)}s ago`}
+                            </span>
+                        </div>
+                        <div className="flex justify-between border-t border-[rgba(126,184,255,0.05)] pt-2 mt-1">
+                            <span className="text-[#7EB8FF]/70">Main Thread Blocks:</span>
+                            <span className={`font-bold ${performance.diagnostics.longTaskCount > 0 ? 'text-red-400' : 'text-green-400'}`}>
+                                {performance.diagnostics.longTaskCount}
+                            </span>
+                        </div>
+                        <div className="flex justify-between">
+                            <span className="text-[#7EB8FF]/70">Last Block Duration:</span>
+                            <span className="text-white font-mono">
+                                {performance.diagnostics.longTaskCount === 0 
+                                    ? 'None' 
+                                    : `${performance.diagnostics.lastLongTaskDuration.toFixed(1)} ms`}
+                            </span>
+                        </div>
+                        <div className="flex justify-between">
+                            <span className="text-[#7EB8FF]/70">WebGL Draw Calls:</span>
+                            <span className="text-white font-bold">{performance.diagnostics.drawCalls}</span>
+                        </div>
+                        <div className="flex justify-between">
+                            <span className="text-[#7EB8FF]/70">WebGL Triangles:</span>
+                            <span className="text-white">{performance.diagnostics.triangles.toLocaleString()}</span>
+                        </div>
+                        <div className="flex justify-between">
+                            <span className="text-[#7EB8FF]/70">Geometries / Textures:</span>
+                            <span className="text-white">{performance.diagnostics.geometries} / {performance.diagnostics.textures}</span>
+                        </div>
+                        <div className="flex justify-between border-t border-[rgba(126,184,255,0.05)] pt-2 mt-1">
+                            <span className="text-[#7EB8FF]/70">JS Heap Usage:</span>
+                            <span className="text-white">
+                                {performance.diagnostics.memoryUsage === 'N/A' 
+                                    ? 'N/A' 
+                                    : `${performance.diagnostics.memoryUsage} MB`}
+                            </span>
+                        </div>
+
+                        <div className="border-t border-[rgba(126,184,255,0.1)] pt-2 mt-2 space-y-1">
+                            <div className="text-[8px] text-[#C084FC] uppercase tracking-wider font-bold mb-1">Suspect Collections</div>
+                            <div className="flex justify-between">
+                                <span className="text-[#7EB8FF]/70">Hero Stars (Act/Tot):</span>
+                                <span className="text-white">{performance.diagnostics.activeHeroStars} / {performance.diagnostics.totalHeroStars}</span>
+                            </div>
+                            <div className="flex justify-between">
+                                <span className="text-[#7EB8FF]/70">Scene Children:</span>
+                                <span className="text-white">{performance.diagnostics.sceneChildren}</span>
+                            </div>
+                            <div className="flex justify-between">
+                                <span className="text-[#7EB8FF]/70">N-Body Particles:</span>
+                                <span className="text-white">{performance.diagnostics.nbodyBodiesCount}</span>
+                            </div>
+                            <div className="flex justify-between">
+                                <span className="text-[#7EB8FF]/70">Geometries / Textures:</span>
+                                <span className="text-white">{performance.diagnostics.geometriesInMemory} / {performance.diagnostics.texturesInMemory}</span>
+                            </div>
+                            <div className="flex justify-between">
+                                <span className="text-[#7EB8FF]/70">Shader Programs:</span>
+                                <span className="text-white">{performance.diagnostics.shaderProgramsInMemory}</span>
+                            </div>
+                            <div className="flex justify-between">
+                                <span className="text-[#7EB8FF]/70">Phase Inits (total):</span>
+                                <span className="text-white">{performance.diagnostics.phaseInits}</span>
+                            </div>
+                            <div className="flex justify-between">
+                                <span className="text-[#7EB8FF]/70">Phase Disposals (total):</span>
+                                <span className="text-white">{performance.diagnostics.phaseDisposals}</span>
+                            </div>
+                            <div className="flex justify-between text-yellow-400">
+                                <span className="text-yellow-400/80">Blocked Double-Inits:</span>
+                                <span className="font-bold">{performance.diagnostics.blockedDoubleInits}</span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div className="text-[8px] text-[#7EB8FF]/40 text-center uppercase tracking-wider pt-1 border-t border-[rgba(126,184,255,0.05)]">
+                        Press [D] to Toggle Panel
+                    </div>
+                </div>
+            )}
+
+            {/* Thread Block Log (Max 15) */}
+            {isDebugMode && performance.diagnostics && (
+                <div 
+                    className="fixed bottom-4 right-4 bg-[rgba(12,12,28,0.95)] border border-red-500/40 rounded-xl p-4 w-80 text-[#FF7E7E] font-mono text-[10px] space-y-3 shadow-[0_0_40px_rgba(239,68,68,0.15)] z-40 pointer-events-auto backdrop-blur-xl"
+                    role="region"
+                    aria-label="Thread Block Log"
+                >
+                    <div className="flex items-center justify-between border-b border-red-500/20 pb-2">
+                        <span className="text-white font-bold uppercase tracking-wider flex items-center gap-1.5">
+                            <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse shadow-[0_0_6px_rgba(239,68,68,0.8)]" />
+                            Thread Block Log (Max 15)
+                        </span>
+                        <button 
+                            onClick={() => performance.resetDiagnostics?.()} 
+                            className="text-[8px] uppercase bg-red-500/10 hover:bg-red-500/20 text-red-300 px-1.5 py-0.5 rounded border border-red-500/20 transition-colors"
+                        >
+                            Clear
+                        </button>
+                    </div>
+                    <div className="max-h-40 overflow-y-auto space-y-1 pr-1 custom-scrollbar">
+                        {performance.diagnostics.longTasksLog && performance.diagnostics.longTasksLog.length === 0 ? (
+                            <div className="text-[#FF7E7E]/40 text-center py-4 uppercase tracking-widest text-[8px]">
+                                No main thread blocks detected
+                            </div>
+                        ) : (
+                            performance.diagnostics.longTasksLog?.slice().reverse().map((item: { duration: number; timestamp: number }, index: number) => {
+                                const secAgo = ((window.performance.now() - item.timestamp) / 1000).toFixed(1);
+                                return (
+                                    <div key={index} className="flex justify-between items-center py-1 border-b border-white/5 last:border-b-0 hover:bg-white/5 px-1 rounded transition-colors">
+                                        <span className="text-white font-bold">{item.duration.toFixed(1)} ms</span>
+                                        <span className="text-[#FF7E7E]/60">{secAgo}s ago</span>
+                                    </div>
+                                );
+                            })
+                        )}
                     </div>
                 </div>
             )}
