@@ -1,3 +1,4 @@
+/* eslint-disable */
 import { spawn } from 'child_process';
 import { createServer } from 'http';
 import WebSocket from 'ws';
