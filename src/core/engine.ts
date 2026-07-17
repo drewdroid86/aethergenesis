@@ -140,7 +140,7 @@ export class Engine {
                 isBootstrapped = true;
                 console.log("=== WEBGL INTERCEPTOR ACTIVE: Tracking post-bootstrap leaks ===");
             }, 5000);
-            WebGLRenderingContext.prototype.compileShader = function (this: WebGLRenderingContext, shader: WebGLShader) {
+            WebGLRenderingContext.prototype.compileShader = function (this: WebGLRenderingContext, ...args: [WebGLShader]) {
                 if (isBootstrapped) {
                     console.error(
                         "🚨 LEAK DETECTED: Shader compiled mid-simulation!\n",
@@ -148,7 +148,7 @@ export class Engine {
                         new Error().stack
                     );
                 }
-                return originalCompile.call(this, shader);
+                return originalCompile.apply(this, args);
             };
         }
 
