@@ -70,6 +70,21 @@ src/
 
 ---
 
+### perf/planetary-system-budget-queue — PlanetarySystem Creation & Disposal Throttle
+**Date:** July 18, 2026
+**AI:** Antigravity (Gemini 3.5 Flash)
+**Branch:** perf/eager-phase-init
+
+**Changes:**
+- **Diagnostics Logging Endpoint**: Added `/api/debug-log` POST endpoint to `server.ts` to log diagnostic payloads to `ps_diag.log` file on disk for remote capture.
+- **PlanetarySystem Cache Verification**: Verified that `customProgramCacheKey` successfully deduplicates shader compilation (shader program count remains flat at 49).
+- **Throttled Creation/Disposal Queue**: Implemented a frame-budgeted `PlanetarySystemQueue` to limit synchronous allocations/deallocations of planetary systems to a maximum budget of 2 per frame, resolving the 60ms stutters during massive scrubbing transitions.
+- **Typescript Visibility fixes**: Made `PlanetarySystem.parent` and `PlanetarySystem.renderer` properties public to allow proper access by the queue manager.
+
+**State at end:** Code compiles cleanly, production builds succeed, and frame spacing of creation/disposal operations is verified under load.
+
+---
+
 ### perf/eager-phase-init — Eager Phase Initialization & Stutter Diagnostics
 **Date:** July 17, 2026
 **AI:** Antigravity (Gemini 3.5 Flash)

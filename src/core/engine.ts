@@ -7,6 +7,7 @@ import { AsteroidBeltSystem } from '../rendering/systems/AsteroidBeltSystem';
 import { detectPerformanceTier, getNumStarsForTier } from '../utils/performance';
 import { Pipeline } from '../rendering/pipeline';
 import { createStellarState, advanceStellarState, StellarState, PhaseTransitionEvent, computeMainSequenceLifetime } from '../simulation/StellarPhysics';
+import { PlanetarySystemQueue } from '../rendering/systems/PlanetarySystem';
 
 
 
@@ -340,16 +341,17 @@ export class Engine {
             }
 
             star.update(
-                this.isPaused ? 0 : delta, 
-                this.appTime,
-                this.camera.position, 
-                physics, 
-                star === selectedStar && isScrubbing ? selectedStar!.t : undefined, 
-                cosmicAge,
-                this._frustum,
-                protostarFlicker,
-                nbodyBuffer
-            );
+                 this.isPaused ? 0 : delta, 
+                 this.appTime,
+                 this.camera.position, 
+                 physics, 
+                 star === selectedStar && isScrubbing ? selectedStar!.t : undefined, 
+                 cosmicAge,
+                 this._frustum,
+                 protostarFlicker,
+                 nbodyBuffer,
+                 this.renderer
+             );
         }
 
         if (!this.isPaused && !isScrubbing) {
@@ -372,6 +374,8 @@ export class Engine {
                 }
             }
         }
+        // Process queued planetary systems creation/disposal to prevent stutters
+        PlanetarySystemQueue.process(this.renderer);
 
         // Use pipeline for rendering with post-processing - still render when paused for camera movement
         this.pipeline.render(this.appTime, delta);
@@ -379,7 +383,7 @@ export class Engine {
 
     respawnAllStars() {
         this.heroStars.forEach(star => {
-            star.respawn();
+            star.respawn(this.renderer);
         });
     }
 
@@ -400,7 +404,7 @@ export class Engine {
         this.renderer.dispose();
 
         for (let i = 0; i < this.heroStars.length; i++) {
-            this.heroStars[i].dispose();
+            this.heroStars[i].dispose(this.renderer);
         }
         this.cometSystem.dispose();
         this.dysonSwarmSystem.dispose();

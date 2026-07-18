@@ -9,7 +9,7 @@ import { RedGiantPhase } from '../../simulation/phases/RedGiantPhase';
 import { SupernovaPhase } from '../../simulation/phases/SupernovaPhase';
 import { RemnantPhase } from '../../simulation/phases/RemnantPhase';
 import { GEOMETRIES } from '../../simulation/phases/geometries';
-import { PlanetarySystem } from './PlanetarySystem';
+import { PlanetarySystem, PlanetarySystemQueue } from './PlanetarySystem';
 // BOLT: Module-level helper to avoid closure overhead
 const stepOp = (current: number, target: number, speed: number) => {
     if (current < target) return Math.min(target, current + speed);
@@ -154,7 +154,7 @@ export class HeroStarSystem extends THREE.Group {
         this._remnantPhase.init(this);
     }
 
-    respawn(): void {
+    respawn(renderer?: THREE.WebGLRenderer): void {
         this.birthAge = 0.5 + Math.random() * 9.5;
         this.t = -0.1;
         this.visible = false;
@@ -163,8 +163,9 @@ export class HeroStarSystem extends THREE.Group {
         else if (this._activePhase === PHASES.PROTOSTAR) this._protostarPhase?.hide();
         else if (this._activePhase === PHASES.MAIN_SEQUENCE) {
             this._mainSequencePhase?.hide();
+            PlanetarySystemQueue.cancelCreation(this);
             if (this.planetarySystem) {
-                this.planetarySystem.dispose();
+                PlanetarySystemQueue.enqueueDisposal(this.planetarySystem);
                 this.planetarySystem = undefined;
             }
         }
@@ -198,7 +199,7 @@ export class HeroStarSystem extends THREE.Group {
 
 
 
-    update(delta: number, appTime: number, cameraPos: THREE.Vector3, physics: PhysicsConstants, overrideT?: number, cosmicAge?: number, frustum?: THREE.Frustum, flicker: number = 1.0, nbodyBuffer: Float32Array | null = null): void {
+    update(delta: number, appTime: number, cameraPos: THREE.Vector3, physics: PhysicsConstants, overrideT?: number, cosmicAge?: number, frustum?: THREE.Frustum, flicker: number = 1.0, nbodyBuffer: Float32Array | null = null, renderer?: THREE.WebGLRenderer): void {
         let targetProto = 0, targetMain = 0, targetRed = 0, targetSuper = 0, targetNs = 0;
         const effG = Math.max(0.01, physics.G);
         const expL = Math.max(0.1, physics.lambda);
@@ -252,8 +253,9 @@ export class HeroStarSystem extends THREE.Group {
             else if (this._activePhase === PHASES.PROTOSTAR) this._protostarPhase?.hide();
             else if (this._activePhase === PHASES.MAIN_SEQUENCE) {
                 this._mainSequencePhase?.hide();
+                PlanetarySystemQueue.cancelCreation(this);
                 if (this.planetarySystem) {
-                    this.planetarySystem.dispose();
+                    PlanetarySystemQueue.enqueueDisposal(this.planetarySystem);
                     this.planetarySystem = undefined;
                 }
             }
@@ -265,7 +267,7 @@ export class HeroStarSystem extends THREE.Group {
             else if (newPhase === PHASES.PROTOSTAR) this.protostarPhase.show();
             else if (newPhase === PHASES.MAIN_SEQUENCE) {
                 this.mainSequencePhase.show();
-                this.planetarySystem = new PlanetarySystem(this);
+                PlanetarySystemQueue.enqueueCreation(this, renderer);
             }
             else if (newPhase === PHASES.RED_GIANT) {
                 if (this._mainSequencePhase) {
@@ -491,7 +493,7 @@ export class HeroStarSystem extends THREE.Group {
         }
     }
 
-    dispose() {
+    dispose(renderer?: THREE.WebGLRenderer) {
         this._nebulaPhase?.dispose();
         this._protostarPhase?.dispose();
         this._mainSequencePhase?.dispose();
@@ -499,8 +501,10 @@ export class HeroStarSystem extends THREE.Group {
         this._supernovaPhase?.dispose();
         this._remnantPhase?.dispose();
 
+        PlanetarySystemQueue.cancelCreation(this);
         if (this.planetarySystem) {
-            this.planetarySystem.dispose();
+            PlanetarySystemQueue.enqueueDisposal(this.planetarySystem);
+            this.planetarySystem = undefined;
         }
 
         if (this.hitMesh) {
