@@ -178,7 +178,9 @@ test('F3-T2-35: Galaxy Sandbox Particle Count Constraints', () => {
 // ==========================================
 
 test('F3-T3-36: Sandbox state cleanup on Planet preset load', () => {
+  // eslint-disable-next-line no-useless-assignment
   let simulationMode = 'galaxy_sandbox';
+  // eslint-disable-next-line no-useless-assignment
   let galaxyParticles: any[] = new Array(1600).fill({});
   
   // User triggers load preset event
@@ -195,11 +197,11 @@ test('F3-T3-36: Sandbox state cleanup on Planet preset load', () => {
 
 test('F3-T4-37: Merge Sandbox Collision Sequence', () => {
   // Simulate collision and merger of two star clusters over 1000 steps
-  let posA = { x: -5.0, y: 0.1, z: 0.0 };
-  let velA = { vx: 0.5, vy: 0.0, vz: 0.0 };
+  const posA = { x: -5.0, y: 0.1, z: 0.0 };
+  const velA = { vx: 0.5, vy: 0.0, vz: 0.0 };
   
-  let posB = { x: 5.0, y: -0.1, z: 0.0 };
-  let velB = { vx: -0.5, vy: 0.0, vz: 0.0 };
+  const posB = { x: 5.0, y: -0.1, z: 0.0 };
+  const velB = { vx: -0.5, vy: 0.0, vz: 0.0 };
 
   const dt = 0.01;
   const G = 1.0;

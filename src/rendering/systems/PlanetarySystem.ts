@@ -268,9 +268,11 @@ export class PlanetarySystem {
             const offset = i * 16;
             
             const orbitScale = 12.0;
-            const x = buffer[i * 7 + 0] * orbitScale;
-            const y = buffer[i * 7 + 1] * orbitScale;
-            const z = buffer[i * 7 + 2] * orbitScale;
+            // BOLT: Cache offset calculation to avoid redundant multiplication inside rendering loop
+            const idx = i * 7;
+            const x = buffer[idx + 0] * orbitScale;
+            const y = buffer[idx + 1] * orbitScale;
+            const z = buffer[idx + 2] * orbitScale;
             
             // BOLT: Manual column-major matrix construction (Translation * RotationY * Scale)
             // Bypasses THREE.Matrix4.compose() and setMatrixAt() validation/method overhead.
