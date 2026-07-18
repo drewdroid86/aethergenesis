@@ -126,6 +126,7 @@ export class SimulationCoordinator {
 
                 let mass = MASS_EARTH;
                 let radius = RADIUS_EARTH;
+                // eslint-disable-next-line no-useless-assignment
                 let albedo = 0.3;
 
                 if (bodyType === 'gas_giant') {

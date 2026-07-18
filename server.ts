@@ -371,7 +371,7 @@ function estimateParams(spType: string) {
   let temp = 5778;
   let rad = 1.0;
   let lum = 1.0;
-  let metallicity = 0.02;
+  const metallicity = 0.02;
 
   if (!spType) return { mass_solar: mass, temperature_K: temp, radius_solar: rad, luminosity_solar: lum, metallicity_Z: metallicity };
 
@@ -586,7 +586,7 @@ app.get('/api/catalog/search', async (req, res) => {
   // General search
   // Try SIMBAD
   try {
-    let filters = ["sp_type IS NOT NULL", "plx_value IS NOT NULL", "plx_value > 0"];
+    const filters = ["sp_type IS NOT NULL", "plx_value IS NOT NULL", "plx_value > 0"];
     if (spectralClass) {
       const safeSp = spectralClass.substring(0, 64).replace(/'/g, "''");
       filters.push(`sp_type LIKE '${safeSp}%'`);
@@ -634,7 +634,7 @@ app.get('/api/catalog/search', async (req, res) => {
   }
 
   // Fallback to presets
-  let results = PRESETS.map(p => ({
+  const results = PRESETS.map(p => ({
     name: p.name,
     hip_id: null,
     spectral_class: p.spectral_class,
@@ -645,20 +645,21 @@ app.get('/api/catalog/search', async (req, res) => {
     distance_ly: p.distance_ly,
     metallicity_Z: p.metallicity_Z,
     source: 'cached_preset',
-  }));
-
-  if (spectralClass) {
-    results = results.filter(r => r.spectral_class.toUpperCase().startsWith(spectralClass.toUpperCase()));
-  }
-  if (massMin !== undefined) {
-    results = results.filter(r => r.mass_solar >= massMin);
-  }
-  if (massMax !== undefined) {
-    results = results.filter(r => r.mass_solar <= massMax);
-  }
-  if (distMax !== undefined) {
-    results = results.filter(r => r.distance_ly !== null && r.distance_ly <= distMax);
-  }
+  })).filter(r => {
+    if (spectralClass && !r.spectral_class.toUpperCase().startsWith(spectralClass.toUpperCase())) {
+      return false;
+    }
+    if (massMin !== undefined && r.mass_solar < massMin) {
+      return false;
+    }
+    if (massMax !== undefined && r.mass_solar > massMax) {
+      return false;
+    }
+    if (distMax !== undefined && (r.distance_ly === null || r.distance_ly > distMax)) {
+      return false;
+    }
+    return true;
+  });
 
   return res.json(results.slice(0, limit));
 });
@@ -670,6 +671,7 @@ app.get('/api/horizons/search', async (req, res) => {
 
   if (bodyId) {
     // Security check: validate body_id format and length
+    // eslint-disable-next-line no-useless-escape
     if (bodyId.length > 100 || /[^a-zA-Z0-9\s\/-]/.test(bodyId)) {
       return res.status(400).json({ error: 'Invalid body ID format' });
     }
@@ -777,7 +779,7 @@ app.get('/api/horizons/search', async (req, res) => {
       }
     } catch (err) {
       // Fallback
-      let results = [];
+      let results: any[];
       if (type === 'comet') {
         results = [
           { naif_id: "1P", name: "1P/Halley", type: "comet", period_yr: 75.3, eccentricity: 0.967, perihelion_au: 0.586, inclination_deg: 162.2, coma_onset_au: 3.0, tail_onset_au: 2.5 },
