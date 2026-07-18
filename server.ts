@@ -371,7 +371,7 @@ function estimateParams(spType: string) {
   let temp = 5778;
   let rad = 1.0;
   let lum = 1.0;
-  let metallicity = 0.02;
+  const metallicity = 0.02;
 
   if (!spType) return { mass_solar: mass, temperature_K: temp, radius_solar: rad, luminosity_solar: lum, metallicity_Z: metallicity };
 
@@ -511,13 +511,37 @@ app.get('/api/catalog/presets', (_req, res) => {
 });
 
 app.get('/api/catalog/search', async (req, res) => {
-  const name = req.query.name as string;
-  const spectralClass = req.query.spectral_class as string;
-  
-  const massMin = req.query.mass_min_solar ? parseFloat(req.query.mass_min_solar as string) : undefined;
-  const massMax = req.query.mass_max_solar ? parseFloat(req.query.mass_max_solar as string) : undefined;
-  const distMax = req.query.distance_max_ly ? parseFloat(req.query.distance_max_ly as string) : undefined;
-  const limit = req.query.limit ? Math.min(20, parseInt(req.query.limit as string)) : 10;
+  const name = req.query.name;
+  const spectralClass = req.query.spectral_class;
+  const massMinQuery = req.query.mass_min_solar;
+  const massMaxQuery = req.query.mass_max_solar;
+  const distMaxQuery = req.query.distance_max_ly;
+  const limitQuery = req.query.limit;
+
+  // Security: Check for query parameter array-injection or invalid types
+  if (name !== undefined && typeof name !== 'string') {
+    return res.status(400).json({ error: 'Invalid name parameter' });
+  }
+  if (spectralClass !== undefined && typeof spectralClass !== 'string') {
+    return res.status(400).json({ error: 'Invalid spectral_class parameter' });
+  }
+  if (massMinQuery !== undefined && typeof massMinQuery !== 'string') {
+    return res.status(400).json({ error: 'Invalid mass_min_solar parameter' });
+  }
+  if (massMaxQuery !== undefined && typeof massMaxQuery !== 'string') {
+    return res.status(400).json({ error: 'Invalid mass_max_solar parameter' });
+  }
+  if (distMaxQuery !== undefined && typeof distMaxQuery !== 'string') {
+    return res.status(400).json({ error: 'Invalid distance_max_ly parameter' });
+  }
+  if (limitQuery !== undefined && typeof limitQuery !== 'string') {
+    return res.status(400).json({ error: 'Invalid limit parameter' });
+  }
+
+  const massMin = massMinQuery ? parseFloat(massMinQuery) : undefined;
+  const massMax = massMaxQuery ? parseFloat(massMaxQuery) : undefined;
+  const distMax = distMaxQuery ? parseFloat(distMaxQuery) : undefined;
+  const limit = limitQuery ? Math.min(20, parseInt(limitQuery)) : 10;
 
   // Validation
   if ((massMin !== undefined && (isNaN(massMin) || massMin < 0)) ||
@@ -586,7 +610,7 @@ app.get('/api/catalog/search', async (req, res) => {
   // General search
   // Try SIMBAD
   try {
-    let filters = ["sp_type IS NOT NULL", "plx_value IS NOT NULL", "plx_value > 0"];
+    const filters = ["sp_type IS NOT NULL", "plx_value IS NOT NULL", "plx_value > 0"];
     if (spectralClass) {
       const safeSp = spectralClass.substring(0, 64).replace(/'/g, "''");
       filters.push(`sp_type LIKE '${safeSp}%'`);
@@ -664,12 +688,26 @@ app.get('/api/catalog/search', async (req, res) => {
 });
 
 app.get('/api/horizons/search', async (req, res) => {
-  const bodyId = req.query.body_id as string;
-  const type = req.query.type as string;
-  const limit = req.query.limit ? Math.min(50, parseInt(req.query.limit as string)) : 20;
+  const bodyId = req.query.body_id;
+  const type = req.query.type;
+  const limitQuery = req.query.limit;
+
+  // Security: Check for query parameter array-injection or invalid types
+  if (bodyId !== undefined && typeof bodyId !== 'string') {
+    return res.status(400).json({ error: 'Invalid body_id parameter' });
+  }
+  if (type !== undefined && typeof type !== 'string') {
+    return res.status(400).json({ error: 'Invalid type parameter' });
+  }
+  if (limitQuery !== undefined && typeof limitQuery !== 'string') {
+    return res.status(400).json({ error: 'Invalid limit parameter' });
+  }
+
+  const limit = limitQuery ? Math.min(50, parseInt(limitQuery)) : 20;
 
   if (bodyId) {
     // Security check: validate body_id format and length
+    // eslint-disable-next-line no-useless-escape
     if (bodyId.length > 100 || /[^a-zA-Z0-9\s\/-]/.test(bodyId)) {
       return res.status(400).json({ error: 'Invalid body ID format' });
     }
@@ -775,26 +813,21 @@ app.get('/api/horizons/search', async (req, res) => {
       } else {
         throw new Error('Invalid structure');
       }
-    } catch (err) {
+    } catch {
       // Fallback
-      let results = [];
-      if (type === 'comet') {
-        results = [
-          { naif_id: "1P", name: "1P/Halley", type: "comet", period_yr: 75.3, eccentricity: 0.967, perihelion_au: 0.586, inclination_deg: 162.2, coma_onset_au: 3.0, tail_onset_au: 2.5 },
-          { naif_id: "67P", name: "67P/Churyumov-Gerasimenko", type: "comet", period_yr: 6.44, eccentricity: 0.641, perihelion_au: 1.24, inclination_deg: 7.04, coma_onset_au: 3.0, tail_onset_au: 2.5 },
-          { naif_id: "Hale-Bopp", name: "C/1995 O1 (Hale-Bopp)", type: "comet", period_yr: 2534.0, eccentricity: 0.995, perihelion_au: 0.914, inclination_deg: 89.4, coma_onset_au: 3.0, tail_onset_au: 2.5 },
-          { naif_id: "2P", name: "2P/Encke", type: "comet", period_yr: 3.3, eccentricity: 0.848, perihelion_au: 0.336, inclination_deg: 11.78, coma_onset_au: 3.0, tail_onset_au: 2.5 },
-          { naif_id: "9P", name: "9P/Tempel 1", type: "comet", period_yr: 5.5, eccentricity: 0.517, perihelion_au: 1.5, inclination_deg: 10.5, coma_onset_au: 3.0, tail_onset_au: 2.5 }
-        ];
-      } else {
-        results = [
-          { naif_id: "Ceres", name: "1 Ceres", type: "asteroid", period_yr: 4.6, eccentricity: 0.076, perihelion_au: 2.56, inclination_deg: 10.6, coma_onset_au: null, tail_onset_au: null },
-          { naif_id: "Pallas", name: "2 Pallas", type: "asteroid", period_yr: 4.62, eccentricity: 0.231, perihelion_au: 2.13, inclination_deg: 34.8, coma_onset_au: null, tail_onset_au: null },
-          { naif_id: "Juno", name: "3 Juno", type: "asteroid", period_yr: 4.36, eccentricity: 0.256, perihelion_au: 1.98, inclination_deg: 13.0, coma_onset_au: null, tail_onset_au: null },
-          { naif_id: "Vesta", name: "4 Vesta", type: "asteroid", period_yr: 3.63, eccentricity: 0.089, perihelion_au: 2.15, inclination_deg: 7.14, coma_onset_au: null, tail_onset_au: null },
-          { naif_id: "Eros", name: "433 Eros", type: "asteroid", period_yr: 1.76, eccentricity: 0.223, perihelion_au: 1.13, inclination_deg: 10.8, coma_onset_au: null, tail_onset_au: null }
-        ];
-      }
+      const results = type === 'comet' ? [
+        { naif_id: "1P", name: "1P/Halley", type: "comet", period_yr: 75.3, eccentricity: 0.967, perihelion_au: 0.586, inclination_deg: 162.2, coma_onset_au: 3.0, tail_onset_au: 2.5 },
+        { naif_id: "67P", name: "67P/Churyumov-Gerasimenko", type: "comet", period_yr: 6.44, eccentricity: 0.641, perihelion_au: 1.24, inclination_deg: 7.04, coma_onset_au: 3.0, tail_onset_au: 2.5 },
+        { naif_id: "Hale-Bopp", name: "C/1995 O1 (Hale-Bopp)", type: "comet", period_yr: 2534.0, eccentricity: 0.995, perihelion_au: 0.914, inclination_deg: 89.4, coma_onset_au: 3.0, tail_onset_au: 2.5 },
+        { naif_id: "2P", name: "2P/Encke", type: "comet", period_yr: 3.3, eccentricity: 0.848, perihelion_au: 0.336, inclination_deg: 11.78, coma_onset_au: 3.0, tail_onset_au: 2.5 },
+        { naif_id: "9P", name: "9P/Tempel 1", type: "comet", period_yr: 5.5, eccentricity: 0.517, perihelion_au: 1.5, inclination_deg: 10.5, coma_onset_au: 3.0, tail_onset_au: 2.5 }
+      ] : [
+        { naif_id: "Ceres", name: "1 Ceres", type: "asteroid", period_yr: 4.6, eccentricity: 0.076, perihelion_au: 2.56, inclination_deg: 10.6, coma_onset_au: null, tail_onset_au: null },
+        { naif_id: "Pallas", name: "2 Pallas", type: "asteroid", period_yr: 4.62, eccentricity: 0.231, perihelion_au: 2.13, inclination_deg: 34.8, coma_onset_au: null, tail_onset_au: null },
+        { naif_id: "Juno", name: "3 Juno", type: "asteroid", period_yr: 4.36, eccentricity: 0.256, perihelion_au: 1.98, inclination_deg: 13.0, coma_onset_au: null, tail_onset_au: null },
+        { naif_id: "Vesta", name: "4 Vesta", type: "asteroid", period_yr: 3.63, eccentricity: 0.089, perihelion_au: 2.15, inclination_deg: 7.14, coma_onset_au: null, tail_onset_au: null },
+        { naif_id: "Eros", name: "433 Eros", type: "asteroid", period_yr: 1.76, eccentricity: 0.223, perihelion_au: 1.13, inclination_deg: 10.8, coma_onset_au: null, tail_onset_au: null }
+      ];
       return res.json(results.slice(0, limit));
     }
   }
