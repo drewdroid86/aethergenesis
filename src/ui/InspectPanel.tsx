@@ -296,7 +296,7 @@ Civilization: ${geminiData.civilization}`;
                                 ? `linear-gradient(to right, rgba(192, 132, 252, 0.2) ${((5000 - cooldownRemaining) / 5000) * 100}%, rgba(0, 0, 0, 0.4) 0%)`
                                 : undefined
                         }}
-                        className={`w-full py-2 ${cooldownRemaining > 0 ? '' : 'bg-[#C084FC]/20 hover:bg-[#C084FC]/40 hover:scale-[1.02]'} text-[#C084FC] hover:text-white border border-[#C084FC]/30 rounded transition-all text-[10px] uppercase tracking-widest disabled:opacity-70 flex items-center justify-center gap-2 overflow-hidden relative active:scale-[0.98]`}
+                        className={`w-full py-2 ${cooldownRemaining > 0 ? '' : 'bg-[#C084FC]/20 hover:bg-[#C084FC]/40 hover:scale-[1.02]'} text-[#C084FC] hover:text-white border border-[#C084FC]/30 rounded transition-all text-[10px] uppercase tracking-widest disabled:opacity-70 flex items-center justify-center gap-2 overflow-hidden relative active:scale-[0.98] focus-visible:ring-2 focus-visible:ring-[#C084FC] focus-visible:ring-offset-1 focus-visible:ring-offset-black outline-none`}
                     >
                         {isAnalyzing ? (
                             <>
