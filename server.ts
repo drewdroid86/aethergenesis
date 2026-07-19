@@ -11,6 +11,21 @@ dotenv.config();
 const app = express();
 const port = process.env.PORT || 3001;
 
+/**
+ * Security: Fetch wrapper with timeout to prevent server resource exhaustion
+ * from hanging external API calls.
+ */
+async function fetchWithTimeout(url: string, timeout = 10000): Promise<Response> {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeout);
+  try {
+    const response = await fetch(url, { signal: controller.signal });
+    return response;
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+
 // Security: Defense in depth - minimize fingerprinting
 app.disable('x-powered-by');
 
@@ -371,7 +386,7 @@ function estimateParams(spType: string) {
   let temp = 5778;
   let rad = 1.0;
   let lum = 1.0;
-  let metallicity = 0.02;
+  const metallicity = 0.02;
 
   if (!spType) return { mass_solar: mass, temperature_K: temp, radius_solar: rad, luminosity_solar: lum, metallicity_Z: metallicity };
 
@@ -511,13 +526,33 @@ app.get('/api/catalog/presets', (_req, res) => {
 });
 
 app.get('/api/catalog/search', async (req, res) => {
-  const name = req.query.name as string;
-  const spectralClass = req.query.spectral_class as string;
-  
-  const massMin = req.query.mass_min_solar ? parseFloat(req.query.mass_min_solar as string) : undefined;
-  const massMax = req.query.mass_max_solar ? parseFloat(req.query.mass_max_solar as string) : undefined;
-  const distMax = req.query.distance_max_ly ? parseFloat(req.query.distance_max_ly as string) : undefined;
-  const limit = req.query.limit ? Math.min(20, parseInt(req.query.limit as string)) : 10;
+  const name = req.query.name;
+  const spectralClass = req.query.spectral_class;
+
+  // Security: Runtime type validation to prevent array-injection or non-string bypasses
+  if (name !== undefined && typeof name !== 'string') {
+    return res.status(400).json({ error: 'Invalid name parameter' });
+  }
+  if (spectralClass !== undefined && typeof spectralClass !== 'string') {
+    return res.status(400).json({ error: 'Invalid spectral_class parameter' });
+  }
+  if (req.query.mass_min_solar !== undefined && typeof req.query.mass_min_solar !== 'string') {
+    return res.status(400).json({ error: 'Invalid mass_min_solar parameter' });
+  }
+  if (req.query.mass_max_solar !== undefined && typeof req.query.mass_max_solar !== 'string') {
+    return res.status(400).json({ error: 'Invalid mass_max_solar parameter' });
+  }
+  if (req.query.distance_max_ly !== undefined && typeof req.query.distance_max_ly !== 'string') {
+    return res.status(400).json({ error: 'Invalid distance_max_ly parameter' });
+  }
+  if (req.query.limit !== undefined && typeof req.query.limit !== 'string') {
+    return res.status(400).json({ error: 'Invalid limit parameter' });
+  }
+
+  const massMin = req.query.mass_min_solar ? parseFloat(req.query.mass_min_solar) : undefined;
+  const massMax = req.query.mass_max_solar ? parseFloat(req.query.mass_max_solar) : undefined;
+  const distMax = req.query.distance_max_ly ? parseFloat(req.query.distance_max_ly) : undefined;
+  const limit = req.query.limit ? Math.min(20, parseInt(req.query.limit)) : 10;
 
   // Validation
   if ((massMin !== undefined && (isNaN(massMin) || massMin < 0)) ||
@@ -546,7 +581,7 @@ app.get('/api/catalog/search', async (req, res) => {
       const adql = `SELECT TOP 1 main_id, sp_type, plx_value FROM basic WHERE main_id = '${safeName}' OR main_id LIKE '% ${safeName}'`;
       const url = `https://simbad.u-strasbg.fr/simbad/sim-tap/sync?REQUEST=doQuery&LANG=ADQL&FORMAT=json&QUERY=${encodeURIComponent(adql)}`;
       
-      const response = await fetch(url);
+      const response = await fetchWithTimeout(url);
       if (response.status === 200) {
         const data = await response.json();
         if (data && data.data && data.data.length > 0) {
@@ -586,7 +621,7 @@ app.get('/api/catalog/search', async (req, res) => {
   // General search
   // Try SIMBAD
   try {
-    let filters = ["sp_type IS NOT NULL", "plx_value IS NOT NULL", "plx_value > 0"];
+    const filters = ["sp_type IS NOT NULL", "plx_value IS NOT NULL", "plx_value > 0"];
     if (spectralClass) {
       const safeSp = spectralClass.substring(0, 64).replace(/'/g, "''");
       filters.push(`sp_type LIKE '${safeSp}%'`);
@@ -599,7 +634,7 @@ app.get('/api/catalog/search', async (req, res) => {
     const adql = `SELECT TOP 50 main_id, sp_type, plx_value FROM basic WHERE ${filters.join(' AND ')}`;
     const url = `https://simbad.u-strasbg.fr/simbad/sim-tap/sync?REQUEST=doQuery&LANG=ADQL&FORMAT=json&QUERY=${encodeURIComponent(adql)}`;
     
-    const response = await fetch(url);
+    const response = await fetchWithTimeout(url);
     if (response.status === 200) {
       const data = await response.json();
       if (data && data.data && Array.isArray(data.data)) {
@@ -664,12 +699,26 @@ app.get('/api/catalog/search', async (req, res) => {
 });
 
 app.get('/api/horizons/search', async (req, res) => {
-  const bodyId = req.query.body_id as string;
-  const type = req.query.type as string;
-  const limit = req.query.limit ? Math.min(50, parseInt(req.query.limit as string)) : 20;
+  const bodyId = req.query.body_id;
+  const type = req.query.type;
+  const limitQuery = req.query.limit;
+
+  // Security: Runtime type validation to prevent array-injection
+  if (bodyId !== undefined && typeof bodyId !== 'string') {
+    return res.status(400).json({ error: 'Invalid body_id parameter' });
+  }
+  if (type !== undefined && typeof type !== 'string') {
+    return res.status(400).json({ error: 'Invalid type parameter' });
+  }
+  if (limitQuery !== undefined && typeof limitQuery !== 'string') {
+    return res.status(400).json({ error: 'Invalid limit parameter' });
+  }
+
+  const limit = limitQuery ? Math.min(50, parseInt(limitQuery)) : 20;
 
   if (bodyId) {
     // Security check: validate body_id format and length
+    // eslint-disable-next-line no-useless-escape
     if (bodyId.length > 100 || /[^a-zA-Z0-9\s\/-]/.test(bodyId)) {
       return res.status(400).json({ error: 'Invalid body ID format' });
     }
@@ -679,7 +728,7 @@ app.get('/api/horizons/search', async (req, res) => {
       const stopStr = '2000-01-02';
       const url = `https://ssd.jpl.nasa.gov/api/horizons.api?format=json&EPHEM_TYPE=ELEMENTS&COMMAND='${encodeURIComponent(bodyId)}'&MAKE_EPHEM=YES&CENTER=500@10&START_TIME=${epoch}&STOP_TIME=${stopStr}&STEP_SIZE=1d&OBJ_DATA=YES`;
       
-      const response = await fetch(url);
+      const response = await fetchWithTimeout(url);
       if (response.status !== 200) {
         return res.status(400).json({ error: 'Horizons API returned non-200' });
       }
@@ -703,7 +752,7 @@ app.get('/api/horizons/search', async (req, res) => {
         if (recordNumbers.length > 0) {
           const bestRecord = recordNumbers[recordNumbers.length - 1];
           const retryUrl = `https://ssd.jpl.nasa.gov/api/horizons.api?format=json&EPHEM_TYPE=ELEMENTS&COMMAND=${encodeURIComponent("'" + bestRecord + ";'")}&MAKE_EPHEM=YES&CENTER=500@10&START_TIME=${epoch}&STOP_TIME=${stopStr}&STEP_SIZE=1d&OBJ_DATA=YES`;
-          const retryRes = await fetch(retryUrl);
+          const retryRes = await fetchWithTimeout(retryUrl);
           const retryData = await retryRes.json();
           if (retryData.error || !retryData.result) {
             return res.status(400).json({ error: 'Failed on retry' });
@@ -741,7 +790,7 @@ app.get('/api/horizons/search', async (req, res) => {
     const url = `https://ssd-api.jpl.nasa.gov/sbdb_query.api?fields=spkid,full_name,e,q,i,per${kindParam}&limit=${limit}&phys-par=0`;
 
     try {
-      const response = await fetch(url);
+      const response = await fetchWithTimeout(url);
       if (response.status !== 200) {
         throw new Error('JPL API returned non-200');
       }
@@ -777,24 +826,21 @@ app.get('/api/horizons/search', async (req, res) => {
       }
     } catch (err) {
       // Fallback
-      let results = [];
-      if (type === 'comet') {
-        results = [
-          { naif_id: "1P", name: "1P/Halley", type: "comet", period_yr: 75.3, eccentricity: 0.967, perihelion_au: 0.586, inclination_deg: 162.2, coma_onset_au: 3.0, tail_onset_au: 2.5 },
-          { naif_id: "67P", name: "67P/Churyumov-Gerasimenko", type: "comet", period_yr: 6.44, eccentricity: 0.641, perihelion_au: 1.24, inclination_deg: 7.04, coma_onset_au: 3.0, tail_onset_au: 2.5 },
-          { naif_id: "Hale-Bopp", name: "C/1995 O1 (Hale-Bopp)", type: "comet", period_yr: 2534.0, eccentricity: 0.995, perihelion_au: 0.914, inclination_deg: 89.4, coma_onset_au: 3.0, tail_onset_au: 2.5 },
-          { naif_id: "2P", name: "2P/Encke", type: "comet", period_yr: 3.3, eccentricity: 0.848, perihelion_au: 0.336, inclination_deg: 11.78, coma_onset_au: 3.0, tail_onset_au: 2.5 },
-          { naif_id: "9P", name: "9P/Tempel 1", type: "comet", period_yr: 5.5, eccentricity: 0.517, perihelion_au: 1.5, inclination_deg: 10.5, coma_onset_au: 3.0, tail_onset_au: 2.5 }
-        ];
-      } else {
-        results = [
-          { naif_id: "Ceres", name: "1 Ceres", type: "asteroid", period_yr: 4.6, eccentricity: 0.076, perihelion_au: 2.56, inclination_deg: 10.6, coma_onset_au: null, tail_onset_au: null },
-          { naif_id: "Pallas", name: "2 Pallas", type: "asteroid", period_yr: 4.62, eccentricity: 0.231, perihelion_au: 2.13, inclination_deg: 34.8, coma_onset_au: null, tail_onset_au: null },
-          { naif_id: "Juno", name: "3 Juno", type: "asteroid", period_yr: 4.36, eccentricity: 0.256, perihelion_au: 1.98, inclination_deg: 13.0, coma_onset_au: null, tail_onset_au: null },
-          { naif_id: "Vesta", name: "4 Vesta", type: "asteroid", period_yr: 3.63, eccentricity: 0.089, perihelion_au: 2.15, inclination_deg: 7.14, coma_onset_au: null, tail_onset_au: null },
-          { naif_id: "Eros", name: "433 Eros", type: "asteroid", period_yr: 1.76, eccentricity: 0.223, perihelion_au: 1.13, inclination_deg: 10.8, coma_onset_au: null, tail_onset_au: null }
-        ];
-      }
+      const results = type === 'comet'
+        ? [
+            { naif_id: "1P", name: "1P/Halley", type: "comet", period_yr: 75.3, eccentricity: 0.967, perihelion_au: 0.586, inclination_deg: 162.2, coma_onset_au: 3.0, tail_onset_au: 2.5 },
+            { naif_id: "67P", name: "67P/Churyumov-Gerasimenko", type: "comet", period_yr: 6.44, eccentricity: 0.641, perihelion_au: 1.24, inclination_deg: 7.04, coma_onset_au: 3.0, tail_onset_au: 2.5 },
+            { naif_id: "Hale-Bopp", name: "C/1995 O1 (Hale-Bopp)", type: "comet", period_yr: 2534.0, eccentricity: 0.995, perihelion_au: 0.914, inclination_deg: 89.4, coma_onset_au: 3.0, tail_onset_au: 2.5 },
+            { naif_id: "2P", name: "2P/Encke", type: "comet", period_yr: 3.3, eccentricity: 0.848, perihelion_au: 0.336, inclination_deg: 11.78, coma_onset_au: 3.0, tail_onset_au: 2.5 },
+            { naif_id: "9P", name: "9P/Tempel 1", type: "comet", period_yr: 5.5, eccentricity: 0.517, perihelion_au: 1.5, inclination_deg: 10.5, coma_onset_au: 3.0, tail_onset_au: 2.5 }
+          ]
+        : [
+            { naif_id: "Ceres", name: "1 Ceres", type: "asteroid", period_yr: 4.6, eccentricity: 0.076, perihelion_au: 2.56, inclination_deg: 10.6, coma_onset_au: null, tail_onset_au: null },
+            { naif_id: "Pallas", name: "2 Pallas", type: "asteroid", period_yr: 4.62, eccentricity: 0.231, perihelion_au: 2.13, inclination_deg: 34.8, coma_onset_au: null, tail_onset_au: null },
+            { naif_id: "Juno", name: "3 Juno", type: "asteroid", period_yr: 4.36, eccentricity: 0.256, perihelion_au: 1.98, inclination_deg: 13.0, coma_onset_au: null, tail_onset_au: null },
+            { naif_id: "Vesta", name: "4 Vesta", type: "asteroid", period_yr: 3.63, eccentricity: 0.089, perihelion_au: 2.15, inclination_deg: 7.14, coma_onset_au: null, tail_onset_au: null },
+            { naif_id: "Eros", name: "433 Eros", type: "asteroid", period_yr: 1.76, eccentricity: 0.223, perihelion_au: 1.13, inclination_deg: 10.8, coma_onset_au: null, tail_onset_au: null }
+          ];
       return res.json(results.slice(0, limit));
     }
   }
