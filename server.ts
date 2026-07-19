@@ -87,6 +87,20 @@ const analysisLimitMap = new LRUCache<string, RateLimitData>({
 const apiKey = process.env.GEMINI_API_KEY;
 const ai = apiKey ? new GoogleGenAI({ apiKey }) : null;
 
+/**
+ * Security: Fetch wrapper with timeout to prevent resource exhaustion
+ * from slow or unresponsive external APIs.
+ */
+async function fetchWithTimeout(url: string, timeout = 10000) {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeout);
+  try {
+    return await fetch(url, { signal: controller.signal });
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+
 // --- Preset catalog and JPL Horizons search logic ---
 
 interface PlanetPreset {
@@ -511,13 +525,39 @@ app.get('/api/catalog/presets', (_req, res) => {
 });
 
 app.get('/api/catalog/search', async (req, res) => {
-  const name = req.query.name as string;
-  const spectralClass = req.query.spectral_class as string;
-  
-  const massMin = req.query.mass_min_solar ? parseFloat(req.query.mass_min_solar as string) : undefined;
-  const massMax = req.query.mass_max_solar ? parseFloat(req.query.mass_max_solar as string) : undefined;
-  const distMax = req.query.distance_max_ly ? parseFloat(req.query.distance_max_ly as string) : undefined;
-  const limit = req.query.limit ? Math.min(20, parseInt(req.query.limit as string)) : 10;
+  // Security: Validate query parameter types to prevent array-injection
+  const nameRaw = req.query.name;
+  const spectralClassRaw = req.query.spectral_class;
+  const massMinRaw = req.query.mass_min_solar;
+  const massMaxRaw = req.query.mass_max_solar;
+  const distMaxRaw = req.query.distance_max_ly;
+  const limitRaw = req.query.limit;
+
+  if (nameRaw !== undefined && typeof nameRaw !== 'string') {
+    return res.status(400).json({ error: 'Invalid name parameter' });
+  }
+  if (spectralClassRaw !== undefined && typeof spectralClassRaw !== 'string') {
+    return res.status(400).json({ error: 'Invalid spectral_class parameter' });
+  }
+  if (massMinRaw !== undefined && typeof massMinRaw !== 'string') {
+    return res.status(400).json({ error: 'Invalid mass_min_solar parameter' });
+  }
+  if (massMaxRaw !== undefined && typeof massMaxRaw !== 'string') {
+    return res.status(400).json({ error: 'Invalid mass_max_solar parameter' });
+  }
+  if (distMaxRaw !== undefined && typeof distMaxRaw !== 'string') {
+    return res.status(400).json({ error: 'Invalid distance_max_ly parameter' });
+  }
+  if (limitRaw !== undefined && typeof limitRaw !== 'string') {
+    return res.status(400).json({ error: 'Invalid limit parameter' });
+  }
+
+  const name = nameRaw as string | undefined;
+  const spectralClass = spectralClassRaw as string | undefined;
+  const massMin = massMinRaw ? parseFloat(massMinRaw as string) : undefined;
+  const massMax = massMaxRaw ? parseFloat(massMaxRaw as string) : undefined;
+  const distMax = distMaxRaw ? parseFloat(distMaxRaw as string) : undefined;
+  const limit = limitRaw ? Math.min(20, parseInt(limitRaw as string)) : 10;
 
   // Validation
   if ((massMin !== undefined && (isNaN(massMin) || massMin < 0)) ||
@@ -546,7 +586,7 @@ app.get('/api/catalog/search', async (req, res) => {
       const adql = `SELECT TOP 1 main_id, sp_type, plx_value FROM basic WHERE main_id = '${safeName}' OR main_id LIKE '% ${safeName}'`;
       const url = `https://simbad.u-strasbg.fr/simbad/sim-tap/sync?REQUEST=doQuery&LANG=ADQL&FORMAT=json&QUERY=${encodeURIComponent(adql)}`;
       
-      const response = await fetch(url);
+      const response = await fetchWithTimeout(url);
       if (response.status === 200) {
         const data = await response.json();
         if (data && data.data && data.data.length > 0) {
@@ -599,7 +639,7 @@ app.get('/api/catalog/search', async (req, res) => {
     const adql = `SELECT TOP 50 main_id, sp_type, plx_value FROM basic WHERE ${filters.join(' AND ')}`;
     const url = `https://simbad.u-strasbg.fr/simbad/sim-tap/sync?REQUEST=doQuery&LANG=ADQL&FORMAT=json&QUERY=${encodeURIComponent(adql)}`;
     
-    const response = await fetch(url);
+    const response = await fetchWithTimeout(url);
     if (response.status === 200) {
       const data = await response.json();
       if (data && data.data && Array.isArray(data.data)) {
@@ -664,9 +704,29 @@ app.get('/api/catalog/search', async (req, res) => {
 });
 
 app.get('/api/horizons/search', async (req, res) => {
-  const bodyId = req.query.body_id as string;
-  const type = req.query.type as string;
-  const limit = req.query.limit ? Math.min(50, parseInt(req.query.limit as string)) : 20;
+  // Security: Validate query parameter types to prevent array-injection
+  const bodyIdRaw = req.query.body_id;
+  const typeRaw = req.query.type;
+  const limitRaw = req.query.limit;
+
+  if (bodyIdRaw !== undefined && typeof bodyIdRaw !== 'string') {
+    return res.status(400).json({ error: 'Invalid body_id parameter' });
+  }
+  if (typeRaw !== undefined && typeof typeRaw !== 'string') {
+    return res.status(400).json({ error: 'Invalid type parameter' });
+  }
+  if (limitRaw !== undefined && typeof limitRaw !== 'string') {
+    return res.status(400).json({ error: 'Invalid limit parameter' });
+  }
+
+  const bodyId = bodyIdRaw as string | undefined;
+  const type = typeRaw as string | undefined;
+  const limit = limitRaw ? Math.min(50, parseInt(limitRaw as string)) : 20;
+
+  // Security: Validate limit is a sane number
+  if (isNaN(limit) || limit < 1) {
+    return res.status(400).json({ error: 'Invalid limit parameter' });
+  }
 
   if (bodyId) {
     // Security check: validate body_id format and length
@@ -679,7 +739,7 @@ app.get('/api/horizons/search', async (req, res) => {
       const stopStr = '2000-01-02';
       const url = `https://ssd.jpl.nasa.gov/api/horizons.api?format=json&EPHEM_TYPE=ELEMENTS&COMMAND='${encodeURIComponent(bodyId)}'&MAKE_EPHEM=YES&CENTER=500@10&START_TIME=${epoch}&STOP_TIME=${stopStr}&STEP_SIZE=1d&OBJ_DATA=YES`;
       
-      const response = await fetch(url);
+      const response = await fetchWithTimeout(url);
       if (response.status !== 200) {
         return res.status(400).json({ error: 'Horizons API returned non-200' });
       }
@@ -703,7 +763,7 @@ app.get('/api/horizons/search', async (req, res) => {
         if (recordNumbers.length > 0) {
           const bestRecord = recordNumbers[recordNumbers.length - 1];
           const retryUrl = `https://ssd.jpl.nasa.gov/api/horizons.api?format=json&EPHEM_TYPE=ELEMENTS&COMMAND=${encodeURIComponent("'" + bestRecord + ";'")}&MAKE_EPHEM=YES&CENTER=500@10&START_TIME=${epoch}&STOP_TIME=${stopStr}&STEP_SIZE=1d&OBJ_DATA=YES`;
-          const retryRes = await fetch(retryUrl);
+          const retryRes = await fetchWithTimeout(retryUrl);
           const retryData = await retryRes.json();
           if (retryData.error || !retryData.result) {
             return res.status(400).json({ error: 'Failed on retry' });
@@ -724,8 +784,10 @@ app.get('/api/horizons/search', async (req, res) => {
         ...parsed,
         source: 'NASA JPL Horizons',
       });
-    } catch (err: any) {
-      return res.status(400).json({ error: err.message });
+    } catch (err) {
+      // Security: Log detailed error internally, return generic message to client
+      console.error('Horizons body lookup error:', err);
+      return res.status(400).json({ error: 'Failed to retrieve data from Horizons API.' });
     }
   }
 
@@ -741,7 +803,7 @@ app.get('/api/horizons/search', async (req, res) => {
     const url = `https://ssd-api.jpl.nasa.gov/sbdb_query.api?fields=spkid,full_name,e,q,i,per${kindParam}&limit=${limit}&phys-par=0`;
 
     try {
-      const response = await fetch(url);
+      const response = await fetchWithTimeout(url);
       if (response.status !== 200) {
         throw new Error('JPL API returned non-200');
       }
@@ -775,7 +837,8 @@ app.get('/api/horizons/search', async (req, res) => {
       } else {
         throw new Error('Invalid structure');
       }
-    } catch (err) {
+    } catch {
+      // Fallback to hardcoded data
       let results: any[];
       if (type === 'comet') {
         results = [
