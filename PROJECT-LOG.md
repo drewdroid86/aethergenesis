@@ -70,6 +70,22 @@ src/
 
 ---
 
+### feat/black-hole-lensing — Black Hole Gravitational Lensing & Render Loop Safety
+**Date:** July 19, 2026
+**AI:** Antigravity (Gemini 3.5 Flash)
+**Branch:** perf/eager-phase-init
+
+**Changes:**
+- **Black Hole Lensing Shader & Post-Processing Warp**: Added post-processing gravitational lensing warp effect to the cinematic fragment shader (`cinematic.frag.glsl`) to warp the entire screen (including background stars and accretion disk) around the screen-space projection of high-mass black holes (mass > 15.0).
+- **Accretion Disk & Visual Rework**: Replaced the placeholder flat accretion disk visual inside `RemnantPhase.ts` and `geometries.ts` with a smaller, high-fidelity circular disk (`RingGeometry(1.2, 4.0)`). Implemented a custom fragment shader incorporating Keplerian differential rotation (`orbitalSpeed = 4.0 / (dist^2 + 1.0)`), orbital winding spiral waves, and relativistic Doppler beaming (`1.0 + 0.6 * cos(angle)`) for a premium "Interstellar" look.
+- **Starfield Rebuild Race Safety**: Guarded against out-of-bounds array reads in the render loop by:
+  - Synchronously resetting `activeHeroStarCount` to `0` immediately after clearing the `heroStars` array in `rebuildStarfieldGeometry()` inside `useSimulation.ts`.
+  - Adding a defensive clamping layer `Math.min(this.activeHeroStarCount, this.heroStars.length)` around all rendering/update loops iterating over active stars in `engine.ts` to prevent race conditions during performance-tier transitions.
+
+**State at end:** TypeScript type-check compiles with zero errors, production builds succeed, and all 49 E2E test scenarios across presets, UI modes, galaxy, and comets pass perfectly.
+
+---
+
 ### perf/planetary-system-budget-queue — PlanetarySystem Creation & Disposal Throttle
 **Date:** July 18, 2026
 **AI:** Antigravity (Gemini 3.5 Flash)

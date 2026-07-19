@@ -379,6 +379,9 @@ export class Engine {
         // Process queued planetary systems creation/disposal to prevent stutters
         PlanetarySystemQueue.process(this.renderer);
 
+        // Update post-processing lensing uniforms
+        this.pipeline.updateLensing(this.selectedStar, this.camera, delta);
+
         // Use pipeline for rendering with post-processing - still render when paused for camera movement
         this.pipeline.render(this.appTime, delta);
     }

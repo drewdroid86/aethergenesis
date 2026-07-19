@@ -90,23 +90,43 @@ export class RemnantPhase implements PhaseComponent {
             blending: THREE.AdditiveBlending,
             side: THREE.DoubleSide,
             vertexShader: `
+                varying vec3 vLocalPos;
                 varying vec2 vUv;
                 void main() {
                     vUv = uv;
+                    vLocalPos = position;
                     gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
                 }
             `,
             fragmentShader: `
+                varying vec3 vLocalPos;
                 varying vec2 vUv;
                 uniform float uTime;
                 uniform float uOpacity;
                 void main() {
-                    float dist = vUv.y; // Radial distance: 0 (inner) to 1 (outer)
-                    vec3 innerColor = vec3(1.0, 1.0, 0.9); // White-ish hot
-                    vec3 outerColor = vec3(1.0, 0.4, 0.0); // Orange cool
-                    vec3 color = mix(innerColor, outerColor, pow(dist, 1.5));
-                    float alpha = (0.7 + 0.3 * sin(uTime * 4.0)) * (1.0 - dist);
-                    gl_FragColor = vec4(color, alpha * 0.85 * uOpacity);
+                    float dist = length(vLocalPos.xz);
+                    float r = (dist - 1.2) / (4.0 - 1.2);
+                    r = clamp(r, 0.0, 1.0);
+                    
+                    // Doppler beaming: gas on one side of the disk (rotating towards us) is brighter
+                    float angle = atan(vLocalPos.z, vLocalPos.x);
+                    float doppler = 1.0 + 0.6 * cos(angle);
+                    
+                    // Orbiting structure: spiral waves with Keplerian-like differential rotation
+                    float orbitalSpeed = 4.0 / (dist * dist + 1.0);
+                    float wave = sin(angle * 6.0 - uTime * 12.0 * orbitalSpeed) * 0.5 + 0.5;
+                    
+                    vec3 innerColor = vec3(1.0, 0.95, 0.85); // Ultra-hot white core
+                    vec3 midColor = vec3(1.0, 0.45, 0.05);   // High-heat orange
+                    vec3 outerColor = vec3(0.8, 0.1, 0.0);   // Cooler red edge
+                    
+                    vec3 color = mix(innerColor, midColor, smoothstep(0.0, 0.4, r));
+                    color = mix(color, outerColor, smoothstep(0.4, 1.0, r));
+                    
+                    // Accretion disk opacity: hot inner edge, fades out at the outer edge
+                    float alpha = (0.2 + 0.8 * wave) * (1.0 - smoothstep(0.8, 1.0, r)) * smoothstep(0.0, 0.15, r);
+                    
+                    gl_FragColor = vec4(color * doppler, alpha * 0.85 * uOpacity);
                 }
             `
         });
