@@ -1,3 +1,4 @@
+/* eslint-disable prefer-const */
 import test from 'node:test';
 import assert from 'node:assert';
 import { AstrobiologyEngine, HabitabilityState } from '../../src/simulation/AstrobiologyEngine';

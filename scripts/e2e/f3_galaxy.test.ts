@@ -1,3 +1,4 @@
+/* eslint-disable no-useless-assignment, prefer-const */
 import test from 'node:test';
 import assert from 'node:assert';
 
