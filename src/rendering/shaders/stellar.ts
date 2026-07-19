@@ -1,3 +1,4 @@
+import * as THREE from 'three';
 import { resolveIncludes } from '../../utils/shaderLoader';
 
 import nebulaFrag from '../../shaders/nebula.frag.glsl?raw';
@@ -31,7 +32,11 @@ export const ejectaFS = resolveIncludes(ejectaFrag);
 export const CinematicPassShader = {
   uniforms: {
     tDiffuse: { value: null },
-    time: { value: 0 }
+    time: { value: 0 },
+    uBlackHoleScreenPos: { value: new THREE.Vector2(0.5, 0.5) },
+    uBlackHoleRadius: { value: 0.0 },
+    uLensingStrength: { value: 0.0 },
+    uAspectRatio: { value: 1.0 }
   },
   vertexShader: resolveIncludes(cinematicVert),
   fragmentShader: resolveIncludes(cinematicFrag)

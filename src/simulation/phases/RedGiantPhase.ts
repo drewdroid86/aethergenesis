@@ -5,6 +5,7 @@ import { basicVS, starSurfaceFS } from '../../rendering/shaders/stellar';
 import { GEOMETRIES } from './geometries';
 import { PlanetInfo } from './MainSequencePhase';
 import { STELLAR_CONSTANTS } from '../../core/constants';
+import { phaseCounters } from '../../utils/performance';
 
 export class RedGiantPhase implements PhaseComponent {
     public redGiantGroup!: THREE.Group;
@@ -17,9 +18,12 @@ export class RedGiantPhase implements PhaseComponent {
     private tHeat: number;
     private planetsInfo: PlanetInfo[] = [];
 
+    private initialized = false;
+
     constructor(baseRadius: number, tHeat: number) {
         this.baseRadius = baseRadius;
         this.tHeat = tHeat;
+        phaseCounters.inits++;
     }
 
     setPlanets(planets: PlanetInfo[]): void {
@@ -27,6 +31,12 @@ export class RedGiantPhase implements PhaseComponent {
     }
 
     init(parent: THREE.Group): void {
+        if (this.initialized) {
+            phaseCounters.blockedDoubleInits++;
+            console.warn('[Diagnostics] RedGiantPhase already initialized for this star! Guarding duplicate init.');
+            return;
+        }
+        this.initialized = true;
         this.parent = parent;
         this.redGiantGroup = new THREE.Group();
         this.redGiantMat = new THREE.ShaderMaterial({
@@ -42,6 +52,7 @@ export class RedGiantPhase implements PhaseComponent {
             },
             transparent: true, blending: THREE.AdditiveBlending
         });
+        this.redGiantMat.customProgramCacheKey = () => 'red_giant_star_material';
         this.redGiantMesh = new THREE.Mesh(GEOMETRIES.redGiant, this.redGiantMat);
         this.redGiantGroup.add(this.redGiantMesh);
 
@@ -75,6 +86,7 @@ export class RedGiantPhase implements PhaseComponent {
             blending: THREE.AdditiveBlending,
             depthWrite: false
         });
+        this.flareMat.customProgramCacheKey = () => 'red_giant_flare_material';
         
         this.flareMesh = new THREE.InstancedMesh(flareGeo, this.flareMat, 4);
         for(let i=0; i<4; i++) {
@@ -155,6 +167,7 @@ export class RedGiantPhase implements PhaseComponent {
     }
 
     dispose(): void {
+        phaseCounters.disposals++;
         // BOLT: redGiantMesh and flareMesh use shared GEOMETRIES, do NOT dispose
         this.redGiantMat.dispose();
         this.flareMat.dispose();

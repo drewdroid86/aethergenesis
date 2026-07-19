@@ -7,6 +7,7 @@ import { AsteroidBeltSystem } from '../rendering/systems/AsteroidBeltSystem';
 import { detectPerformanceTier, getNumStarsForTier } from '../utils/performance';
 import { Pipeline } from '../rendering/pipeline';
 import { createStellarState, advanceStellarState, StellarState, PhaseTransitionEvent, computeMainSequenceLifetime } from '../simulation/StellarPhysics';
+import { PlanetarySystemQueue } from '../rendering/systems/PlanetarySystem';
 
 
 
@@ -31,7 +32,7 @@ export class Engine {
     selectedStar: HeroStarSystem | null = null;
     isScrubbing: boolean = false;
     physicsConstants: PhysicsConstants = DEFAULT_CONSTANTS;
-    cosmicAge: number = 0;
+    cosmicAge: number = 5.0;
     timeScale: 'cosmic' | 'realtime' = 'cosmic';
     nbodyBuffer: Float32Array | null = null;
     isPlayingCosmic: boolean = true;
@@ -48,6 +49,9 @@ export class Engine {
         this._lastFrameTime = performance.now();
         const loop = () => {
             this._frameId = requestAnimationFrame(loop);
+            if (this.renderer) {
+                this.renderer.info.reset();
+            }
             const now = performance.now();
             const delta = Math.max(0.001, Math.min((now - this._lastFrameTime) / 1000, 0.05));
             this._lastFrameTime = now;
@@ -56,6 +60,7 @@ export class Engine {
                 this.cosmicAge += this.timeScale === 'cosmic' ? delta * 0.2 : (delta / 31557600) / 1e9;
                 if (this.cosmicAge > 14) {
                     this.cosmicAge = 0;
+                    this.respawnAllStars();
                 }
             }
 
@@ -128,7 +133,28 @@ export class Engine {
         this.camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 8000);
         this.camera.position.z = 5;
 
+        if (typeof window !== 'undefined') {
+            const originalCompile = WebGLRenderingContext.prototype.compileShader;
+            let isBootstrapped = false;
+            // Wait 5 seconds after boot to let legitimate initial shaders load safely
+            setTimeout(() => {
+                isBootstrapped = true;
+                console.log("=== WEBGL INTERCEPTOR ACTIVE: Tracking post-bootstrap leaks ===");
+            }, 5000);
+            WebGLRenderingContext.prototype.compileShader = function (this: WebGLRenderingContext, ...args: [WebGLShader]) {
+                if (isBootstrapped) {
+                    console.error(
+                        "🚨 LEAK DETECTED: Shader compiled mid-simulation!\n",
+                        "Stack Trace:\n",
+                        new Error().stack
+                    );
+                }
+                return originalCompile.apply(this, args);
+            };
+        }
+
         this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
+        this.renderer.info.autoReset = false;
         this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2)); // BOLT: Clamp to 2 for performance
         this.renderer.setSize(window.innerWidth, window.innerHeight);
         this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
@@ -218,6 +244,8 @@ export class Engine {
         const timeScale = this.timeScale;
         const nbodyBuffer = this.nbodyBuffer;
 
+        const activeCount = Math.min(this.activeHeroStarCount, this.heroStars.length);
+
         // Dark Matter affects background star visibility
         this._backgroundStarMat.opacity = 0.1 + (physics.darkMatter || 0) * 2.0;
 
@@ -230,20 +258,20 @@ export class Engine {
 
             // BOLT: Populate persistent buffer only if count changed or invalidated.
             // Keeping the buffer across frames allows insertion sort to run in O(N).
-            if (this._activeStarBuffer.length !== this.activeHeroStarCount) {
-                this._activeStarBuffer = this.heroStars.slice(0, this.activeHeroStarCount);
+            if (this._activeStarBuffer.length !== activeCount) {
+                this._activeStarBuffer = this.heroStars.slice(0, activeCount);
             }
 
             // BOLT: Sort active stars by X-axis for Sweep and Prune using custom O(N) insertion sort for nearly-sorted arrays
             this._insertionSort(this._activeStarBuffer);
-            for (let i = 0; i < this.activeHeroStarCount; i++) {
+            for (let i = 0; i < activeCount; i++) {
                 const s1 = this._activeStarBuffer[i];
                 const p1 = s1.position;
                 const p1x = p1.x;
                 const p1y = p1.y;
                 const p1z = p1.z;
 
-                for (let j = i + 1; j < this.activeHeroStarCount; j++) {
+                for (let j = i + 1; j < activeCount; j++) {
                     const s2 = this._activeStarBuffer[j];
                     const p2 = s2.position;
 
@@ -290,7 +318,7 @@ export class Engine {
         const MAX_SPEED = 2.0;
         const MAX_SPEED_SQ = MAX_SPEED * MAX_SPEED;
 
-        for (let i = 0; i < this.activeHeroStarCount; i++) {
+        for (let i = 0; i < activeCount; i++) {
             const star = this.heroStars[i];
             if (!this.isPaused && !isScrubbing) {
                 star.position.x += star.velocity.x * delta;
@@ -315,16 +343,17 @@ export class Engine {
             }
 
             star.update(
-                this.isPaused ? 0 : delta, 
-                this.appTime,
-                this.camera.position, 
-                physics, 
-                star === selectedStar && isScrubbing ? selectedStar!.t : undefined, 
-                cosmicAge,
-                this._frustum,
-                protostarFlicker,
-                nbodyBuffer
-            );
+                 this.isPaused ? 0 : delta, 
+                 this.appTime,
+                 this.camera.position, 
+                 physics, 
+                 star === selectedStar && isScrubbing ? selectedStar!.t : undefined, 
+                 cosmicAge,
+                 this._frustum,
+                 protostarFlicker,
+                 nbodyBuffer,
+                 this.renderer
+             );
         }
 
         if (!this.isPaused && !isScrubbing) {
@@ -347,9 +376,20 @@ export class Engine {
                 }
             }
         }
+        // Process queued planetary systems creation/disposal to prevent stutters
+        PlanetarySystemQueue.process(this.renderer);
+
+        // Update post-processing lensing uniforms
+        this.pipeline.updateLensing(this.selectedStar, this.camera, delta);
 
         // Use pipeline for rendering with post-processing - still render when paused for camera movement
         this.pipeline.render(this.appTime, delta);
+    }
+
+    respawnAllStars() {
+        this.heroStars.forEach(star => {
+            star.respawn(this.renderer);
+        });
     }
 
     resize(width: number, height: number) {
@@ -369,7 +409,7 @@ export class Engine {
         this.renderer.dispose();
 
         for (let i = 0; i < this.heroStars.length; i++) {
-            this.heroStars[i].dispose();
+            this.heroStars[i].dispose(this.renderer);
         }
         this.cometSystem.dispose();
         this.dysonSwarmSystem.dispose();

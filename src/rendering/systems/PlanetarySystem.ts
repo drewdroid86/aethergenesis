@@ -54,6 +54,7 @@ varying vec3 vWorldPosition;
 uniform vec3 u_starPosition;
 uniform float u_biomass;
 uniform int u_kardashevTier;
+uniform float uOpacity;
 
 // Hash function for noise
 float hash(vec2 p) {
@@ -167,7 +168,7 @@ void main() {
         finalColor += vec3(1.0, 0.85, 0.4) * cityLights * u_biomass * 2.0;
     }
 
-    gl_FragColor = vec4(finalColor, 1.0);
+    gl_FragColor = vec4(finalColor, uOpacity);
 }
 `;
 
@@ -180,13 +181,15 @@ export class PlanetarySystem {
     }[] = [];
     
     private group: THREE.Group;
-    private parent: THREE.Object3D;
+    public parent: THREE.Object3D;
     private material: THREE.ShaderMaterial;
     private biomassAttr: THREE.InstancedBufferAttribute;
     private civAttr: THREE.InstancedBufferAttribute;
+    public renderer?: THREE.WebGLRenderer;
 
-    constructor(star: THREE.Object3D) {
+    constructor(star: THREE.Object3D, renderer?: THREE.WebGLRenderer) {
         this.parent = star;
+        this.renderer = renderer;
         this.group = new THREE.Group();
         this.parent.add(this.group);
 
@@ -200,11 +203,14 @@ export class PlanetarySystem {
                 uTime: { value: 0 },
                 u_starPosition: { value: new THREE.Vector3() },
                 u_biomass: { value: 0.0 },
-                u_kardashevTier: { value: 0 }
+                u_kardashevTier: { value: 0 },
+                uOpacity: { value: 1.0 }
             },
+            transparent: true,
             vertexShader: PLANET_VS,
             fragmentShader: PLANET_FS
         });
+        this.material.customProgramCacheKey = () => 'planetary_system_material';
 
         this.instancedMesh = new THREE.InstancedMesh(geometry, this.material, numBodies);
         
@@ -245,7 +251,7 @@ export class PlanetarySystem {
     /**
      * Update orbits based on Float32Array from nbodyWorker.ts
      */
-    updateFromBuffer(buffer: Float32Array, delta: number, lowDetail?: boolean): void {
+    updateFromBuffer(buffer: Float32Array, delta: number, lowDetail?: boolean, globalFade: number = 1.0): void {
         const star = this.parent as any;
         
         if (star.phase !== PHASES.MAIN_SEQUENCE || lowDetail) {
@@ -254,6 +260,7 @@ export class PlanetarySystem {
         }
         this.group.visible = true;
         this.material.uniforms.uTime.value += delta;
+        this.material.uniforms.uOpacity.value = globalFade;
         
         // BOLT: Optimized u_starPosition update. While .getWorldPosition is safer,
         // caching the result here avoids redundant matrix updates if called frequently.
@@ -351,5 +358,56 @@ export class PlanetarySystem {
 
         this.biomassAttr.needsUpdate = true;
         this.civAttr.needsUpdate = true;
+    }
+}
+
+export class PlanetarySystemQueue {
+    private static pendingCreations: { star: any; renderer?: THREE.WebGLRenderer }[] = [];
+    private static pendingDisposals: PlanetarySystem[] = [];
+    private static BUDGET_PER_FRAME = 2; // Process at most 2 creations/disposals per frame
+
+    public static enqueueCreation(star: any, renderer?: THREE.WebGLRenderer) {
+        // Prevent duplicate queueing
+        if (!this.pendingCreations.some(item => item.star === star)) {
+            this.pendingCreations.push({ star, renderer });
+        }
+    }
+
+    public static cancelCreation(star: any) {
+        this.pendingCreations = this.pendingCreations.filter(item => item.star !== star);
+    }
+
+    public static enqueueDisposal(planetarySystem: PlanetarySystem) {
+        // Prevent duplicate queueing
+        if (!this.pendingDisposals.includes(planetarySystem)) {
+            this.pendingDisposals.push(planetarySystem);
+        }
+    }
+
+    public static process(renderer?: THREE.WebGLRenderer) {
+        // 1. Process disposals first to free up WebGL memory
+        let processedDisposals = 0;
+        while (this.pendingDisposals.length > 0 && processedDisposals < this.BUDGET_PER_FRAME) {
+            const system = this.pendingDisposals.shift();
+            if (system) {
+                system.dispose();
+                processedDisposals++;
+            }
+        }
+
+        // 2. Process creations
+        let processedCreations = 0;
+        const remainingBudget = this.BUDGET_PER_FRAME - processedDisposals;
+        while (this.pendingCreations.length > 0 && processedCreations < remainingBudget) {
+            const item = this.pendingCreations.shift();
+            if (item) {
+                const { star, renderer: itemRenderer } = item;
+                // Double check the star is still in MAIN_SEQUENCE phase
+                if (star.phase === PHASES.MAIN_SEQUENCE) {
+                    star.planetarySystem = new PlanetarySystem(star, renderer ?? itemRenderer);
+                }
+                processedCreations++;
+            }
+        }
     }
 }

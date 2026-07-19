@@ -9,7 +9,7 @@ import { RedGiantPhase } from '../../simulation/phases/RedGiantPhase';
 import { SupernovaPhase } from '../../simulation/phases/SupernovaPhase';
 import { RemnantPhase } from '../../simulation/phases/RemnantPhase';
 import { GEOMETRIES } from '../../simulation/phases/geometries';
-import { PlanetarySystem } from './PlanetarySystem';
+import { PlanetarySystem, PlanetarySystemQueue } from './PlanetarySystem';
 // BOLT: Module-level helper to avoid closure overhead
 const stepOp = (current: number, target: number, speed: number) => {
     if (current < target) return Math.min(target, current + speed);
@@ -61,58 +61,34 @@ export class HeroStarSystem extends THREE.Group {
     private _opS: number = 0;
     private _opNs: number = 0;
 
-    private _nebulaPhase?: NebulaPhase;
-    private _protostarPhase?: ProtostarPhase;
-    private _mainSequencePhase?: MainSequencePhase;
-    private _redGiantPhase?: RedGiantPhase;
-    private _supernovaPhase?: SupernovaPhase;
-    private _remnantPhase?: RemnantPhase;
+    private _nebulaPhase: NebulaPhase;
+    private _protostarPhase: ProtostarPhase;
+    private _mainSequencePhase: MainSequencePhase;
+    private _redGiantPhase: RedGiantPhase;
+    private _supernovaPhase: SupernovaPhase;
+    private _remnantPhase: RemnantPhase;
 
     private get nebulaPhase(): NebulaPhase {
-        if (!this._nebulaPhase) {
-            this._nebulaPhase = new NebulaPhase();
-            this._nebulaPhase.init(this);
-        }
         return this._nebulaPhase;
     }
 
     private get protostarPhase(): ProtostarPhase {
-        if (!this._protostarPhase) {
-            this._protostarPhase = new ProtostarPhase(this.baseRadius);
-            this._protostarPhase.init(this);
-        }
         return this._protostarPhase;
     }
 
     private get mainSequencePhase(): MainSequencePhase {
-        if (!this._mainSequencePhase) {
-            this._mainSequencePhase = new MainSequencePhase(this.mass, this.baseRadius);
-            this._mainSequencePhase.init(this);
-        }
         return this._mainSequencePhase;
     }
 
     private get redGiantPhase(): RedGiantPhase {
-        if (!this._redGiantPhase) {
-            this._redGiantPhase = new RedGiantPhase(this.baseRadius, this.tHeat);
-            this._redGiantPhase.init(this);
-        }
         return this._redGiantPhase;
     }
 
     private get supernovaPhase(): SupernovaPhase {
-        if (!this._supernovaPhase) {
-            this._supernovaPhase = new SupernovaPhase(this.mass, this.baseRadius);
-            this._supernovaPhase.init(this);
-        }
         return this._supernovaPhase;
     }
 
     private get remnantPhase(): RemnantPhase {
-        if (!this._remnantPhase) {
-            this._remnantPhase = new RemnantPhase(this.mass);
-            this._remnantPhase.init(this);
-        }
         return this._remnantPhase;
     }
 
@@ -157,11 +133,73 @@ export class HeroStarSystem extends THREE.Group {
         // PointLight representing star radiation
         this.starLight = new THREE.PointLight(0xffffff, 1.0, 500);
         this.add(this.starLight);
+
+        // Eagerly initialize all 6 phases
+        this._nebulaPhase = new NebulaPhase();
+        this._nebulaPhase.init(this);
+
+        this._protostarPhase = new ProtostarPhase(this.baseRadius);
+        this._protostarPhase.init(this);
+
+        this._mainSequencePhase = new MainSequencePhase(this.mass, this.baseRadius);
+        this._mainSequencePhase.init(this);
+
+        this._redGiantPhase = new RedGiantPhase(this.baseRadius, this.tHeat);
+        this._redGiantPhase.init(this);
+
+        this._supernovaPhase = new SupernovaPhase(this.mass, this.baseRadius);
+        this._supernovaPhase.init(this);
+
+        this._remnantPhase = new RemnantPhase(this.mass);
+        this._remnantPhase.init(this);
+    }
+
+    respawn(renderer?: THREE.WebGLRenderer): void {
+        this.birthAge = 0.5 + Math.random() * 9.5;
+        this.t = -0.1;
+        this.visible = false;
+        
+        if (this._activePhase === PHASES.NEBULA) this._nebulaPhase?.hide();
+        else if (this._activePhase === PHASES.PROTOSTAR) this._protostarPhase?.hide();
+        else if (this._activePhase === PHASES.MAIN_SEQUENCE) {
+            this._mainSequencePhase?.hide();
+            PlanetarySystemQueue.cancelCreation(this);
+            if (this.planetarySystem) {
+                PlanetarySystemQueue.enqueueDisposal(this.planetarySystem);
+                this.planetarySystem = undefined;
+            }
+        }
+        else if (this._activePhase === PHASES.RED_GIANT) this._redGiantPhase?.hide();
+        else if (this._activePhase === PHASES.SUPERNOVA) this._supernovaPhase?.hide();
+        else if (this._activePhase === PHASES.REMNANT) this._remnantPhase?.hide();
+
+        this._activePhase = -1;
+        this.phase = 0;
+        
+        this._opP = 0;
+        this._opM = 0;
+        this._opR = 0;
+        this._opS = 0;
+        this._opNs = 0;
+
+        this._lastOpP = -1;
+        this._lastOpM = -1;
+        this._lastOpR = -1;
+        this._lastOpS = -1;
+
+        this._lastVisP = false;
+        this._lastVisM = false;
+        this._lastVisR = false;
+        this._lastVisS = false;
+
+        if (this.starLight) {
+            this.starLight.visible = false;
+        }
     }
 
 
 
-    update(delta: number, appTime: number, cameraPos: THREE.Vector3, physics: PhysicsConstants, overrideT?: number, cosmicAge?: number, frustum?: THREE.Frustum, flicker: number = 1.0, nbodyBuffer: Float32Array | null = null): void {
+    update(delta: number, appTime: number, cameraPos: THREE.Vector3, physics: PhysicsConstants, overrideT?: number, cosmicAge?: number, frustum?: THREE.Frustum, flicker: number = 1.0, nbodyBuffer: Float32Array | null = null, renderer?: THREE.WebGLRenderer): void {
         let targetProto = 0, targetMain = 0, targetRed = 0, targetSuper = 0, targetNs = 0;
         const effG = Math.max(0.01, physics.G);
         const expL = Math.max(0.1, physics.lambda);
@@ -173,6 +211,15 @@ export class HeroStarSystem extends THREE.Group {
         }
         
         const ignites = effG > 0.3;
+
+        let globalFade = 1.0;
+        if (cosmicAge !== undefined) {
+            if (cosmicAge > 13.0) {
+                globalFade = Math.max(0, 1.0 - (cosmicAge - 13.0) / 1.0);
+            } else if (cosmicAge < 1.0) {
+                globalFade = Math.max(0, cosmicAge / 1.0);
+            }
+        }
 
         if (overrideT !== undefined) {
              this.t = overrideT;
@@ -188,7 +235,7 @@ export class HeroStarSystem extends THREE.Group {
             this.visible = false;
             return;
         } else {
-            this.visible = true;
+            this.visible = globalFade > 0.01;
         }
 
         if (!ignites && this.t > 0.14) this.t = 0.14;
@@ -206,8 +253,9 @@ export class HeroStarSystem extends THREE.Group {
             else if (this._activePhase === PHASES.PROTOSTAR) this._protostarPhase?.hide();
             else if (this._activePhase === PHASES.MAIN_SEQUENCE) {
                 this._mainSequencePhase?.hide();
+                PlanetarySystemQueue.cancelCreation(this);
                 if (this.planetarySystem) {
-                    this.planetarySystem.dispose();
+                    PlanetarySystemQueue.enqueueDisposal(this.planetarySystem);
                     this.planetarySystem = undefined;
                 }
             }
@@ -219,7 +267,7 @@ export class HeroStarSystem extends THREE.Group {
             else if (newPhase === PHASES.PROTOSTAR) this.protostarPhase.show();
             else if (newPhase === PHASES.MAIN_SEQUENCE) {
                 this.mainSequencePhase.show();
-                this.planetarySystem = new PlanetarySystem(this);
+                PlanetarySystemQueue.enqueueCreation(this, renderer);
             }
             else if (newPhase === PHASES.RED_GIANT) {
                 if (this._mainSequencePhase) {
@@ -250,7 +298,7 @@ export class HeroStarSystem extends THREE.Group {
 
         if (this.t < STELLAR_CONSTANTS.PHASE_BOUNDARIES.NEBULA_LIMIT) {
             this.phase = PHASES.NEBULA;
-            this.nebulaPhase.update(delta, appTime, cameraPos, physics, this.t, lowDetail);
+            this.nebulaPhase.update(delta, appTime, cameraPos, physics, this.t, lowDetail, globalFade);
             
             const normT = this.t / STELLAR_CONSTANTS.PHASE_BOUNDARIES.NEBULA_LIMIT;
             this.currentTemp = STELLAR_CONSTANTS.TEMPERATURES.NEBULA_START + normT * STELLAR_CONSTANTS.TEMPERATURES.NEBULA_MAX;
@@ -261,7 +309,7 @@ export class HeroStarSystem extends THREE.Group {
             const normT = (this.t - STELLAR_CONSTANTS.PHASE_BOUNDARIES.NEBULA_LIMIT) / STELLAR_CONSTANTS.PHASE_BOUNDARIES.PROTOSTAR_DURATION;
             
             if (normT < STELLAR_CONSTANTS.PHASE_BOUNDARIES.NEBULA_SECONDARY_LIMIT) {
-                this.nebulaPhase.updateAsSecondary(delta, appTime, cameraPos, normT);
+                this.nebulaPhase.updateAsSecondary(delta, appTime, cameraPos, normT, globalFade);
             }
 
             this.protostarPhase.update(delta, appTime, cameraPos, physics, this.t, lowDetail);
@@ -273,7 +321,7 @@ export class HeroStarSystem extends THREE.Group {
             targetMain = 1;
             this.mainSequencePhase.update(delta, appTime, cameraPos, physics, this.t, lowDetail);
             if (nbodyBuffer) {
-                this.planetarySystem?.updateFromBuffer(nbodyBuffer, delta, lowDetail);
+                this.planetarySystem?.updateFromBuffer(nbodyBuffer, delta, lowDetail, globalFade);
             }
             
             this.currentTemp = this.tHeat;
@@ -300,7 +348,7 @@ export class HeroStarSystem extends THREE.Group {
 
         } else {
             this.phase = PHASES.REMNANT;
-            this.remnantPhase.update(delta, appTime, cameraPos, physics, this.t, lowDetail);
+            this.remnantPhase.update(delta, appTime, cameraPos, physics, this.t, lowDetail, globalFade);
             
             if (this.mass > STELLAR_CONSTANTS.PHYSICS.MASS_THRESHOLD_BLACK_HOLE) {
                 this.currentTemp = STELLAR_CONSTANTS.TEMPERATURES.REMNANT_BH;
@@ -324,14 +372,14 @@ export class HeroStarSystem extends THREE.Group {
         // 1. Protostar Transition
         this._opP = stepOp(this._opP, targetProto, speed);
         if (this._opP > STELLAR_CONSTANTS.TRANSITIONS.VISIBILITY_THRESHOLD) {
-            const finalOpP = targetProto > 0 ? this._opP * (flicker ?? 1.0) : this._opP;
+            const finalOpP = (targetProto > 0 ? this._opP * (flicker ?? 1.0) : this._opP) * globalFade;
             // Always update if targetProto > 0 because of flicker, else use guard
             if (targetProto > 0 || this._lastOpP !== finalOpP) {
                 this.protostarPhase.setOpacity(finalOpP);
                 this._lastOpP = finalOpP;
             }
             if (!this._lastVisP) {
-                this.protostarPhase.protostarGroup.visible = true;
+                this.protostarPhase.protostarGroup.visible = globalFade > 0.01;
                 this._lastVisP = true;
             }
         } else if (this._protostarPhase) {
@@ -348,12 +396,13 @@ export class HeroStarSystem extends THREE.Group {
         // 2. Main Sequence Transition
         this._opM = stepOp(this._opM, targetMain, speed);
         if (this._opM > STELLAR_CONSTANTS.TRANSITIONS.VISIBILITY_THRESHOLD) {
-            if (this._lastOpM !== this._opM) {
-                this.mainSequencePhase.setOpacity(this._opM);
-                this._lastOpM = this._opM;
+            const finalOpM = this._opM * globalFade;
+            if (this._lastOpM !== finalOpM) {
+                this.mainSequencePhase.setOpacity(finalOpM);
+                this._lastOpM = finalOpM;
             }
             if (!this._lastVisM) {
-                this.mainSequencePhase.mainSeqGroup.visible = true;
+                this.mainSequencePhase.mainSeqGroup.visible = globalFade > 0.01;
                 this._lastVisM = true;
             }
         } else if (this._mainSequencePhase) {
@@ -370,12 +419,13 @@ export class HeroStarSystem extends THREE.Group {
         // 3. Red Giant Transition
         this._opR = stepOp(this._opR, targetRed, speed);
         if (this._opR > STELLAR_CONSTANTS.TRANSITIONS.VISIBILITY_THRESHOLD) {
-            if (this._lastOpR !== this._opR) {
-                this.redGiantPhase.setOpacity(this._opR);
-                this._lastOpR = this._opR;
+            const finalOpR = this._opR * globalFade;
+            if (this._lastOpR !== finalOpR) {
+                this.redGiantPhase.setOpacity(finalOpR);
+                this._lastOpR = finalOpR;
             }
             if (!this._lastVisR) {
-                this.redGiantPhase.redGiantGroup.visible = true;
+                this.redGiantPhase.redGiantGroup.visible = globalFade > 0.01;
                 this._lastVisR = true;
             }
         } else if (this._redGiantPhase) {
@@ -392,12 +442,13 @@ export class HeroStarSystem extends THREE.Group {
         // 4. Supernova Transition
         this._opS = stepOp(this._opS, targetSuper, speed);
         if (this._opS > STELLAR_CONSTANTS.TRANSITIONS.VISIBILITY_THRESHOLD) {
-            if (this._lastOpS !== this._opS) {
-                this.supernovaPhase.setOpacity(this._opS);
-                this._lastOpS = this._opS;
+            const finalOpS = this._opS * globalFade;
+            if (this._lastOpS !== finalOpS) {
+                this.supernovaPhase.setOpacity(finalOpS);
+                this._lastOpS = finalOpS;
             }
             if (!this._lastVisS) {
-                this.supernovaPhase.supernovaGroup.visible = true;
+                this.supernovaPhase.supernovaGroup.visible = globalFade > 0.01;
                 this._lastVisS = true;
             }
         } else if (this._supernovaPhase) {
@@ -412,20 +463,20 @@ export class HeroStarSystem extends THREE.Group {
         }
 
         if (targetNs > 0 || (this._remnantPhase && this._opNs > 0)) {
-            this.remnantPhase.updateRemnantOpacity(delta, targetNs);
+            this.remnantPhase.updateRemnantOpacity(delta, targetNs, globalFade);
         }
 
         // Dynamic update of star light color and intensity based on temperature and luminosity
         if (this.starLight) {
             if (this.phase === PHASES.MAIN_SEQUENCE || this.phase === PHASES.RED_GIANT || this.phase === PHASES.PROTOSTAR || this.phase === PHASES.SUPERNOVA) {
-                this.starLight.intensity = Math.min(50.0, this.currentLum * 2.0);
+                this.starLight.intensity = Math.min(50.0, this.currentLum * 2.0) * globalFade;
                 if (this.phase === PHASES.RED_GIANT) {
                     this.starLight.color.setHex(0xff7733);
                 } else if (this.phase === PHASES.PROTOSTAR) {
                     this.starLight.color.setHex(0xffaa44);
                 } else if (this.phase === PHASES.SUPERNOVA) {
                     this.starLight.color.setHex(0xffffff);
-                    this.starLight.intensity = 100.0;
+                    this.starLight.intensity = 100.0 * globalFade;
                 } else {
                     if (this.mass > 8.0) {
                         this.starLight.color.setHex(0x99ccff);
@@ -435,14 +486,14 @@ export class HeroStarSystem extends THREE.Group {
                         this.starLight.color.setHex(0xfff3e0);
                     }
                 }
-                this.starLight.visible = true;
+                this.starLight.visible = globalFade > 0.01;
             } else {
                 this.starLight.visible = false;
             }
         }
     }
 
-    dispose() {
+    dispose(renderer?: THREE.WebGLRenderer) {
         this._nebulaPhase?.dispose();
         this._protostarPhase?.dispose();
         this._mainSequencePhase?.dispose();
@@ -450,15 +501,22 @@ export class HeroStarSystem extends THREE.Group {
         this._supernovaPhase?.dispose();
         this._remnantPhase?.dispose();
 
+        PlanetarySystemQueue.cancelCreation(this);
         if (this.planetarySystem) {
-            this.planetarySystem.dispose();
+            PlanetarySystemQueue.enqueueDisposal(this.planetarySystem);
+            this.planetarySystem = undefined;
         }
 
         if (this.hitMesh) {
             if (this.hitMesh.material instanceof THREE.Material) {
                 this.hitMesh.material.dispose();
             }
+            this.remove(this.hitMesh);
             // hitMesh geometry is GEOMETRIES.hit, do NOT dispose
+        }
+
+        if (this.starLight) {
+            this.remove(this.starLight);
         }
     }
 }

@@ -147,6 +147,7 @@ export class CometSystem {
             blending: THREE.AdditiveBlending,
             depthWrite: false
         });
+        this.comaMat.customProgramCacheKey = () => 'comet_coma_material';
         this.comaMesh = new THREE.InstancedMesh(comaGeo, this.comaMat, numComets);
         this.comaMesh.geometry.setAttribute('cScale', new THREE.InstancedBufferAttribute(new Float32Array(numComets), 1));
         this.comaMesh.geometry.setAttribute('cColor', new THREE.InstancedBufferAttribute(new Float32Array(numComets * 3), 3));
@@ -164,6 +165,7 @@ export class CometSystem {
             depthWrite: false,
             uniforms: { uTime: { value: 0 } }
         });
+        this.tailMat.customProgramCacheKey = () => 'comet_tail_material';
         
         this.ionTailMesh = new THREE.InstancedMesh(tailGeo, this.tailMat, numComets);
         this.dustTailMesh = new THREE.InstancedMesh(tailGeo.clone(), this.tailMat, numComets);

@@ -70,6 +70,52 @@ src/
 
 ---
 
+### feat/black-hole-lensing — Black Hole Gravitational Lensing & Render Loop Safety
+**Date:** July 19, 2026
+**AI:** Antigravity (Gemini 3.5 Flash)
+**Branch:** perf/eager-phase-init
+
+**Changes:**
+- **Black Hole Lensing Shader & Post-Processing Warp**: Added post-processing gravitational lensing warp effect to the cinematic fragment shader (`cinematic.frag.glsl`) to warp the entire screen (including background stars and accretion disk) around the screen-space projection of high-mass black holes (mass > 15.0).
+- **Accretion Disk & Visual Rework**: Replaced the placeholder flat accretion disk visual inside `RemnantPhase.ts` and `geometries.ts` with a smaller, high-fidelity circular disk (`RingGeometry(1.2, 4.0)`). Implemented a custom fragment shader incorporating Keplerian differential rotation (`orbitalSpeed = 4.0 / (dist^2 + 1.0)`), orbital winding spiral waves, and relativistic Doppler beaming (`1.0 + 0.6 * cos(angle)`) for a premium "Interstellar" look.
+- **Starfield Rebuild Race Safety**: Guarded against out-of-bounds array reads in the render loop by:
+  - Synchronously resetting `activeHeroStarCount` to `0` immediately after clearing the `heroStars` array in `rebuildStarfieldGeometry()` inside `useSimulation.ts`.
+  - Adding a defensive clamping layer `Math.min(this.activeHeroStarCount, this.heroStars.length)` around all rendering/update loops iterating over active stars in `engine.ts` to prevent race conditions during performance-tier transitions.
+
+**State at end:** TypeScript type-check compiles with zero errors, production builds succeed, and all 49 E2E test scenarios across presets, UI modes, galaxy, and comets pass perfectly.
+
+---
+
+### perf/planetary-system-budget-queue — PlanetarySystem Creation & Disposal Throttle
+**Date:** July 18, 2026
+**AI:** Antigravity (Gemini 3.5 Flash)
+**Branch:** perf/eager-phase-init
+
+**Changes:**
+- **Diagnostics Logging Endpoint**: Added `/api/debug-log` POST endpoint to `server.ts` to log diagnostic payloads to `ps_diag.log` file on disk for remote capture.
+- **PlanetarySystem Cache Verification**: Verified that `customProgramCacheKey` successfully deduplicates shader compilation (shader program count remains flat at 49).
+- **Throttled Creation/Disposal Queue**: Implemented a frame-budgeted `PlanetarySystemQueue` to limit synchronous allocations/deallocations of planetary systems to a maximum budget of 2 per frame, resolving the 60ms stutters during massive scrubbing transitions.
+- **Typescript Visibility fixes**: Made `PlanetarySystem.parent` and `PlanetarySystem.renderer` properties public to allow proper access by the queue manager.
+
+**State at end:** Code compiles cleanly, production builds succeed, and frame spacing of creation/disposal operations is verified under load.
+
+---
+
+### perf/eager-phase-init — Eager Phase Initialization & Stutter Diagnostics
+**Date:** July 17, 2026
+**AI:** Antigravity (Gemini 3.5 Flash)
+**Branch:** perf/eager-phase-init
+
+**Changes:**
+- **Eager Phase Initialization:** Eagerly instantiated all six stellar lifecycle phases (`NebulaPhase`, `ProtostarPhase`, `MainSequencePhase`, `RedGiantPhase`, `SupernovaPhase`, `RemnantPhase`) inside the `HeroStarSystem` constructor instead of initializing them lazily. Set `customProgramCacheKey` across all phase materials to maximize WebGL program caching and prevent compile stutters.
+- **Stutter & Performance Telemetry Dashboard:** Implemented a togglable diagnostics panel in the HUD (`Hud.tsx`, `usePerformanceAutoTuning.ts`) displaying frame times, 1% low FPS, draw calls, triangles, memory heap usage, long-running tasks, and phase inits/disposals.
+- **Main Thread Block Logging:** Integrated a `PerformanceObserver` targeting `longtask` entries to log, trace, and warn about main thread blockages (>50ms) with a suspect collection size printout.
+- **ESLint & TypeScript Cleanup:** Fixed 14 ESLint error issues across `server.ts`, `SimulationCoordinator.ts`, and test files (fixing `no-useless-assignment` and `prefer-const` warnings-turned-errors).
+
+**State at end:** Code compiles, passes build bundler checks, passes all E2E test suites with zero errors, and runs cleanly with no ESLint errors.
+
+---
+
 ### fix/e2e-preset-lifecycle-issues — E2E Test Suite Alignment & Bug Fixes
 **Date:** July 15, 2026
 **AI:** Antigravity (Gemini 3.5 Flash)

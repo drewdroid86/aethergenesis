@@ -37,7 +37,7 @@ export const GEOMETRIES = {
     })(),
     blackHoleCore: new THREE.SphereGeometry(0.5, 32, 32),
     blackHoleDisk: (() => {
-        const geo = new THREE.RingGeometry(8, 12, 64);
+        const geo = new THREE.RingGeometry(1.2, 4.0, 64);
         geo.rotateX(Math.PI / 2);
         return geo;
     })(),
