@@ -111,7 +111,8 @@ export class HeroStarSystem extends THREE.Group {
         } else {
             this.mass = 0.4 + Math.random() * 3;        // Main sequence 76%
         }
-        this.lifespanReal = 10000 * Math.pow(this.mass, -2.5);
+        // BOLT: Algebraic expansion of Math.pow(x, -2.5) as 1 / (x^2 * sqrt(x))
+        this.lifespanReal = 10000 / (this.mass * this.mass * Math.sqrt(this.mass));
         this.loopDuration = 40 + Math.random() * 20; 
         
         this.birthAge = 0.5 + Math.random() * 9.5;
@@ -119,7 +120,8 @@ export class HeroStarSystem extends THREE.Group {
 
         // BOLT: Baryon ratio affects base heat distribution
         const baryonFactor = (DEFAULT_CONSTANTS.baryon || 0.05) / 0.05; 
-        this.tHeat = 5778 * Math.pow(this.mass, 0.5) * baryonFactor;
+        // BOLT: Replace slow Math.pow(x, 0.5) with Math.sqrt(x)
+        this.tHeat = 5778 * Math.sqrt(this.mass) * baryonFactor;
         this.baseRadius = Math.pow(this.mass, 0.8) * 0.8;
         this._msLuminosity = computeLuminosity(this.mass);
 

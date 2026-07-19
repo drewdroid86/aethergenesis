@@ -144,7 +144,9 @@ export class RedGiantPhase implements PhaseComponent {
 
     getCurrentLum(t: number, mass: number): number {
         const normT = (t - STELLAR_CONSTANTS.PHASE_BOUNDARIES.RED_GIANT_START) / STELLAR_CONSTANTS.PHASE_BOUNDARIES.RED_GIANT_DURATION;
-        return Math.pow(mass, STELLAR_CONSTANTS.PHYSICS.MASS_LUMINOSITY_EXPONENT) * (1.0 + normT * 5.0);
+        // BOLT: Optimize MASS_LUMINOSITY_EXPONENT (3.5) algebraically as mass^3 * sqrt(mass) to avoid Math.pow overhead
+        const mass3 = mass * mass * mass;
+        return (mass3 * Math.sqrt(mass)) * (1.0 + normT * 5.0);
     }
 
     setOpacity(opacity: number): void {

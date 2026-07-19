@@ -39,12 +39,17 @@ export interface KeplerianElements {
 export function solveKepler(M: number, e: number, tolerance: number = 1e-6, maxIter: number = 30): number {
     // Initial guess for E
     let E = e < 0.8 ? M : Math.PI;
-    let F = E - e * Math.sin(E) - M;
     let i = 0;
 
-    while (Math.abs(F) > tolerance && i < maxIter) {
+    while (i < maxIter) {
+        // BOLT: Compute sin(E) and F once per loop to avoid redundant evaluations
+        const sinE = Math.sin(E);
+        const F = E - e * sinE - M;
+        if (Math.abs(F) <= tolerance) {
+            break;
+        }
+        // BOLT: Avoid extra Math.cos on convergence and remove duplicate code
         E = E - F / (1.0 - e * Math.cos(E));
-        F = E - e * Math.sin(E) - M;
         i++;
     }
 
