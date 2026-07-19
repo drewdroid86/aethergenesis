@@ -145,6 +145,7 @@ export function useSimulation(containerRef: React.RefObject<HTMLDivElement | nul
             disposeStarSystem(star);
         });
         engineRef.current.heroStars = [];
+        engineRef.current.activeHeroStarCount = 0;
 
         const count = getNumStarsForTier(currentTierRef.current);
         engineRef.current.createHeroStars(count, physicsRef.current);

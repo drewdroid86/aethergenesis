@@ -244,6 +244,8 @@ export class Engine {
         const timeScale = this.timeScale;
         const nbodyBuffer = this.nbodyBuffer;
 
+        const activeCount = Math.min(this.activeHeroStarCount, this.heroStars.length);
+
         // Dark Matter affects background star visibility
         this._backgroundStarMat.opacity = 0.1 + (physics.darkMatter || 0) * 2.0;
 
@@ -256,20 +258,20 @@ export class Engine {
 
             // BOLT: Populate persistent buffer only if count changed or invalidated.
             // Keeping the buffer across frames allows insertion sort to run in O(N).
-            if (this._activeStarBuffer.length !== this.activeHeroStarCount) {
-                this._activeStarBuffer = this.heroStars.slice(0, this.activeHeroStarCount);
+            if (this._activeStarBuffer.length !== activeCount) {
+                this._activeStarBuffer = this.heroStars.slice(0, activeCount);
             }
 
             // BOLT: Sort active stars by X-axis for Sweep and Prune using custom O(N) insertion sort for nearly-sorted arrays
             this._insertionSort(this._activeStarBuffer);
-            for (let i = 0; i < this.activeHeroStarCount; i++) {
+            for (let i = 0; i < activeCount; i++) {
                 const s1 = this._activeStarBuffer[i];
                 const p1 = s1.position;
                 const p1x = p1.x;
                 const p1y = p1.y;
                 const p1z = p1.z;
 
-                for (let j = i + 1; j < this.activeHeroStarCount; j++) {
+                for (let j = i + 1; j < activeCount; j++) {
                     const s2 = this._activeStarBuffer[j];
                     const p2 = s2.position;
 
@@ -316,7 +318,7 @@ export class Engine {
         const MAX_SPEED = 2.0;
         const MAX_SPEED_SQ = MAX_SPEED * MAX_SPEED;
 
-        for (let i = 0; i < this.activeHeroStarCount; i++) {
+        for (let i = 0; i < activeCount; i++) {
             const star = this.heroStars[i];
             if (!this.isPaused && !isScrubbing) {
                 star.position.x += star.velocity.x * delta;
