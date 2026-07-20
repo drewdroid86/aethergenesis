@@ -9,6 +9,37 @@ export interface SimStatePayload {
     astrobiology: any[];
 }
 
+// BOLT: Static mappings to avoid branch-heavy conditional/ternary execution in hot loops
+const PLANETARY_TYPE_MAP: Record<number, string> = {
+    1: 'gas_giant',
+    2: 'ice',
+    3: 'lava',
+    4: 'ocean',
+    5: 'desert',
+    6: 'jungle'
+};
+
+interface BodyTypeProps {
+    massMult: number;
+    radiusMult: number;
+    albedo: number;
+}
+
+const BODY_TYPE_PROPERTIES: Record<string, BodyTypeProps> = {
+    gas_giant: { massMult: 317, radiusMult: 11, albedo: 0.5 },
+    ice: { massMult: 15, radiusMult: 4, albedo: 0.6 },
+    lava: { massMult: 0.8, radiusMult: 0.9, albedo: 0.1 },
+    desert: { massMult: 0.5, radiusMult: 0.8, albedo: 0.4 },
+    ocean: { massMult: 1.2, radiusMult: 1.1, albedo: 0.2 },
+    jungle: { massMult: 1.0, radiusMult: 1.0, albedo: 0.18 },
+    rocky: { massMult: 0.6, radiusMult: 0.75, albedo: 0.15 },
+    comet: { massMult: 0.6, radiusMult: 0.75, albedo: 0.15 }
+};
+
+// BOLT: Module-level constants to avoid per-frame redeclarations/reallocations
+const MASS_EARTH = 5.97e24;
+const RADIUS_EARTH = 6371000;
+
 export class SimulationCoordinator {
     private engine: Engine;
     private astrobiologyEngine: AstrobiologyEngine;
@@ -27,12 +58,12 @@ export class SimulationCoordinator {
         this.wsClient = wsClient;
 
         // Register to the engine's tick loop
-        this.engine.onTick = (delta, appTime) => {
-            this.handleTick(delta, appTime);
+        this.engine.onTick = (delta, _appTime) => {
+            this.handleTick(delta);
         };
     }
 
-    private handleTick(delta: number, appTime: number) {
+    private handleTick(delta: number) {
         const currentTime = performance.now();
         
         // Notify playhead tick
@@ -89,22 +120,23 @@ export class SimulationCoordinator {
             const sim_time_yr = this.engine.appTime * 1e6;
             const deltaTime_yr = this.engine.timeScale === 'cosmic' ? delta * 200000000 : delta * 1000;
 
-            const MASS_EARTH = 5.97e24;
-            const RADIUS_EARTH = 6371000;
+            // BOLT: Hoisted loop-invariant gravitational parameter calculation
+            const G_M = 4.0 * Math.PI * Math.PI * perStarState.mass_solar;
 
             for (let i = 0; i < numBodies; i++) {
-                const x = buffer[i * 7 + 0];
-                const y = buffer[i * 7 + 1];
-                const z = buffer[i * 7 + 2];
-                const vx = buffer[i * 7 + 3];
-                const vy = buffer[i * 7 + 4];
-                const vz = buffer[i * 7 + 5];
-                const bodyTypeVal = buffer[i * 7 + 6];
+                // BOLT: Cache offset calculation to avoid repeating i * 7 multiplication
+                const offset = i * 7;
+                const x = buffer[offset + 0];
+                const y = buffer[offset + 1];
+                const z = buffer[offset + 2];
+                const vx = buffer[offset + 3];
+                const vy = buffer[offset + 4];
+                const vz = buffer[offset + 5];
+                const bodyTypeVal = buffer[offset + 6];
                 
-                const r = Math.sqrt(x*x + y*y + z*z);
-                const vSq = vx*vx + vy*vy + vz*vz;
+                const r = Math.sqrt(x * x + y * y + z * z);
+                const vSq = vx * vx + vy * vy + vz * vz;
                 
-                const G_M = 4.0 * Math.PI * Math.PI * perStarState.mass_solar;
                 let a = 1.0;
                 if (G_M > 0 && r > 0) {
                     const invA = 2.0 / r - vSq / G_M;
@@ -112,7 +144,10 @@ export class SimulationCoordinator {
                 }
 
                 const p = star.planetarySystem?.bodies[i];
-                const bodyType = p ? (p.type === 1 ? 'gas_giant' : p.type === 2 ? 'ice' : p.type === 3 ? 'lava' : p.type === 4 ? 'ocean' : p.type === 5 ? 'desert' : p.type === 6 ? 'jungle' : 'rocky') : (bodyTypeVal === 1 ? 'comet' : 'rocky');
+                // BOLT: Use O(1) table lookup instead of multiple nested ternaries
+                const bodyType = p
+                    ? (PLANETARY_TYPE_MAP[p.type] || 'rocky')
+                    : (bodyTypeVal === 1 ? 'comet' : 'rocky');
 
                 orbitalStates.push({
                     body_id: `body_${i}`,
@@ -121,28 +156,14 @@ export class SimulationCoordinator {
                     velocity_au_yr: { x: vx, y: vy, z: vz },
                     semi_major_axis_au: a,
                     coma_active: bodyType === 'comet' && r < 3.0,
-                    tail_vector: bodyType === 'comet' ? { x: x/r, y: y/r, z: z/r } : null
+                    tail_vector: bodyType === 'comet' ? { x: x / r, y: y / r, z: z / r } : null
                 });
 
-                let mass = MASS_EARTH;
-                let radius = RADIUS_EARTH;
-                let albedo: number;
-
-                if (bodyType === 'gas_giant') {
-                    mass *= 317; radius *= 11; albedo = 0.5;
-                } else if (bodyType === 'ice') {
-                    mass *= 15; radius *= 4; albedo = 0.6;
-                } else if (bodyType === 'lava') {
-                    mass *= 0.8; radius *= 0.9; albedo = 0.1;
-                } else if (bodyType === 'desert') {
-                    mass *= 0.5; radius *= 0.8; albedo = 0.4;
-                } else if (bodyType === 'ocean') {
-                    mass *= 1.2; radius *= 1.1; albedo = 0.2;
-                } else if (bodyType === 'jungle') {
-                    mass *= 1.0; radius *= 1.0; albedo = 0.18;
-                } else {
-                    mass *= 0.6; radius *= 0.75; albedo = 0.15;
-                }
+                // BOLT: Use O(1) property lookup instead of branch-heavy if-else chains
+                const props = BODY_TYPE_PROPERTIES[bodyType] || BODY_TYPE_PROPERTIES.rocky;
+                const mass = MASS_EARTH * props.massMult;
+                const radius = RADIUS_EARTH * props.radiusMult;
+                const albedo = props.albedo;
 
                 const habState: any = this.astrobiologyEngine.evaluatePlanet(
                     `body_${i}`, a, mass, radius, albedo, perStarState as any, deltaTime_yr, bodyType
