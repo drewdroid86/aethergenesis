@@ -273,14 +273,26 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
 // Handle tool calls
 server.setRequestHandler(CallToolRequestSchema, async (request) => {
   const { name, arguments: args } = request.params;
+  const safeArgs = args || {};
 
   try {
     if (name === 'get_orbital_elements') {
-      const bodyId = args.body_id;
-      const epoch = args.epoch || '2000-01-01';
+      const bodyId = safeArgs.body_id;
+      const epoch = safeArgs.epoch || '2000-01-01';
+
+      // Security: Input validation
+      if (typeof bodyId !== 'string' || bodyId.length > 100 || !/^[a-zA-Z0-9\s\-/_.;()]+$/.test(bodyId)) {
+        throw new Error('Invalid body_id format');
+      }
+      if (typeof epoch !== 'string' || epoch.length > 30 || !/^[0-9a-zA-Z\s\-:TZ]+$/.test(epoch)) {
+        throw new Error('Invalid epoch format');
+      }
 
       // Parse stop date as epoch + 1 day
       const start = new Date(epoch);
+      if (isNaN(start.getTime())) {
+        throw new Error('Invalid epoch date');
+      }
       const stop = new Date(start.getTime() + 24 * 60 * 60 * 1000);
       const stopStr = stop.toISOString().split('T')[0];
 
@@ -308,11 +320,37 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     }
 
     if (name === 'get_ephemeris') {
-      const bodyId = args.body_id;
-      const startDate = args.start_date;
-      const stopDate = args.stop_date;
-      const stepSize = args.step_size || '1d';
-      const center = args.center || '500@0';
+      const bodyId = safeArgs.body_id;
+      const startDate = safeArgs.start_date;
+      const stopDate = safeArgs.stop_date;
+      const stepSize = safeArgs.step_size || '1d';
+      const center = safeArgs.center || '500@0';
+
+      // Security: Input validation
+      if (typeof bodyId !== 'string' || bodyId.length > 100 || !/^[a-zA-Z0-9\s\-/_.;()]+$/.test(bodyId)) {
+        throw new Error('Invalid body_id format');
+      }
+      if (typeof startDate !== 'string' || startDate.length > 30 || !/^[0-9a-zA-Z\s\-:TZ]+$/.test(startDate)) {
+        throw new Error('Invalid start_date format');
+      }
+      if (typeof stopDate !== 'string' || stopDate.length > 30 || !/^[0-9a-zA-Z\s\-:TZ]+$/.test(stopDate)) {
+        throw new Error('Invalid stop_date format');
+      }
+      if (typeof stepSize !== 'string' || stepSize.length > 10 || !/^[0-9]+[ydhms]?$/i.test(stepSize)) {
+        throw new Error('Invalid step_size format');
+      }
+      if (typeof center !== 'string' || center.length > 20 || !/^[a-zA-Z0-9@\-:;]+$/.test(center)) {
+        throw new Error('Invalid center format');
+      }
+
+      const start = new Date(startDate);
+      if (isNaN(start.getTime())) {
+        throw new Error('Invalid start_date');
+      }
+      const stop = new Date(stopDate);
+      if (isNaN(stop.getTime())) {
+        throw new Error('Invalid stop_date');
+      }
 
       const url = `${HORIZONS_BASE_URL}?format=json&EPHEM_TYPE=VECTORS&COMMAND='${encodeURIComponent(bodyId)}'&MAKE_EPHEM=YES&CENTER=${encodeURIComponent(center)}&START_TIME=${encodeURIComponent(startDate)}&STOP_TIME=${encodeURIComponent(stopDate)}&STEP_SIZE=${encodeURIComponent(stepSize)}&OUT_UNITS=AU-D`;
 
@@ -329,8 +367,13 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     }
 
     if (name === 'search_small_bodies') {
-      const type = args.type;
-      const limit = Math.min(50, args.limit || 20);
+      const type = safeArgs.type;
+      const limit = Math.min(50, (typeof safeArgs.limit === 'number' && !isNaN(safeArgs.limit) && safeArgs.limit > 0) ? safeArgs.limit : 20);
+
+      // Security: Validate type
+      if (type !== 'comet' && type !== 'asteroid' && type !== 'all') {
+        throw new Error('Invalid type parameter');
+      }
 
       let kindParam = '';
       if (type === 'comet') kindParam = '&sb-kind=c';
