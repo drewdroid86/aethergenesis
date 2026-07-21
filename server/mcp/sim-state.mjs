@@ -150,6 +150,14 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
 });
 
 // Handle tool calls
+const SAFE_ID_REGEX = /^[a-zA-Z0-9\s/-]*$/;
+const ALLOWED_EVENTS = ['force_supernova', 'advance_1gyr', 'reset', 'spawn_comet', 'impact_event'];
+
+function isPlainObject(val) {
+  if (typeof val !== 'object' || val === null || Array.isArray(val)) return false;
+  return Object.getPrototypeOf(val) === Object.prototype;
+}
+
 server.setRequestHandler(CallToolRequestSchema, async (request) => {
   const { name, arguments: args } = request.params;
 
@@ -166,6 +174,11 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
   try {
     if (name === 'get_stellar_state') {
+      if (args.star_id !== undefined) {
+        if (typeof args.star_id !== 'string' || args.star_id.length > 100 || !SAFE_ID_REGEX.test(args.star_id)) {
+          throw new Error('Invalid star_id parameter');
+        }
+      }
       return {
         content: [
           {
@@ -178,6 +191,9 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
     if (name === 'get_habitability_scores') {
       const planetId = args.planet_id || 'all';
+      if (typeof planetId !== 'string' || planetId.length > 100 || !SAFE_ID_REGEX.test(planetId)) {
+        throw new Error('Invalid planet_id parameter');
+      }
       let scores = latestState.astrobiology || [];
       if (planetId !== 'all') {
         scores = scores.filter(p => p.planet_id === planetId);
@@ -193,6 +209,11 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     }
 
     if (name === 'get_phase_history') {
+      if (args.star_id !== undefined) {
+        if (typeof args.star_id !== 'string' || args.star_id.length > 100 || !SAFE_ID_REGEX.test(args.star_id)) {
+          throw new Error('Invalid star_id parameter');
+        }
+      }
       return {
         content: [
           {
@@ -218,6 +239,33 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       const eventName = args.event;
       const targetId = args.target_id;
       const parameters = args.parameters || {};
+
+      // Security: Validate simulation events
+      if (typeof eventName !== 'string' || !ALLOWED_EVENTS.includes(eventName)) {
+        throw new Error('Invalid event name parameter');
+      }
+      if (targetId !== undefined) {
+        if (typeof targetId !== 'string' || targetId.length > 100 || !SAFE_ID_REGEX.test(targetId)) {
+          throw new Error('Invalid target_id parameter');
+        }
+      }
+      if (args.parameters !== undefined) {
+        if (!isPlainObject(parameters)) {
+          throw new Error('Invalid parameters format: must be a plain object');
+        }
+        for (const [key, val] of Object.entries(parameters)) {
+          if (typeof key !== 'string' || key.length > 50 || !SAFE_ID_REGEX.test(key)) {
+            throw new Error('Invalid parameter key');
+          }
+          const t = typeof val;
+          if (t !== 'string' && t !== 'number' && t !== 'boolean') {
+            throw new Error('Invalid parameter value: only flat types allowed');
+          }
+          if (t === 'string' && (val.length > 100 || !SAFE_ID_REGEX.test(val))) {
+            throw new Error('Invalid parameter value format');
+          }
+        }
+      }
 
       if (ws && ws.readyState === WebSocket.OPEN) {
         ws.send(JSON.stringify({

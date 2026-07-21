@@ -271,6 +271,16 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
 });
 
 // Handle tool calls
+const BODY_ID_REGEX = /^[a-zA-Z0-9\s/-]{1,100}$/;
+
+function validateDateString(dateStr) {
+  if (typeof dateStr !== 'string') return false;
+  const d = new Date(dateStr);
+  if (isNaN(d.getTime())) return false;
+  const year = d.getFullYear();
+  return year >= 1000 && year <= 9999;
+}
+
 server.setRequestHandler(CallToolRequestSchema, async (request) => {
   const { name, arguments: args } = request.params;
 
@@ -278,6 +288,14 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     if (name === 'get_orbital_elements') {
       const bodyId = args.body_id;
       const epoch = args.epoch || '2000-01-01';
+
+      // Security: Validate inputs
+      if (typeof bodyId !== 'string' || !BODY_ID_REGEX.test(bodyId)) {
+        throw new Error('Invalid body_id parameter');
+      }
+      if (!validateDateString(epoch)) {
+        throw new Error('Invalid epoch parameter');
+      }
 
       // Parse stop date as epoch + 1 day
       const start = new Date(epoch);
@@ -314,6 +332,23 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       const stepSize = args.step_size || '1d';
       const center = args.center || '500@0';
 
+      // Security: Validate inputs
+      if (typeof bodyId !== 'string' || !BODY_ID_REGEX.test(bodyId)) {
+        throw new Error('Invalid body_id parameter');
+      }
+      if (!validateDateString(startDate)) {
+        throw new Error('Invalid start_date parameter');
+      }
+      if (!validateDateString(stopDate)) {
+        throw new Error('Invalid stop_date parameter');
+      }
+      if (typeof stepSize !== 'string' || stepSize.length > 10 || !/^[a-zA-Z0-9]+$/.test(stepSize)) {
+        throw new Error('Invalid step_size parameter');
+      }
+      if (typeof center !== 'string' || center.length > 20 || !/^[a-zA-Z0-9@+-]+$/.test(center)) {
+        throw new Error('Invalid center parameter');
+      }
+
       const url = `${HORIZONS_BASE_URL}?format=json&EPHEM_TYPE=VECTORS&COMMAND='${encodeURIComponent(bodyId)}'&MAKE_EPHEM=YES&CENTER=${encodeURIComponent(center)}&START_TIME=${encodeURIComponent(startDate)}&STOP_TIME=${encodeURIComponent(stopDate)}&STEP_SIZE=${encodeURIComponent(stepSize)}&OUT_UNITS=AU-D`;
 
       const { resultText } = await fetchHorizons(url, bodyId);
@@ -330,7 +365,16 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
     if (name === 'search_small_bodies') {
       const type = args.type;
-      const limit = Math.min(50, args.limit || 20);
+      const limitRaw = args.limit !== undefined ? args.limit : 20;
+
+      // Security: Validate inputs
+      if (type !== 'comet' && type !== 'asteroid' && type !== 'all') {
+        throw new Error('Invalid type parameter');
+      }
+      if (typeof limitRaw !== 'number' || isNaN(limitRaw) || !isFinite(limitRaw) || limitRaw < 1) {
+        throw new Error('Invalid limit parameter');
+      }
+      const limit = Math.min(50, limitRaw);
 
       let kindParam = '';
       if (type === 'comet') kindParam = '&sb-kind=c';
