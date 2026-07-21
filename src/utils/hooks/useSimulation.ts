@@ -53,9 +53,7 @@ export function useSimulation(containerRef: React.RefObject<HTMLDivElement | nul
     // Sync worker time scale when timeScale state changes
     useEffect(() => {
         if (nbodyWorkerRef.current) {
-            const dt = timeScale === 'cosmic'
-                ? (1.0 / 60) * 200000000 // 200M yrs per sec at 60Hz
-                : (1.0 / 60) * 1000;      // 1000 yrs per sec at 60Hz
+            const dt = timeScale === 'cosmic' ? 0.3 : 0.05;
             nbodyWorkerRef.current.postMessage({
                 type: 'UPDATE_TIMESTEP',
                 payload: { dt_yr: dt }
@@ -318,7 +316,7 @@ export function useSimulation(containerRef: React.RefObject<HTMLDivElement | nul
                     payload: {
                         bodies: [earth, jupiter, halley],
                         centralMass_solar: centralMass,
-                        dt_yr: 1.0 / 365.25
+                        dt_yr: 0.05
                     }
                 });
             }
