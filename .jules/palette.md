@@ -1,3 +1,0 @@
-## 2025-02-28 - [Keyboard Focus Indicators on Custom Sliders]
-**Learning:** Overriding browser-native UI styles (such as `outline-none` on `<input type="range">`) without providing explicit alternative focus feedback cuts off keyboard navigability completely. Custom focus states must use `focus-visible` to avoid showing focus rings during regular click/drag mouse events while ensuring robust visual cues for users navigating with screen readers/keyboards.
-**Action:** Use `focus-visible:ring-2 focus-visible:ring-[#C084FC] outline-none rounded-lg transition-all` on custom input elements to preserve clear focus tracking.
