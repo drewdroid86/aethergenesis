@@ -200,9 +200,9 @@ export class Engine {
         this.setHeroStarCount(getNumStarsForTier(detectPerformanceTier()), initialPhysics);
     }
 
-    createHeroStars(count: number, _physicsConstants: PhysicsConstants) {
+    createHeroStars(count: number, physicsConstants: PhysicsConstants) {
         for (let i = 0; i < count; i++) {
-            const star = new HeroStarSystem();
+            const star = new HeroStarSystem(this.cosmicAge, physicsConstants);
             const _u1 = Math.max(1e-9, Math.random());
             const _u2 = Math.random();
             const _u3 = Math.max(1e-9, Math.random());
@@ -228,7 +228,7 @@ export class Engine {
         this.activeHeroStarCount = count;
         
         for (let i = 0; i < this.heroStars.length; i++) {
-            this.heroStars[i].visible = i < this.activeHeroStarCount;
+            this.heroStars[i].visible = i < this.activeHeroStarCount && this.heroStars[i].t >= 0;
         }
     }
 
@@ -388,7 +388,7 @@ export class Engine {
 
     respawnAllStars() {
         this.heroStars.forEach(star => {
-            star.respawn(this.renderer);
+            star.respawn(this.renderer, this.cosmicAge, this.physicsConstants);
         });
     }
 

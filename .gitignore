@@ -21,3 +21,4 @@ eslint-report.txt
 config/
 opencode.json
 .mcp.json
+.jules/

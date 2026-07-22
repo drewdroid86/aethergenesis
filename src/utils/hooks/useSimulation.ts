@@ -344,7 +344,7 @@ export function useSimulation(containerRef: React.RefObject<HTMLDivElement | nul
                 mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
                 raycaster.setFromCamera(mouse, engine.camera);
 
-                const hitMeshes = engine.heroStars.map(h => h.hitMesh);
+                const hitMeshes = engine.heroStars.slice(0, engine.activeHeroStarCount).filter(h => h.visible && h.t >= 0).map(h => h.hitMesh);
                 const intersects = raycaster.intersectObjects(hitMeshes);
 
                 if (intersects.length > 0) {

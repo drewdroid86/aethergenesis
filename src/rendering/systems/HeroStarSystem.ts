@@ -100,7 +100,7 @@ export class HeroStarSystem extends THREE.Group {
     private tHeat: number;
     private birthAge: number;
 
-    constructor() {
+    constructor(cosmicAge: number = 5.0, physics: PhysicsConstants = DEFAULT_CONSTANTS) {
         super();
         this.physicsId = THREE.MathUtils.generateUUID();
         const roll = Math.random();
@@ -114,7 +114,7 @@ export class HeroStarSystem extends THREE.Group {
         this.lifespanReal = 10000 * Math.pow(this.mass, -2.5);
         this.loopDuration = 40 + Math.random() * 20; 
         
-        this.birthAge = 0.5 + Math.random() * 9.5;
+        this.birthAge = Math.random() * 13.0;
         this.t = 0;
 
         // BOLT: Baryon ratio affects base heat distribution
@@ -152,10 +152,58 @@ export class HeroStarSystem extends THREE.Group {
 
         this._remnantPhase = new RemnantPhase(this.mass);
         this._remnantPhase.init(this);
+
+        this.applyInitialCosmicAge(cosmicAge, physics);
     }
 
-    respawn(renderer?: THREE.WebGLRenderer): void {
-        this.birthAge = 0.5 + Math.random() * 9.5;
+    applyInitialCosmicAge(cosmicAge: number = 5.0, physics: PhysicsConstants = DEFAULT_CONSTANTS, renderer?: THREE.WebGLRenderer): void {
+        const effG = Math.max(0.01, physics.G);
+        let globalFade = 1.0;
+        if (cosmicAge > 13.0) {
+            globalFade = Math.max(0, 1.0 - (cosmicAge - 13.0) / 1.0);
+        } else if (cosmicAge < 1.0) {
+            globalFade = Math.max(0, cosmicAge / 1.0);
+        }
+
+        const ageMyr = (cosmicAge - this.birthAge) * 1000;
+        if (ageMyr < 0) {
+            this.t = -0.1;
+            this.visible = false;
+        } else {
+            this.t = ageMyr / (this.lifespanReal / effG);
+            if (this.t > 1.0) {
+                this.t = Math.min(1.05, this.t);
+            }
+            this.visible = globalFade > 0.01;
+        }
+        this.currentRealAge = Math.max(0, this.t * this.lifespanReal);
+
+        if (this.t >= 0) {
+            const initialPhase = getPhaseForT(this.t);
+            if (this._activePhase !== initialPhase) {
+                if (initialPhase === PHASES.NEBULA) this.nebulaPhase.show();
+                else if (initialPhase === PHASES.PROTOSTAR) this.protostarPhase.show();
+                else if (initialPhase === PHASES.MAIN_SEQUENCE) {
+                    this.mainSequencePhase.show();
+                    PlanetarySystemQueue.enqueueCreation(this, renderer);
+                }
+                else if (initialPhase === PHASES.RED_GIANT) {
+                    if (this._mainSequencePhase) {
+                        this.redGiantPhase.setPlanets(this._mainSequencePhase.planetsInfo);
+                    }
+                    this.redGiantPhase.show();
+                }
+                else if (initialPhase === PHASES.SUPERNOVA) this.supernovaPhase.show();
+                else if (initialPhase === PHASES.REMNANT) this.remnantPhase.show();
+
+                this._activePhase = initialPhase;
+                this.phase = initialPhase;
+            }
+        }
+    }
+
+    respawn(renderer?: THREE.WebGLRenderer, cosmicAge: number = 0.0, physics: PhysicsConstants = DEFAULT_CONSTANTS): void {
+        this.birthAge = Math.random() * 13.0;
         this.t = -0.1;
         this.visible = false;
         
@@ -195,6 +243,8 @@ export class HeroStarSystem extends THREE.Group {
         if (this.starLight) {
             this.starLight.visible = false;
         }
+
+        this.applyInitialCosmicAge(cosmicAge, physics, renderer);
     }
 
 

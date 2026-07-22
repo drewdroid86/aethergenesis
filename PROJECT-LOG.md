@@ -70,6 +70,19 @@ src/
 
 ---
 
+### fix/initial-cosmic-age-population — Initial Cosmic Age Star Population & Raycaster Safety
+**Date:** July 22, 2026
+**AI:** Antigravity (Gemini 3.6 Flash)
+**Branch:** fix/initial-cosmic-age-population
+
+**Changes:**
+- **Birth Age Distribution & Immediate Creation-Time State**: Updated `HeroStarSystem` constructor and `respawn()` method to generate stellar birth ages `birthAge = Math.random() * 13.0` across `[0.0, 13.0]` Gyr, and implemented `applyInitialCosmicAge()` executed immediately on creation. This ensures `t`, `visible`, `globalFade`, and active phase mesh state match `cosmicAge` on frame 0 without waiting for the first `update()` tick.
+- **Raycaster Object Filtering**: Filtered raycasting `hitMeshes` in `useSimulation.ts` using `.slice(0, activeHeroStarCount).filter(h => h.visible && h.t >= 0)` to prevent raycaster interactions with invisible, unspawned, or inactive hero stars.
+
+**State at end:** TypeScript typecheck compiles with zero errors, production build succeeds, ESLint clean, and all 49 E2E test scenarios pass cleanly.
+
+---
+
 ### fix/nbody-timestep-substepping — N-Body Physics Timestep Sub-Stepping Loop
 **Date:** July 21, 2026
 **AI:** Antigravity (Gemini 3.6 Flash)
