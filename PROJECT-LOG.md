@@ -70,6 +70,20 @@ src/
 
 ---
 
+### fix/nbody-timestep-substepping — N-Body Physics Timestep Sub-Stepping Loop
+**Date:** July 21, 2026
+**AI:** Antigravity (Gemini 3.6 Flash)
+**Branch:** fix/nbody-timestep-substepping
+
+**Changes:**
+- **Timestep Sub-stepping Loop in `nbodyWorker.ts`**: Re-factored Velocity-Verlet integrator step into an isolated `integrate(subDt)` helper function. Added `MAX_PHYSICS_DT = 0.002` (~17.5 hrs/step) and `MAX_SUBSTEPS = 64` to decompose large frame timesteps into micro-substeps, preventing integration numerical breakdown and body ejection ("orbital explosions").
+- **Tab-Stall & Step Clamping**: Clamped input timestep `dt_yr` to `MAX_PHYSICS_DT * MAX_SUBSTEPS` (`0.128` yr) to prevent huge physics jumps and freezes after background tab stalls.
+- **Simulation Time Scaling Adjustment**: Adjusted `useSimulation.ts` worker timestep payload to stable baseline (`0.05` / `0.3`), keeping integration stable under variable render frame rates.
+
+**State at end:** TypeScript type-check compiles with zero errors, ESLint clean, and production Vite build completes successfully.
+
+---
+
 ### feat/black-hole-lensing — Black Hole Gravitational Lensing & Render Loop Safety
 **Date:** July 19, 2026
 **AI:** Antigravity (Gemini 3.5 Flash)
