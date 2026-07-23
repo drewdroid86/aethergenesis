@@ -1,5 +1,6 @@
 import React, { useRef, useState, useEffect } from 'react';
-import { Check, Copy, Crosshair, Navigation, Pause, Play } from 'lucide-react';
+import { Check, Copy, Crosshair, Navigation, Pause, Play, Search, Volume2, VolumeX } from 'lucide-react';
+import { audioEngine } from '../audio/AudioEngine';
 
 interface HudProps {
     uiRefs: {
@@ -57,6 +58,7 @@ interface HudProps {
     currentSeed: string;
     timeScale: 'cosmic' | 'realtime';
     setTimeScale: (scale: 'cosmic' | 'realtime') => void;
+    onOpenCatalog?: () => void;
 }
 
 export const Hud: React.FC<HudProps> = ({ 
@@ -73,7 +75,8 @@ export const Hud: React.FC<HudProps> = ({
     resetCamera,
     centerOnStar,
     performance,
-    currentSeed
+    currentSeed,
+    onOpenCatalog
 }) => {
     const isDebugMode = typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('debug') === '1';
     const [copied, setCopied] = useState(false);
@@ -81,6 +84,7 @@ export const Hud: React.FC<HudProps> = ({
     const [idCopied, setIdCopied] = useState(false);
     const [announcement, setAnnouncement] = useState('');
     const [isDragging, setIsDragging] = useState(false);
+    const [isMuted, setIsMuted] = useState(false);
     const isFirstRenderRef = useRef(true);
 
     useEffect(() => {
@@ -521,7 +525,35 @@ export const Hud: React.FC<HudProps> = ({
                 </div>
 
                 <div className="flex flex-col items-end gap-2 text-right">
-                <div className="grid grid-cols-2 gap-2 pointer-events-auto">
+                <div className="grid grid-cols-4 gap-2 pointer-events-auto">
+                    <button 
+                        onClick={() => {
+                            audioEngine.init();
+                            const muted = audioEngine.toggleMute();
+                            setIsMuted(muted);
+                        }}
+                        className="w-10 h-10 flex items-center justify-center bg-[rgba(8,8,20,0.6)] border border-[rgba(126,184,255,0.2)] rounded-md backdrop-blur-md transition-colors hover:bg-[rgba(126,184,255,0.1)] cursor-pointer focus-visible:ring-2 focus-visible:ring-[#C084FC] outline-none relative group/audio"
+                        aria-label="Toggle ambient audio drone and sound effects" title="Toggle Audio"
+                    >
+                    <span className="absolute -top-6 left-1/2 -translate-x-1/2 text-[10px] text-[#C084FC] opacity-0 group-hover/audio:opacity-100 group-focus-visible/audio:opacity-100 transition-opacity whitespace-nowrap">
+                        Audio
+                    </span>
+                    {isMuted ? <VolumeX size={16} className="text-red-400" /> : <Volume2 size={16} className="text-[#7EB8FF]" />}
+                    </button>
+
+                    {onOpenCatalog && (
+                        <button 
+                            onClick={onOpenCatalog}
+                            className="w-10 h-10 flex items-center justify-center bg-[rgba(8,8,20,0.6)] border border-[rgba(126,184,255,0.2)] rounded-md backdrop-blur-md transition-colors hover:bg-[rgba(126,184,255,0.1)] cursor-pointer focus-visible:ring-2 focus-visible:ring-[#C084FC] outline-none relative group/catalog"
+                            aria-label="Open Astronomical Catalog & Presets" title="Catalog Search"
+                        >
+                        <span className="absolute -top-6 left-1/2 -translate-x-1/2 text-[10px] text-[#C084FC] opacity-0 group-hover/catalog:opacity-100 group-focus-visible/catalog:opacity-100 transition-opacity whitespace-nowrap">
+                            Catalog
+                        </span>
+                        <Search size={16} className="text-[#C084FC]" />
+                        </button>
+                    )}
+
                     <button 
                         onClick={resetCamera}
                         className="w-10 h-10 flex items-center justify-center bg-[rgba(8,8,20,0.6)] border border-[rgba(126,184,255,0.2)] rounded-md backdrop-blur-md transition-colors hover:bg-[rgba(126,184,255,0.1)] cursor-pointer focus-visible:ring-2 focus-visible:ring-[#C084FC] outline-none relative group/reset"
@@ -533,6 +565,7 @@ export const Hud: React.FC<HudProps> = ({
                     </span>
                     <Crosshair size={16} className="text-[#7EB8FF]" />
                     </button>
+
                     <button 
                         onClick={centerOnStar}
                         className="w-10 h-10 flex items-center justify-center bg-[rgba(8,8,20,0.6)] border border-[rgba(126,184,255,0.2)] rounded-md backdrop-blur-md transition-colors hover:bg-[rgba(126,184,255,0.1)] cursor-pointer focus-visible:ring-2 focus-visible:ring-[#C084FC] outline-none relative group/focus"

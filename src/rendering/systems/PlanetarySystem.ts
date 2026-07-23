@@ -247,7 +247,17 @@ export class PlanetarySystem {
         geometry.setAttribute('civilizationTier', this.civAttr);
         
         this.group.add(this.instancedMesh);
+        this.group.add(this.orbitLinesGroup);
     }
+    
+    public orbitLinesGroup: THREE.Group = new THREE.Group();
+    private orbitLinesBuilt = false;
+    private orbitLineMat: THREE.LineBasicMaterial = new THREE.LineBasicMaterial({
+        color: 0x3399ff,
+        transparent: true,
+        opacity: 0.3,
+        blending: THREE.AdditiveBlending
+    });
 
     /**
      * Update orbits based on Float32Array from nbodyWorker.ts
@@ -270,6 +280,29 @@ export class PlanetarySystem {
         // Buffer has 7 floats per body: x, y, z, vx, vy, vz, type
         const numBodies = Math.min(this.bodies.length, buffer.length / 7);
         const matrixArray = this.instancedMesh.instanceMatrix.array;
+
+        // Construct orbit trajectory path lines once positions are established
+        if (!this.orbitLinesBuilt && numBodies > 0) {
+            this.orbitLinesBuilt = true;
+            for (let i = 0; i < numBodies; i++) {
+                const orbitScale = 12.0;
+                const bx = buffer[i * 7 + 0] * orbitScale;
+                const bz = buffer[i * 7 + 2] * orbitScale;
+                const radius = Math.sqrt(bx * bx + bz * bz);
+                if (radius > 0.1) {
+                    const segments = 64;
+                    const points: THREE.Vector3[] = [];
+                    for (let s = 0; s <= segments; s++) {
+                        const theta = (s / segments) * Math.PI * 2;
+                        points.push(new THREE.Vector3(Math.cos(theta) * radius, 0, Math.sin(theta) * radius));
+                    }
+                    const lineGeo = new THREE.BufferGeometry().setFromPoints(points);
+                    const lineMesh = new THREE.LineLoop(lineGeo, this.orbitLineMat);
+                    this.orbitLinesGroup.add(lineMesh);
+                }
+            }
+        }
+        this.orbitLineMat.opacity = 0.35 * globalFade;
 
         for (let i = 0; i < numBodies; i++) {
             const b = this.bodies[i];

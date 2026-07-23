@@ -55,10 +55,50 @@ export class RemnantPhase implements PhaseComponent {
         this.nsMat = new THREE.MeshBasicMaterial({color: 0xaaccff, transparent: true, opacity: 0});
         this.nsMat.name = 'RemnantNeutronStarMaterial';
         this.pulsarGroup = new THREE.Group();
-        this.beamMat = new THREE.MeshBasicMaterial({ color: 0x00ffff, transparent: true, opacity: 0, blending: THREE.AdditiveBlending });
+        this.beamMat = new THREE.ShaderMaterial({
+            uniforms: {
+                uTime: { value: 0 },
+                uOpacity: { value: 0.0 }
+            },
+            transparent: true,
+            blending: THREE.AdditiveBlending,
+            depthWrite: false,
+            side: THREE.DoubleSide,
+            vertexShader: `
+                varying vec3 vPosition;
+                varying vec2 vUv;
+                void main() {
+                    vUv = uv;
+                    vPosition = position;
+                    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+                }
+            `,
+            fragmentShader: `
+                varying vec3 vPosition;
+                varying vec2 vUv;
+                uniform float uTime;
+                uniform float uOpacity;
+
+                void main() {
+                    float yNorm = clamp(abs(vPosition.y) / 10.0, 0.0, 1.0);
+                    float coneWidth = 1.0 - abs(vUv.x - 0.5) * 2.0;
+                    coneWidth = pow(clamp(coneWidth, 0.0, 1.0), 1.5);
+                    
+                    float turbulence = sin(vPosition.y * 12.0 - uTime * 25.0) * 0.2 + 0.8;
+                    float beamCore = pow(coneWidth, 2.5) * turbulence;
+                    
+                    vec3 coreColor = vec3(0.4, 0.9, 1.0); // Cyan-white energy core
+                    vec3 outerGlow = vec3(0.0, 0.4, 1.0); // Deep electric blue rim
+                    vec3 color = mix(outerGlow, coreColor, beamCore);
+                    
+                    float alpha = beamCore * (1.0 - smoothstep(0.7, 1.0, yNorm)) * uOpacity;
+                    gl_FragColor = vec4(color * 2.0, alpha);
+                }
+            `
+        }) as any;
         this.beamMat.name = 'RemnantPulsarBeamMaterial';
-        const beam1 = new THREE.Mesh(GEOMETRIES.pulsarBeam1, this.beamMat);
-        const beam2 = new THREE.Mesh(GEOMETRIES.pulsarBeam2, this.beamMat);
+        const beam1 = new THREE.Mesh(GEOMETRIES.pulsarBeam1, this.beamMat as any);
+        const beam2 = new THREE.Mesh(GEOMETRIES.pulsarBeam2, this.beamMat as any);
         this.pulsarGroup.add(beam1);
         this.pulsarGroup.add(beam2);
         this.neutronStarGroup.add(new THREE.Mesh(GEOMETRIES.neutronStar, this.nsMat));
@@ -223,6 +263,9 @@ export class RemnantPhase implements PhaseComponent {
                 this.pulsarGroup.rotation.y += delta * 5.0 * (physics.weakForce || 1.0);
                 this.nsMagneticLines.rotation.y += delta * 2.0 * (physics.weakForce || 1.0);
             }
+            if (this.beamMat && (this.beamMat as any).uniforms) {
+                (this.beamMat as any).uniforms.uTime.value = appTime;
+            }
         } else {
             this.pulsarGroup.visible = false;
             this.nsMagneticLines.visible = false;
@@ -253,9 +296,11 @@ export class RemnantPhase implements PhaseComponent {
 
         // Pulsar beams are either on or off for simplicity in opacity guarding
         const targetBeam = targetNs ? 0.6 : 0;
-        if (this.beamMat.opacity !== targetBeam * globalFade) {
-            // BOLT: O(1) opacity update for all beams via shared material
-            this.beamMat.opacity = targetBeam * globalFade;
+        const opacityVal = targetBeam * globalFade;
+        if ((this.beamMat as any).uniforms) {
+            (this.beamMat as any).uniforms.uOpacity.value = opacityVal;
+        } else {
+            this.beamMat.opacity = opacityVal;
         }
         
         const isVisible = (this._opNs > STELLAR_CONSTANTS.TRANSITIONS.VISIBILITY_THRESHOLD || this._opNsLines > STELLAR_CONSTANTS.TRANSITIONS.VISIBILITY_THRESHOLD) && globalFade > 0.01;

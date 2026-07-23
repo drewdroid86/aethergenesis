@@ -247,6 +247,23 @@ src/
 
 ---
 
+### v3.0 — Phase 3 Next-Generation Upgrades & Antigravity 2.0 Plugin
+**Date:** July 23, 2026
+**AI:** Antigravity (Gemini 3.6 Flash & Claude Sonnet 4.6)
+**Branch:** refactor/visual-upgrade-phase2
+
+**Changes:**
+- **Volumetric Pulsar Beams:** Replaced static cone meshes in `RemnantPhase.ts` with custom high-energy `ShaderMaterial` featuring volumetric turbulence, cyan core glow, electric blue rims, and Doppler frequency modulation.
+- **Relativistic Accretion Disk:** Upgraded black hole accretion disk shader with Doppler beaming (approaching edge shines brighter/bluer, receding edge dims/reddens) and Keplerian differential rotation noise.
+- **Dynamic Planet Orbit Path Lines:** Built `orbitLinesGroup` in `PlanetarySystem.ts` rendering glowing cyan orbital trajectory line loops (`LineLoop`) around host stars.
+- **Native WebAudio Ambient Synthesizer:** Implemented zero-dependency `CosmicAudioEngine.ts` generating ambient space drones, LFO filter sweeps, supernova explosions, and UI clicks.
+- **CatalogPanel & Audio HUD Integration:** Mounted `CatalogPanel.tsx` in `AetherGenesis.tsx` and added top-right HUD buttons for Astronomical Catalog search (`Search`) and Audio mute toggle (`Volume2`/`VolumeX`).
+- **Antigravity 2.0 Plugin Scaffold:** Created `.agents/plugins/aethergenesis/` with plugin manifest (`plugin.json`) and skills (`stellar-physics`, `shader-optimization`).
+
+**State at end:** All 49 E2E scenarios pass. `npm run typecheck` and `npm run build` pass with 0 errors.
+
+---
+
 ## CURRENT BUGS (as of last session)
 
 | Priority | Bug | File | Fix |

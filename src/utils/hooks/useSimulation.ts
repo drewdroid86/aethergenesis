@@ -70,6 +70,19 @@ export function useSimulation(containerRef: React.RefObject<HTMLDivElement | nul
 
     // UI Panel State
     const [isConstantsOpen, setIsConstantsOpen] = useState(false);
+    const [isCatalogOpen, setIsCatalogOpen] = useState(false);
+
+    const loadStarPreset = useCallback((preset: any) => {
+        if (selectedStarRef.current && preset) {
+            if (preset.mass) selectedStarRef.current.mass = preset.mass;
+            if (preset.temperature) selectedStarRef.current.currentTemp = preset.temperature;
+        }
+        setIsCatalogOpen(false);
+    }, []);
+
+    const addBodyToSimulation = useCallback((_elements: any) => {
+        setIsCatalogOpen(false);
+    }, []);
 
     // HUD & UI Refs
     const hudRefs = {
@@ -576,6 +589,10 @@ export function useSimulation(containerRef: React.RefObject<HTMLDivElement | nul
         centerOnStar,
         timeScale,
         setTimeScale,
-        astrobiologyData
+        astrobiologyData,
+        isCatalogOpen,
+        setIsCatalogOpen,
+        loadStarPreset,
+        addBodyToSimulation
     };
 }
