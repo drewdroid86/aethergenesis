@@ -12,7 +12,8 @@
     "typecheck": "node node_modules/typescript/bin/tsc --noEmit",
     "lint": "node node_modules/eslint/bin/eslint.js . && npm run typecheck",
     "server": "node node_modules/tsx/dist/cli.mjs server.ts",
-    "dev:full": "node node_modules/concurrently/dist/bin/concurrently.js \"npm run dev\" \"npm run server\""
+    "dev:full": "node node_modules/concurrently/dist/bin/concurrently.js \"npm run dev\" \"npm run server\"",
+    "benchmark:physics": "node node_modules/tsx/dist/cli.mjs scripts/benchmark-physics.js"
   },
   "dependencies": {
     "@google/genai": "^2.13.0",
