@@ -1,0 +1,42 @@
+name: Physics Benchmarks
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  benchmark:
+    name: Run Physics Benchmarks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install Dependencies
+        run: npm ci
+
+      - name: Run Physics Benchmark
+        run: npm run benchmark:physics
+
+      - name: Store & Track Benchmark Result
+        uses: benchmark-action/github-action-benchmark@v1
+        with:
+          name: Physics Simulation Performance
+          tool: 'customSmallerIsBetter'
+          output-file-path: benchmark-output.json
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          auto-push: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+          comment-on-alert: true
+          alert-threshold: '200%'
+          fail-on-alert: true

@@ -76,9 +76,10 @@ src/
 **Branch:** perf/physics-benchmark
 
 **Changes:**
-- **Physics Benchmark Suite (`scripts/benchmark-physics.js`)**: Built an authoritative micro and macro benchmarking suite for `StellarPhysics.ts` covering core math functions, stellar state creation, batch evolution ticks, and heap memory footprint.
-- **npm Script**: Added `npm run benchmark:physics` command to `package.json`.
-- **Performance Verification**: Confirmed primitive calculations run at 38M–155M ops/sec, 1,500 Ultra-tier star state evolution ticks execute in ~0.32ms per frame (1.9% of 16.67ms 60 FPS frame budget), and 10,000 star ticks execute in ~3.36ms (20.2% of budget).
+- **Physics Benchmark Suite (`scripts/benchmark-physics.js`)**: Built an isolated benchmark loop stepping stellar physics (`advanceStellarState`) and orbital mechanics (`keplerianToCartesian`) across 500 bodies and 1,000 ticks. Exports standardized `github-action-benchmark` JSON schema to `benchmark-output.json`.
+- **GitHub Actions Workflow (`.github/workflows/benchmark.yml`)**: Created automated CI workflow executing physics benchmarks on `push` and `pull_request` to `main`, integrating `benchmark-action/github-action-benchmark` to track performance degradation and alert on >200% regressions.
+- **npm Script & Gitignore**: Added `npm run benchmark:physics` command to `package.json` and added `benchmark-output.json` to `.gitignore`.
+- **Performance Verification**: Confirmed average tick time of ~0.37–0.46ms/tick across 500 bodies (well within 16.67ms 60 FPS budget).
 
 ---
 
