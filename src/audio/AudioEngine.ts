@@ -112,7 +112,9 @@ export class CosmicAudioEngine {
             gain.connect(this.masterGain!);
             osc.start(now);
             osc.stop(now + 1.8);
-        } catch (_err) {}
+        } catch (_err) {
+            // Suppressed audio playback error
+        }
     }
 
     public playUiClick(): void {
@@ -133,7 +135,9 @@ export class CosmicAudioEngine {
             gain.connect(this.masterGain!);
             osc.start(now);
             osc.stop(now + 0.05);
-        } catch (_err) {}
+        } catch (_err) {
+            // Suppressed audio playback error
+        }
     }
 
     public dispose(): void {
