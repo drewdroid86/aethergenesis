@@ -1,0 +1,59 @@
+name: Asset Optimization & Shader Hygiene
+
+on:
+  pull_request:
+    paths:
+      - 'public/assets/**'
+      - 'src/shaders/**'
+      - '**.glsl'
+      - '**.vert'
+      - '**.frag'
+
+jobs:
+  shader-lint:
+    name: GLSL Shader Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install glslang validator
+        run: sudo apt-get install -y glslang-tools
+
+      - name: Validate Shaders
+        run: |
+          echo "Linting GLSL shader files..."
+          find src/shaders -type f \( -name "*.glsl" -o -name "*.vert" -o -name "*.frag" \) | while read -r shader; do
+            echo "Checking $shader..."
+            glslangValidator "$shader"
+          done
+
+  asset-optimize:
+    name: Compress 3D Models
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install glTF Transform CLI
+        run: npm install -g @gltf-transform/cli @gltf-transform/functions
+
+      - name: Optimize glTF/GLB Assets
+        run: |
+          mkdir -p public/assets
+          if [ -d "public/assets" ] && [ "$(ls -A public/assets/*.glb 2>/dev.null)" ]; then
+            for file in public/assets/*.glb; do
+              if [ -f "$file" ]; then
+                echo "Optimizing $file..."
+                gltf-transform optimize "$file" "$file" --compress draco --texture-compress webp
+              fi
+            done
+          else
+            echo "No GLB assets found to optimize."
+          fi
+
+      - name: Check for Uncommitted Asset Changes
+        run: git status --porcelain
