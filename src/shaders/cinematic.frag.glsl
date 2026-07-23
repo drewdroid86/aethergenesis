@@ -6,6 +6,7 @@ uniform vec2 uBlackHoleScreenPos;
 uniform float uBlackHoleRadius;
 uniform float uLensingStrength;
 uniform float uAspectRatio;
+uniform float uShockwave;
 
 float random(vec2 p) {
   return fract(sin(dot(p.xy, vec2(12.9898,78.233))) * 43758.5453);
@@ -14,6 +15,20 @@ float random(vec2 p) {
 void main() {
   vec2 uv = vUv;
   float horizonMask = 1.0;
+
+  if (uShockwave > 0.001) {
+    vec2 center = vec2(0.5);
+    vec2 toCenter = uv - center;
+    toCenter.x *= uAspectRatio;
+    float dist = length(toCenter);
+    float waveRadius = uShockwave * 0.8;
+    float waveWidth = 0.06;
+    float diff = abs(dist - waveRadius);
+    if (diff < waveWidth) {
+      float amp = (1.0 - diff / waveWidth) * (1.0 - uShockwave) * 0.04;
+      uv += normalize(toCenter) * amp;
+    }
+  }
 
   if (uLensingStrength > 0.001 && uBlackHoleRadius > 0.001) {
     vec2 delta = uv - uBlackHoleScreenPos;

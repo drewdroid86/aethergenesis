@@ -65,6 +65,21 @@ export class Pipeline {
 
         this.lensingStrength = THREE.MathUtils.lerp(this.lensingStrength, targetLensing, delta * 8.0);
         
+        if (selectedStar && selectedStar.isSupernovaFlashing) {
+            if (this.cinematicPass.uniforms.uShockwave) {
+                const currentW = this.cinematicPass.uniforms.uShockwave.value || 0;
+                this.cinematicPass.uniforms.uShockwave.value = (currentW + delta * 1.5) % 1.0;
+            }
+        } else {
+            if (this.cinematicPass.uniforms.uShockwave) {
+                this.cinematicPass.uniforms.uShockwave.value = THREE.MathUtils.lerp(
+                    this.cinematicPass.uniforms.uShockwave.value || 0,
+                    0.0,
+                    delta * 10.0
+                );
+            }
+        }
+
         if (this.cinematicPass.uniforms.uLensingStrength) {
             this.cinematicPass.uniforms.uLensingStrength.value = this.lensingStrength;
         }

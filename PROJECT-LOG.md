@@ -82,6 +82,9 @@ src/
 - **Astrobiology Simulation Timing**: Fixed `SimulationCoordinator.ts` to use actual elapsed wall clock time between 200ms tick updates and pause execution when `engine.isPaused` is active.
 - **API Rate Limiting**: Added `checkApiRateLimit` LRU rate-limiter in `server.ts` guarding `/api/catalog/search` (SIMBAD TAP) and `/api/horizons/search` (NASA JPL) endpoints against IP rate limit exhaustion.
 
+- **Star Surface Granulation & Sunspots**: Upgraded `starSurface.frag.glsl` with domain-warped FBM (`fbm(p + shift)`), a high-frequency 24-octave solar convective granulation cell noise, and dynamic sunspot cell darkening.
+- **Supernova Shockwave Radial Distortion**: Added `uShockwave` uniform and screen-space radial UV displacement in `cinematic.frag.glsl` and `Pipeline.ts` during supernova flashes.
+
 **State at end:** All 49 E2E test scenarios across presets, UI modes, galaxy, and comets pass cleanly. `npm run typecheck`, `npm run lint`, and production build all succeed with zero errors.
 
 ---
