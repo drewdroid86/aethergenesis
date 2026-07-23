@@ -187,12 +187,15 @@ export class CometSystem {
         this.group.add(this.dustTailMesh);
     }
 
-    update(delta: number, stellarState: StellarState, appTime: number): void {
+    update(delta: number, stellarState: StellarState, appTime: number, starPosition?: THREE.Vector3): void {
         if (stellarState.phase !== 'main_sequence') {
             this.group.visible = false;
             return;
         }
         this.group.visible = true;
+        if (starPosition) {
+            this.group.position.copy(starPosition);
+        }
         const comaScales   = this.comaMesh.geometry.attributes.cScale.array  as Float32Array;
         const comaColors   = this.comaMesh.geometry.attributes.cColor.array  as Float32Array;
         const comaActives  = this.comaMesh.geometry.attributes.cActive.array as Float32Array;

@@ -5,6 +5,7 @@ import { subtleDisplacementVS, starSurfaceFS } from '../../rendering/shaders/ste
 import { GEOMETRIES } from './geometries';
 import { STELLAR_CONSTANTS } from '../../core/constants';
 import { phaseCounters } from '../../utils/performance';
+import { colorTempToRGB } from '../../physics/math';
 
 export interface PlanetInfo {
     pivot: THREE.Group;
@@ -131,9 +132,6 @@ export class MainSequencePhase implements PhaseComponent {
         corona.scale.setScalar(this.baseRadius);
         this._coronaMat = coronaMat;
         this._coronaMesh = corona;
-        this.mainSeqGroup.add(corona);
-
-        this.mainSeqGroup.add(this.coronaMesh);
         this.mainSeqGroup.add(haloMesh);
         
         // Solar Flares
@@ -205,12 +203,19 @@ export class MainSequencePhase implements PhaseComponent {
         this.hide();
     }
 
-    update(delta: number, appTime: number, cameraPos: THREE.Vector3, physics: PhysicsConstants, _t: number, lowDetail?: boolean): void {
+    update(delta: number, appTime: number, cameraPos: THREE.Vector3, physics: PhysicsConstants, _t: number, lowDetail?: boolean, currentTemp?: number): void {
         // BOLT: Removed redundant scale assignment
         this.starMat.uniforms.uTime.value = appTime;
         this.starMat.uniforms.uHbar.value = physics.hbar || 1.0;
         this.starMat.uniforms.uLowDetail.value = (lowDetail || false) ? 1.0 : 0.0;
         this.flareMat.uniforms.uTime.value = appTime;
+
+        if (currentTemp) {
+            colorTempToRGB(currentTemp, this.starMat.uniforms.uColor.value);
+            if (this.flareMat) {
+                colorTempToRGB(currentTemp, this.flareMat.uniforms.uColor.value);
+            }
+        }
 
         for (let i = 0; i < this.planetsInfo.length; i++) {
             const p = this.planetsInfo[i];

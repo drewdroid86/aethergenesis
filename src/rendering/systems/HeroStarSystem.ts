@@ -371,13 +371,12 @@ export class HeroStarSystem extends THREE.Group {
 
         } else if (this.phase === PHASES.MAIN_SEQUENCE) {
             targetMain = 1;
-            this.mainSequencePhase.update(delta, appTime, cameraPos, physics, this.t, lowDetail);
+            this.currentTemp = this.tHeat;
+            this.currentLum = this._msLuminosity;
+            this.mainSequencePhase.update(delta, appTime, cameraPos, physics, this.t, lowDetail, this.currentTemp);
             if (nbodyBuffer) {
                 this.planetarySystem?.updateFromBuffer(nbodyBuffer, delta, lowDetail, globalFade);
             }
-            
-            this.currentTemp = this.tHeat;
-            this.currentLum = this._msLuminosity;
 
         } else if (this.phase === PHASES.RED_GIANT) {
             targetRed = 1;
