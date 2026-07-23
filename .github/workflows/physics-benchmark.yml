@@ -36,6 +36,8 @@ jobs:
           tool: 'customSmallerIsBetter'
           output-file-path: 'benchmark-output.json'
           github-token: ${{ secrets.GITHUB_TOKEN }}
-          auto-push: true
+          auto-push: false
+          summary-always: true
+          comment-always: true
           alert-threshold: '120%'
           comment-on-alert: true
