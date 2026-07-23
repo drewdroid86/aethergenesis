@@ -12,10 +12,10 @@
     "typecheck": "node node_modules/typescript/bin/tsc --noEmit",
     "lint": "node node_modules/eslint/bin/eslint.js . && npm run typecheck",
     "server": "node node_modules/tsx/dist/cli.mjs server.ts",
-    "dev:full": "node node_modules/concurrently/dist/bin/index.js \"npm run dev\" \"npm run server\""
+    "dev:full": "node node_modules/concurrently/dist/bin/concurrently.js \"npm run dev\" \"npm run server\""
   },
   "dependencies": {
-    "@google/genai": "^2.8.0",
+    "@google/genai": "^2.13.0",
     "@modelcontextprotocol/sdk": "^1.29.0",
     "dotenv": "^17.2.3",
     "express": "^5.2.1",
@@ -38,7 +38,7 @@
     "@types/ws": "^8.18.1",
     "@vitejs/plugin-react": "^6.0.2",
     "autoprefixer": "^10.4.21",
-    "concurrently": "^10.0.3",
+    "concurrently": "^9.2.4",
     "eslint": "^10.5.0",
     "eslint-plugin-react-hooks": "^7.1.1",
     "eslint-plugin-react-refresh": "^0.5.2",

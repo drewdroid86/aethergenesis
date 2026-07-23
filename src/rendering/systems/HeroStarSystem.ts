@@ -124,9 +124,11 @@ export class HeroStarSystem extends THREE.Group {
         this._msLuminosity = computeLuminosity(this.mass);
 
         // Hit mesh for raycaster
+        const hitMat = new THREE.MeshBasicMaterial({visible: false});
+        hitMat.name = 'HeroStarHitMeshMaterial';
         this.hitMesh = new THREE.Mesh(
             GEOMETRIES.hit,
-            new THREE.MeshBasicMaterial({visible: false})
+            hitMat
         );
         this.add(this.hitMesh);
 

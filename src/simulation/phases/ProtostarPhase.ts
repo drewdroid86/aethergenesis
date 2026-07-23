@@ -47,11 +47,15 @@ export class ProtostarPhase implements PhaseComponent {
             },
             transparent: true, blending: THREE.AdditiveBlending
         });
+        this.protostarMat.name = 'ProtostarPhaseMaterial';
         this.protostarMat.customProgramCacheKey = () => 'protostar_phase_material';
         this.protostarMesh = new THREE.Mesh(GEOMETRIES.protostar, this.protostarMat);
+
+        const diskMat = new THREE.MeshBasicMaterial({ color: 0xff6600, transparent: true, opacity: 0, blending: THREE.AdditiveBlending });
+        diskMat.name = 'ProtostarPhaseDiskMaterial';
         this.protostarDisk = new THREE.Mesh(
             GEOMETRIES.protostarDisk,
-            new THREE.MeshBasicMaterial({ color: 0xff6600, transparent: true, opacity: 0, blending: THREE.AdditiveBlending })
+            diskMat
         );
         this.protostarDisk.rotation.x = Math.PI / 2;
         this.protostarGroup.add(this.protostarMesh);
@@ -89,11 +93,13 @@ export class ProtostarPhase implements PhaseComponent {
             depthWrite: false,
             side: THREE.DoubleSide
         });
+        jetMat.name = 'ProtostarPhaseJetMaterial';
         jetMat.customProgramCacheKey = () => 'protostar_jet_material';
         const jetGeo = GEOMETRIES.protostarJet;
         const jet1 = new THREE.Mesh(jetGeo, jetMat);
         jet1.position.y = 4.5;
         const jetMat2 = jetMat.clone();
+        jetMat2.name = 'ProtostarPhaseJetMaterial2';
         // Cloned material in Three.js inherits the customProgramCacheKey function!
         const jet2 = new THREE.Mesh(jetGeo, jetMat2);
         jet2.position.y = -4.5;

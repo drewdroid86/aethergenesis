@@ -35,16 +35,20 @@ export class SupernovaPhase implements PhaseComponent {
         this.initialized = true;
         this.parent = parent;
         this.supernovaGroup = new THREE.Group();
+        const coreFlashMat = new THREE.MeshBasicMaterial({color: 0xffffff, transparent: true, opacity: 0, blending: THREE.AdditiveBlending});
+        coreFlashMat.name = 'SupernovaPhaseCoreFlashMaterial';
         this.coreFlashMesh = new THREE.Mesh(
             GEOMETRIES.supernovaCore,
-            new THREE.MeshBasicMaterial({color: 0xffffff, transparent: true, opacity: 0, blending: THREE.AdditiveBlending})
+            coreFlashMat
         );
         this.supernovaGroup.add(this.coreFlashMesh);
         this.parent.add(this.supernovaGroup);
 
+        const snRingMat = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0, blending: THREE.AdditiveBlending });
+        snRingMat.name = 'SupernovaPhaseRingMaterial';
         this.snRing = new THREE.Mesh(
             GEOMETRIES.supernovaRing,
-            new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0, blending: THREE.AdditiveBlending })
+            snRingMat
         );
         this.snRing.rotation.x = Math.PI / 2;
         this.parent.add(this.snRing);
@@ -67,6 +71,7 @@ export class SupernovaPhase implements PhaseComponent {
             fragmentShader: ejectaFS,
             transparent: true, depthWrite: false, blending: THREE.AdditiveBlending
         });
+        this.ejectaMat.name = 'SupernovaPhaseEjectaMaterial';
         this.ejectaMat.customProgramCacheKey = () => 'supernova_ejecta_material';
         this.ejectaMesh = new THREE.Points(ejectaGeo, this.ejectaMat);
         this.parent.add(this.ejectaMesh);

@@ -11,6 +11,7 @@ export class DysonSwarmSystem {
             transparent: true,
             opacity: 0.6
         });
+        material.name = 'DysonSwarmMaterial';
         
         this.swarm = new THREE.InstancedMesh(geometry, material, 200);
         

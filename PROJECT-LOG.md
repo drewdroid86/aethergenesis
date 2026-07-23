@@ -70,6 +70,22 @@ src/
 
 ---
 
+### refactor/visual-upgrade-phase2 — Visual Upgrade Audit, Shader Compliance & Rate Limiting
+**Date:** July 23, 2026
+**AI:** Antigravity (Gemini 3.6 Flash)
+**Branch:** refactor/visual-upgrade-phase2
+
+**Changes:**
+- **Reversed GLSL `smoothstep` Shader Fixes**: Replaced reversed `smoothstep(edge0, edge1, val)` calls (where `edge0 > edge1`) with compliant `(1.0 - smoothstep(edge1, edge0, val))` across `src/shaders/nebula.frag.glsl`, `src/rendering/systems/CometSystem.ts`, and `src/rendering/systems/NebulaSystem.ts` to prevent undefined GLSL behavior on ANGLE and Metal drivers.
+- **Supernova Phase Transition**: Updated `forceSupernova()` in `src/core/engine.ts` to set stellar age to `tau_ms * 1.21`, ensuring it correctly advances past the red giant boundary into the supernova phase.
+- **Dark Matter Opacity Clamping**: Clamped `_backgroundStarMat.opacity` in `src/core/engine.ts` to `[0.0, 1.0]` bounds.
+- **Astrobiology Simulation Timing**: Fixed `SimulationCoordinator.ts` to use actual elapsed wall clock time between 200ms tick updates and pause execution when `engine.isPaused` is active.
+- **API Rate Limiting**: Added `checkApiRateLimit` LRU rate-limiter in `server.ts` guarding `/api/catalog/search` (SIMBAD TAP) and `/api/horizons/search` (NASA JPL) endpoints against IP rate limit exhaustion.
+
+**State at end:** All 49 E2E test scenarios across presets, UI modes, galaxy, and comets pass cleanly. `npm run typecheck`, `npm run lint`, and production build all succeed with zero errors.
+
+---
+
 ### fix/initial-cosmic-age-population — Initial Cosmic Age Star Population & Raycaster Safety
 **Date:** July 22, 2026
 **AI:** Antigravity (Gemini 3.6 Flash)
@@ -78,6 +94,7 @@ src/
 **Changes:**
 - **Birth Age Distribution & Immediate Creation-Time State**: Updated `HeroStarSystem` constructor and `respawn()` method to generate stellar birth ages `birthAge = Math.random() * 13.0` across `[0.0, 13.0]` Gyr, and implemented `applyInitialCosmicAge()` executed immediately on creation. This ensures `t`, `visible`, `globalFade`, and active phase mesh state match `cosmicAge` on frame 0 without waiting for the first `update()` tick.
 - **Raycaster Object Filtering**: Filtered raycasting `hitMeshes` in `useSimulation.ts` using `.slice(0, activeHeroStarCount).filter(h => h.visible && h.t >= 0)` to prevent raycaster interactions with invisible, unspawned, or inactive hero stars.
+- **Material Naming & Debug Traceability**: Assigned explicit descriptive `.name` properties to all material instantiations across render systems (`AsteroidBeltSystem`, `CometSystem`, `DysonSwarmSystem`, `HeroStarSystem`, `NebulaSystem`, `PlanetarySystem`, `Pipeline`) and simulation phases (`NebulaPhase`, `ProtostarPhase`, `MainSequencePhase`, `RedGiantPhase`, `SupernovaPhase`, `RemnantPhase`). Added an automatic `onBeforeCompile` fallback hook in `engine.ts` setting `this.name = ${this.type}_${this.id}` if a material is unnamed, ensuring WebGL shader compile errors always report explicit material names instead of blank fields.
 
 **State at end:** TypeScript typecheck compiles with zero errors, production build succeeds, ESLint clean, and all 49 E2E test scenarios pass cleanly.
 

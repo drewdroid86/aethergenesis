@@ -53,8 +53,10 @@ export class RemnantPhase implements PhaseComponent {
         // Neutron Star
         this.neutronStarGroup = new THREE.Group();
         this.nsMat = new THREE.MeshBasicMaterial({color: 0xaaccff, transparent: true, opacity: 0});
+        this.nsMat.name = 'RemnantNeutronStarMaterial';
         this.pulsarGroup = new THREE.Group();
         this.beamMat = new THREE.MeshBasicMaterial({ color: 0x00ffff, transparent: true, opacity: 0, blending: THREE.AdditiveBlending });
+        this.beamMat.name = 'RemnantPulsarBeamMaterial';
         const beam1 = new THREE.Mesh(GEOMETRIES.pulsarBeam1, this.beamMat);
         const beam2 = new THREE.Mesh(GEOMETRIES.pulsarBeam2, this.beamMat);
         this.pulsarGroup.add(beam1);
@@ -64,6 +66,7 @@ export class RemnantPhase implements PhaseComponent {
         
         const nsMagGroup = new THREE.Group();
         this.tubeMat = new THREE.MeshBasicMaterial({color: 0xaaccff, transparent: true, opacity: 0, blending: THREE.AdditiveBlending});
+        this.tubeMat.name = 'RemnantMagneticTubeMaterial';
         for(const tubeGeo of GEOMETRIES.magneticTubes) {
             nsMagGroup.add(new THREE.Mesh(tubeGeo, this.tubeMat));
         }
@@ -74,9 +77,11 @@ export class RemnantPhase implements PhaseComponent {
 
         // Black Hole
         this.blackHoleGroup = new THREE.Group();
+        const bhCoreMat = new THREE.MeshBasicMaterial({ color: 0x000000 });
+        bhCoreMat.name = 'RemnantBlackHoleCoreMaterial';
         const bhCore = new THREE.Mesh(
             GEOMETRIES.blackHoleCore,
-            new THREE.MeshBasicMaterial({ color: 0x000000 })
+            bhCoreMat
         );
         
         // Accretion disk with custom shader material for high-quality gradient and animation
@@ -130,6 +135,7 @@ export class RemnantPhase implements PhaseComponent {
                 }
             `
         });
+        this.bhDiskMaterial.name = 'RemnantBlackHoleDiskMaterial';
         this.bhDiskMaterial.customProgramCacheKey = () => 'remnant_bh_disk_material';
         const diskMesh = new THREE.Mesh(bhDiskGeometry, this.bhDiskMaterial);
         this.blackHoleGroup.add(bhCore);
@@ -179,6 +185,7 @@ export class RemnantPhase implements PhaseComponent {
             blending: THREE.AdditiveBlending,
             depthWrite: false
         });
+        lensMat.name = 'RemnantGravitationalLensingMaterial';
         lensMat.customProgramCacheKey = () => 'remnant_gravitational_lensing_material';
         const lensSphere = new THREE.Mesh(GEOMETRIES.mainSeq, lensMat);
         lensSphere.scale.setScalar(this.bhRadius * 3.5);

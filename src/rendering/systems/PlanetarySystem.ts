@@ -210,6 +210,7 @@ export class PlanetarySystem {
             vertexShader: PLANET_VS,
             fragmentShader: PLANET_FS
         });
+        this.material.name = 'InstancedPlanetarySystemMaterial';
         this.material.customProgramCacheKey = () => 'planetary_system_material';
 
         this.instancedMesh = new THREE.InstancedMesh(geometry, this.material, numBodies);

@@ -56,7 +56,7 @@ const fragmentShader = `
         vec3 finalColor = mix(vColor, vColor.brg * 1.2, n2 * 0.3);
         
         // Soft edge blending
-        alpha *= smoothstep(1.0, 0.4, dist);
+        alpha *= (1.0 - smoothstep(0.4, 1.0, dist));
         
         gl_FragColor = vec4(finalColor, alpha * 0.18);
     }
@@ -161,6 +161,7 @@ export class NebulaSystem {
             depthWrite: false,
             depthTest: true,
         });
+        this.material.name = 'BackgroundNebulaMaterial';
 
         this.points = new THREE.Points(geometry, this.material);
         this.points.renderOrder = -10;

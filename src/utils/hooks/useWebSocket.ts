@@ -57,14 +57,14 @@ export function useWebSocket({ engineRef, selectedStarRef }: UseWebSocketProps) 
                 }
             };
 
-            socket.onclose = () => {
-                console.log(`Simulation WebSocket closed. Reconnecting in ${reconnectDelay / 1000}s...`);
+            socket.onclose = (event: CloseEvent) => {
+                console.error(`[WS Diagnostic] Closed. Code: ${event.code}, Reason: "${event.reason || 'None'}", Clean: ${event.wasClean}, readyState: ${socket?.readyState}. Reconnecting in ${reconnectDelay / 1000}s...`);
                 reconnectTimeout = setTimeout(connect, reconnectDelay);
                 reconnectDelay = Math.min(reconnectDelay * 2, maxReconnectDelay); // Exponential backoff
             };
 
-            socket.onerror = (err) => {
-                console.error('Simulation WebSocket error:', err);
+            socket.onerror = (event: Event) => {
+                console.error(`[WS Diagnostic] Error. Event type: ${event.type}, readyState: ${socket?.readyState}, url: ${socket?.url}`);
             };
         };
 

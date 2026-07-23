@@ -28,6 +28,7 @@ export class Pipeline {
         this.composer.addPass(this.bloomPass);
 
         this.cinematicPass = new ShaderPass(CinematicPassShader);
+        this.cinematicPass.material.name = 'CinematicPassMaterial';
         this.composer.addPass(this.cinematicPass);
 
         const outputPass = new OutputPass();

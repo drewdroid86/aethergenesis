@@ -52,6 +52,7 @@ export class RedGiantPhase implements PhaseComponent {
             },
             transparent: true, blending: THREE.AdditiveBlending
         });
+        this.redGiantMat.name = 'RedGiantPhaseMaterial';
         this.redGiantMat.customProgramCacheKey = () => 'red_giant_star_material';
         this.redGiantMesh = new THREE.Mesh(GEOMETRIES.redGiant, this.redGiantMat);
         this.redGiantGroup.add(this.redGiantMesh);
@@ -86,6 +87,7 @@ export class RedGiantPhase implements PhaseComponent {
             blending: THREE.AdditiveBlending,
             depthWrite: false
         });
+        this.flareMat.name = 'RedGiantPhaseFlareMaterial';
         this.flareMat.customProgramCacheKey = () => 'red_giant_flare_material';
         
         this.flareMesh = new THREE.InstancedMesh(flareGeo, this.flareMat, 4);

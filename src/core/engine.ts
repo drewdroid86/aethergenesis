@@ -93,7 +93,7 @@ export class Engine {
             this.stellarState.id,
             mass,
             this.stellarState.metallicity_Z,
-            tau_ms + 1 // Advance age to immediately trigger supernova phase
+            tau_ms * 1.21 // Advance age past red giant phase to immediately trigger supernova phase
         );
     }
 
@@ -134,6 +134,17 @@ export class Engine {
         this.camera.position.z = 5;
 
         if (typeof window !== 'undefined') {
+            // Automatic material.name fallback so Three.js shader logs never show blank Material Name
+            const origOnBeforeCompile = THREE.Material.prototype.onBeforeCompile;
+            THREE.Material.prototype.onBeforeCompile = function (shader, renderer) {
+                if (!this.name) {
+                    this.name = `${this.type || 'Material'}_${(this as any).id}`;
+                }
+                if (origOnBeforeCompile) {
+                    origOnBeforeCompile.call(this, shader, renderer);
+                }
+            };
+
             const originalCompile = WebGLRenderingContext.prototype.compileShader;
             let isBootstrapped = false;
             // Wait 5 seconds after boot to let legitimate initial shaders load safely
@@ -167,6 +178,7 @@ export class Engine {
 
         this._backgroundStarGeo = new THREE.BufferGeometry();
         this._backgroundStarMat = new THREE.PointsMaterial({ vertexColors: true, size: 2.5, sizeAttenuation: false, transparent: true, opacity: 0.9 });
+        this._backgroundStarMat.name = 'BackgroundStarfieldMaterial';
         const starVertices: number[] = [];
         const starColors: number[] = [];
         const _bgStarPalette = [
@@ -247,7 +259,7 @@ export class Engine {
         const activeCount = Math.min(this.activeHeroStarCount, this.heroStars.length);
 
         // Dark Matter affects background star visibility
-        this._backgroundStarMat.opacity = 0.1 + (physics.darkMatter || 0) * 2.0;
+        this._backgroundStarMat.opacity = Math.min(1.0, Math.max(0.0, 0.1 + (physics.darkMatter || 0) * 2.0));
 
         // BOLT: Sweep and Prune (X-axis spatial pruning) for star repulsion
         const softening = physics.softening || 0.1;

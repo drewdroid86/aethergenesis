@@ -12,6 +12,7 @@ export class AsteroidBeltSystem {
             roughness: 0.9,
             metalness: 0.1
         });
+        material.name = 'AsteroidBeltMaterial';
         
         this.instancedMesh = new THREE.InstancedMesh(geometry, material, count);
         this.orbitalPeriods = new Float32Array(count);
