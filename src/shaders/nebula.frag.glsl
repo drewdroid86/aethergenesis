@@ -82,5 +82,5 @@ void main() {
         pos += rayDir * stepSize;
     }
     
-    gl_FragColor = vec4(accCol, alpha * smoothstep(1.0, 0.9, uCollapse) * uOpacity);
+    gl_FragColor = vec4(accCol, alpha * (1.0 - smoothstep(0.9, 1.0, uCollapse)) * uOpacity);
 }

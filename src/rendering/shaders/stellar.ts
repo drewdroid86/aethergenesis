@@ -36,7 +36,8 @@ export const CinematicPassShader = {
     uBlackHoleScreenPos: { value: new THREE.Vector2(0.5, 0.5) },
     uBlackHoleRadius: { value: 0.0 },
     uLensingStrength: { value: 0.0 },
-    uAspectRatio: { value: 1.0 }
+    uAspectRatio: { value: 1.0 },
+    uShockwave: { value: 0.0 }
   },
   vertexShader: resolveIncludes(cinematicVert),
   fragmentShader: resolveIncludes(cinematicFrag)

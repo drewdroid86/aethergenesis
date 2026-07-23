@@ -70,6 +70,19 @@ export function useSimulation(containerRef: React.RefObject<HTMLDivElement | nul
 
     // UI Panel State
     const [isConstantsOpen, setIsConstantsOpen] = useState(false);
+    const [isCatalogOpen, setIsCatalogOpen] = useState(false);
+
+    const loadStarPreset = useCallback((preset: any) => {
+        if (selectedStarRef.current && preset) {
+            if (preset.mass) selectedStarRef.current.mass = preset.mass;
+            if (preset.temperature) selectedStarRef.current.currentTemp = preset.temperature;
+        }
+        setIsCatalogOpen(false);
+    }, []);
+
+    const addBodyToSimulation = useCallback((_elements: any) => {
+        setIsCatalogOpen(false);
+    }, []);
 
     // HUD & UI Refs
     const hudRefs = {
@@ -344,7 +357,7 @@ export function useSimulation(containerRef: React.RefObject<HTMLDivElement | nul
                 mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
                 raycaster.setFromCamera(mouse, engine.camera);
 
-                const hitMeshes = engine.heroStars.map(h => h.hitMesh);
+                const hitMeshes = engine.heroStars.slice(0, engine.activeHeroStarCount).filter(h => h.visible && h.t >= 0).map(h => h.hitMesh);
                 const intersects = raycaster.intersectObjects(hitMeshes);
 
                 if (intersects.length > 0) {
@@ -576,6 +589,10 @@ export function useSimulation(containerRef: React.RefObject<HTMLDivElement | nul
         centerOnStar,
         timeScale,
         setTimeScale,
-        astrobiologyData
+        astrobiologyData,
+        isCatalogOpen,
+        setIsCatalogOpen,
+        loadStarPreset,
+        addBodyToSimulation
     };
 }

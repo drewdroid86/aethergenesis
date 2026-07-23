@@ -84,6 +84,30 @@ const analysisLimitMap = new LRUCache<string, RateLimitData>({
   ttl: RATE_LIMIT_WINDOW
 });
 
+const apiRateLimitMap = new LRUCache<string, RateLimitData>({
+  max: 1000,
+  ttl: RATE_LIMIT_WINDOW
+});
+
+function checkApiRateLimit(req: express.Request, res: express.Response, maxRequests = 60): boolean {
+  const ip = req.ip || req.socket.remoteAddress || 'unknown';
+  const now = Date.now();
+  const record = apiRateLimitMap.get(ip) || { count: 0, windowStart: now };
+  if (now - record.windowStart > RATE_LIMIT_WINDOW) {
+    record.count = 0;
+    record.windowStart = now;
+  }
+  if (record.count >= maxRequests) {
+    const waitSec = Math.ceil((RATE_LIMIT_WINDOW - (now - record.windowStart)) / 1000);
+    res.setHeader('Retry-After', waitSec.toString());
+    res.status(429).json({ error: 'Too many requests. Please wait ' + waitSec + 's.' });
+    return false;
+  }
+  record.count++;
+  apiRateLimitMap.set(ip, record);
+  return true;
+}
+
 const apiKey = process.env.GEMINI_API_KEY;
 const ai = apiKey ? new GoogleGenAI({ apiKey }) : null;
 
@@ -525,6 +549,7 @@ app.get('/api/catalog/presets', (_req, res) => {
 });
 
 app.get('/api/catalog/search', async (req, res) => {
+  if (!checkApiRateLimit(req, res)) return;
   // Security: Validate query parameter types to prevent array-injection
   const nameRaw = req.query.name;
   const spectralClassRaw = req.query.spectral_class;
@@ -704,6 +729,7 @@ app.get('/api/catalog/search', async (req, res) => {
 });
 
 app.get('/api/horizons/search', async (req, res) => {
+  if (!checkApiRateLimit(req, res)) return;
   // Security: Validate query parameter types to prevent array-injection
   const bodyIdRaw = req.query.body_id;
   const typeRaw = req.query.type;

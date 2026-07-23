@@ -11,6 +11,7 @@ export class DysonSwarmSystem {
             transparent: true,
             opacity: 0.6
         });
+        material.name = 'DysonSwarmMaterial';
         
         this.swarm = new THREE.InstancedMesh(geometry, material, 200);
         
@@ -30,12 +31,15 @@ export class DysonSwarmSystem {
         scene.add(this.swarm);
     }
 
-    update(kardashevTier: number, time: number): void {
+    update(kardashevTier: number, time: number, starPosition?: THREE.Vector3): void {
         this.swarm.visible = kardashevTier >= 2;
         if (this.swarm.visible) {
             // Slowly rotate the entire swarm group
             // BOLT: Removed redundant instanceMatrix.needsUpdate since only base rotation changes
             this.swarm.rotation.y = time * 0.01;
+            if (starPosition) {
+                this.swarm.position.copy(starPosition);
+            }
         }
     }
 

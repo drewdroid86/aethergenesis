@@ -5,6 +5,7 @@ import { subtleDisplacementVS, starSurfaceFS } from '../../rendering/shaders/ste
 import { GEOMETRIES } from './geometries';
 import { STELLAR_CONSTANTS } from '../../core/constants';
 import { phaseCounters } from '../../utils/performance';
+import { colorTempToRGB } from '../../physics/math';
 
 export interface PlanetInfo {
     pivot: THREE.Group;
@@ -76,18 +77,19 @@ export class MainSequencePhase implements PhaseComponent {
             },
             transparent: true, blending: THREE.AdditiveBlending
         });
+        this.starMat.name = 'MainSequenceStarMaterial';
         this.starMat.customProgramCacheKey = () => 'main_sequence_star_material';
         this.starMesh = new THREE.Mesh(GEOMETRIES.mainSeq, this.starMat);
         this.starMesh.scale.setScalar(this.baseRadius); // BOLT: Set scale once
-        this.coronaMesh = new THREE.Mesh(
-            GEOMETRIES.corona,
-            new THREE.MeshBasicMaterial({ color: msColor, transparent: true, opacity: 0, blending: THREE.AdditiveBlending })
-        );
-        const haloMesh = new THREE.Mesh(
-            GEOMETRIES.mainSeq,
-            new THREE.MeshBasicMaterial({ color: msColor, transparent: true, opacity: 0.1, side: THREE.BackSide, blending: THREE.AdditiveBlending })
-        );
-        this._haloMat = haloMesh.material;
+
+        const coronaMeshMat = new THREE.MeshBasicMaterial({ color: msColor, transparent: true, opacity: 0, blending: THREE.AdditiveBlending });
+        coronaMeshMat.name = 'MainSequenceCoronaMeshMaterial';
+        this.coronaMesh = new THREE.Mesh(GEOMETRIES.corona, coronaMeshMat);
+
+        const haloMat = new THREE.MeshBasicMaterial({ color: msColor, transparent: true, opacity: 0.1, side: THREE.BackSide, blending: THREE.AdditiveBlending });
+        haloMat.name = 'MainSequenceHaloMeshMaterial';
+        const haloMesh = new THREE.Mesh(GEOMETRIES.mainSeq, haloMat);
+        this._haloMat = haloMat;
         haloMesh.scale.setScalar(this.baseRadius * STELLAR_CONSTANTS.VISUALS.HALO_SCALE_FACTOR);
         
         this.mainSeqGroup.add(this.starMesh);
@@ -124,14 +126,12 @@ export class MainSequencePhase implements PhaseComponent {
             depthWrite: false,
             side: THREE.BackSide
         });
+        coronaMat.name = 'MainSequenceCoronaShaderMaterial';
         coronaMat.customProgramCacheKey = () => 'main_sequence_corona_material';
         const corona = new THREE.Mesh(GEOMETRIES.corona, coronaMat);
         corona.scale.setScalar(this.baseRadius);
         this._coronaMat = coronaMat;
         this._coronaMesh = corona;
-        this.mainSeqGroup.add(corona);
-
-        this.mainSeqGroup.add(this.coronaMesh);
         this.mainSeqGroup.add(haloMesh);
         
         // Solar Flares
@@ -164,6 +164,7 @@ export class MainSequencePhase implements PhaseComponent {
             blending: THREE.AdditiveBlending,
             depthWrite: false
         });
+        this.flareMat.name = 'MainSequenceFlareMaterial';
         this.flareMat.customProgramCacheKey = () => 'main_sequence_flare_material';
         
         this.flareMesh = new THREE.InstancedMesh(flareGeo, this.flareMat, 4);
@@ -185,15 +186,14 @@ export class MainSequencePhase implements PhaseComponent {
         // Habitable Zone
         const lum = Math.pow(this.mass, STELLAR_CONSTANTS.PHYSICS.MASS_LUMINOSITY_EXPONENT);
         const hzRadius = Math.max(STELLAR_CONSTANTS.VISUALS.HZ_RADIUS_BASE, Math.sqrt(lum) * STELLAR_CONSTANTS.VISUALS.HZ_LUM_FACTOR);
-        this.hzMesh = new THREE.Mesh(
-            GEOMETRIES.habitableZone,
-            new THREE.MeshBasicMaterial({ 
-                color: 0x00ff88, 
-                transparent: true, 
-                opacity: 0.3, 
-                side: THREE.DoubleSide
-            })
-        );
+        const hzMat = new THREE.MeshBasicMaterial({ 
+            color: 0x00ff88, 
+            transparent: true, 
+            opacity: 0.3, 
+            side: THREE.DoubleSide
+        });
+        hzMat.name = 'MainSequenceHabitableZoneMaterial';
+        this.hzMesh = new THREE.Mesh(GEOMETRIES.habitableZone, hzMat);
         this.hzMesh.scale.setScalar(hzRadius);
         this.hzMesh.rotation.x = Math.PI / 2;
         this.hzMesh.rotation.y = Math.random() * Math.PI * 0.2;
@@ -203,12 +203,19 @@ export class MainSequencePhase implements PhaseComponent {
         this.hide();
     }
 
-    update(delta: number, appTime: number, cameraPos: THREE.Vector3, physics: PhysicsConstants, _t: number, lowDetail?: boolean): void {
+    update(delta: number, appTime: number, cameraPos: THREE.Vector3, physics: PhysicsConstants, _t: number, lowDetail?: boolean, currentTemp?: number): void {
         // BOLT: Removed redundant scale assignment
         this.starMat.uniforms.uTime.value = appTime;
         this.starMat.uniforms.uHbar.value = physics.hbar || 1.0;
         this.starMat.uniforms.uLowDetail.value = (lowDetail || false) ? 1.0 : 0.0;
         this.flareMat.uniforms.uTime.value = appTime;
+
+        if (currentTemp) {
+            colorTempToRGB(currentTemp, this.starMat.uniforms.uColor.value);
+            if (this.flareMat) {
+                colorTempToRGB(currentTemp, this.flareMat.uniforms.uColor.value);
+            }
+        }
 
         for (let i = 0; i < this.planetsInfo.length; i++) {
             const p = this.planetsInfo[i];

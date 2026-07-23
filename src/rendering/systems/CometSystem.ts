@@ -38,7 +38,7 @@ void main() {
     if (vActive < 0.5) discard;
     
     float d = distance(vUv, vec2(0.5));
-    float alpha = smoothstep(0.5, 0.0, d);
+    float alpha = 1.0 - smoothstep(0.0, 0.5, d);
     
     gl_FragColor = vec4(vColor, alpha * 0.8);
 }
@@ -78,8 +78,8 @@ varying float vActive;
 varying vec3 vColor;
 void main() {
 if (vActive < 0.5) discard;
-float lengthFade = smoothstep(1.0, 0.0, vUv.y);
-float widthFade = smoothstep(0.5, 0.0, abs(vUv.x - 0.5));
+float lengthFade = 1.0 - smoothstep(0.0, 1.0, vUv.y);
+float widthFade = 1.0 - smoothstep(0.0, 0.5, abs(vUv.x - 0.5));
 float alpha = lengthFade * widthFade;
 gl_FragColor = vec4(vColor, alpha * 0.5);
 }
@@ -147,6 +147,7 @@ export class CometSystem {
             blending: THREE.AdditiveBlending,
             depthWrite: false
         });
+        this.comaMat.name = 'CometComaMaterial';
         this.comaMat.customProgramCacheKey = () => 'comet_coma_material';
         this.comaMesh = new THREE.InstancedMesh(comaGeo, this.comaMat, numComets);
         this.comaMesh.geometry.setAttribute('cScale', new THREE.InstancedBufferAttribute(new Float32Array(numComets), 1));
@@ -165,6 +166,7 @@ export class CometSystem {
             depthWrite: false,
             uniforms: { uTime: { value: 0 } }
         });
+        this.tailMat.name = 'CometTailMaterial';
         this.tailMat.customProgramCacheKey = () => 'comet_tail_material';
         
         this.ionTailMesh = new THREE.InstancedMesh(tailGeo, this.tailMat, numComets);
@@ -185,12 +187,15 @@ export class CometSystem {
         this.group.add(this.dustTailMesh);
     }
 
-    update(delta: number, stellarState: StellarState, appTime: number): void {
+    update(delta: number, stellarState: StellarState, appTime: number, starPosition?: THREE.Vector3): void {
         if (stellarState.phase !== 'main_sequence') {
             this.group.visible = false;
             return;
         }
         this.group.visible = true;
+        if (starPosition) {
+            this.group.position.copy(starPosition);
+        }
         const comaScales   = this.comaMesh.geometry.attributes.cScale.array  as Float32Array;
         const comaColors   = this.comaMesh.geometry.attributes.cColor.array  as Float32Array;
         const comaActives  = this.comaMesh.geometry.attributes.cActive.array as Float32Array;

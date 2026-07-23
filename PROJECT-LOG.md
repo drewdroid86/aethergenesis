@@ -70,6 +70,39 @@ src/
 
 ---
 
+### refactor/visual-upgrade-phase2 — Visual Upgrade Audit, Shader Compliance & Rate Limiting
+**Date:** July 23, 2026
+**AI:** Antigravity (Gemini 3.6 Flash)
+**Branch:** refactor/visual-upgrade-phase2
+
+**Changes:**
+- **Reversed GLSL `smoothstep` Shader Fixes**: Replaced reversed `smoothstep(edge0, edge1, val)` calls (where `edge0 > edge1`) with compliant `(1.0 - smoothstep(edge1, edge0, val))` across `src/shaders/nebula.frag.glsl`, `src/rendering/systems/CometSystem.ts`, and `src/rendering/systems/NebulaSystem.ts` to prevent undefined GLSL behavior on ANGLE and Metal drivers.
+- **Supernova Phase Transition**: Updated `forceSupernova()` in `src/core/engine.ts` to set stellar age to `tau_ms * 1.21`, ensuring it correctly advances past the red giant boundary into the supernova phase.
+- **Dark Matter Opacity Clamping**: Clamped `_backgroundStarMat.opacity` in `src/core/engine.ts` to `[0.0, 1.0]` bounds.
+- **Astrobiology Simulation Timing**: Fixed `SimulationCoordinator.ts` to use actual elapsed wall clock time between 200ms tick updates and pause execution when `engine.isPaused` is active.
+- **API Rate Limiting**: Added `checkApiRateLimit` LRU rate-limiter in `server.ts` guarding `/api/catalog/search` (SIMBAD TAP) and `/api/horizons/search` (NASA JPL) endpoints against IP rate limit exhaustion.
+
+- **Star Surface Granulation & Sunspots**: Upgraded `starSurface.frag.glsl` with domain-warped FBM (`fbm(p + shift)`), a high-frequency 24-octave solar convective granulation cell noise, and dynamic sunspot cell darkening.
+- **Supernova Shockwave Radial Distortion**: Added `uShockwave` uniform and screen-space radial UV displacement in `cinematic.frag.glsl` and `Pipeline.ts` during supernova flashes.
+
+**State at end:** All 49 E2E test scenarios across presets, UI modes, galaxy, and comets pass cleanly. `npm run typecheck`, `npm run lint`, and production build all succeed with zero errors.
+
+---
+
+### fix/initial-cosmic-age-population — Initial Cosmic Age Star Population & Raycaster Safety
+**Date:** July 22, 2026
+**AI:** Antigravity (Gemini 3.6 Flash)
+**Branch:** fix/initial-cosmic-age-population
+
+**Changes:**
+- **Birth Age Distribution & Immediate Creation-Time State**: Updated `HeroStarSystem` constructor and `respawn()` method to generate stellar birth ages `birthAge = Math.random() * 13.0` across `[0.0, 13.0]` Gyr, and implemented `applyInitialCosmicAge()` executed immediately on creation. This ensures `t`, `visible`, `globalFade`, and active phase mesh state match `cosmicAge` on frame 0 without waiting for the first `update()` tick.
+- **Raycaster Object Filtering**: Filtered raycasting `hitMeshes` in `useSimulation.ts` using `.slice(0, activeHeroStarCount).filter(h => h.visible && h.t >= 0)` to prevent raycaster interactions with invisible, unspawned, or inactive hero stars.
+- **Material Naming & Debug Traceability**: Assigned explicit descriptive `.name` properties to all material instantiations across render systems (`AsteroidBeltSystem`, `CometSystem`, `DysonSwarmSystem`, `HeroStarSystem`, `NebulaSystem`, `PlanetarySystem`, `Pipeline`) and simulation phases (`NebulaPhase`, `ProtostarPhase`, `MainSequencePhase`, `RedGiantPhase`, `SupernovaPhase`, `RemnantPhase`). Added an automatic `onBeforeCompile` fallback hook in `engine.ts` setting `this.name = ${this.type}_${this.id}` if a material is unnamed, ensuring WebGL shader compile errors always report explicit material names instead of blank fields.
+
+**State at end:** TypeScript typecheck compiles with zero errors, production build succeeds, ESLint clean, and all 49 E2E test scenarios pass cleanly.
+
+---
+
 ### fix/nbody-timestep-substepping — N-Body Physics Timestep Sub-Stepping Loop
 **Date:** July 21, 2026
 **AI:** Antigravity (Gemini 3.6 Flash)
@@ -211,6 +244,23 @@ src/
 - **Scrubbing Damage Reset:** Stored the planet's original `baseColor` in `PlanetInfo` and implemented a restoration path in `MainSequencePhase` to reset color, scale, and emissive properties, ensuring planets regain their pristine appearance when scrubbing time backwards out of the red giant damage zone.
 
 **State at end:** Code builds cleanly. StrictMode memory/thread leaks resolved, and backward scrubbing damage states reset correctly.
+
+---
+
+### v3.0 — Phase 3 Next-Generation Upgrades & Antigravity 2.0 Plugin
+**Date:** July 23, 2026
+**AI:** Antigravity (Gemini 3.6 Flash & Claude Sonnet 4.6)
+**Branch:** refactor/visual-upgrade-phase2
+
+**Changes:**
+- **Volumetric Pulsar Beams:** Replaced static cone meshes in `RemnantPhase.ts` with custom high-energy `ShaderMaterial` featuring volumetric turbulence, cyan core glow, electric blue rims, and Doppler frequency modulation.
+- **Relativistic Accretion Disk:** Upgraded black hole accretion disk shader with Doppler beaming (approaching edge shines brighter/bluer, receding edge dims/reddens) and Keplerian differential rotation noise.
+- **Dynamic Planet Orbit Path Lines:** Built `orbitLinesGroup` in `PlanetarySystem.ts` rendering glowing cyan orbital trajectory line loops (`LineLoop`) around host stars.
+- **Native WebAudio Ambient Synthesizer:** Implemented zero-dependency `CosmicAudioEngine.ts` generating ambient space drones, LFO filter sweeps, supernova explosions, and UI clicks.
+- **CatalogPanel & Audio HUD Integration:** Mounted `CatalogPanel.tsx` in `AetherGenesis.tsx` and added top-right HUD buttons for Astronomical Catalog search (`Search`) and Audio mute toggle (`Volume2`/`VolumeX`).
+- **Antigravity 2.0 Plugin Scaffold:** Created `.agents/plugins/aethergenesis/` with plugin manifest (`plugin.json`) and skills (`stellar-physics`, `shader-optimization`).
+
+**State at end:** All 49 E2E scenarios pass. `npm run typecheck` and `npm run build` pass with 0 errors.
 
 ---
 

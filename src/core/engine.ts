@@ -93,7 +93,7 @@ export class Engine {
             this.stellarState.id,
             mass,
             this.stellarState.metallicity_Z,
-            tau_ms + 1 // Advance age to immediately trigger supernova phase
+            tau_ms * 1.21 // Advance age past red giant phase to immediately trigger supernova phase
         );
     }
 
@@ -109,7 +109,7 @@ export class Engine {
     private _frustum = new THREE.Frustum();
     private _projScreenMatrix = new THREE.Matrix4();
     private _backgroundStarGeo: THREE.BufferGeometry;
-    private _backgroundStarMat: THREE.PointsMaterial;
+    private _backgroundStarMat: THREE.ShaderMaterial;
     private _activeStarBuffer: HeroStarSystem[] = []; // BOLT: Persistent buffer to avoid per-frame slice()
 
     private _insertionSort(arr: HeroStarSystem[]): void {
@@ -134,6 +134,17 @@ export class Engine {
         this.camera.position.z = 5;
 
         if (typeof window !== 'undefined') {
+            // Automatic material.name fallback so Three.js shader logs never show blank Material Name
+            const origOnBeforeCompile = THREE.Material.prototype.onBeforeCompile;
+            THREE.Material.prototype.onBeforeCompile = function (shader, renderer) {
+                if (!this.name) {
+                    this.name = `${this.type || 'Material'}_${(this as any).id}`;
+                }
+                if (origOnBeforeCompile) {
+                    origOnBeforeCompile.call(this, shader, renderer);
+                }
+            };
+
             const originalCompile = WebGLRenderingContext.prototype.compileShader;
             let isBootstrapped = false;
             // Wait 5 seconds after boot to let legitimate initial shaders load safely
@@ -166,9 +177,53 @@ export class Engine {
         container.appendChild(this.renderer.domElement);
 
         this._backgroundStarGeo = new THREE.BufferGeometry();
-        this._backgroundStarMat = new THREE.PointsMaterial({ vertexColors: true, size: 2.5, sizeAttenuation: false, transparent: true, opacity: 0.9 });
+        const backgroundStarVS = `
+            attribute vec3 color;
+            attribute float aSize;
+            attribute float aPhase;
+            uniform float uTime;
+            varying vec3 vColor;
+            varying float vTwinkle;
+            void main() {
+                vColor = color;
+                vTwinkle = sin(uTime * 2.5 + aPhase) * 0.35 + 0.65;
+                vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
+                gl_PointSize = aSize * (300.0 / -mvPosition.z);
+                gl_Position = projectionMatrix * mvPosition;
+            }
+        `;
+
+        const backgroundStarFS = `
+            uniform float uOpacity;
+            varying vec3 vColor;
+            varying float vTwinkle;
+            void main() {
+                vec2 coord = gl_PointCoord - vec2(0.5);
+                float distSq = dot(coord, coord);
+                if (distSq > 0.25) discard;
+                float gaussian = exp(-distSq * 14.0);
+                gl_FragColor = vec4(vColor, gaussian * vTwinkle * uOpacity);
+            }
+        `;
+
+        this._backgroundStarMat = new THREE.ShaderMaterial({
+            vertexShader: backgroundStarVS,
+            fragmentShader: backgroundStarFS,
+            uniforms: {
+                uTime: { value: 0 },
+                uOpacity: { value: 0.9 }
+            },
+            transparent: true,
+            blending: THREE.AdditiveBlending,
+            depthWrite: false
+        });
+        this._backgroundStarMat.name = 'BackgroundStarfieldMaterial';
+        (this._backgroundStarMat as any).customProgramCacheKey = () => 'background_starfield_material';
+
         const starVertices: number[] = [];
         const starColors: number[] = [];
+        const starSizes: number[] = [];
+        const starPhases: number[] = [];
         const _bgStarPalette = [
             new THREE.Color(1.00, 1.00, 1.00),  // pure white
             new THREE.Color(0.90, 0.95, 1.00),  // blue-white
@@ -186,9 +241,13 @@ export class Engine {
                 4000 * Math.cos(phi)
             );
             starColors.push(c.r, c.g, c.b);
+            starSizes.push(1.5 + Math.random() * 2.5);
+            starPhases.push(Math.random() * Math.PI * 2);
         }
         this._backgroundStarGeo.setAttribute('position', new THREE.Float32BufferAttribute(starVertices, 3));
         this._backgroundStarGeo.setAttribute('color', new THREE.Float32BufferAttribute(starColors, 3));
+        this._backgroundStarGeo.setAttribute('aSize', new THREE.Float32BufferAttribute(starSizes, 1));
+        this._backgroundStarGeo.setAttribute('aPhase', new THREE.Float32BufferAttribute(starPhases, 1));
         this.scene.add(new THREE.Points(this._backgroundStarGeo, this._backgroundStarMat));
 
         this.pipeline = new Pipeline(this.renderer, this.scene, this.camera);
@@ -200,9 +259,9 @@ export class Engine {
         this.setHeroStarCount(getNumStarsForTier(detectPerformanceTier()), initialPhysics);
     }
 
-    createHeroStars(count: number, _physicsConstants: PhysicsConstants) {
+    createHeroStars(count: number, physicsConstants: PhysicsConstants) {
         for (let i = 0; i < count; i++) {
-            const star = new HeroStarSystem();
+            const star = new HeroStarSystem(this.cosmicAge, physicsConstants);
             const _u1 = Math.max(1e-9, Math.random());
             const _u2 = Math.random();
             const _u3 = Math.max(1e-9, Math.random());
@@ -228,7 +287,7 @@ export class Engine {
         this.activeHeroStarCount = count;
         
         for (let i = 0; i < this.heroStars.length; i++) {
-            this.heroStars[i].visible = i < this.activeHeroStarCount;
+            this.heroStars[i].visible = i < this.activeHeroStarCount && this.heroStars[i].t >= 0;
         }
     }
 
@@ -247,7 +306,12 @@ export class Engine {
         const activeCount = Math.min(this.activeHeroStarCount, this.heroStars.length);
 
         // Dark Matter affects background star visibility
-        this._backgroundStarMat.opacity = 0.1 + (physics.darkMatter || 0) * 2.0;
+        if (this._backgroundStarMat.uniforms?.uOpacity) {
+            this._backgroundStarMat.uniforms.uOpacity.value = Math.min(1.0, Math.max(0.0, 0.1 + (physics.darkMatter || 0) * 2.0));
+        }
+        if (this._backgroundStarMat.uniforms?.uTime) {
+            this._backgroundStarMat.uniforms.uTime.value = this.appTime;
+        }
 
         // BOLT: Sweep and Prune (X-axis spatial pruning) for star repulsion
         const softening = physics.softening || 0.1;
@@ -367,9 +431,10 @@ export class Engine {
                         this.phaseTransitionLog.shift();
                     }
                 }
-                this.cometSystem.update(deltaTime_yr, this.stellarState, this.appTime);
-                this.dysonSwarmSystem.update(this.highestKardashevTier, this.appTime);
-                this.asteroidBeltSystem.update(this.appTime);
+                const targetStarPos = this.selectedStar?.position || this.heroStars[0]?.position;
+                this.cometSystem.update(deltaTime_yr, this.stellarState, this.appTime, targetStarPos);
+                this.dysonSwarmSystem.update(this.highestKardashevTier, this.appTime, targetStarPos);
+                this.asteroidBeltSystem.update(this.appTime, targetStarPos);
             } catch (error) {
                 if (typeof (window as any).emitErrorOverlay === 'function') {
                     (window as any).emitErrorOverlay(error);
@@ -388,7 +453,7 @@ export class Engine {
 
     respawnAllStars() {
         this.heroStars.forEach(star => {
-            star.respawn(this.renderer);
+            star.respawn(this.renderer, this.cosmicAge, this.physicsConstants);
         });
     }
 

@@ -10,6 +10,7 @@
 
 *13.8 billion years of cosmic evolution — your rules, your physics, your universe.*
 
+[![Version](https://img.shields.io/badge/version-3.0.0-purple?style=flat-square)](CHANGELOG.md)
 [![TypeScript](https://img.shields.io/badge/TypeScript-6-3178C6?style=flat-square&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
 [![React](https://img.shields.io/badge/React-19-61DAFB?style=flat-square&logo=react&logoColor=black)](https://react.dev/)
 [![Three.js](https://img.shields.io/badge/Three.js-r184-000000?style=flat-square&logo=threedotjs&logoColor=white)](https://threejs.org/)
@@ -24,22 +25,48 @@
 
 ÆTHERGENESIS is a **physically accurate, real-time universe simulation** running entirely in your browser. Watch 500,000 stars ignite, galaxies spiral into being, comets trace Keplerian orbits, and civilizations rise and fall — all driven by real astrophysics and the fundamental constants *you* control.
 
-Powered by **Three.js**, **WebGL/GLSL shaders**, and the **Gemini AI API**, it's equal parts simulation engine and interactive art installation.
+Powered by **Three.js**, **WebGL/GLSL shaders**, **WebAudio synthesis**, and the **Google Gemini AI API**, it is equal parts simulation engine and interactive art installation.
 
 ---
 
-## 🚀 Features
+## 🏗️ Architecture Topology
 
-- 🌟 **500,000 Instanced Stars** — Realistic IMF (Initial Mass Function) color distribution across the full HR diagram
-- 🌀 **Logarithmic Spiral Galaxy** — Procedurally generated with advanced post-processing bloom and glow
-- ⚛️ **Real-time N-body Physics** — Velocity Verlet integrator running in a dedicated Web Worker, optimized with pre-cached inverse masses and softened gravitational force calculations
-- ☄️ **Keplerian Comet System** — 5 comets with pre-calculated orbital constants (eccentricity, semi-latus rectum, inclination) for zero per-frame trig overhead
-- 🔵 **Dyson Swarm** — Unlocked at Kardashev Tier 2, rendered as an animated instanced mesh
-- 🤖 **Gemini AI Stellar Telemetry** — Click any star to open the InspectPanel and get AI-powered stellar classification, habitability analysis, and civilization projections
-- 🔌 **Secure WebSocket Sync** — Real-time simulation state synchronization via hardened WebSocket server (wss://, token auth, CSP-restricted)
-- ⌨️ **Cinematic HUD** — Keyboard-driven interface with hover-revealed shortcut hints
-- ♿ **Full Accessibility** — ARIA labels, `aria-live` regions, semantic roles throughout
-- 🎬 **Framer Motion Transitions** — Cinematic slide+blur animations on all floating panels
+```mermaid
+graph TD
+    User["👤 Browser Client"] --> UI["⚛️ React 19 UI Layer (Hud, InspectPanel, CatalogPanel)"]
+    UI --> Engine["🌌 Engine Core (src/core/engine.ts)"]
+    Engine --> Worker["⚡ N-Body WebWorker (Velocity-Verlet Integrator)"]
+    Engine --> Render["🎨 Rendering Pipeline (EffectComposer + OutputPass ACES ToneMapping)"]
+    Render --> Shaders["🔥 Custom GLSL Shaders (Star Surface, Nebula Raymarcher, Doppler Disk, Pulsar Jets)"]
+    UI --> Audio["🎵 WebAudio Cosmic Synth Engine (CosmicAudioEngine.ts)"]
+    Engine --> Server["🔌 Express 5 Backend & WebSocket Server (server.ts)"]
+    Server --> Gemini["🤖 Google Gemini AI API (Stellar Telemetry & Analysis)"]
+    Server --> SIMBAD["🔭 SIMBAD Astronomical Database API"]
+    Server --> Horizons["☄️ NASA JPL Horizons Ephemeris API"]
+```
+
+---
+
+## 🚀 Key Features
+
+### 🎨 Cinematic Shaders & Visuals
+- 🌟 **Planckian Blackbody Star Colors** — Star surface color continuously updates via physical temperature ($T \in [2,400\text{K}, 40,000\text{K}]$) across the H-R diagram.
+- ☀️ **Granulation & Sunspots** — Star surfaces feature domain-warped FBM noise, 24-octave convective solar granulation, and cell-darkened sunspots (`starSurface.frag.glsl`).
+- 🌀 **Volumetric Gas Nebula** — Raymarched 3D gas cloud with emission lines, collapse dynamics, and unit-sphere scaling.
+- 🕳️ **Relativistic Black Hole Accretion Disk** — Features **Doppler beaming** (approaching edge is Doppler-shifted blue and brightened $1.6\times$, receding edge is redshifted to deep crimson and dimmed $0.4\times$) and screen-space gravitational lensing distortion (`cinematic.frag.glsl`).
+- ⚡ **Volumetric Pulsar Beams** — High-energy relativistic jets with 3D noise turbulence, cyan core glow, electric blue outer rims, and periodic time-dependent intensity modulation.
+- 💫 **Dynamic Planet Orbit Lines** — Concentric glowing cyan trajectory line loops (`LineLoop`) rendering Keplerian planetary orbits in real time.
+- 💥 **Supernova Shockwaves** — Dynamic radial UV wave displacement propagation during stellar supernova explosions.
+- ✨ **Twinkling Background Stars** — Custom point shader with Gaussian radial falloff (`exp(-distSq * 14.0)`) and sinusoidal twinkling.
+
+### 🎵 Immersive WebAudio Soundscapes
+- 🛸 **Native WebAudio Ambient Synthesizer** — Zero-dependency procedural spatial soundscapes featuring multi-oscillator cosmic drones with LFO low-pass filter breathing.
+- 🔊 **Stellar SFX** — Sub-bass supernova explosion bursts and subtle UI interaction clicks.
+- 🔇 **HUD Audio Controls** — Instant mute/unmute toggle (`Volume2`/`VolumeX`) integrated into the HUD.
+
+### 🤖 AI Telemetry & Real Astronomical Catalogs
+- 🤖 **Gemini AI Stellar Analysis** — Click any star to open `InspectPanel` and trigger Google Gemini AI analysis for habitability scoring, civilization projections, and biome classification.
+- 🔭 **Real Star Catalog & JPL Horizons Import** — Search SIMBAD TAP database, import NASA JPL Horizons small bodies (Halley, Encke, Ceres), and load famous star presets (TRAPPIST-1, Betelgeuse, Sirius A/B).
 
 ---
 
@@ -47,13 +74,14 @@ Powered by **Three.js**, **WebGL/GLSL shaders**, and the **Gemini AI API**, it's
 
 | Layer | Technology |
 |-------|-----------|
-| **Frontend** | React 19, TypeScript 6, Vite 8 |
+| **Frontend** | React 19, TypeScript 6, Vite 8, Tailwind CSS 4 |
 | **3D Rendering** | Three.js r184, WebGL, Custom GLSL Shaders |
-| **Animation** | Framer Motion 12 |
-| **Physics** | Custom Velocity Verlet n-body (Web Worker) |
-| **AI** | Google Gemini API (`@google/genai`) |
-| **Backend** | Express 5, WebSocket (`ws`) |
-| **Styling** | Tailwind CSS 4 |
+| **Post-Processing** | Three.js `EffectComposer`, `UnrealBloomPass`, `OutputPass` (ACES Filmic) |
+| **Audio** | Native WebAudio API Synthesizer |
+| **Physics** | Custom Velocity Verlet N-Body Sub-Stepped Integrator (Web Worker) |
+| **AI Integration** | Google Gemini API (`@google/genai`) |
+| **Backend & MCP** | Express 5, WebSocket (`ws`), MCP Servers (`nasa-horizons`, `sim-state`, `stellar-catalog`) |
+| **Testing** | 49-Scenario Automated E2E Test Suite |
 | **Deployment** | GitHub Pages (frontend) + Render (backend) |
 
 ---
@@ -85,13 +113,13 @@ Powered by **Three.js**, **WebGL/GLSL shaders**, and the **Gemini AI API**, it's
    VITE_WS_TOKEN="same-strong-random-secret"
    ```
 
-3. **Run both frontend and server together:**
+3. **Run full application (Vite Client + Express WS Server):**
    ```bash
    npm run dev:full
    ```
-   Or in two separate terminals:
+   Or run in two separate terminals:
    ```bash
-   # Terminal 1 — WebSocket simulation server
+   # Terminal 1 — WebSocket & API server
    npm run server
 
    # Terminal 2 — Vite dev server
@@ -102,65 +130,50 @@ Powered by **Three.js**, **WebGL/GLSL shaders**, and the **Gemini AI API**, it's
 
 ---
 
-## ⌨️ Keyboard Shortcuts
+## 🧪 Testing & Quality Verification
+
+Run the complete suite of verification commands:
+
+```bash
+# TypeScript Typecheck
+npm run typecheck
+
+# Production Bundle Build
+npm run build
+
+# Run 49-Scenario E2E Automated Integration Suite
+node node_modules/tsx/dist/cli.mjs scripts/run-e2e-tests.ts
+```
+
+---
+
+## ⌨️ Keyboard Shortcuts & HUD Controls
 
 | Key | Action |
 |-----|--------|
 | `T` | Toggle timescale (Cosmic ↔ Realtime) |
 | `C` | Open/close Physics Constants panel |
+| `R` | Reset camera position and orientation |
+| `F` | Focus camera on selected hero star |
 | `Escape` | Deselect star / close InspectPanel |
 | `Alt + R` | Reset simulation |
 | `←` / `→` | Scrub selected star timeline |
 | `Home` / `End` | Jump to start / end of stellar timeline |
 
-> 💡 Hover over any HUD control to reveal its keyboard shortcut.
+> 💡 Hover over any HUD button to reveal tooltip shortcuts. Click the **Search** icon to open the Astronomical Catalog or the **Audio** icon to toggle soundscapes.
 
 ---
 
-## 🔧 Environment Variables
+## 🔌 Antigravity 2.0 Plugin Integration
 
-See [`.env.example`](.env.example) for the full list. Key variables:
+ÆTHERGENESIS is packaged as a native **Antigravity 2.0 Plugin** under `.agents/plugins/aethergenesis/`:
 
-| Variable | Required | Description |
-|----------|----------|-------------|
-| `GEMINI_API_KEY` | ✅ Yes | Gemini AI API key for stellar telemetry |
-| `WS_TOKEN` | ✅ Yes (prod) | WebSocket auth token — **never use default in production** |
-| `VITE_WS_TOKEN` | ✅ Yes (prod) | Client-side WS token (must match `WS_TOKEN`) |
-| `ALLOWED_ORIGINS` | Recommended | Comma-separated allowed CORS origins |
-| `APP_URL` | Recommended | Your public app URL |
-| `SIM_PORT` | Optional | WebSocket server port (default: `3001`) |
-| `NODE_ENV` | Optional | Set to `production` for hardened security checks |
+- **Manifest**: `plugin.json`
+- **Agent Skills**:
+  - `stellar-physics`: `skills/stellar-physics/SKILL.md`
+  - `shader-optimization`: `skills/shader-optimization/SKILL.md`
 
-> ⚠️ **Security:** The server will **reject all WebSocket connections** if `WS_TOKEN` is still set to `default_secret` in production mode (`NODE_ENV=production`).
-
----
-
-## 🚢 Deployment
-
-### GitHub Pages (Frontend)
-
-The frontend deploys automatically via GitHub Actions on every push to `main`. See [`.github/workflows/deploy.yml`](.github/workflows/deploy.yml).
-
-### Render (Backend Server)
-
-1. Connect your GitHub repo to [Render](https://render.com)
-2. The [`render.yaml`](render.yaml) file handles all build and start configuration automatically
-3. Set the following environment variables in the Render dashboard:
-   - `GEMINI_API_KEY` — your Gemini API key
-   - `WS_TOKEN` — a strong random secret (`openssl rand -hex 32`)
-   - `APP_URL` — your Render service URL
-   - `NODE_ENV=production`
-
----
-
-## 🤝 Contributing
-
-Contributions are welcome! Please:
-
-1. Fork the repo and create a feature branch
-2. Ensure `npm run lint` passes (TypeScript type-check)
-3. Ensure `npm run build` succeeds
-4. Open a pull request against `main`
+AI coding assistants can invoke these skills directly during pair programming on cosmic physics or GLSL shader development.
 
 ---
 

@@ -6,6 +6,8 @@ import { InspectPanel } from '../ui/InspectPanel';
 import { ConstantsPanel } from '../ui/ConstantsPanel';
 import { AstrobiologyPanel } from '../ui/AstrobiologyPanel';
 
+import { CatalogPanel } from '../ui/CatalogPanel';
+
 export function AetherGenesis() {
   const mountRef = useRef<HTMLDivElement>(null);
   const {
@@ -23,6 +25,10 @@ export function AetherGenesis() {
     setIsPlayingCosmic,
     isConstantsOpen,
     setIsConstantsOpen,
+    isCatalogOpen,
+    setIsCatalogOpen,
+    loadStarPreset,
+    addBodyToSimulation,
     currentTier, 
     fps, 
     showTierDownIndicator, 
@@ -92,6 +98,7 @@ export function AetherGenesis() {
             resetDiagnostics
         }}
         currentSeed={currentSeed}
+        onOpenCatalog={() => setIsCatalogOpen(true)}
       />
 
       <AnimatePresence>
@@ -126,6 +133,13 @@ export function AetherGenesis() {
         setPhysics={setPhysics}
         isOpen={isConstantsOpen}
         setIsOpen={setIsConstantsOpen}
+      />
+
+      <CatalogPanel
+        isOpen={isCatalogOpen}
+        setIsOpen={setIsCatalogOpen}
+        loadStarPreset={loadStarPreset}
+        addBodyToSimulation={addBodyToSimulation}
       />
 
       <div className="absolute inset-0 pointer-events-none bg-[radial-gradient(circle_at_center,transparent_0%,rgba(2,2,5,0.6)_100%)]" />

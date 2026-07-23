@@ -43,6 +43,7 @@ export class NebulaPhase implements PhaseComponent {
             blending: THREE.AdditiveBlending,
             side: THREE.FrontSide
         });
+        this.nebulaMat.name = 'NebulaPhaseMaterial';
         this.nebulaMat.customProgramCacheKey = () => 'nebula_phase_material';
         this.nebulaMesh = new THREE.Mesh(GEOMETRIES.nebula, this.nebulaMat);
         this.nebulaMesh.scale.setScalar(15);
@@ -71,6 +72,7 @@ export class NebulaPhase implements PhaseComponent {
             depthWrite: false,
             blending: THREE.AdditiveBlending
         });
+        dustMat.name = 'NebulaPhaseDustCloudMaterial';
         dustMat.customProgramCacheKey = () => 'nebula_dust_cloud_material';
         this.dustCloud = new THREE.Points(dustGeo, dustMat);
         this.parent.add(this.dustCloud);

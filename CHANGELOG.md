@@ -11,6 +11,44 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [3.0.0] - 2026-07-23
+
+### 🎨 Visual & Shader Upgrades
+- **Volumetric Pulsar Beams & Relativistic Beaming** — Replaced static pulsar cone meshes in `RemnantPhase.ts` with custom volumetric `ShaderMaterial` featuring 3D turbulence, cyan core glow (`vec3(0.4, 0.9, 1.0)`), electric blue outer rims, and periodic time-dependent intensity modulation.
+- **Relativistic Black Hole Accretion Disk** — Upgraded accretion disk fragment shader to simulate relativistic **Doppler beaming**: approaching edge is Doppler-shifted to electric blue/cyan ($1.6\times$ brightness), receding edge is redshifted to deep orange/crimson ($0.4\times$ brightness), with Keplerian differential rotation noise.
+- **Dynamic Planet Orbit Path Lines** — Built `orbitLinesGroup` in `PlanetarySystem.ts` rendering glowing cyan orbital trajectory line loops (`LineLoop`) around host stars, synchronized with global timeline scrub fading.
+- **Planckian Blackbody Star Colors** — Integrated `colorTempToRGB()` continuous blackbody surface color temperature mapping into `MainSequencePhase.ts` and `HeroStarSystem.ts`.
+- **Twinkling Gaussian Background Stars** — Upgraded background starfield to custom `ShaderMaterial` with Gaussian radial falloff (`exp(-distSq * 14.0)`) and sinusoidal twinkling (`sin(uTime * 2.5 + aPhase)`).
+- **Surface Granulation & Sunspots** — Upgraded `starSurface.frag.glsl` with domain-warped FBM noise, 24-octave convective solar granulation, and dynamic sunspot cell darkening.
+- **Supernova Shockwave Radial Distortion** — Added `uShockwave` radial UV displacement distortion in `cinematic.frag.glsl` and `Pipeline.ts` during stellar supernova explosions.
+
+### 🎵 Soundscapes & Audio
+- **Native WebAudio Ambient Synthesizer** — Implemented zero-dependency `CosmicAudioEngine.ts` producing generative ambient space drones (low-pass filtered harmonic sine waves with 0.1 Hz LFO breathing), supernova sub-bass explosion bursts, and UI click SFX.
+- **Audio Controls in HUD** — Added Audio mute toggle button (`Volume2`/`VolumeX`) to top-right control grid in `Hud.tsx`.
+
+### 🌌 Astronomical Catalog & UI Polish
+- **Mounted Astronomical Catalog UI** — Mounted `CatalogPanel.tsx` in `AetherGenesis.tsx` and added catalog search button (`Search`) in `Hud.tsx` allowing live SIMBAD queries, JPL Horizons comet imports, and famous star preset loading (TRAPPIST-1, Betelgeuse).
+- **Parented Coordinates** — Solar system comets, asteroid belts, and Dyson swarms now orbit the active selected/home star position rather than fixed origin space.
+
+### ⚡ Performance & Physics
+- **Velocity-Verlet Timestep Sub-Stepping** — N-body worker thread now sub-steps physics integration (`MAX_PHYSICS_DT = 0.002` yr, max 64 substeps) to preserve stable Keplerian orbits without body flinging.
+- **External API Rate Limiting** — Added LRU rate-limiter (`checkApiRateLimit`) guarding `/api/catalog/search` and `/api/horizons/search` against IP rate limit exhaustion.
+
+### 🔌 Antigravity 2.0 Plugin Architecture
+- **Scaffolded Antigravity Plugin** — Created `.agents/plugins/aethergenesis/` containing `plugin.json` and agent skills (`stellar-physics`, `shader-optimization`).
+
+---
+
+## [2.0.0] - 2026-07-20
+
+### 🎨 Rendering Pipeline Overhaul
+- **ACES Filmic Tone-Mapping** — Added explicit `OutputPass` at the end of the `EffectComposer` post-processing pipeline for linear-to-sRGB color space conversion and ACES Filmic tone mapping.
+- **Volumetric Raymarched Nebula** — Fixed unit-sphere raymarching shader and geometry matrix scaling in `NebulaSystem.ts` and `nebula.frag.glsl`.
+- **Hero Star Scene Lighting** — Attached dynamic `PointLight` per hero star system to illuminate orbiting planetary systems, comets, and asteroid belts.
+- **Cross-Platform GLSL Compliance** — Replaced all reversed GLSL `smoothstep(edge0, edge1, val)` calls (`edge0 > edge1`) with `(1.0 - smoothstep(edge1, edge0, val))` across all fragment shaders for full mobile GPU and ANGLE driver compliance.
+
+---
+
 ## [1.0.0] - 2026-06-13
 
 ### 🛡️ Security

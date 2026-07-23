@@ -87,7 +87,8 @@ export class SimulationCoordinator {
         if (buffer) {
             const numBodies = buffer.length / 7;
             const sim_time_yr = this.engine.appTime * 1e6;
-            const deltaTime_yr = this.engine.timeScale === 'cosmic' ? delta * 200000000 : delta * 1000;
+            const elapsedWallSec = Math.min(0.5, (currentTime - this.lastStateSendTime) / 1000.0);
+            const deltaTime_yr = this.engine.isPaused ? 0 : (this.engine.timeScale === 'cosmic' ? elapsedWallSec * 200000000 : elapsedWallSec * 1000);
 
             const MASS_EARTH = 5.97e24;
             const RADIUS_EARTH = 6371000;

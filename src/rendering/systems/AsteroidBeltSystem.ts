@@ -12,6 +12,7 @@ export class AsteroidBeltSystem {
             roughness: 0.9,
             metalness: 0.1
         });
+        material.name = 'AsteroidBeltMaterial';
         
         this.instancedMesh = new THREE.InstancedMesh(geometry, material, count);
         this.orbitalPeriods = new Float32Array(count);
@@ -60,11 +61,14 @@ export class AsteroidBeltSystem {
         scene.add(this.instancedMesh);
     }
 
-    update(time: number): void {
+    update(time: number, starPosition?: THREE.Vector3): void {
         // We will just rotate the entire group slowly for performance, 
         // as updating 10,000 matrices per frame is against Prompt 5 optimization rules
         // "Since this is a background simulation... no physics"
         this.instancedMesh.rotation.y = time * 0.05;
+        if (starPosition) {
+            this.instancedMesh.position.copy(starPosition);
+        }
     }
 
     dispose(): void {
