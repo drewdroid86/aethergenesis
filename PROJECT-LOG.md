@@ -77,9 +77,9 @@ src/
 
 **Changes:**
 - **Physics Benchmark Suite (`scripts/benchmark-physics.js`)**: Built an isolated benchmark loop stepping stellar physics (`advanceStellarState`) and orbital mechanics (`keplerianToCartesian`) across 500 bodies and 1,000 ticks. Exports standardized `github-action-benchmark` JSON schema to `benchmark-output.json`.
-- **GitHub Actions Workflows (`.github/workflows/physics-benchmark.yml` & `.github/workflows/asset-optimization.yml`)**:
+- **GitHub Actions Workflows (`.github/workflows/physics-benchmark.yml` & `.github/workflows/assets-and-shaders.yml`)**:
   - `physics-benchmark.yml`: Runs physics benchmarks on push/PR to `main`, auto-pushing metrics and alerting on >120% performance degradation via `github-action-benchmark`.
-  - `asset-optimization.yml`: Runs GLSL shader validation with `glslangValidator` and optimizes 3D glTF/GLB models using `@gltf-transform/cli` with Draco compression and WebP textures.
+  - `assets-and-shaders.yml`: Runs GLSL shader validation with `glslangValidator` and optimizes 3D glTF/GLB models using `@gltf-transform/cli` with Draco compression and WebP textures.
 - **npm Script & Gitignore**: Added `npm run benchmark:physics` command to `package.json` and added `benchmark-output.json` to `.gitignore`.
 - **Performance Verification**: Confirmed average tick time of ~0.37–0.46ms/tick across 500 bodies (well within 16.67ms 60 FPS budget).
 
