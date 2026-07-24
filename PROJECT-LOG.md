@@ -70,6 +70,19 @@ src/
 
 ---
 
+### chore/pr-review-automation — Automated PR Code Review & Compliance Engine
+**Date:** July 24, 2026
+**AI:** Antigravity (Gemini 3.6 Flash)
+**Branch:** chore/pr-review-automation
+
+**Changes:**
+- **Automated PR Compliance Check Script (`scripts/pr-review-check.js`)**: Created automated PR reviewer script that verifies file change counts (<= 5 files limit), verifies `PROJECT-LOG.md` entry presence, runs TypeScript typecheck (`tsc --noEmit`), and checks ESLint hygiene, producing a GitHub markdown report (`pr-review-report.md`).
+- **GitHub Actions Workflow (`.github/workflows/pr-review-automation.yml`)**: Configured PR review action running on pull requests targeting `main`, automatically commenting or updating the PR review report on pull requests.
+- **Pull Request Template (`.github/PULL_REQUEST_TEMPLATE.md`)**: Created standardized PR template enforcing PR scope bounds, build verification evidence, and `PROJECT-LOG.md` state synchronization.
+- **npm Script Integration (`package.json`)**: Added `npm run pr-review` command.
+
+---
+
 ### perf/physics-benchmark — Authoritative Physics Benchmarking Suite
 **Date:** July 23, 2026
 **AI:** Antigravity (Gemini 3.6 Flash)
