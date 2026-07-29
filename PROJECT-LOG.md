@@ -23,6 +23,12 @@ This log is updated after every AI session. Each AI signs off with their entry. 
 
 ## RECENT LOGS
 
+### 2026-07-29 — Phase 3: Critical Bugs & Production Stabilization (Gemini CLI)
+- **N-Body Substepping & Distance Clamping (`src/simulation/nbodyWorker.ts`):** Verified fixed substepping (`MAX_PHYSICS_DT = 0.002` yr, max 64 steps) and 200 AU distance clamping with `NaN` resets to prevent velocity explosions.
+- **Express 5 Server Safe Route Handler (`server.ts`):** Confirmed production static route utilizes path-to-regexp v8 compatible `app.use((_req, res) => ...)` to prevent startup crashes.
+- **Initial Cosmic Age Population (`src/utils/hooks/useCosmicAge.ts`):** Confirmed `cosmicAge` initializes at 5.0 Gyr to ensure stars are immediately visible on load.
+- **Verification:** `npm run typecheck`, `npm run build`, and `npm test` passed cleanly with 0 errors.
+
 ### 2026-07-29 — Phase 2: Engine & React Architecture Decoupling (Gemini CLI)
 - **Engine Loop Decoupling (`src/core/engine.ts`):** `Engine.ts` manages its own `requestAnimationFrame` loop (`start()`, `stop()`, `dispose()`) and exposes `onTick`. Updated `dispose()` to stop animation frames and unbind `onTick` listener.
 - **Simulation Coordinator (`src/simulation/SimulationCoordinator.ts`):** Subscribes to `Engine.onTick`, aggregates N-body physics, astrobiology ticks, and WebSocket broadcasts outside React render loops.
