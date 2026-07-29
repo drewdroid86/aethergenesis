@@ -23,6 +23,12 @@ This log is updated after every AI session. Each AI signs off with their entry. 
 
 ## RECENT LOGS
 
+### 2026-07-29 — Phase 2: Engine & React Architecture Decoupling (Gemini CLI)
+- **Engine Loop Decoupling (`src/core/engine.ts`):** `Engine.ts` manages its own `requestAnimationFrame` loop (`start()`, `stop()`, `dispose()`) and exposes `onTick`. Updated `dispose()` to stop animation frames and unbind `onTick` listener.
+- **Simulation Coordinator (`src/simulation/SimulationCoordinator.ts`):** Subscribes to `Engine.onTick`, aggregates N-body physics, astrobiology ticks, and WebSocket broadcasts outside React render loops.
+- **GLSL Hash Parameter Fix (`src/shaders/nebula.frag.glsl`):** Updated `hash(vec3(gl_FragCoord.xy, uTime))` to match GLSL `hash(vec3)` overload signature, resolving runtime WebGL compilation errors.
+- **Verification:** `npm run typecheck`, `npm run build`, and `npm test` executed successfully with 0 errors.
+
 ### 2026-07-29 — Phase 1: Visual Pipeline Upgrades & Raymarch Repair (Gemini CLI)
 - **Volumetric Nebula Repair (`src/shaders/nebula.frag.glsl`):** Added raymarch start-offset jitter (`pos += rayDir * stepSize * hash(gl_FragCoord.xy)`) and 16-step raymarch loop to eliminate slice banding artifacts.
 - **Scene Lighting Setup (`src/core/engine.ts`):** Added ambient light (`THREE.AmbientLight(0xffffff, 0.05)`) to ensure `MeshStandardMaterial` & `MeshPhongMaterial` surfaces retain base illumination.

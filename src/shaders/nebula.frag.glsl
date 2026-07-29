@@ -22,7 +22,7 @@ void main() {
     float progress = smoothstep(0.0, 1.0, uCollapse);
     
     // Per-pixel start offset jitter to eliminate slice banding artifacts
-    pos += rayDir * stepSize * hash(gl_FragCoord.xy);
+    pos += rayDir * stepSize * hash(vec3(gl_FragCoord.xy, uTime));
     
     for(int i=0; i<16; i++) {
         float d = length(pos);

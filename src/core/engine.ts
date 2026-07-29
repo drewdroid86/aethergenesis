@@ -438,6 +438,8 @@ export class Engine {
     }
 
     dispose() {
+        this.stop();
+        this.onTick = null;
         if (this.pipeline) {
             this.pipeline.dispose();
         }
