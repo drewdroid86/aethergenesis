@@ -21,6 +21,22 @@ This log is updated after every AI session. Each AI signs off with their entry. 
 
 ---
 
+## RECENT LOGS
+
+### 2026-07-29 — Deep Audit Remediation & Subsystem Typing (Gemini CLI)
+- **Engine Interceptor Cleanup (`src/core/engine.ts`):** Removed temporary WebGL `compileShader` and `THREE.Material.prototype.onBeforeCompile` monkey-patches to eliminate false-positive console logs and hot-path call overhead.
+- **Remnant Phase Type Safety (`src/simulation/phases/RemnantPhase.ts`):** Typed `beamMat` explicitly as `THREE.ShaderMaterial` and removed 5 `as any` uniform access casts.
+- **Dynamic Star Hit-Testing (`src/rendering/systems/HeroStarSystem.ts`):** Scaled `hitMesh` dynamically based on each star phase's visual radius, with a minimum click radius of 2.0.
+- **Subsystem Seam Typing (`src/simulation/SimulationCoordinator.ts`):** Defined typed interfaces (`StellarStateData`, `OrbitalStateData`, `AstrobiologyStateData`, `SimStatePayload`) and eliminated `any` parameters.
+- **Deployment & CI Configuration (`vite.config.ts`, `deploy.yml`, `ci.yml`, `package.json`):**
+  - Updated `vite.config.ts` to use `base: process.env.VITE_BASE_PATH || '/'` to support both Render domain root and GitHub Pages.
+  - Added `VITE_BASE_PATH=/aethergenesis/` in `.github/workflows/deploy.yml`.
+  - Added `"test": "node node_modules/tsx/dist/cli.mjs scripts/run-e2e-tests.ts"` to `package.json`.
+  - Added `npm test` step to `.github/workflows/ci.yml`.
+- **Verification:** `npm run typecheck`, `npm run build`, and `npm test` executed successfully with 0 errors.
+
+---
+
 ## ARCHITECTURE OVERVIEW
 
 ```
@@ -76,12 +92,14 @@ src/
 **Branch:** chore/pr-review-automation
 
 **Changes:**
-- **Automated PR Compliance Check Script (`scripts/pr-review-check.js`)**: Created automated PR reviewer script that verifies file change counts (<= 5 files limit), verifies `PROJECT-LOG.md` entry presence, runs TypeScript typecheck (`tsc --noEmit`), and checks ESLint hygiene, producing a GitHub markdown report (`pr-review-report.md`).
-- **GitHub Actions Workflow (`.github/workflows/pr-review-automation.yml`)**: Configured PR review action running on pull requests targeting `main`, automatically commenting or updating the PR review report on pull requests.
-- **Pull Request Template (`.github/PULL_REQUEST_TEMPLATE.md`)**: Created standardized PR template enforcing PR scope bounds, build verification evidence, and `PROJECT-LOG.md` state synchronization.
-- **npm Script Integration (`package.json`)**: Added `npm run pr-review` command.
+- **Anthropic Messages API PR Review Script (`.github/scripts/review.py`)**: Created Python review script executing against `https://api.anthropic.com/v1/messages` using model `claude-3-7-sonnet-20250219`. Reads diff, truncates to 50,000 characters, skips praise, flags real bugs/security/performance issues, and references project context.
+- **Claude Review GitHub Workflow (`.github/workflows/claude-review.yml`)**: Triggered on `pull_request` (`opened`, `synchronize`). Fetches branch diff, runs `review.py` via `ANTHROPIC_API_KEY`, and posts/updates review comments on PRs.
+- **Review Ownership Policy (`.github/CODEOWNERS`)**: Enforced review ownership for core simulation, rendering, shaders, and CI workflows assigned to `@drewdroid86`.
+- **Automated PR Compliance Check Script (`scripts/pr-review-check.js`)**: Created PR reviewer script that verifies file change counts ($\le 5$ files limit), checks `PROJECT-LOG.md` entry presence, runs TypeScript typecheck (`tsc --noEmit`), and checks ESLint hygiene.
+- **Pull Request Template & npm Script (`.github/PULL_REQUEST_TEMPLATE.md`, `package.json`)**: Added standardized PR template and `npm run pr-review` command.
 
 ---
+
 
 ### perf/physics-benchmark — Authoritative Physics Benchmarking Suite
 **Date:** July 23, 2026

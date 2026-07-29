@@ -32,7 +32,7 @@ export class RemnantPhase implements PhaseComponent {
     // BOLT: Shared materials cached to eliminate per-frame O(N) loops and lookups
     private nsMat!: THREE.MeshBasicMaterial;
     private tubeMat!: THREE.MeshBasicMaterial;
-    private beamMat!: THREE.MeshBasicMaterial;
+    private beamMat!: THREE.ShaderMaterial;
 
     private initialized = false;
 
@@ -95,10 +95,10 @@ export class RemnantPhase implements PhaseComponent {
                     gl_FragColor = vec4(color * 2.0, alpha);
                 }
             `
-        }) as any;
+        });
         this.beamMat.name = 'RemnantPulsarBeamMaterial';
-        const beam1 = new THREE.Mesh(GEOMETRIES.pulsarBeam1, this.beamMat as any);
-        const beam2 = new THREE.Mesh(GEOMETRIES.pulsarBeam2, this.beamMat as any);
+        const beam1 = new THREE.Mesh(GEOMETRIES.pulsarBeam1, this.beamMat);
+        const beam2 = new THREE.Mesh(GEOMETRIES.pulsarBeam2, this.beamMat);
         this.pulsarGroup.add(beam1);
         this.pulsarGroup.add(beam2);
         this.neutronStarGroup.add(new THREE.Mesh(GEOMETRIES.neutronStar, this.nsMat));
@@ -263,8 +263,8 @@ export class RemnantPhase implements PhaseComponent {
                 this.pulsarGroup.rotation.y += delta * 5.0 * (physics.weakForce || 1.0);
                 this.nsMagneticLines.rotation.y += delta * 2.0 * (physics.weakForce || 1.0);
             }
-            if (this.beamMat && (this.beamMat as any).uniforms) {
-                (this.beamMat as any).uniforms.uTime.value = appTime;
+            if (this.beamMat && this.beamMat.uniforms) {
+                this.beamMat.uniforms.uTime.value = appTime;
             }
         } else {
             this.pulsarGroup.visible = false;
@@ -297,8 +297,8 @@ export class RemnantPhase implements PhaseComponent {
         // Pulsar beams are either on or off for simplicity in opacity guarding
         const targetBeam = targetNs ? 0.6 : 0;
         const opacityVal = targetBeam * globalFade;
-        if ((this.beamMat as any).uniforms) {
-            (this.beamMat as any).uniforms.uOpacity.value = opacityVal;
+        if (this.beamMat && this.beamMat.uniforms) {
+            this.beamMat.uniforms.uOpacity.value = opacityVal;
         } else {
             this.beamMat.opacity = opacityVal;
         }
