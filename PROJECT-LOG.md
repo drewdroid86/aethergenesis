@@ -23,6 +23,11 @@ This log is updated after every AI session. Each AI signs off with their entry. 
 
 ## RECENT LOGS
 
+### 2026-07-29 — Phase 1: Visual Pipeline Upgrades & Raymarch Repair (Gemini CLI)
+- **Volumetric Nebula Repair (`src/shaders/nebula.frag.glsl`):** Added raymarch start-offset jitter (`pos += rayDir * stepSize * hash(gl_FragCoord.xy)`) and 16-step raymarch loop to eliminate slice banding artifacts.
+- **Scene Lighting Setup (`src/core/engine.ts`):** Added ambient light (`THREE.AmbientLight(0xffffff, 0.05)`) to ensure `MeshStandardMaterial` & `MeshPhongMaterial` surfaces retain base illumination.
+- **Verification:** `npm run typecheck` and `npm run build` passed cleanly with 0 errors.
+
 ### 2026-07-29 — Deep Audit Remediation & Subsystem Typing (Gemini CLI)
 - **Engine Interceptor Cleanup (`src/core/engine.ts`):** Removed temporary WebGL `compileShader` and `THREE.Material.prototype.onBeforeCompile` monkey-patches to eliminate false-positive console logs and hot-path call overhead.
 - **Remnant Phase Type Safety (`src/simulation/phases/RemnantPhase.ts`):** Typed `beamMat` explicitly as `THREE.ShaderMaterial` and removed 5 `as any` uniform access casts.
