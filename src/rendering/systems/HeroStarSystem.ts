@@ -542,6 +542,22 @@ export class HeroStarSystem extends THREE.Group {
                 this.starLight.visible = false;
             }
         }
+
+        // Dynamic hitMesh scaling per phase to match visual radius with a minimum click target of 2.0 (GEOMETRIES.hit radius is 8.0)
+        if (this.hitMesh) {
+            let targetRadius = this.baseRadius;
+            if (this.phase === PHASES.RED_GIANT) {
+                targetRadius = this.baseRadius * 4.0;
+            } else if (this.phase === PHASES.SUPERNOVA) {
+                targetRadius = this.baseRadius * 6.0;
+            } else if (this.phase === PHASES.REMNANT) {
+                targetRadius = Math.max(2.0, this.baseRadius * 0.5);
+            } else if (this.phase === PHASES.NEBULA) {
+                targetRadius = 15.0;
+            }
+            const hitScale = Math.max(0.25, targetRadius / 8.0);
+            this.hitMesh.scale.setScalar(hitScale);
+        }
     }
 
     dispose(renderer?: THREE.WebGLRenderer) {

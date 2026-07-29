@@ -243,6 +243,7 @@ export function computeSchwarzschild(mass_solar: number): number {
  *   age < 1.2 τ_MS    → red_giant (shell hydrogen / core helium burning)
  *   else               → remnant (WD / NS / BH)
  *
+ * @citation Kippenhahn, R., Weigert, A. & Weiss, A. (2012) "Stellar Structure and Evolution", Springer
  * @param mass_solar — Initial stellar mass in solar masses
  * @param age_yr — Current age in years
  * @param tau_ms — Main sequence lifetime in years
@@ -432,6 +433,7 @@ export function createStellarState(
  *
  * Never mutates the input state. Always returns a new object.
  *
+ * @citation Carroll & Ostlie (2017) "An Introduction to Modern Astrophysics", 2nd ed.
  * @param state — Current stellar state (not mutated)
  * @param delta_yr — Time step in years to advance
  * @returns New state and optional phase transition event

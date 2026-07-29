@@ -11,9 +11,12 @@
     "clean": "rm -rf dist",
     "typecheck": "node node_modules/typescript/bin/tsc --noEmit",
     "lint": "node node_modules/eslint/bin/eslint.js . && npm run typecheck",
+    "test": "node node_modules/tsx/dist/cli.mjs scripts/run-e2e-tests.ts",
     "server": "node node_modules/tsx/dist/cli.mjs server.ts",
     "dev:full": "node node_modules/concurrently/dist/bin/concurrently.js \"npm run dev\" \"npm run server\"",
-    "benchmark:physics": "node node_modules/tsx/dist/cli.mjs scripts/benchmark-physics.js"
+    "benchmark:physics": "node node_modules/tsx/dist/cli.mjs scripts/benchmark-physics.js",
+    "pr-review": "node node_modules/tsx/dist/cli.mjs scripts/pr-review-check.js",
+    "verify:physics": "node scripts/verify-stellar-physics-hook.js"
   },
   "dependencies": {
     "@google/genai": "^2.13.0",

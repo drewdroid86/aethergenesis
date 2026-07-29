@@ -1,0 +1,17 @@
+# ÆTHERGENESIS — Code Ownership Rules
+# Enforces architectural review requirements for key subsystems.
+
+# Global fallback owner for repository
+* @drewdroid86
+
+# Core Simulation & Physics Engines
+/src/simulation/ @drewdroid86
+/src/core/ @drewdroid86
+
+# Rendering Pipeline & Shaders
+/src/rendering/ @drewdroid86
+/src/shaders/ @drewdroid86
+
+# CI/CD Workflows & Review Automation
+/.github/ @drewdroid86
+/scripts/ @drewdroid86

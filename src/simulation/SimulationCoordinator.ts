@@ -1,12 +1,45 @@
 import { Engine } from '../core/engine';
-import { AstrobiologyEngine } from './AstrobiologyEngine';
-import { computeSpectralClass, StellarPhase } from './StellarPhysics';
+import { AstrobiologyEngine, HabitabilityState } from './AstrobiologyEngine';
+import { computeSpectralClass, SpectralClass, StellarPhase, StellarState } from './StellarPhysics';
+
+export interface StellarStateData {
+    id: string;
+    initialMass_solar: number;
+    metallicity_Z: number;
+    age_yr: number;
+    mass_solar: number;
+    luminosity_solar: number;
+    radius_solar: number;
+    temperature_K: number;
+    phase: StellarPhase;
+    spectralClass: SpectralClass;
+    absoluteMagnitude: number;
+    hrPosition: {
+        logT: number;
+        logL: number;
+    };
+    sim_time_yr: number;
+}
+
+export interface OrbitalStateData {
+    body_id: string;
+    body_type: string;
+    position_au: { x: number; y: number; z: number };
+    velocity_au_yr: { x: number; y: number; z: number };
+    semi_major_axis_au: number;
+    coma_active: boolean;
+    tail_vector: { x: number; y: number; z: number } | null;
+}
+
+export interface AstrobiologyStateData extends HabitabilityState {
+    sim_time_yr?: number;
+}
 
 export interface SimStatePayload {
     timestamp_ms: number;
-    stellar: any;
-    orbital: any[];
-    astrobiology: any[];
+    stellar: StellarStateData;
+    orbital: OrbitalStateData[];
+    astrobiology: AstrobiologyStateData[];
 }
 
 export class SimulationCoordinator {
@@ -16,7 +49,7 @@ export class SimulationCoordinator {
     private lastStateSendTime: number = 0;
 
     // Callbacks for UI updates
-    onAstrobiologyUpdate: ((data: any[]) => void) | null = null;
+    onAstrobiologyUpdate: ((data: AstrobiologyStateData[]) => void) | null = null;
     onTick: ((cosmicAge: number, delta: number) => void) | null = null;
 
     wsClient: WebSocket | null = null;
@@ -80,8 +113,8 @@ export class SimulationCoordinator {
         };
 
         const buffer = this.engine.nbodyBuffer;
-        const orbitalStates: any[] = [];
-        const astrobiologyStates: any[] = [];
+        const orbitalStates: OrbitalStateData[] = [];
+        const astrobiologyStates: AstrobiologyStateData[] = [];
         let maxK = 0;
 
         if (buffer) {
@@ -145,8 +178,8 @@ export class SimulationCoordinator {
                     mass *= 0.6; radius *= 0.75; albedo = 0.15;
                 }
 
-                const habState: any = this.astrobiologyEngine.evaluatePlanet(
-                    `body_${i}`, a, mass, radius, albedo, perStarState as any, deltaTime_yr, bodyType
+                const habState: AstrobiologyStateData = this.astrobiologyEngine.evaluatePlanet(
+                    `body_${i}`, a, mass, radius, albedo, perStarState, deltaTime_yr, bodyType
                 );
 
                 habState.sim_time_yr = sim_time_yr;

@@ -133,36 +133,7 @@ export class Engine {
         this.camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 8000);
         this.camera.position.z = 5;
 
-        if (typeof window !== 'undefined') {
-            // Automatic material.name fallback so Three.js shader logs never show blank Material Name
-            const origOnBeforeCompile = THREE.Material.prototype.onBeforeCompile;
-            THREE.Material.prototype.onBeforeCompile = function (shader, renderer) {
-                if (!this.name) {
-                    this.name = `${this.type || 'Material'}_${(this as any).id}`;
-                }
-                if (origOnBeforeCompile) {
-                    origOnBeforeCompile.call(this, shader, renderer);
-                }
-            };
 
-            const originalCompile = WebGLRenderingContext.prototype.compileShader;
-            let isBootstrapped = false;
-            // Wait 5 seconds after boot to let legitimate initial shaders load safely
-            setTimeout(() => {
-                isBootstrapped = true;
-                console.log("=== WEBGL INTERCEPTOR ACTIVE: Tracking post-bootstrap leaks ===");
-            }, 5000);
-            WebGLRenderingContext.prototype.compileShader = function (this: WebGLRenderingContext, ...args: [WebGLShader]) {
-                if (isBootstrapped) {
-                    console.error(
-                        "🚨 LEAK DETECTED: Shader compiled mid-simulation!\n",
-                        "Stack Trace:\n",
-                        new Error().stack
-                    );
-                }
-                return originalCompile.apply(this, args);
-            };
-        }
 
         this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
         this.renderer.info.autoReset = false;
