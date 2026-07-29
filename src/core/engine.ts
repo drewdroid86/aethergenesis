@@ -130,6 +130,8 @@ export class Engine {
         this.container = container;
         this.stellarState = createStellarState('hero_star', 1.0, 0.02, 0);
         this.scene = new THREE.Scene();
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.05);
+        this.scene.add(ambientLight);
         this.camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 8000);
         this.camera.position.z = 5;
 

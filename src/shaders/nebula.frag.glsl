@@ -21,7 +21,10 @@ void main() {
     
     float progress = smoothstep(0.0, 1.0, uCollapse);
     
-    for(int i=0; i<12; i++) {
+    // Per-pixel start offset jitter to eliminate slice banding artifacts
+    pos += rayDir * stepSize * hash(gl_FragCoord.xy);
+    
+    for(int i=0; i<16; i++) {
         float d = length(pos);
         if(d > 1.0) break; // Sphere bounds
         
