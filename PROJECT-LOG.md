@@ -23,6 +23,12 @@ This log is updated after every AI session. Each AI signs off with their entry. 
 
 ## RECENT LOGS
 
+### 2026-07-29 — Phase 4: Aesthetic & Shader Upgrades (Gemini CLI)
+- **Blackbody Star Color Physics Integration (`src/simulation/phases/MainSequencePhase.ts`):** Star emission colors and solar flares driven dynamically from `colorTempToRGB(kelvin)` Planckian locus math in `StellarPhysics.ts`.
+- **Black Hole Accretion Disk Shader (`src/simulation/phases/RemnantPhase.ts`):** High-heat white/orange/red gradient with Doppler relativistic beaming (`1.0 + 0.6 * cos(angle)`) and Keplerian differential orbital speeds.
+- **Background Star Field Twinkling Shader (`src/core/engine.ts`):** Custom point shader using Gaussian falloff (`exp(-distSq * 14.0)`) and per-star sine phase twinkling modulation.
+- **Verification:** `npm run typecheck`, `npm run build`, and `npm test` passed cleanly with 0 errors.
+
 ### 2026-07-29 — Phase 3: Critical Bugs & Production Stabilization (Gemini CLI)
 - **N-Body Substepping & Distance Clamping (`src/simulation/nbodyWorker.ts`):** Verified fixed substepping (`MAX_PHYSICS_DT = 0.002` yr, max 64 steps) and 200 AU distance clamping with `NaN` resets to prevent velocity explosions.
 - **Express 5 Server Safe Route Handler (`server.ts`):** Confirmed production static route utilizes path-to-regexp v8 compatible `app.use((_req, res) => ...)` to prevent startup crashes.
