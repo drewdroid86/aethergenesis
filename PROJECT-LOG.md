@@ -23,6 +23,11 @@ This log is updated after every AI session. Each AI signs off with their entry. 
 
 ## RECENT LOGS
 
+### 2026-07-31 — Full Repository Audit & GLSL Spec Remediation (Gemini CLI)
+- **Full Current-State Audit (`CURRENT-STATE-AUDIT-2026-07-31.md`):** Conducted comprehensive audit of repository architecture, verified build/typecheck status, audited 20 `smoothstep` shader call sites, reconciled historical audits, and generated a 30/60/90-day roadmap.
+- **GLSL Spec Compliance Fix (`src/shaders/starSurface.frag.glsl`):** Replaced non-compliant reversed `smoothstep(0.28, 0.22, n1)` with spec-compliant `1.0 - smoothstep(0.22, 0.28, n1)` to prevent undefined behavior on mobile GPUs and ANGLE backends.
+- **Verification:** `npm run typecheck`, `npm run lint`, `npm run build`, and `npm test` (49/49 tests) passed cleanly with 0 errors.
+
 ### 2026-07-29 — Phase 4: Aesthetic & Shader Upgrades (Gemini CLI)
 - **Blackbody Star Color Physics Integration (`src/simulation/phases/MainSequencePhase.ts`):** Star emission colors and solar flares driven dynamically from `colorTempToRGB(kelvin)` Planckian locus math in `StellarPhysics.ts`.
 - **Black Hole Accretion Disk Shader (`src/simulation/phases/RemnantPhase.ts`):** High-heat white/orange/red gradient with Doppler relativistic beaming (`1.0 + 0.6 * cos(angle)`) and Keplerian differential orbital speeds.
