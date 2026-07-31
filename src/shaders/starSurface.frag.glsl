@@ -31,8 +31,8 @@ void main() {
     
     float noiseVal = (n1 * 0.5 + n2 * 0.3 + granulation * 0.2);
     
-    // Solar sunspots: darken low density cell centers
-    float sunspotMask = smoothstep(0.28, 0.22, n1);
+    // Solar sunspots: darken low density cell centers (using spec-compliant inverted smoothstep)
+    float sunspotMask = 1.0 - smoothstep(0.22, 0.28, n1);
     
     vec3 baseCol = mix(uColor * 0.4, uColor * 1.6, noiseVal);
     vec3 finalColor = mix(baseCol, uColor * 0.1, sunspotMask * 0.7);
