@@ -210,6 +210,7 @@ export class MainSequencePhase implements PhaseComponent {
         this.starMat.uniforms.uLowDetail.value = (lowDetail || false) ? 1.0 : 0.0;
         this.flareMat.uniforms.uTime.value = appTime;
 
+        // Drive dynamic blackbody star colors from Planckian locus (colorTempToRGB)
         if (currentTemp) {
             colorTempToRGB(currentTemp, this.starMat.uniforms.uColor.value);
             if (this.flareMat) {
