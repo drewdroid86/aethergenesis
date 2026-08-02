@@ -99,8 +99,12 @@ export class NebulaPhase implements PhaseComponent {
     // Special update for when it's still visible during Protostar phase
     updateAsSecondary(delta: number, appTime: number, cameraPos: THREE.Vector3, normT: number, globalFade: number = 1.0): void {
         this.nebulaMesh.visible = globalFade > 0.01;
+        this.nebulaMat.uniforms.uTime.value = appTime;
         this.nebulaMat.uniforms.uCollapse.value = 1.0;
+        this.nebulaMat.uniforms.uCameraPos.value.copy(cameraPos);
         this.nebulaMat.uniforms.uOpacity.value = globalFade;
+        this.nebulaMesh.updateMatrixWorld(true);
+        this.nebulaMat.uniforms.uInverseModelMatrix.value.copy(this.nebulaMesh.matrixWorld).invert();
         this.dustCloud.visible = globalFade > 0.01;
         this.dustCloud.rotation.y += delta * STELLAR_CONSTANTS.VISUALS.NEBULA_DUST_ROTATION_SPEED_SECONDARY;
         (this.dustCloud.material as THREE.ShaderMaterial).uniforms.uAlpha.value = (1.0 - normT * STELLAR_CONSTANTS.VISUALS.NEBULA_DUST_ALPHA_REDUCTION) * globalFade;

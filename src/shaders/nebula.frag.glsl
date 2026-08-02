@@ -15,7 +15,7 @@ void main() {
     vec3 rayDir = normalize(vLocalPosition - localCam);
     vec3 pos = vLocalPosition;
     
-    float stepSize = 0.15;
+    float stepSize = 0.1;
     float alpha = 0.0;
     vec3 accCol = vec3(0.0);
     
@@ -24,7 +24,7 @@ void main() {
     // Per-pixel start offset jitter to eliminate slice banding artifacts
     pos += rayDir * stepSize * hash(vec3(gl_FragCoord.xy, uTime));
     
-    for(int i=0; i<16; i++) {
+    for(int i=0; i<24; i++) {
         float d = length(pos);
         if(d > 1.0) break; // Sphere bounds
         
