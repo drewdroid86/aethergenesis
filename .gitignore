@@ -12,6 +12,8 @@ full_file.tsx
 # Generated reports
 eslint-report.txt
 .agents/
+!.agents/plugins/aethergenesis/
+!.agents/plugins/aethergenesis/**
 .codex/
 .cursor/
 .gemini/

@@ -1,0 +1,27 @@
+{
+  "name": "aethergenesis",
+  "version": "3.0.0",
+  "description": "Antigravity 2.0 plugin for ÆTHERGENESIS cosmic simulation engine, providing stellar physics, orbital mechanics, astrobiology scoring, and WebGL shader optimization tools.",
+  "skills": [
+    {
+      "name": "stellar-physics",
+      "path": "skills/stellar-physics/SKILL.md",
+      "description": "Astrophysical calculations, mass-luminosity relations, Hertzsprung-Russell diagram mapping, and stellar lifecycle phases."
+    },
+    {
+      "name": "orbital-mechanics",
+      "path": "skills/orbital-mechanics/SKILL.md",
+      "description": "Keplerian orbit dynamics, Cartesian conversions, N-body Velocity Verlet sub-stepped physics, and comet trajectories."
+    },
+    {
+      "name": "astrobiology",
+      "path": "skills/astrobiology/SKILL.md",
+      "description": "Habitable zone boundary evaluation, multi-tier Kardashev civilization scoring, and biosphere evolution."
+    },
+    {
+      "name": "shader-optimization",
+      "path": "skills/shader-optimization/SKILL.md",
+      "description": "WebGL/GLSL cross-platform compliance rules, volumetric raymarching, domain-warped FBM noise, and post-processing tone mapping."
+    }
+  ]
+}
