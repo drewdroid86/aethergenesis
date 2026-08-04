@@ -11,6 +11,10 @@ import { PlanetarySystemQueue } from '../rendering/systems/PlanetarySystem';
 
 
 
+/** Maximum number of simultaneous THREE.PointLights allowed in the scene.
+ *  Prevents exceeding MAX_FRAGMENT_UNIFORM_VECTORS(1024) on MeshStandardMaterial planets. */
+const MAX_ACTIVE_POINT_LIGHTS = 12;
+
 export class Engine {
     scene: THREE.Scene;
     camera: THREE.PerspectiveCamera;
@@ -111,6 +115,7 @@ export class Engine {
     private _backgroundStarGeo: THREE.BufferGeometry;
     private _backgroundStarMat: THREE.ShaderMaterial;
     private _activeStarBuffer: HeroStarSystem[] = []; // BOLT: Persistent buffer to avoid per-frame slice()
+    private _lightCandidates: HeroStarSystem[] = []; // Scratch buffer for light culling sort
 
     private _insertionSort(arr: HeroStarSystem[]): void {
         const len = arr.length;
@@ -393,6 +398,9 @@ export class Engine {
              );
         }
 
+        // Cull PointLights to top-N nearest to prevent uniform overflow
+        this._cullStarLights();
+
         if (!this.isPaused && !isScrubbing) {
             const deltaTime_yr = timeScale === 'cosmic' ? delta * 200000000 : delta * 1000;
             try {
@@ -428,6 +436,65 @@ export class Engine {
         this.heroStars.forEach(star => {
             star.respawn(this.renderer, this.cosmicAge, this.physicsConstants);
         });
+    }
+
+    /**
+     * Each frame, collect hero stars that want their PointLight active,
+     * sort by distance-to-camera (ascending, with luminosity as tiebreaker),
+     * enable only the top MAX_ACTIVE_POINT_LIGHTS, and cull the rest.
+     */
+    private _cullStarLights(): void {
+        const camPos = this.camera.position;
+        const candidates = this._lightCandidates;
+        let count = 0;
+        const activeCount = Math.min(this.activeHeroStarCount, this.heroStars.length);
+
+        // Collect stars that want their light on
+        for (let i = 0; i < activeCount; i++) {
+            const star = this.heroStars[i];
+            if (star.wantsLight && star.visible) {
+                candidates[count++] = star;
+            } else {
+                // Ensure hidden stars have their light off
+                star.setLightCulled(true);
+            }
+        }
+
+        if (count <= MAX_ACTIVE_POINT_LIGHTS) {
+            // All candidates fit — enable all, no sorting needed
+            for (let i = 0; i < count; i++) {
+                candidates[i].setLightCulled(false);
+            }
+        } else {
+            // Sort candidates by distance to camera (ascending).
+            // For ties, prefer higher luminosity.
+            const cx = camPos.x, cy = camPos.y, cz = camPos.z;
+            // Compute distSq inline to avoid allocations
+            for (let i = 0; i < count; i++) {
+                const s = candidates[i];
+                const dx = s.position.x - cx;
+                const dy = s.position.y - cy;
+                const dz = s.position.z - cz;
+                (s as any).__lightDistSq = dx * dx + dy * dy + dz * dz;
+            }
+
+            // Partial sort: we only need the top-N, so use selection-style partitioning
+            // For simplicity and correctness, full sort by distSq ascending, lum descending as tiebreaker
+            const slice = candidates.slice(0, count);
+            slice.sort((a, b) => {
+                const da = (a as any).__lightDistSq;
+                const db = (b as any).__lightDistSq;
+                if (da !== db) return da - db;
+                return b.currentLum - a.currentLum; // higher lum wins
+            });
+
+            for (let i = 0; i < slice.length; i++) {
+                slice[i].setLightCulled(i >= MAX_ACTIVE_POINT_LIGHTS);
+            }
+        }
+
+        // Truncate scratch buffer to avoid retaining stale references
+        candidates.length = 0;
     }
 
     resize(width: number, height: number) {
