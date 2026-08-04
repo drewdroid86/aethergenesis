@@ -40,6 +40,10 @@ export class HeroStarSystem extends THREE.Group {
     currentRealAge: number = 0;
     phase: number = 0;
     isSupernovaFlashing: boolean = false;
+    /** True when this star's phase would normally emit a PointLight */
+    wantsLight: boolean = false;
+    /** Tracks whether the engine has culled this star's PointLight */
+    private _lightCulled: boolean = false;
 
     private _activePhase: number = -1;
     private _lastL: number = -1;
@@ -518,6 +522,7 @@ export class HeroStarSystem extends THREE.Group {
         }
 
         // Dynamic update of star light color and intensity based on temperature and luminosity
+        // NOTE: starLight.visible is now controlled by Engine._cullStarLights(), not here.
         if (this.starLight) {
             if (this.phase === PHASES.MAIN_SEQUENCE || this.phase === PHASES.RED_GIANT || this.phase === PHASES.PROTOSTAR || this.phase === PHASES.SUPERNOVA) {
                 this.starLight.intensity = Math.min(50.0, this.currentLum * 2.0) * globalFade;
@@ -537,9 +542,9 @@ export class HeroStarSystem extends THREE.Group {
                         this.starLight.color.setHex(0xfff3e0);
                     }
                 }
-                this.starLight.visible = globalFade > 0.01;
+                this.wantsLight = globalFade > 0.01;
             } else {
-                this.starLight.visible = false;
+                this.wantsLight = false;
             }
         }
 
@@ -557,6 +562,18 @@ export class HeroStarSystem extends THREE.Group {
             }
             const hitScale = Math.max(0.25, targetRadius / 8.0);
             this.hitMesh.scale.setScalar(hitScale);
+        }
+    }
+
+    /**
+     * Called by Engine._cullStarLights() each frame.
+     * When culled, the PointLight is hidden.
+     */
+    setLightCulled(culled: boolean): void {
+        if (this._lightCulled === culled) return;
+        this._lightCulled = culled;
+        if (this.starLight) {
+            this.starLight.visible = !culled && this.wantsLight;
         }
     }
 
