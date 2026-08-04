@@ -6,6 +6,7 @@ import { GEOMETRIES } from './geometries';
 import { PlanetInfo } from './MainSequencePhase';
 import { STELLAR_CONSTANTS } from '../../core/constants';
 import { phaseCounters } from '../../utils/performance';
+import { colorTempToRGB } from '../../physics/math';
 
 export class RedGiantPhase implements PhaseComponent {
     public redGiantGroup!: THREE.Group;
@@ -109,7 +110,7 @@ export class RedGiantPhase implements PhaseComponent {
         this.hide();
     }
 
-    update(delta: number, appTime: number, cameraPos: THREE.Vector3, physics: PhysicsConstants, t: number, lowDetail?: boolean): void {
+    update(delta: number, appTime: number, cameraPos: THREE.Vector3, physics: PhysicsConstants, t: number, lowDetail?: boolean, currentTemp?: number): void {
         const normT = (t - STELLAR_CONSTANTS.PHASE_BOUNDARIES.RED_GIANT_START) / STELLAR_CONSTANTS.PHASE_BOUNDARIES.RED_GIANT_DURATION;
         const giantScale = this.baseRadius * (1.0 + normT * STELLAR_CONSTANTS.VISUALS.RED_GIANT_MAX_SCALE_FACTOR) + Math.sin(appTime * STELLAR_CONSTANTS.VISUALS.RED_GIANT_PULSATION_SPEED) * STELLAR_CONSTANTS.VISUALS.RED_GIANT_PULSATION_AMP;
         this.redGiantMesh.scale.setScalar(giantScale);
@@ -118,6 +119,12 @@ export class RedGiantPhase implements PhaseComponent {
         this.redGiantMat.uniforms.uHbar.value = physics.hbar || 1.0;
         this.redGiantMat.uniforms.uLowDetail.value = (lowDetail || false) ? 1.0 : 0.0;
         this.flareMat.uniforms.uTime.value = appTime;
+
+        const effectiveTemp = currentTemp ?? this.getCurrentTemp(t);
+        colorTempToRGB(effectiveTemp, this.redGiantMat.uniforms.uColor.value);
+        if (this.flareMat) {
+            colorTempToRGB(effectiveTemp, this.flareMat.uniforms.uColor.value);
+        }
 
         if (!lowDetail) {
             for (let i = 0; i < this.planetsInfo.length; i++) {

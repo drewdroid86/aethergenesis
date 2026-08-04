@@ -5,6 +5,7 @@ import { displacementVS, starSurfaceFS } from '../../rendering/shaders/stellar';
 import { GEOMETRIES } from './geometries';
 import { STELLAR_CONSTANTS } from '../../core/constants';
 import { phaseCounters } from '../../utils/performance';
+import { colorTempToRGB } from '../../physics/math';
 
 export class ProtostarPhase implements PhaseComponent {
     public protostarGroup!: THREE.Group;
@@ -116,7 +117,7 @@ export class ProtostarPhase implements PhaseComponent {
         this.hide();
     }
 
-    update(delta: number, appTime: number, cameraPos: THREE.Vector3, physics: PhysicsConstants, t: number, lowDetail?: boolean): void {
+    update(delta: number, appTime: number, cameraPos: THREE.Vector3, physics: PhysicsConstants, t: number, lowDetail?: boolean, currentTemp?: number): void {
         const normT = (t - STELLAR_CONSTANTS.PHASE_BOUNDARIES.PROTOSTAR_START) / STELLAR_CONSTANTS.PHASE_BOUNDARIES.PROTOSTAR_DURATION;
         const introScale = this.baseRadius * (STELLAR_CONSTANTS.VISUALS.PROTOSTAR_INTRO_SCALE_MIN + normT * (1.0 - STELLAR_CONSTANTS.VISUALS.PROTOSTAR_INTRO_SCALE_MIN));
         this.protostarMesh.scale.setScalar(introScale);
@@ -125,6 +126,13 @@ export class ProtostarPhase implements PhaseComponent {
         this.protostarMat.uniforms.uHbar.value = physics.hbar || 1.0;
         this.protostarMat.uniforms.uLowDetail.value = (lowDetail || false) ? 1.0 : 0.0;
         this.protostarDisk.rotation.z += delta;
+
+        if (currentTemp) {
+            colorTempToRGB(currentTemp, this.protostarMat.uniforms.uColor.value);
+            if (this.protostarDisk?.material) {
+                colorTempToRGB(currentTemp, (this.protostarDisk.material as THREE.MeshBasicMaterial).color);
+            }
+        }
 
         const jetOpacity = this.protostarMat.uniforms.uOpacity?.value ?? 0;
         if (this._jetMat1 && this._jetMat2) {

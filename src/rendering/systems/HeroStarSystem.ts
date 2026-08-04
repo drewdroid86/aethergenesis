@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { PHASES, STELLAR_CONSTANTS } from '../../core/constants';
 import { computeLuminosity } from '../../simulation/StellarPhysics';
 import { PhysicsConstants, DEFAULT_CONSTANTS } from '../../types/physics';
+import { colorTempToRGB } from '../../physics/math';
 import { NebulaPhase } from '../../simulation/phases/NebulaPhase';
 import { ProtostarPhase } from '../../simulation/phases/ProtostarPhase';
 import { MainSequencePhase } from '../../simulation/phases/MainSequencePhase';
@@ -368,10 +369,9 @@ export class HeroStarSystem extends THREE.Group {
                 this.nebulaPhase.updateAsSecondary(delta, appTime, cameraPos, normT, globalFade);
             }
 
-            this.protostarPhase.update(delta, appTime, cameraPos, physics, this.t, lowDetail);
-            
             this.currentTemp = STELLAR_CONSTANTS.TEMPERATURES.PROTOSTAR_START + normT * (this.tHeat - STELLAR_CONSTANTS.TEMPERATURES.PROTOSTAR_START);
             this.currentLum = normT * this._msLuminosity;
+            this.protostarPhase.update(delta, appTime, cameraPos, physics, this.t, lowDetail, this.currentTemp);
 
         } else if (this.phase === PHASES.MAIN_SEQUENCE) {
             targetMain = 1;
@@ -384,10 +384,9 @@ export class HeroStarSystem extends THREE.Group {
 
         } else if (this.phase === PHASES.RED_GIANT) {
             targetRed = 1;
-            this.redGiantPhase.update(delta, appTime, cameraPos, physics, this.t, lowDetail);
-            
             this.currentTemp = this.redGiantPhase.getCurrentTemp(this.t);
             this.currentLum = this.redGiantPhase.getCurrentLum(this.t, this.mass);
+            this.redGiantPhase.update(delta, appTime, cameraPos, physics, this.t, lowDetail, this.currentTemp);
 
         } else if (this.phase === PHASES.SUPERNOVA) {
             targetSuper = 1;
@@ -526,21 +525,11 @@ export class HeroStarSystem extends THREE.Group {
         if (this.starLight) {
             if (this.phase === PHASES.MAIN_SEQUENCE || this.phase === PHASES.RED_GIANT || this.phase === PHASES.PROTOSTAR || this.phase === PHASES.SUPERNOVA) {
                 this.starLight.intensity = Math.min(50.0, this.currentLum * 2.0) * globalFade;
-                if (this.phase === PHASES.RED_GIANT) {
-                    this.starLight.color.setHex(0xff7733);
-                } else if (this.phase === PHASES.PROTOSTAR) {
-                    this.starLight.color.setHex(0xffaa44);
-                } else if (this.phase === PHASES.SUPERNOVA) {
+                if (this.phase === PHASES.SUPERNOVA) {
                     this.starLight.color.setHex(0xffffff);
                     this.starLight.intensity = 100.0 * globalFade;
                 } else {
-                    if (this.mass > 8.0) {
-                        this.starLight.color.setHex(0x99ccff);
-                    } else if (this.mass < 0.4) {
-                        this.starLight.color.setHex(0xff3300);
-                    } else {
-                        this.starLight.color.setHex(0xfff3e0);
-                    }
+                    colorTempToRGB(this.currentTemp, this.starLight.color);
                 }
                 this.wantsLight = globalFade > 0.01;
             } else {

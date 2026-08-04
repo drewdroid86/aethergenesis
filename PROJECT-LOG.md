@@ -23,6 +23,12 @@ This log is updated after every AI session. Each AI signs off with their entry. 
 
 ## RECENT LOGS
 
+### 2026-08-04 — Blackbody Star Colors & Dynamic PointLight Integration (Gemini 3.6 Flash)
+- **Protostar Phase Thermal Colors (`src/simulation/phases/ProtostarPhase.ts`):** Integrated `colorTempToRGB(currentTemp)` updates into `ProtostarPhase` star surface material (`protostarMat.uniforms.uColor`) and disk basic material.
+- **Red Giant Phase Dynamic Cooling (`src/simulation/phases/RedGiantPhase.ts`):** Updated `RedGiantPhase` surface material (`redGiantMat.uniforms.uColor`) and flare material (`flareMat.uniforms.uColor`) to update dynamically from `colorTempToRGB(effectiveTemp)`.
+- **Hero Star System & Dynamic PointLight (`src/rendering/systems/HeroStarSystem.ts`):** Passed `this.currentTemp` into `ProtostarPhase` and `RedGiantPhase` update calls; replaced crude hardcoded PointLight hex colors (0xff7733, 0xffaa44, 0x99ccff, etc.) with dynamic `colorTempToRGB(this.currentTemp, this.starLight.color)`.
+- **Verification:** `npm run typecheck` and `npm run build` executed successfully with 0 errors.
+
 ### 2026-08-02 — Section 3 Execution: Tasks 1 through 4 (Gemini CLI)
 - **Task 1 (Verification):** Verified AccretionDisk shader in `RemnantPhase.ts`, `colorTempToRGB` Planckian locus math in `src/physics/math.ts`, and spec-compliant GLSL shader calls.
 - **Task 2 (Volumetric Nebula & Jitter):** Upgraded volumetric nebula raymarching in `nebula.frag.glsl` to 24 steps (step size 0.1) with per-pixel start-offset jitter; updated `NebulaPhase.ts` to update `uInverseModelMatrix` unconditionally.
