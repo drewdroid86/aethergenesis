@@ -98,12 +98,12 @@ export function broadcastSimState(state: SimBroadcast, exclude?: WebSocket): voi
             if (client !== exclude && client.readyState === WebSocket.OPEN) {
                 try {
                     client.send(payload);
-                } catch (_err) {
+                } catch {
                     // Suppressed per rules
                 }
             }
         }
-    } catch (_err) {
+    } catch {
         // Suppressed JSON stringify/parse errors per rules
     }
 }
@@ -237,7 +237,7 @@ export function initWebSocketServer(server: http.Server, allowedOrigins: string[
                     handlers.forEach(handler => {
                         try {
                             handler(simEvent);
-                        } catch (_e) {
+                        } catch {
                             // Suppressed
                         }
                     });
@@ -248,13 +248,13 @@ export function initWebSocketServer(server: http.Server, allowedOrigins: string[
                         if (client !== ws && client.readyState === WebSocket.OPEN) {
                             try {
                                 client.send(eventPayload);
-                            } catch (_err) {
+                            } catch {
                                 // Suppressed
                             }
                         }
                     }
                 }
-            } catch (_err) {
+            } catch {
                 // Suppressed JSON stringify/parse errors per rules
             }
         });

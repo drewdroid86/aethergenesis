@@ -72,17 +72,7 @@ export function useSimulation(containerRef: React.RefObject<HTMLDivElement | nul
     const [isConstantsOpen, setIsConstantsOpen] = useState(false);
     const [isCatalogOpen, setIsCatalogOpen] = useState(false);
 
-    const loadStarPreset = useCallback((preset: any) => {
-        if (selectedStarRef.current && preset) {
-            if (preset.mass) selectedStarRef.current.mass = preset.mass;
-            if (preset.temperature) selectedStarRef.current.currentTemp = preset.temperature;
-        }
-        setIsCatalogOpen(false);
-    }, []);
 
-    const addBodyToSimulation = useCallback((_elements: any) => {
-        setIsCatalogOpen(false);
-    }, []);
 
     // HUD & UI Refs
     const hudRefs = {
@@ -130,7 +120,6 @@ export function useSimulation(containerRef: React.RefObject<HTMLDivElement | nul
         selectedStar,
         setSelectedStar,
         selectedStarRef,
-        isScrubbingRef,
         centerOnStar,
         resetCamera,
         onScrubStart,
@@ -140,6 +129,18 @@ export function useSimulation(containerRef: React.RefObject<HTMLDivElement | nul
         engineRef,
         controlsRef
     });
+
+    const loadStarPreset = useCallback((preset: any) => {
+        if (selectedStarRef.current && preset) {
+            if (preset.mass) selectedStarRef.current.mass = preset.mass;
+            if (preset.temperature) selectedStarRef.current.currentTemp = preset.temperature;
+        }
+        setIsCatalogOpen(false);
+    }, [selectedStarRef]);
+
+    const addBodyToSimulation = useCallback((_elements: any) => {
+        setIsCatalogOpen(false);
+    }, []);
 
     const rebuildStarfieldGeometry = useCallback(() => {
         if (!engineRef.current || !engineRef.current.scene) return;

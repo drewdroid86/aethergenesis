@@ -1,12 +1,5 @@
 import test from 'node:test';
 import assert from 'node:assert';
-import WebSocket from 'ws';
-
-const PORT = process.env.PORT || '3001';
-const BASE_URL = `http://localhost:${PORT}`;
-const WS_URL = `ws://localhost:${PORT}`;
-const WS_TOKEN = process.env.WS_TOKEN || 'test_secret';
-
 // ==========================================
 // TIER 1: Feature Coverage
 // ==========================================
@@ -144,19 +137,16 @@ test('F2-T3-24: Discovery Slider "Comet Activity" Spawns Comets', () => {
 
 test('F2-T4-25: UI State Tuning Scenario', () => {
   // Simulate user switching from Discovery to Science mode to fine tune, and then back.
-  let uiMode = 'discovery';
   const sliders = { waterLevel: 0.8, stellarHeat: 0.5 };
   const physics = { G: 1.0, albedo: 0.3 };
 
   // 1. User switches to Science Mode
-  uiMode = 'science';
   
   // 2. User adjusts G and Albedo
   physics.G = 2.0;
   physics.albedo = 0.16; // reflective water-rich albedo
 
   // 3. User switches back to Discovery mode
-  uiMode = 'discovery';
 
   // Verify albedo change has updated the "Water Level" slider equivalent
   // albedo = 0.4 - waterLevel * 0.3 => waterLevel = (0.4 - albedo) / 0.3

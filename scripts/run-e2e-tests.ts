@@ -1,6 +1,4 @@
 import { spawn } from 'child_process';
-import { createServer } from 'http';
-import WebSocket from 'ws';
 
 const PORT = 3001;
 const HEALTH_URL = `http://localhost:${PORT}/health`;
@@ -17,7 +15,7 @@ async function isServerReady(): Promise<boolean> {
       const data = await res.json();
       return data.status === 'ok';
     }
-  } catch (err) {
+  } catch {
     // Ignore connection errors during startup
   }
   return false;

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { motion } from 'motion/react';
 import { Search, X, Sparkles, Database } from 'lucide-react';
 
@@ -63,7 +63,7 @@ export const CatalogPanel: React.FC<CatalogPanelProps> = ({
     };
 
     // Handle horizons fetch
-    const handleLoadHorizons = async () => {
+    const handleLoadHorizons = useCallback(async () => {
         setLoadingHorizons(true);
         try {
             const res = await fetch(`/api/horizons/search?type=${sbType}&limit=15`);
@@ -74,13 +74,13 @@ export const CatalogPanel: React.FC<CatalogPanelProps> = ({
         } finally {
             setLoadingHorizons(false);
         }
-    };
+    }, [sbType]);
 
     useEffect(() => {
         if (isOpen && activeTab === 'horizons') {
             handleLoadHorizons();
         }
-    }, [isOpen, activeTab, sbType]);
+    }, [isOpen, activeTab, handleLoadHorizons]);
 
     if (!isOpen) return null;
 

@@ -66,7 +66,7 @@ export class CosmicAudioEngine {
             this.lfo.start();
 
             this.initialized = true;
-        } catch (_err) {
+        } catch {
             // Suppressed audio init failure (e.g. headless environment)
         }
     }
@@ -112,7 +112,7 @@ export class CosmicAudioEngine {
             gain.connect(this.masterGain!);
             osc.start(now);
             osc.stop(now + 1.8);
-        } catch (_err) {
+        } catch {
             // Suppressed audio playback error
         }
     }
@@ -135,7 +135,7 @@ export class CosmicAudioEngine {
             gain.connect(this.masterGain!);
             osc.start(now);
             osc.stop(now + 0.05);
-        } catch (_err) {
+        } catch {
             // Suppressed audio playback error
         }
     }

@@ -102,7 +102,7 @@ Civilization: ${geminiData.civilization}`;
         setIsDragging(true);
         try {
             (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
-        } catch (_err) {
+        } catch {
             // Ignored
         }
         onScrubStart(e);
@@ -116,7 +116,7 @@ Civilization: ${geminiData.civilization}`;
         setIsDragging(false);
         try {
             (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId);
-        } catch (_err) {
+        } catch {
             // Ignored
         }
         onScrubEnd();
@@ -157,7 +157,7 @@ Civilization: ${geminiData.civilization}`;
             const data = await response.json() as GeminiAnalysisResult;
             setGeminiData(data);
             setAnalysisFailed(false);
-        } catch (_err) {
+        } catch {
             console.warn("Analysis unavailable - using predictive fallback.");
             setAnalysisFailed(true);
             setGeminiData({

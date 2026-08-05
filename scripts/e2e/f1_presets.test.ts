@@ -1,20 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert';
-import WebSocket from 'ws';
-
 const PORT = process.env.PORT || '3001';
 const BASE_URL = `http://localhost:${PORT}`;
-const WS_URL = `ws://localhost:${PORT}`;
-const WS_TOKEN = process.env.WS_TOKEN || 'test_secret';
-
-// Helper to wait for a WebSocket connection to open
-function connectWebSocket(token: string): Promise<WebSocket> {
-  return new Promise((resolve, reject) => {
-    const ws = new WebSocket(WS_URL, token);
-    ws.on('open', () => resolve(ws));
-    ws.on('error', (err) => reject(err));
-  });
-}
 
 // ==========================================
 // TIER 1: Feature Coverage

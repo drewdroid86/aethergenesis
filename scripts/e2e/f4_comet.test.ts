@@ -316,7 +316,7 @@ test('F4-T4-49: Complete Cosmic Lifecycle Integration Workload', () => {
   assert.ok(planetState.biomass > 0, 'Volatile water comet seeding must spawn life');
 
   // 6. Force supernova transition (age = 11 Gyr, initial mass changed to high mass)
-  const giantStar = createStellarState('hero_star', 15.0, 0.02, 1.2e7); // high mass MS lifetime is short (~11 Myr)
+  createStellarState('hero_star', 15.0, 0.02, 1.2e7); // high mass MS lifetime is short (~11 Myr)
   const deadStar = createStellarState('hero_star', 15.0, 0.02, 1.6e7); // remnant age
   
   assert.ok(deadStar.phase === 'remnant' || deadStar.phase === 'supernova');

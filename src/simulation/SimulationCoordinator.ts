@@ -1,6 +1,6 @@
 import { Engine } from '../core/engine';
 import { AstrobiologyEngine, HabitabilityState } from './AstrobiologyEngine';
-import { computeSpectralClass, SpectralClass, StellarPhase, StellarState } from './StellarPhysics';
+import { computeSpectralClass, SpectralClass, StellarPhase } from './StellarPhysics';
 
 export interface StellarStateData {
     id: string;
@@ -65,7 +65,7 @@ export class SimulationCoordinator {
         };
     }
 
-    private handleTick(delta: number, appTime: number) {
+    private handleTick(delta: number, _appTime: number) {
         const currentTime = performance.now();
         
         // Notify playhead tick

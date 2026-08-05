@@ -566,7 +566,7 @@ export class HeroStarSystem extends THREE.Group {
         }
     }
 
-    dispose(renderer?: THREE.WebGLRenderer) {
+    dispose(_renderer?: THREE.WebGLRenderer) {
         this._nebulaPhase?.dispose();
         this._protostarPhase?.dispose();
         this._mainSequencePhase?.dispose();

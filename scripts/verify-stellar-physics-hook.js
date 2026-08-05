@@ -21,7 +21,7 @@ try {
       }
     }
   }
-} catch (err) {
+} catch {
   // If stdin read fails or is not a pipe (e.g., manual execution), continue running full verification
 }
 
@@ -66,7 +66,7 @@ try {
     stdio: 'inherit'
   });
   console.log('✅ Typecheck Passed (tsc --noEmit).');
-} catch (err) {
+} catch {
   console.error('❌ TYPECHECK FAILED: tsc --noEmit reported errors.');
   process.exit(1);
 }
