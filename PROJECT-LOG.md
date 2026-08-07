@@ -23,6 +23,9 @@ This log is updated after every AI session. Each AI signs off with their entry. 
 
 ## RECENT LOGS
 
+### 2026-08-07 — Engine Stellar State Unification (Gemini 3.6 Flash)
+Replaced `Engine.stellarState` with a dynamic `getStellarState()` getter that synthesizes a `StellarState` view from `this.selectedStar || this.heroStars[0]` on read. Updated `forceSupernova()` and `advanceTime()` in `src/core/engine.ts` to mutate the active star directly (`mass`, `t`, `currentRealAge`), feeding `CometSystem` via the synthesized getter. Cleaned up `src/utils/hooks/useWebSocket.ts` to remove redundant star property mutations and delegate directly to `Engine` methods. Phase calculation functions in `HeroStarSystem.ts` and `StellarPhysics.ts` were intentionally preserved unchanged.
+
 ### 2026-08-04 — Blackbody Star Colors & Dynamic PointLight Integration (Gemini 3.6 Flash)
 - **Protostar Phase Thermal Colors (`src/simulation/phases/ProtostarPhase.ts`):** Integrated `colorTempToRGB(currentTemp)` updates into `ProtostarPhase` star surface material (`protostarMat.uniforms.uColor`) and disk basic material.
 - **Red Giant Phase Dynamic Cooling (`src/simulation/phases/RedGiantPhase.ts`):** Updated `RedGiantPhase` surface material (`redGiantMat.uniforms.uColor`) and flare material (`flareMat.uniforms.uColor`) to update dynamically from `colorTempToRGB(effectiveTemp)`.

@@ -7,6 +7,7 @@ import { AsteroidBeltSystem } from '../rendering/systems/AsteroidBeltSystem';
 import { detectPerformanceTier, getNumStarsForTier } from '../utils/performance';
 import { Pipeline } from '../rendering/pipeline';
 import { createStellarState, advanceStellarState, StellarState, PhaseTransitionEvent, computeMainSequenceLifetime } from '../simulation/StellarPhysics';
+import { STELLAR_CONSTANTS } from './constants';
 import { PlanetarySystemQueue } from '../rendering/systems/PlanetarySystem';
 
 
@@ -29,7 +30,6 @@ export class Engine {
     highestKardashevTier: number = 0;
     isPaused: boolean = false;
     container: HTMLElement;
-    private stellarState: StellarState;
     private phaseTransitionLog: PhaseTransitionEvent[] = [];
 
     // Decoupled Simulation States
@@ -84,29 +84,43 @@ export class Engine {
         }
     }
 
-    getStellarState() { return this.stellarState; }
+    getStellarState(): StellarState {
+        const star = this.selectedStar || this.heroStars[0];
+        if (star) {
+            return createStellarState(
+                star.physicsId,
+                star.mass,
+                0.02,
+                star.currentRealAge * 1e6
+            );
+        }
+        return createStellarState('hero_star', 1.0, 0.02, 0);
+    }
     getPhaseHistory() { return this.phaseTransitionLog; }
 
     forceSupernova() {
-        // Ensure mass > 8 so supernova can physically occur, and set age exactly past main sequence lifetime
-        const currentMass = this.stellarState.initialMass_solar;
-        const mass = Math.max(currentMass, 8.1); 
-        const tau_ms = computeMainSequenceLifetime(mass);
+        const star = this.selectedStar || this.heroStars[0];
+        if (!star) return;
+
+        // Ensure mass >= 8.1 so supernova can physically occur
+        const mass = Math.max(star.mass, 8.1);
+        star.mass = mass;
+        star.lifespanReal = computeMainSequenceLifetime(mass) / 1e6;
+        star.baseRadius = Math.pow(mass, 0.8) * 0.8;
         
-        this.stellarState = createStellarState(
-            this.stellarState.id,
-            mass,
-            this.stellarState.metallicity_Z,
-            tau_ms * 1.21 // Advance age past red giant phase to immediately trigger supernova phase
-        );
+        // Advance normalized timeline progress t to supernova phase start
+        star.t = STELLAR_CONSTANTS.PHASE_BOUNDARIES.SUPERNOVA_START + 0.01;
+        star.currentRealAge = star.t * star.lifespanReal;
     }
 
     advanceTime(years: number) {
-        const result = advanceStellarState(this.stellarState, years);
-        this.stellarState = result.state;
-        if (result.event) {
-            this.phaseTransitionLog.push(result.event);
-            if (this.phaseTransitionLog.length > 50) this.phaseTransitionLog.shift();
+        const star = this.selectedStar || this.heroStars[0];
+        if (!star) return;
+
+        const deltaMyr = years / 1e6;
+        star.currentRealAge += deltaMyr;
+        if (star.lifespanReal > 0) {
+            star.t = star.currentRealAge / star.lifespanReal;
         }
     }
 
@@ -133,7 +147,6 @@ export class Engine {
 
     constructor(container: HTMLElement) {
         this.container = container;
-        this.stellarState = createStellarState('hero_star', 1.0, 0.02, 0);
         this.scene = new THREE.Scene();
         const ambientLight = new THREE.AmbientLight(0xffffff, 0.05);
         this.scene.add(ambientLight);
@@ -404,16 +417,8 @@ export class Engine {
         if (!this.isPaused && !isScrubbing) {
             const deltaTime_yr = timeScale === 'cosmic' ? delta * 200000000 : delta * 1000;
             try {
-                const result = advanceStellarState(this.stellarState, deltaTime_yr);
-                this.stellarState = result.state;
-                if (result.event) {
-                    this.phaseTransitionLog.push(result.event);
-                    if (this.phaseTransitionLog.length > 50) {
-                        this.phaseTransitionLog.shift();
-                    }
-                }
                 const targetStarPos = this.selectedStar?.position || this.heroStars[0]?.position;
-                this.cometSystem.update(deltaTime_yr, this.stellarState, this.appTime, targetStarPos);
+                this.cometSystem.update(deltaTime_yr, this.getStellarState(), this.appTime, targetStarPos);
                 this.dysonSwarmSystem.update(this.highestKardashevTier, this.appTime, targetStarPos);
                 this.asteroidBeltSystem.update(this.appTime, targetStarPos);
             } catch (error) {

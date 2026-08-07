@@ -42,13 +42,11 @@ export function useWebSocket({ engineRef, selectedStarRef }: UseWebSocketProps) 
                     const msg = JSON.parse(event.data);
                     if (msg.type === 'event') {
                         console.log('Received event command from WS:', msg);
-                        if (msg.event === 'force_supernova' && selectedStarRef.current) {
-                            selectedStarRef.current.t = 0.88;
+                        if (msg.event === 'force_supernova') {
                             if (engineRef.current) engineRef.current.forceSupernova();
                         } else if (msg.event === 'reset') {
                             window.location.reload();
-                        } else if (msg.event === 'advance_1gyr' && selectedStarRef.current) {
-                            selectedStarRef.current.currentRealAge += 1000;
+                        } else if (msg.event === 'advance_1gyr') {
                             if (engineRef.current) engineRef.current.advanceTime(1e9);
                         }
                     }
