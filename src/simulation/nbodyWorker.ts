@@ -7,6 +7,7 @@ let isRunning = false;
 const softeningSq = 0.0001; // small softening for N-body
 let dt_yr = 1.0 / 365.25; // default 1 day step
 let tickTimeout: any = null;
+let dtAccumulator = 0;
 
 // BOLT: Persistent buffers for zero-allocation
 let accelBuffer = new Float32Array(0);
@@ -26,6 +27,7 @@ self.onmessage = (e) => {
         centralMass_solar = payload.centralMass_solar || 1.0;
         dt_yr = payload.dt_yr || (1.0 / 365.25);
         accelsValid = false; // BOLT: Reset cache on re-init
+        dtAccumulator = 0;
         const shouldRun = payload.isRunning !== undefined ? payload.isRunning : true;
         isRunning = shouldRun;
         if (isRunning && !tickTimeout) {
@@ -43,6 +45,7 @@ self.onmessage = (e) => {
         if (!isRunning && tickTimeout) {
             clearTimeout(tickTimeout);
             tickTimeout = null;
+            dtAccumulator = 0;
         } else if (isRunning && !tickTimeout) {
             physicsTick();
         }
@@ -200,13 +203,23 @@ function physicsTick() {
         accelsValid = false;
     }
 
-    // Clamp input timestep to prevent unbounded simulation jumps after tab stalls
-    const safeDt = Math.min(dt_yr, MAX_PHYSICS_DT * MAX_SUBSTEPS);
-    const steps = Math.min(Math.max(1, Math.ceil(safeDt / MAX_PHYSICS_DT)), MAX_SUBSTEPS);
-    const subDt = safeDt / steps;
+    // Accumulate requested timestep and consume in fixed MAX_PHYSICS_DT chunks.
+    // Cap accumulator at 5x max batch size (0.64 yr) to prevent unbounded accumulation on long tab stalls.
+    dtAccumulator += dt_yr;
+    dtAccumulator = Math.min(dtAccumulator, MAX_PHYSICS_DT * MAX_SUBSTEPS * 5);
 
-    for (let step = 0; step < steps; step++) {
-        integrate(subDt);
+    let steps = 0;
+    while (dtAccumulator >= MAX_PHYSICS_DT && steps < MAX_SUBSTEPS) {
+        integrate(MAX_PHYSICS_DT);
+        dtAccumulator -= MAX_PHYSICS_DT;
+        steps++;
+    }
+
+    // If accumulator has a non-zero residual smaller than MAX_PHYSICS_DT and no full step ran,
+    // execute a single micro-step for low-framerate responsiveness when dt_yr < MAX_PHYSICS_DT
+    if (steps === 0 && dtAccumulator > 0) {
+        integrate(dtAccumulator);
+        dtAccumulator = 0;
     }
 
     // Pack state for rendering main thread

@@ -128,16 +128,24 @@ src/
 
 ---
 
+### fix/nbody-dt-accumulator — Persistent Timestep Accumulator in N-Body Solver
+**Date:** August 7, 2026
+**AI:** Antigravity (Gemini 3.6 Flash)
+**Branch:** fix/nbody-dt-accumulator
+
+**Changes:**
+- **Persistent `dtAccumulator` (`src/simulation/nbodyWorker.ts`)**: Added worker-scoped `dtAccumulator` variable to accumulate requested physics timesteps (`dtAccumulator += dt_yr`) without discarding timesteps exceeding `MAX_PHYSICS_DT * MAX_SUBSTEPS`. Consumes up to `MAX_SUBSTEPS` fixed steps of `MAX_PHYSICS_DT` per tick and carries the remainder forward, eliminating orbital phase drift and time loss.
+- **Worker Reset Safety (`src/simulation/nbodyWorker.ts`)**: Cleared `dtAccumulator = 0` on `INIT` re-initialization and `SET_RUNNING` pause events to prevent stale accumulated steps.
+- **Verification:** `npm run typecheck`, `npm run build`, and `npm test` (49/49 E2E tests) executed successfully with zero errors.
+
+---
+
 ### fix/unify-luminosity-exponent — Mass-Luminosity Function Unification
 **Date:** August 7, 2026
 **AI:** Antigravity (Gemini 3.6 Flash)
 **Branch:** fix/unify-luminosity-exponent
 
-**Changes:**
-- **Mass-Luminosity Standard (`src/simulation/StellarPhysics.ts`)**: Confirmed `computeLuminosity(mass_solar)` as single source of truth for stellar luminosity ($M^{4.0}$ for $M > 0.43 M_\odot$ and $0.23 M^{2.3}$ for $M \le 0.43 M_\odot$).
-- **Phase Component Unification (`src/simulation/phases/MainSequencePhase.ts`, `src/simulation/phases/RedGiantPhase.ts`)**: Replaced duplicate `Math.pow(mass, STELLAR_CONSTANTS.PHYSICS.MASS_LUMINOSITY_EXPONENT)` in `MainSequencePhase.ts` and `RedGiantPhase.ts` with `computeLuminosity(...)`. Confirmed `RedGiantPhase` uses `computeLuminosity(mass) * (1.0 + normT * 5.0)` to scale base main-sequence luminosity during giant expansion.
-- **Dead Constant Cleanup (`src/core/constants.ts`)**: Confirmed zero remaining references to `MASS_LUMINOSITY_EXPONENT` across codebase and removed it from `STELLAR_CONSTANTS.PHYSICS`.
-- **Verification:** `npm run typecheck`, `npm run build`, and `npm test` (49/49 E2E tests) executed successfully with zero errors.
+Unified all stellar luminosity calculations across `MainSequencePhase.ts` and `RedGiantPhase.ts` under `computeLuminosity(mass_solar)` in `StellarPhysics.ts` ($M^{4.0}$ for $M > 0.43 M_\odot$ and $0.23 M^{2.3}$ for $M \le 0.43 M_\odot$). Removed the dead `MASS_LUMINOSITY_EXPONENT: 3.5` constant from `constants.ts`. All 49/49 E2E tests, typecheck, and build passed cleanly.
 
 ---
 
