@@ -73,7 +73,7 @@ export function computeMainSequenceLifetime(mass_solar: number): number {
 /**
  * Compute stellar luminosity from mass using the mass-luminosity relation.
  *
- * For M > 0.43 M☉:  L = M^4.0    (Eddington 1924)
+ * For M > 0.43 M☉:  L = M^3.5  (Eddington 1924 / Standard Mass-Luminosity)
  * For M ≤ 0.43 M☉:  L = 0.23 × M^2.3  (Kroupa 2001)
  *
  * The break at 0.43 M☉ accounts for the transition to fully convective

@@ -6,6 +6,7 @@ import { GEOMETRIES } from './geometries';
 import { STELLAR_CONSTANTS } from '../../core/constants';
 import { phaseCounters } from '../../utils/performance';
 import { colorTempToRGB } from '../../physics/math';
+import { computeLuminosity } from '../StellarPhysics';
 
 export interface PlanetInfo {
     pivot: THREE.Group;
@@ -184,7 +185,7 @@ export class MainSequencePhase implements PhaseComponent {
         this.parent.add(this.mainSeqGroup);
 
         // Habitable Zone
-        const lum = Math.pow(this.mass, STELLAR_CONSTANTS.PHYSICS.MASS_LUMINOSITY_EXPONENT);
+        const lum = computeLuminosity(this.mass);
         const hzRadius = Math.max(STELLAR_CONSTANTS.VISUALS.HZ_RADIUS_BASE, Math.sqrt(lum) * STELLAR_CONSTANTS.VISUALS.HZ_LUM_FACTOR);
         const hzMat = new THREE.MeshBasicMaterial({ 
             color: 0x00ff88, 

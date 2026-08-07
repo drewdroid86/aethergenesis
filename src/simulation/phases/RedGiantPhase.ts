@@ -7,6 +7,7 @@ import { PlanetInfo } from './MainSequencePhase';
 import { STELLAR_CONSTANTS } from '../../core/constants';
 import { phaseCounters } from '../../utils/performance';
 import { colorTempToRGB } from '../../physics/math';
+import { computeLuminosity } from '../StellarPhysics';
 
 export class RedGiantPhase implements PhaseComponent {
     public redGiantGroup!: THREE.Group;
@@ -153,7 +154,7 @@ export class RedGiantPhase implements PhaseComponent {
 
     getCurrentLum(t: number, mass: number): number {
         const normT = (t - STELLAR_CONSTANTS.PHASE_BOUNDARIES.RED_GIANT_START) / STELLAR_CONSTANTS.PHASE_BOUNDARIES.RED_GIANT_DURATION;
-        return Math.pow(mass, STELLAR_CONSTANTS.PHYSICS.MASS_LUMINOSITY_EXPONENT) * (1.0 + normT * 5.0);
+        return computeLuminosity(mass) * (1.0 + normT * 5.0);
     }
 
     setOpacity(opacity: number): void {

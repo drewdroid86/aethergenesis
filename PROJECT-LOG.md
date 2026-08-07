@@ -128,6 +128,19 @@ src/
 
 ---
 
+### fix/unify-luminosity-exponent — Mass-Luminosity Function Unification
+**Date:** August 7, 2026
+**AI:** Antigravity (Gemini 3.6 Flash)
+**Branch:** fix/unify-luminosity-exponent
+
+**Changes:**
+- **Mass-Luminosity Standard (`src/simulation/StellarPhysics.ts`)**: Confirmed `computeLuminosity(mass_solar)` as single source of truth for stellar luminosity ($M^{4.0}$ for $M > 0.43 M_\odot$ and $0.23 M^{2.3}$ for $M \le 0.43 M_\odot$).
+- **Phase Component Unification (`src/simulation/phases/MainSequencePhase.ts`, `src/simulation/phases/RedGiantPhase.ts`)**: Replaced duplicate `Math.pow(mass, STELLAR_CONSTANTS.PHYSICS.MASS_LUMINOSITY_EXPONENT)` in `MainSequencePhase.ts` and `RedGiantPhase.ts` with `computeLuminosity(...)`. Confirmed `RedGiantPhase` uses `computeLuminosity(mass) * (1.0 + normT * 5.0)` to scale base main-sequence luminosity during giant expansion.
+- **Dead Constant Cleanup (`src/core/constants.ts`)**: Confirmed zero remaining references to `MASS_LUMINOSITY_EXPONENT` across codebase and removed it from `STELLAR_CONSTANTS.PHYSICS`.
+- **Verification:** `npm run typecheck`, `npm run build`, and `npm test` (49/49 E2E tests) executed successfully with zero errors.
+
+---
+
 ### fix/nbody-pause-sync — N-Body Worker Pause Sync & Orbital Motion Freezing
 **Date:** August 7, 2026
 **AI:** Antigravity (Gemini 3.6 Flash)
