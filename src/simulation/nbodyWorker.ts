@@ -26,16 +26,24 @@ self.onmessage = (e) => {
         centralMass_solar = payload.centralMass_solar || 1.0;
         dt_yr = payload.dt_yr || (1.0 / 365.25);
         accelsValid = false; // BOLT: Reset cache on re-init
-        if (!isRunning) {
-            isRunning = true;
+        const shouldRun = payload.isRunning !== undefined ? payload.isRunning : true;
+        isRunning = shouldRun;
+        if (isRunning && !tickTimeout) {
             physicsTick();
+        } else if (!isRunning && tickTimeout) {
+            clearTimeout(tickTimeout);
+            tickTimeout = null;
         }
     } else if (type === 'ADD_BODY') {
         bodies.push(payload.body);
         accelsValid = false; // BOLT: Invalidate cache when body added
     } else if (type === 'SET_RUNNING') {
-        isRunning = payload.isRunning;
-        if (isRunning && !tickTimeout) {
+        const nextRunning = payload.isRunning !== undefined ? payload.isRunning : payload.running;
+        isRunning = Boolean(nextRunning);
+        if (!isRunning && tickTimeout) {
+            clearTimeout(tickTimeout);
+            tickTimeout = null;
+        } else if (isRunning && !tickTimeout) {
             physicsTick();
         }
     } else if (type === 'UPDATE_TIMESTEP') {

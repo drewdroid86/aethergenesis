@@ -26,6 +26,12 @@ export function useSimulation(containerRef: React.RefObject<HTMLDivElement | nul
     useEffect(() => { 
         isPausedRef.current = isPaused; 
         if (engineRef.current) engineRef.current.isPaused = isPaused;
+        if (nbodyWorkerRef.current) {
+            nbodyWorkerRef.current.postMessage({
+                type: 'SET_RUNNING',
+                payload: { running: !isPaused, isRunning: !isPaused }
+            });
+        }
     }, [isPaused]);
     const [fatalError, setFatalError] = useState<string | null>(null);
 
@@ -330,7 +336,8 @@ export function useSimulation(containerRef: React.RefObject<HTMLDivElement | nul
                     payload: {
                         bodies: [earth, jupiter, halley],
                         centralMass_solar: centralMass,
-                        dt_yr: 0.05
+                        dt_yr: 0.05,
+                        isRunning: !isPausedRef.current
                     }
                 });
             }

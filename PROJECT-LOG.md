@@ -128,6 +128,18 @@ src/
 
 ---
 
+### fix/nbody-pause-sync — N-Body Worker Pause Sync & Orbital Motion Freezing
+**Date:** August 7, 2026
+**AI:** Antigravity (Gemini 3.6 Flash)
+**Branch:** fix/nbody-pause-sync
+
+**Changes:**
+- **N-Body Pause State Synchronization (`src/utils/hooks/useSimulation.ts`)**: Wired `isPaused` state changes to post `{ type: 'SET_RUNNING', payload: { isRunning: !isPaused } }` messages directly to `nbodyWorkerRef`. Passed `isRunning: !isPausedRef.current` in worker initialization `INIT` payload.
+- **Worker Loop & Timer Safety (`src/simulation/nbodyWorker.ts`)**: Updated `nbodyWorker.ts` onmessage handlers (`INIT` and `SET_RUNNING`) to respect pause state, clearing any active `tickTimeout` (`clearTimeout(tickTimeout)`) when paused to prevent trailing physics updates during paused simulation states.
+- **Verification:** `npm run typecheck`, `npm run build`, and `npm test` (49/49 E2E tests) executed successfully with zero errors.
+
+---
+
 ### chore/pr-review-automation — Automated PR Code Review & Compliance Engine
 **Date:** July 24, 2026
 **AI:** Antigravity (Gemini 3.6 Flash)
