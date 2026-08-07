@@ -6,7 +6,7 @@ import { DysonSwarmSystem } from '../rendering/systems/DysonSwarmSystem';
 import { AsteroidBeltSystem } from '../rendering/systems/AsteroidBeltSystem';
 import { detectPerformanceTier, getNumStarsForTier } from '../utils/performance';
 import { Pipeline } from '../rendering/pipeline';
-import { createStellarState, advanceStellarState, StellarState, PhaseTransitionEvent, computeMainSequenceLifetime } from '../simulation/StellarPhysics';
+import { createStellarState, StellarState, PhaseTransitionEvent, computeMainSequenceLifetime } from '../simulation/StellarPhysics';
 import { STELLAR_CONSTANTS } from './constants';
 import { PlanetarySystemQueue } from '../rendering/systems/PlanetarySystem';
 
