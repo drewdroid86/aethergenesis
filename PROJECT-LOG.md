@@ -23,6 +23,10 @@ This log is updated after every AI session. Each AI signs off with their entry. 
 
 ## RECENT LOGS
 
+### 2026-08-08 — PlanetarySystem Orbit Line Geometry Disposal Fix (Gemini 3.6 Flash)
+- **Geometry & Material Memory Cleanup (`src/rendering/systems/PlanetarySystem.ts`):** Fixed `dispose()` in `PlanetarySystem` to iterate over all children in `orbitLinesGroup`, disposing each `LineLoop`'s individual `BufferGeometry`, disposing `orbitLineMat` (LineBasicMaterial), and clearing `orbitLinesGroup.children`. Retained existing `material.dispose()` and cloned `instancedMesh.geometry.dispose()` intact.
+- **Verification:** Verified memory lifecycle across 20 repeated create/dispose cycles with multiple orbiting bodies; confirmed `renderer.info.memory.geometries` returned from 9 active geometries to exact baseline (0). `npm run typecheck`, `npm run build`, and all 49/49 E2E test suites passed with zero errors.
+
 ### 2026-08-07 — Engine Stellar State Unification (Gemini 3.6 Flash)
 Replaced `Engine.stellarState` with a dynamic `getStellarState()` getter that synthesizes a `StellarState` view from `this.selectedStar || this.heroStars[0]` on read. Updated `forceSupernova()` and `advanceTime()` in `src/core/engine.ts` to mutate the active star directly (`mass`, `t`, `currentRealAge`), feeding `CometSystem` via the synthesized getter. Cleaned up `src/utils/hooks/useWebSocket.ts` to remove redundant star property mutations and delegate directly to `Engine` methods. Phase calculation functions in `HeroStarSystem.ts` and `StellarPhysics.ts` were intentionally preserved unchanged.
 

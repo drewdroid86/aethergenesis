@@ -359,6 +359,15 @@ export class PlanetarySystem {
         this.material.dispose();
         // BOLT: Cloned geometry must be disposed to avoid memory leaks
         this.instancedMesh.geometry.dispose();
+
+        for (const child of this.orbitLinesGroup.children) {
+            if (child instanceof THREE.LineLoop && child.geometry) {
+                child.geometry.dispose();
+            }
+        }
+        this.orbitLineMat.dispose();
+        this.orbitLinesGroup.clear();
+
         if (this.parent) {
             this.parent.remove(this.group);
         }
