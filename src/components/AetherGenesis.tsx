@@ -54,7 +54,7 @@ export function AetherGenesis() {
 
   if (fatalError) {
     return (
-      <div className="relative w-full h-screen bg-[#020205] overflow-hidden flex flex-col items-center justify-center font-sans text-white select-none p-6">
+      <div className="relative w-full h-dvh bg-[#020205] overflow-hidden flex flex-col items-center justify-center font-sans text-white select-none p-6">
         <div className="max-w-md w-full border border-red-500/40 bg-red-950/40 rounded-lg p-6 shadow-lg">
           <h1 className="text-lg font-semibold text-red-300 mb-2">Simulation failed to start</h1>
           <p className="text-sm text-red-100/90 break-words mb-4">{fatalError}</p>
@@ -71,7 +71,7 @@ export function AetherGenesis() {
   }
 
   return (
-    <div className="relative w-full h-screen bg-[#020205] overflow-hidden flex flex-col font-sans text-white select-none">
+    <div className="relative w-full h-dvh bg-[#020205] overflow-hidden flex flex-col font-sans text-white select-none">
       <div ref={mountRef} className="absolute inset-0 cursor-crosshair z-0" />
       
       <Hud 

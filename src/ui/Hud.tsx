@@ -417,7 +417,7 @@ export const Hud: React.FC<HudProps> = ({
             )}
 
             {/* Bottom HUD */}
-            <div className="absolute bottom-0 w-full p-8 flex justify-between items-end z-20 pointer-events-none">
+            <div className="absolute bottom-0 w-full p-8 pb-[max(2rem,env(safe-area-inset-bottom))] flex justify-between items-end z-20 pointer-events-none">
                 <div className="font-mono text-[10px] text-[#7EB8FF]/60 space-y-1 border-l border-[#C084FC]/50 pl-4 bg-[rgba(8,8,20,0.4)] backdrop-blur-md py-3 pr-4 rounded-r border-y-0 border-r-0 pointer-events-auto group/telemetry" tabIndex={-1}>
                 <div className="flex items-center justify-between gap-4 mb-2 pb-1 border-b border-[rgba(126,184,255,0.2)]">
                     <div className="flex items-center gap-2">

@@ -23,6 +23,12 @@ This log is updated after every AI session. Each AI signs off with their entry. 
 
 ## RECENT LOGS
 
+### 2026-08-15 — Safe-Area & Dynamic Viewport Inset Handling (Gemini 3.7 Flash)
+- **Viewport Meta (`index.html`):** Added `viewport-fit=cover` to `<meta name="viewport">` tag to enable `env(safe-area-inset-*)` resolution on mobile devices.
+- **Dynamic Viewport Height (`src/App.tsx`, `src/components/AetherGenesis.tsx`):** Replaced `h-screen` (`100vh`) with `h-dvh` across application wrappers and error fallback containers to prevent mobile address-bar jump/clipping.
+- **Safe-Area Bottom Inset (`src/ui/Hud.tsx`):** Added `pb-[max(2rem,env(safe-area-inset-bottom))]` to the bottom HUD container to ensure telemetry, timescale/cosmic age sliders, and action buttons remain clear of home indicators/navigation bars.
+- **Verification:** `npm run typecheck`, `npm run build`, `npm run lint`, and all 49/49 E2E test suites passed with 0 errors.
+
 ### 2026-08-08 — PlanetarySystem Orbit Line Geometry Disposal Fix (Gemini 3.6 Flash)
 - **Geometry & Material Memory Cleanup (`src/rendering/systems/PlanetarySystem.ts`):** Fixed `dispose()` in `PlanetarySystem` to iterate over all children in `orbitLinesGroup`, disposing each `LineLoop`'s individual `BufferGeometry`, disposing `orbitLineMat` (LineBasicMaterial), and clearing `orbitLinesGroup.children`. Retained existing `material.dispose()` and cloned `instancedMesh.geometry.dispose()` intact.
 - **Verification:** Verified memory lifecycle across 20 repeated create/dispose cycles with multiple orbiting bodies; confirmed `renderer.info.memory.geometries` returned from 9 active geometries to exact baseline (0). `npm run typecheck`, `npm run build`, and all 49/49 E2E test suites passed with zero errors.
