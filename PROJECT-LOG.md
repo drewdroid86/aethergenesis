@@ -23,6 +23,11 @@ This log is updated after every AI session. Each AI signs off with their entry. 
 
 ## RECENT LOGS
 
+### 2026-08-15 — Main Sequence Atmospheric Corona & Halo Shading Fix (Gemini 3.7 Flash)
+- **Fresnel Corona Integration (`src/simulation/phases/MainSequencePhase.ts`):** Attached `coronaMesh` (Fresnel rim-light `ShaderMaterial` with `THREE.BackSide`) directly to `mainSeqGroup`. Cleaned up the redundant unused `MeshBasicMaterial` corona layer. Corrected BackSide Fresnel normal direction in the GLSL fragment shader (`-normalize(vNormal)`) for accurate atmospheric rim falloff.
+- **Dynamic Halo & Thermal Spectrum:** Wired `colorTempToRGB` continuous blackbody color updates to `_coronaMat` and `_haloMat` in `update()`, and wired opacity scaling to `_haloMat` in `setOpacity()`. Added `instanceMatrix.needsUpdate` flag to `flareMesh` and guarded `hzMesh.visible` with `mainSeqGroup.visible`.
+- **Verification:** Audited and verified by `code-reviewer` and `claim-verifier` subagents. `npm run typecheck`, `npm run build`, `npm run lint`, and all 49/49 E2E tests passed with 0 errors.
+
 ### 2026-08-15 — Supernova & UI Audio Triggers Wiring (Gemini 3.7 Flash)
 - **Supernova Sound Trigger (`src/rendering/systems/HeroStarSystem.ts`):** Wired `audioEngine.playSupernovaSound()` to trigger when `supernovaPhase.isFlashing` transitions to `true` with edge-detection via `_wasSupernovaFlashing` to prevent redundant per-frame playback.
 - **UI Click SFX (`src/ui/Hud.tsx`):** Added `audioEngine.playUiClick()` to all 13 interactive button onClick handlers in the HUD (Universe ID copy, Location coordinates copy, Share Universe URL copy, Diagnostics panel toggle & resets, Timescale toggles, Cosmic play/pause, Audio mute toggle, Catalog search, Camera reset, and Star focus).

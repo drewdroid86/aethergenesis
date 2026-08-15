@@ -35,8 +35,6 @@ export class MainSequencePhase implements PhaseComponent {
 
     private _haloMat?: THREE.Material;
     private _coronaMat?: THREE.ShaderMaterial;
-    private _coronaMesh?: THREE.Mesh;
-    private _coronaGeo?: THREE.BufferGeometry;
 
     private initialized = false;
 
@@ -83,10 +81,6 @@ export class MainSequencePhase implements PhaseComponent {
         this.starMesh = new THREE.Mesh(GEOMETRIES.mainSeq, this.starMat);
         this.starMesh.scale.setScalar(this.baseRadius); // BOLT: Set scale once
 
-        const coronaMeshMat = new THREE.MeshBasicMaterial({ color: msColor, transparent: true, opacity: 0, blending: THREE.AdditiveBlending });
-        coronaMeshMat.name = 'MainSequenceCoronaMeshMaterial';
-        this.coronaMesh = new THREE.Mesh(GEOMETRIES.corona, coronaMeshMat);
-
         const haloMat = new THREE.MeshBasicMaterial({ color: msColor, transparent: true, opacity: 0.1, side: THREE.BackSide, blending: THREE.AdditiveBlending });
         haloMat.name = 'MainSequenceHaloMeshMaterial';
         const haloMesh = new THREE.Mesh(GEOMETRIES.mainSeq, haloMat);
@@ -98,7 +92,7 @@ export class MainSequencePhase implements PhaseComponent {
         // Atmospheric corona glow
         const coronaMat = new THREE.ShaderMaterial({
             uniforms: {
-                uColor: { value: new THREE.Color().setHSL(0.1, 1.0, 0.7) },
+                uColor: { value: new THREE.Color(msColor) },
                 uOpacity: { value: 0.0 }
             },
             vertexShader: `
@@ -117,7 +111,7 @@ export class MainSequencePhase implements PhaseComponent {
                 varying vec3 vWorldPos;
                 void main() {
                     vec3 viewDir = normalize(cameraPosition - vWorldPos);
-                    float rim = 1.0 - max(0.0, dot(normalize(vNormal), viewDir));
+                    float rim = 1.0 - max(0.0, dot(-normalize(vNormal), viewDir));
                     rim = pow(rim, 3.0);
                     gl_FragColor = vec4(uColor, rim * uOpacity * 0.6);
                 }
@@ -129,11 +123,11 @@ export class MainSequencePhase implements PhaseComponent {
         });
         coronaMat.name = 'MainSequenceCoronaShaderMaterial';
         coronaMat.customProgramCacheKey = () => 'main_sequence_corona_material';
-        const corona = new THREE.Mesh(GEOMETRIES.corona, coronaMat);
-        corona.scale.setScalar(this.baseRadius);
+        this.coronaMesh = new THREE.Mesh(GEOMETRIES.corona, coronaMat);
+        this.coronaMesh.scale.setScalar(this.baseRadius);
         this._coronaMat = coronaMat;
-        this._coronaMesh = corona;
         this.mainSeqGroup.add(haloMesh);
+        this.mainSeqGroup.add(this.coronaMesh);
         
         // Solar Flares
         const flareGeo = GEOMETRIES.flare;
@@ -180,6 +174,7 @@ export class MainSequencePhase implements PhaseComponent {
             matrix.scale(new THREE.Vector3(s * this.baseRadius, s * this.baseRadius, s * this.baseRadius));
             this.flareMesh.setMatrixAt(i, matrix);
         }
+        this.flareMesh.instanceMatrix.needsUpdate = true;
         this.mainSeqGroup.add(this.flareMesh);
         
         this.parent.add(this.mainSeqGroup);
@@ -217,6 +212,12 @@ export class MainSequencePhase implements PhaseComponent {
             if (this.flareMat) {
                 colorTempToRGB(currentTemp, this.flareMat.uniforms.uColor.value);
             }
+            if (this._coronaMat) {
+                colorTempToRGB(currentTemp, this._coronaMat.uniforms.uColor.value);
+            }
+            if (this._haloMat instanceof THREE.MeshBasicMaterial) {
+                colorTempToRGB(currentTemp, this._haloMat.color);
+            }
         }
 
         for (let i = 0; i < this.planetsInfo.length; i++) {
@@ -239,16 +240,18 @@ export class MainSequencePhase implements PhaseComponent {
         if (cameraPos) {
             const distSq = cameraPos.distanceToSquared(this.parent.position ?? _scratchPos);
             // BOLT: Use distanceToSquared for performance (35 * 35 = 1225)
-            if (this.hzMesh) this.hzMesh.visible = distSq < 1225;
+            if (this.hzMesh) this.hzMesh.visible = this.mainSeqGroup.visible && distSq < 1225;
         }
     }
 
     setOpacity(opacity: number): void {
         this.starMat.uniforms.uOpacity.value = opacity;
-        (this.coronaMesh.material as THREE.MeshBasicMaterial).opacity = opacity * 0.3;
         this.flareMat.uniforms.uOpacity.value = opacity * 0.8;
         if (this._coronaMat) {
             this._coronaMat.uniforms.uOpacity.value = opacity;
+        }
+        if (this._haloMat instanceof THREE.MeshBasicMaterial) {
+            this._haloMat.opacity = opacity * 0.1;
         }
     }
 
@@ -269,13 +272,13 @@ export class MainSequencePhase implements PhaseComponent {
     }
 
     dispose(): void {
+        if (!this.initialized) return;
         phaseCounters.disposals++;
         // BOLT: Star, corona, flares, and HZ use shared GEOMETRIES, do NOT dispose
         this.starMat.dispose();
         this.flareMat.dispose();
-        (this.coronaMesh.material as THREE.Material).dispose();
-        if (this._coronaMesh) {
-            (this._coronaMesh.material as THREE.Material).dispose();
+        if (this._coronaMat) {
+            this._coronaMat.dispose();
         }
         if (this._haloMat) {
             this._haloMat.dispose();
