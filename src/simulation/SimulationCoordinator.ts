@@ -229,6 +229,7 @@ export class SimulationCoordinator {
     public dispose(): void {
         this.onAstrobiologyUpdate = null;
         this.onTick = null;
+        this.wsClient = null;
         this.astrobiologyEngine.clearHistory();
     }
 }

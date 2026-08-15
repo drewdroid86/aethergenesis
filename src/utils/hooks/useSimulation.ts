@@ -21,6 +21,7 @@ export function useSimulation(containerRef: React.RefObject<HTMLDivElement | nul
     const engineRef = useRef<Engine | null>(null);
     const nebulaSystemRef = useRef<NebulaSystem | null>(null);
     const controlsRef = useRef<OrbitControls | null>(null);
+    const coordinatorRef = useRef<SimulationCoordinator | null>(null);
     const [isPaused, setIsPaused] = useState(false);
     const isPausedRef = useRef(isPaused);
     useEffect(() => { 
@@ -137,16 +138,58 @@ export function useSimulation(containerRef: React.RefObject<HTMLDivElement | nul
     });
 
     const loadStarPreset = useCallback((preset: any) => {
-        if (selectedStarRef.current && preset) {
-            if (preset.mass) selectedStarRef.current.mass = preset.mass;
-            if (preset.temperature) selectedStarRef.current.currentTemp = preset.temperature;
-        }
         setIsCatalogOpen(false);
+        if (!preset) return;
+        const star = selectedStarRef.current || engineRef.current?.heroStars[0];
+        if (star) {
+            star.applyPreset(preset, engineRef.current?.renderer);
+            if (coordinatorRef.current) {
+                coordinatorRef.current.clearHistory(star.physicsId);
+            }
+        }
     }, [selectedStarRef]);
 
-    const addBodyToSimulation = useCallback((_elements: any) => {
+    const addBodyToSimulation = useCallback((elements: any) => {
         setIsCatalogOpen(false);
-    }, []);
+        if (!elements) return;
+
+        const centralMass = selectedStarRef.current?.mass || 1.0;
+        const eccentricity = Math.max(0, elements.eccentricity || 0);
+        const safeEcc = Math.min(0.9999, eccentricity);
+        const semiMajorAxis_au = elements.semi_major_axis_au || (elements.perihelion_au ? (elements.perihelion_au / (1 - safeEcc)) : 1.0);
+        const inclination_deg = elements.inclination_deg || 0;
+        const longitudeOfAscendingNode_deg = elements.longitude_ascending_node_deg || elements.longitudeOfAscendingNode_deg || 0;
+        const argumentOfPeriapsis_deg = elements.argument_perihelion_deg || elements.argumentOfPeriapsis_deg || 0;
+        const meanAnomaly_deg = elements.mean_anomaly_deg || elements.meanAnomaly_deg || 0;
+
+        const cartesian = keplerianToCartesian({
+            semiMajorAxis_au,
+            eccentricity,
+            inclination_deg,
+            longitudeOfAscendingNode_deg,
+            argumentOfPeriapsis_deg,
+            meanAnomaly_deg
+        }, centralMass);
+
+        const bodyType: 'comet' | 'asteroid' | 'planet' = elements.type === 'asteroid' ? 'asteroid' : (elements.type === 'comet' ? 'comet' : (eccentricity > 0.8 ? 'comet' : 'planet'));
+
+        const newBody: OrbitalBody = {
+            id: elements.naif_id || elements.name || `body_${Date.now()}`,
+            type: bodyType,
+            mass_solar: elements.mass_solar || (bodyType === 'comet' ? 1e-12 : (bodyType === 'asteroid' ? 1e-10 : 0.000003)),
+            radius_km: elements.radius_km || (bodyType === 'comet' ? 5.0 : 10.0),
+            color: bodyType === 'comet' ? '#aaddff' : '#aaaaaa',
+            position_au: cartesian.position,
+            velocity_au_yr: cartesian.velocity
+        };
+
+        if (nbodyWorkerRef.current) {
+            nbodyWorkerRef.current.postMessage({
+                type: 'ADD_BODY',
+                payload: { body: newBody }
+            });
+        }
+    }, [selectedStarRef]);
 
     const rebuildStarfieldGeometry = useCallback(() => {
         if (!engineRef.current || !engineRef.current.scene) return;
@@ -392,6 +435,7 @@ export function useSimulation(containerRef: React.RefObject<HTMLDivElement | nul
 
             // Instantiate Simulation Coordinator
             const coordinator = new SimulationCoordinator(engine, wsRef.current);
+            coordinatorRef.current = coordinator;
             coordinator.onAstrobiologyUpdate = (data) => {
                 setAstrobiologyData(data);
             };
@@ -486,6 +530,11 @@ export function useSimulation(containerRef: React.RefObject<HTMLDivElement | nul
                 if (nebulaSystemRef.current) {
                     nebulaSystemRef.current.dispose();
                     nebulaSystemRef.current = null;
+                }
+
+                if (coordinatorRef.current) {
+                    coordinatorRef.current.dispose();
+                    coordinatorRef.current = null;
                 }
 
                 engine.dispose();

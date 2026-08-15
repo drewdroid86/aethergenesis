@@ -257,6 +257,101 @@ export class HeroStarSystem extends THREE.Group {
         this.applyInitialCosmicAge(cosmicAge, physics, renderer);
     }
 
+    applyPreset(preset: any, renderer?: THREE.WebGLRenderer): void {
+        const massVal = preset.mass_solar ?? preset.mass;
+        if (typeof massVal === 'number' && Number.isFinite(massVal) && massVal > 0) {
+            this.mass = massVal;
+        }
+
+        const tempVal = preset.temperature_K ?? preset.temperature;
+        if (typeof tempVal === 'number' && Number.isFinite(tempVal) && tempVal > 0) {
+            this.tHeat = tempVal;
+        } else {
+            const baryonFactor = (DEFAULT_CONSTANTS.baryon || 0.05) / 0.05;
+            this.tHeat = 5778 * Math.pow(this.mass, 0.5) * baryonFactor;
+        }
+        this.currentTemp = this.tHeat;
+
+        this.lifespanReal = 10000 * Math.pow(this.mass, -2.5);
+        this.baseRadius = Math.pow(this.mass, 0.8) * 0.8;
+        this._msLuminosity = preset.luminosity_solar ?? computeLuminosity(this.mass);
+        this.currentLum = this._msLuminosity;
+
+        // Dispose old phase components
+        this._nebulaPhase?.dispose();
+        this._protostarPhase?.dispose();
+        this._mainSequencePhase?.dispose();
+        this._redGiantPhase?.dispose();
+        this._supernovaPhase?.dispose();
+        this._remnantPhase?.dispose();
+
+        PlanetarySystemQueue.cancelCreation(this);
+        if (this.planetarySystem) {
+            PlanetarySystemQueue.enqueueDisposal(this.planetarySystem);
+            this.planetarySystem = undefined;
+        }
+
+        // Re-initialize phases with updated mass and baseRadius
+        this._nebulaPhase = new NebulaPhase();
+        this._nebulaPhase.init(this);
+
+        this._protostarPhase = new ProtostarPhase(this.baseRadius);
+        this._protostarPhase.init(this);
+
+        this._mainSequencePhase = new MainSequencePhase(this.mass, this.baseRadius);
+        this._mainSequencePhase.init(this);
+
+        this._redGiantPhase = new RedGiantPhase(this.baseRadius, this.tHeat);
+        this._redGiantPhase.init(this);
+
+        this._supernovaPhase = new SupernovaPhase(this.mass, this.baseRadius);
+        this._supernovaPhase.init(this);
+
+        this._remnantPhase = new RemnantPhase(this.mass);
+        this._remnantPhase.init(this);
+
+        // Reset phase tracking
+        this._activePhase = -1;
+        this.phase = 0;
+        this._lastVisP = false;
+        this._lastVisM = false;
+        this._lastVisR = false;
+        this._lastVisS = false;
+        this._lastOpP = -1;
+        this._lastOpM = -1;
+        this._lastOpR = -1;
+        this._lastOpS = -1;
+        this._opP = 0;
+        this._opM = 0;
+        this._opR = 0;
+        this._opS = 0;
+        this._opNs = 0;
+        this.isSupernovaFlashing = false;
+        this._wasSupernovaFlashing = false;
+
+        // Reset real age / progress
+        if (typeof preset.age_gyr === 'number' && Number.isFinite(preset.age_gyr)) {
+            this.currentRealAge = Math.max(0, preset.age_gyr * 1000);
+            this.t = Math.max(0.0, Math.min(1.0, this.currentRealAge / this.lifespanReal));
+        } else {
+            this.t = 0.2; // Main sequence default
+            this.currentRealAge = this.t * this.lifespanReal;
+        }
+
+        const initialPhase = getPhaseForT(this.t);
+        this._activePhase = initialPhase;
+        this.phase = initialPhase;
+        if (initialPhase === PHASES.NEBULA) this.nebulaPhase.show();
+        else if (initialPhase === PHASES.PROTOSTAR) this.protostarPhase.show();
+        else if (initialPhase === PHASES.MAIN_SEQUENCE) {
+            this.mainSequencePhase.show();
+            PlanetarySystemQueue.enqueueCreation(this, renderer);
+        }
+        else if (initialPhase === PHASES.RED_GIANT) this.redGiantPhase.show();
+        else if (initialPhase === PHASES.SUPERNOVA) this.supernovaPhase.show();
+        else if (initialPhase === PHASES.REMNANT) this.remnantPhase.show();
+    }
+
 
 
     update(delta: number, appTime: number, cameraPos: THREE.Vector3, physics: PhysicsConstants, overrideT?: number, cosmicAge?: number, frustum?: THREE.Frustum, flicker: number = 1.0, nbodyBuffer: Float32Array | null = null, renderer?: THREE.WebGLRenderer): void {

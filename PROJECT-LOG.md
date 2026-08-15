@@ -23,6 +23,11 @@ This log is updated after every AI session. Each AI signs off with their entry. 
 
 ## RECENT LOGS
 
+### 2026-08-15 — Star Preset Loading & Horizons Small Body Spawn Wiring (Gemini 3.7 Flash)
+- **Preset Application Pipeline (`src/rendering/systems/HeroStarSystem.ts`):** Implemented `applyPreset()` in `HeroStarSystem` to recalculate `lifespanReal`, `baseRadius`, `tHeat`, `_msLuminosity`, and `currentTemp` from the preset. Re-instantiated and initialized all 6 stellar phase components and reset state guards and timelines.
+- **Small Body Spawning & N-Body Worker Wiring (`src/utils/hooks/useSimulation.ts`):** Implemented `addBodyToSimulation()` to transform Keplerian orbital elements to Cartesian state vectors via `keplerianToCartesian()` and post `ADD_BODY` messages to `nbodyWorker`. Added coordinator lifecycle cleanup on hook unmount.
+- **Verification:** Audited by `code-reviewer` subagent. `npm run typecheck`, `npm run build`, `npm run lint`, and all 49/49 E2E test suites passed with 0 errors.
+
 ### 2026-08-15 — Astrobiology Star-Scoped History & City Light Shader Isolation (Gemini 3.7 Flash)
 - **Star-Scoped Astrobiology History (`src/simulation/SimulationCoordinator.ts`, `src/simulation/AstrobiologyEngine.ts`):** Keyed `AstrobiologyEngine.history` by `${star.physicsId}:body_${i}` so habitability progress and Kardashev civilization tiers remain strictly isolated per star system. Added `clearHistory(starPhysicsId)` support to prevent memory accumulation.
 - **Biomass Tail Cleanup & Per-Planet City Lights (`src/rendering/systems/PlanetarySystem.ts`):** Cleared trailing `biomassArray`/`civArray` indices when active evaluated bodies count shrinks. Updated `PLANET_FS` shader to use per-instance `vCivilizationTier` and `vBiomass` varyings instead of global max uniforms, preventing city lights from rendering on non-civilized planets.
