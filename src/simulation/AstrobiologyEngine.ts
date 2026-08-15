@@ -37,6 +37,18 @@ const CONSTANTS = {
 export class AstrobiologyEngine {
   private history: Map<string, { timeInHz_yr: number; highestScore: number; civEmergenceTime: number }> = new Map();
 
+  public clearHistory(starPhysicsId?: string): void {
+    if (!starPhysicsId) {
+      this.history.clear();
+      return;
+    }
+    for (const key of this.history.keys()) {
+      if (key.startsWith(`${starPhysicsId}:`)) {
+        this.history.delete(key);
+      }
+    }
+  }
+
   public evaluatePlanet(
     planet_id: string,
     semiMajorAxis_au: number,

@@ -23,6 +23,11 @@ This log is updated after every AI session. Each AI signs off with their entry. 
 
 ## RECENT LOGS
 
+### 2026-08-15 — Astrobiology Star-Scoped History & City Light Shader Isolation (Gemini 3.7 Flash)
+- **Star-Scoped Astrobiology History (`src/simulation/SimulationCoordinator.ts`, `src/simulation/AstrobiologyEngine.ts`):** Keyed `AstrobiologyEngine.history` by `${star.physicsId}:body_${i}` so habitability progress and Kardashev civilization tiers remain strictly isolated per star system. Added `clearHistory(starPhysicsId)` support to prevent memory accumulation.
+- **Biomass Tail Cleanup & Per-Planet City Lights (`src/rendering/systems/PlanetarySystem.ts`):** Cleared trailing `biomassArray`/`civArray` indices when active evaluated bodies count shrinks. Updated `PLANET_FS` shader to use per-instance `vCivilizationTier` and `vBiomass` varyings instead of global max uniforms, preventing city lights from rendering on non-civilized planets.
+- **Verification:** Audited by `code-reviewer` subagent. `npm run typecheck`, `npm run build`, `npm run lint`, and all 49/49 E2E tests passed with 0 errors.
+
 ### 2026-08-15 — Main Sequence Atmospheric Corona & Halo Shading Fix (Gemini 3.7 Flash)
 - **Fresnel Corona Integration (`src/simulation/phases/MainSequencePhase.ts`):** Attached `coronaMesh` (Fresnel rim-light `ShaderMaterial` with `THREE.BackSide`) directly to `mainSeqGroup`. Cleaned up the redundant unused `MeshBasicMaterial` corona layer. Corrected BackSide Fresnel normal direction in the GLSL fragment shader (`-normalize(vNormal)`) for accurate atmospheric rim falloff.
 - **Dynamic Halo & Thermal Spectrum:** Wired `colorTempToRGB` continuous blackbody color updates to `_coronaMat` and `_haloMat` in `update()`, and wired opacity scaling to `_haloMat` in `setOpacity()`. Added `instanceMatrix.needsUpdate` flag to `flareMesh` and guarded `hzMesh.visible` with `mainSeqGroup.visible`.

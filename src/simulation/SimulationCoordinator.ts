@@ -179,7 +179,7 @@ export class SimulationCoordinator {
                 }
 
                 const habState: AstrobiologyStateData = this.astrobiologyEngine.evaluatePlanet(
-                    `body_${i}`, a, mass, radius, albedo, perStarState, deltaTime_yr, bodyType
+                    `${star.physicsId}:body_${i}`, a, mass, radius, albedo, perStarState, deltaTime_yr, bodyType
                 );
 
                 habState.sim_time_yr = sim_time_yr;
@@ -214,7 +214,21 @@ export class SimulationCoordinator {
                 orbital: orbitalStates,
                 astrobiology: astrobiologyStates
             };
-            this.wsClient.send(JSON.stringify({ type: 'state', data: outPayload }));
+            try {
+                this.wsClient.send(JSON.stringify({ type: 'state', data: outPayload }));
+            } catch {
+                // Suppress socket send failure
+            }
         }
+    }
+
+    public clearHistory(starPhysicsId?: string): void {
+        this.astrobiologyEngine.clearHistory(starPhysicsId);
+    }
+
+    public dispose(): void {
+        this.onAstrobiologyUpdate = null;
+        this.onTick = null;
+        this.astrobiologyEngine.clearHistory();
     }
 }

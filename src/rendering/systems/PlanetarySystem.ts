@@ -162,10 +162,10 @@ void main() {
     float nightMask = 1.0 - smoothstep(-0.1, 0.2, dayFactor);
     
     // City lights (Kardashev Type I+)
-    if (u_kardashevTier >= 1 && type != 1.0 && type != 3.0) {
+    if (vCivilizationTier >= 1.0 && type != 1.0 && type != 3.0) {
         float cityNoise = hash(floor(vUv * 80.0));
         float cityLights = step(0.85, cityNoise) * nightMask;
-        finalColor += vec3(1.0, 0.85, 0.4) * cityLights * u_biomass * 2.0;
+        finalColor += vec3(1.0, 0.85, 0.4) * cityLights * vBiomass * 2.0;
     }
 
     gl_FragColor = vec4(finalColor, uOpacity);
@@ -383,7 +383,8 @@ export class PlanetarySystem {
         let maxBiomass = 0;
         let maxCiv = 0;
 
-        for (let i = 0; i < astrobiologyStates.length; i++) {
+        const count = Math.min(astrobiologyStates.length, biomassArray.length);
+        for (let i = 0; i < count; i++) {
             const state = astrobiologyStates[i];
             const biomass = state.biomass || 0.0;
             const civ = state.civilizationTier || 0.0;
@@ -394,6 +395,12 @@ export class PlanetarySystem {
             
             if (biomass > maxBiomass) maxBiomass = biomass;
             if (civ > maxCiv) maxCiv = civ;
+        }
+
+        // Clear tail when astrobiology state count shrinks
+        for (let i = count; i < biomassArray.length; i++) {
+            biomassArray[i] = 0.0;
+            civArray[i] = 0.0;
         }
 
         this.material.uniforms.u_biomass.value = maxBiomass;
