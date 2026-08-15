@@ -11,6 +11,7 @@ import { SupernovaPhase } from '../../simulation/phases/SupernovaPhase';
 import { RemnantPhase } from '../../simulation/phases/RemnantPhase';
 import { GEOMETRIES } from '../../simulation/phases/geometries';
 import { PlanetarySystem, PlanetarySystemQueue } from './PlanetarySystem';
+import { audioEngine } from '../../audio/AudioEngine';
 // BOLT: Module-level helper to avoid closure overhead
 const stepOp = (current: number, target: number, speed: number) => {
     if (current < target) return Math.min(target, current + speed);
@@ -41,6 +42,7 @@ export class HeroStarSystem extends THREE.Group {
     currentRealAge: number = 0;
     phase: number = 0;
     isSupernovaFlashing: boolean = false;
+    private _wasSupernovaFlashing: boolean = false;
     /** True when this star's phase would normally emit a PointLight */
     wantsLight: boolean = false;
     /** Tracks whether the engine has culled this star's PointLight */
@@ -245,7 +247,8 @@ export class HeroStarSystem extends THREE.Group {
         this._lastVisP = false;
         this._lastVisM = false;
         this._lastVisR = false;
-        this._lastVisS = false;
+        this.isSupernovaFlashing = false;
+        this._wasSupernovaFlashing = false;
 
         if (this.starLight) {
             this.starLight.visible = false;
@@ -351,7 +354,7 @@ export class HeroStarSystem extends THREE.Group {
         const distSq = this.position.distanceToSquared(cameraPos);
         const lowDetail = distSq > STELLAR_CONSTANTS.TRANSITIONS.FADE_THRESHOLD;
 
-        this.isSupernovaFlashing = false;
+        let isFlashingNow = false;
 
         if (this.t < STELLAR_CONSTANTS.PHASE_BOUNDARIES.NEBULA_LIMIT) {
             this.phase = PHASES.NEBULA;
@@ -391,7 +394,10 @@ export class HeroStarSystem extends THREE.Group {
         } else if (this.phase === PHASES.SUPERNOVA) {
             targetSuper = 1;
             this.supernovaPhase.update(delta, appTime, cameraPos, physics, this.t, lowDetail);
-            this.isSupernovaFlashing = this.supernovaPhase?.isFlashing ?? false;
+            isFlashingNow = this.supernovaPhase?.isFlashing ?? false;
+            if (isFlashingNow && !this._wasSupernovaFlashing) {
+                audioEngine.playSupernovaSound();
+            }
 
             if (this.mass >= STELLAR_CONSTANTS.PHYSICS.MASS_THRESHOLD_SUPERNOVA) {
                 this.currentTemp = STELLAR_CONSTANTS.TEMPERATURES.SUPERNOVA_HIGH_MASS;
@@ -419,6 +425,9 @@ export class HeroStarSystem extends THREE.Group {
                 this.currentLum = STELLAR_CONSTANTS.LUMINOSITY.REMNANT_NS_LOW_MASS;
             }
         }
+        
+        this.isSupernovaFlashing = isFlashingNow;
+        this._wasSupernovaFlashing = isFlashingNow;
         
         // BOLT: Optimize transition opacities with state-guarded assignments to reduce Three.js overhead
         const speed = delta * STELLAR_CONSTANTS.TRANSITIONS.DEFAULT_SPEED;

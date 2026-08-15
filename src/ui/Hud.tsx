@@ -101,6 +101,7 @@ export const Hud: React.FC<HudProps> = ({
     };
 
     const copyCoordinates = () => {
+        audioEngine.playUiClick();
         const x = uiRefs.hudX.current?.innerText || '0.0000';
         const y = uiRefs.hudY.current?.innerText || '0.0000';
         const z = uiRefs.hudZ.current?.innerText || '0.0000';
@@ -114,6 +115,7 @@ export const Hud: React.FC<HudProps> = ({
     };
 
     const copyUniverseId = () => {
+        audioEngine.playUiClick();
         navigator.clipboard.writeText(currentSeed).then(() => {
             setIdCopied(true);
             announce('Universe ID copied to clipboard');
@@ -122,6 +124,7 @@ export const Hud: React.FC<HudProps> = ({
     };
 
     const shareUniverse = () => {
+        audioEngine.playUiClick();
         const url = new URL(window.location.href);
         url.searchParams.set('seed', currentSeed);
         navigator.clipboard.writeText(url.toString()).then(() => {
@@ -206,7 +209,10 @@ export const Hud: React.FC<HudProps> = ({
                         <div className="flex flex-col items-center">
                             <span className="text-[9px] uppercase tracking-widest text-[#7EB8FF]">Diagnostics</span>
                             <button
-                                onClick={() => performance.setDiagnosticsEnabled?.(!performance.diagnosticsEnabled)}
+                                onClick={() => {
+                                    audioEngine.playUiClick();
+                                    performance.setDiagnosticsEnabled?.(!performance.diagnosticsEnabled);
+                                }}
                                 className={`font-mono text-xs uppercase px-2 py-0.5 pointer-events-auto rounded border focus-visible:ring-1 focus-visible:ring-[#C084FC] outline-none transition-all ${performance.diagnosticsEnabled ? 'bg-red-500/20 text-red-400 border-red-500/30' : 'text-indigo-300 hover:text-white hover:bg-white/5 border-transparent'}`}
                                 aria-label="Toggle performance diagnostics panel"
                             >
@@ -246,7 +252,10 @@ export const Hud: React.FC<HudProps> = ({
                             Stutter Diagnostics
                         </span>
                         <button 
-                            onClick={() => performance.resetDiagnostics?.()} 
+                            onClick={() => {
+                                audioEngine.playUiClick();
+                                performance.resetDiagnostics?.();
+                            }} 
                             className="text-[9px] uppercase bg-white/5 hover:bg-white/10 text-white/70 px-2 py-0.5 rounded border border-[rgba(126,184,255,0.15)] transition-colors"
                         >
                             Reset Stats
@@ -390,7 +399,10 @@ export const Hud: React.FC<HudProps> = ({
                             Thread Block Log (Max 15)
                         </span>
                         <button 
-                            onClick={() => performance.resetDiagnostics?.()} 
+                            onClick={() => {
+                                audioEngine.playUiClick();
+                                performance.resetDiagnostics?.();
+                            }} 
                             className="text-[8px] uppercase bg-red-500/10 hover:bg-red-500/20 text-red-300 px-1.5 py-0.5 rounded border border-red-500/20 transition-colors"
                         >
                             Clear
@@ -458,7 +470,10 @@ export const Hud: React.FC<HudProps> = ({
                                         [T] Scale
                                     </span>
                                     <button 
-                                        onClick={() => setTimeScale('cosmic')}
+                                        onClick={() => {
+                                            audioEngine.playUiClick();
+                                            setTimeScale('cosmic');
+                                        }}
                                         className={`px-3 py-1 text-[9px] uppercase tracking-wider rounded-full transition-colors focus-visible:ring-1 focus-visible:ring-[#7EB8FF] outline-none ${timeScale === 'cosmic' ? 'bg-[#7EB8FF]/20 text-[#7EB8FF]' : 'text-white/40 hover:text-white'}`}
                                         title="1 second = 200 Million Years"
                                         role="radio"
@@ -468,7 +483,10 @@ export const Hud: React.FC<HudProps> = ({
                                         Cosmic
                                     </button>
                                     <button 
-                                        onClick={() => setTimeScale('realtime')}
+                                        onClick={() => {
+                                            audioEngine.playUiClick();
+                                            setTimeScale('realtime');
+                                        }}
                                         className={`px-3 py-1 text-[9px] uppercase tracking-wider rounded-full transition-colors focus-visible:ring-1 focus-visible:ring-[#C084FC] outline-none ${timeScale === 'realtime' ? 'bg-[#C084FC]/20 text-[#C084FC]' : 'text-white/40 hover:text-white'}`}
                                         title="1 second = 1 second"
                                         role="radio"
@@ -488,7 +506,10 @@ export const Hud: React.FC<HudProps> = ({
                                     {shareCopied ? "Copied" : "Share Universe"}
                                 </button>
                                 <button
-                                    onClick={() => setIsPlayingCosmic(!isPlayingCosmic)}
+                                    onClick={() => {
+                                        audioEngine.playUiClick();
+                                        setIsPlayingCosmic(!isPlayingCosmic);
+                                    }}
                                     className="text-white/40 hover:text-white transition-colors focus-visible:ring-2 focus-visible:ring-[#C084FC] outline-none rounded relative group/play"
                                     aria-label={isPlayingCosmic ? "Pause cosmic simulation" : "Play cosmic simulation"}
                                     title={isPlayingCosmic ? "Pause Cosmic Simulation" : "Play Cosmic Simulation"}
@@ -529,6 +550,7 @@ export const Hud: React.FC<HudProps> = ({
                     <button 
                         onClick={() => {
                             audioEngine.init();
+                            audioEngine.playUiClick();
                             const muted = audioEngine.toggleMute();
                             setIsMuted(muted);
                         }}
@@ -543,7 +565,10 @@ export const Hud: React.FC<HudProps> = ({
 
                     {onOpenCatalog && (
                         <button 
-                            onClick={onOpenCatalog}
+                            onClick={() => {
+                                audioEngine.playUiClick();
+                                onOpenCatalog();
+                            }}
                             className="w-10 h-10 flex items-center justify-center bg-[rgba(8,8,20,0.6)] border border-[rgba(126,184,255,0.2)] rounded-md backdrop-blur-md transition-colors hover:bg-[rgba(126,184,255,0.1)] cursor-pointer focus-visible:ring-2 focus-visible:ring-[#C084FC] outline-none relative group/catalog"
                             aria-label="Open Astronomical Catalog & Presets" title="Catalog Search"
                         >
@@ -555,7 +580,10 @@ export const Hud: React.FC<HudProps> = ({
                     )}
 
                     <button 
-                        onClick={resetCamera}
+                        onClick={() => {
+                            audioEngine.playUiClick();
+                            resetCamera();
+                        }}
                         className="w-10 h-10 flex items-center justify-center bg-[rgba(8,8,20,0.6)] border border-[rgba(126,184,255,0.2)] rounded-md backdrop-blur-md transition-colors hover:bg-[rgba(126,184,255,0.1)] cursor-pointer focus-visible:ring-2 focus-visible:ring-[#C084FC] outline-none relative group/reset"
                         aria-label="Reset camera position and orientation" title="Reset Camera [R]"
                         aria-keyshortcuts="r"
@@ -567,7 +595,10 @@ export const Hud: React.FC<HudProps> = ({
                     </button>
 
                     <button 
-                        onClick={centerOnStar}
+                        onClick={() => {
+                            audioEngine.playUiClick();
+                            centerOnStar();
+                        }}
                         className="w-10 h-10 flex items-center justify-center bg-[rgba(8,8,20,0.6)] border border-[rgba(126,184,255,0.2)] rounded-md backdrop-blur-md transition-colors hover:bg-[rgba(126,184,255,0.1)] cursor-pointer focus-visible:ring-2 focus-visible:ring-[#C084FC] outline-none relative group/focus"
                         aria-label="Center camera on selected star" title="Focus on Star [F]"
                         aria-keyshortcuts="f"

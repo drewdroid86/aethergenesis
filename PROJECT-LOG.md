@@ -23,6 +23,11 @@ This log is updated after every AI session. Each AI signs off with their entry. 
 
 ## RECENT LOGS
 
+### 2026-08-15 — Supernova & UI Audio Triggers Wiring (Gemini 3.7 Flash)
+- **Supernova Sound Trigger (`src/rendering/systems/HeroStarSystem.ts`):** Wired `audioEngine.playSupernovaSound()` to trigger when `supernovaPhase.isFlashing` transitions to `true` with edge-detection via `_wasSupernovaFlashing` to prevent redundant per-frame playback.
+- **UI Click SFX (`src/ui/Hud.tsx`):** Added `audioEngine.playUiClick()` to all 13 interactive button onClick handlers in the HUD (Universe ID copy, Location coordinates copy, Share Universe URL copy, Diagnostics panel toggle & resets, Timescale toggles, Cosmic play/pause, Audio mute toggle, Catalog search, Camera reset, and Star focus).
+- **Verification:** `npm run typecheck`, `npm run build`, `npm run lint`, and all 49/49 E2E test suites passed with 0 errors.
+
 ### 2026-08-15 — Safe-Area & Dynamic Viewport Inset Handling (Gemini 3.7 Flash)
 - **Viewport Meta (`index.html`):** Added `viewport-fit=cover` to `<meta name="viewport">` tag to enable `env(safe-area-inset-*)` resolution on mobile devices.
 - **Dynamic Viewport Height (`src/App.tsx`, `src/components/AetherGenesis.tsx`):** Replaced `h-screen` (`100vh`) with `h-dvh` across application wrappers and error fallback containers to prevent mobile address-bar jump/clipping.
