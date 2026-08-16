@@ -170,7 +170,7 @@ export const Hud: React.FC<HudProps> = ({
                     </h1>
                 </div>
                 <span className="text-[10px] text-[#7EB8FF]/70 uppercase tracking-[0.2em] ml-6">
-                    Simulation Phase 02: Stellar Genesis
+                    Simulation Phase 03: Stellar & Planetary Evolution
                 </span>
                 </div>
                 
@@ -554,7 +554,7 @@ export const Hud: React.FC<HudProps> = ({
                             const muted = audioEngine.toggleMute();
                             setIsMuted(muted);
                         }}
-                        className="w-10 h-10 flex items-center justify-center bg-[rgba(8,8,20,0.6)] border border-[rgba(126,184,255,0.2)] rounded-md backdrop-blur-md transition-colors hover:bg-[rgba(126,184,255,0.1)] cursor-pointer focus-visible:ring-2 focus-visible:ring-[#C084FC] outline-none relative group/audio"
+                        className="w-12 h-12 flex items-center justify-center bg-[rgba(8,8,20,0.6)] border border-[rgba(126,184,255,0.2)] rounded-md backdrop-blur-md transition-colors hover:bg-[rgba(126,184,255,0.1)] cursor-pointer focus-visible:ring-2 focus-visible:ring-[#C084FC] outline-none relative group/audio"
                         aria-label="Toggle ambient audio drone and sound effects" title="Toggle Audio"
                     >
                     <span className="absolute -top-6 left-1/2 -translate-x-1/2 text-[10px] text-[#C084FC] opacity-0 group-hover/audio:opacity-100 group-focus-visible/audio:opacity-100 transition-opacity whitespace-nowrap">
@@ -569,7 +569,7 @@ export const Hud: React.FC<HudProps> = ({
                                 audioEngine.playUiClick();
                                 onOpenCatalog();
                             }}
-                            className="w-10 h-10 flex items-center justify-center bg-[rgba(8,8,20,0.6)] border border-[rgba(126,184,255,0.2)] rounded-md backdrop-blur-md transition-colors hover:bg-[rgba(126,184,255,0.1)] cursor-pointer focus-visible:ring-2 focus-visible:ring-[#C084FC] outline-none relative group/catalog"
+                            className="w-12 h-12 flex items-center justify-center bg-[rgba(8,8,20,0.6)] border border-[rgba(126,184,255,0.2)] rounded-md backdrop-blur-md transition-colors hover:bg-[rgba(126,184,255,0.1)] cursor-pointer focus-visible:ring-2 focus-visible:ring-[#C084FC] outline-none relative group/catalog"
                             aria-label="Open Astronomical Catalog & Presets" title="Catalog Search"
                         >
                         <span className="absolute -top-6 left-1/2 -translate-x-1/2 text-[10px] text-[#C084FC] opacity-0 group-hover/catalog:opacity-100 group-focus-visible/catalog:opacity-100 transition-opacity whitespace-nowrap">
@@ -584,7 +584,7 @@ export const Hud: React.FC<HudProps> = ({
                             audioEngine.playUiClick();
                             resetCamera();
                         }}
-                        className="w-10 h-10 flex items-center justify-center bg-[rgba(8,8,20,0.6)] border border-[rgba(126,184,255,0.2)] rounded-md backdrop-blur-md transition-colors hover:bg-[rgba(126,184,255,0.1)] cursor-pointer focus-visible:ring-2 focus-visible:ring-[#C084FC] outline-none relative group/reset"
+                        className="w-12 h-12 flex items-center justify-center bg-[rgba(8,8,20,0.6)] border border-[rgba(126,184,255,0.2)] rounded-md backdrop-blur-md transition-colors hover:bg-[rgba(126,184,255,0.1)] cursor-pointer focus-visible:ring-2 focus-visible:ring-[#C084FC] outline-none relative group/reset"
                         aria-label="Reset camera position and orientation" title="Reset Camera [R]"
                         aria-keyshortcuts="r"
                     >
@@ -599,7 +599,7 @@ export const Hud: React.FC<HudProps> = ({
                             audioEngine.playUiClick();
                             centerOnStar();
                         }}
-                        className="w-10 h-10 flex items-center justify-center bg-[rgba(8,8,20,0.6)] border border-[rgba(126,184,255,0.2)] rounded-md backdrop-blur-md transition-colors hover:bg-[rgba(126,184,255,0.1)] cursor-pointer focus-visible:ring-2 focus-visible:ring-[#C084FC] outline-none relative group/focus"
+                        className="w-12 h-12 flex items-center justify-center bg-[rgba(8,8,20,0.6)] border border-[rgba(126,184,255,0.2)] rounded-md backdrop-blur-md transition-colors hover:bg-[rgba(126,184,255,0.1)] cursor-pointer focus-visible:ring-2 focus-visible:ring-[#C084FC] outline-none relative group/focus"
                         aria-label="Center camera on selected star" title="Focus on Star [F]"
                         aria-keyshortcuts="f"
                     >

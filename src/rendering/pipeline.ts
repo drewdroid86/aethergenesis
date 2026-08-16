@@ -5,6 +5,7 @@ import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js'
 import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { CinematicPassShader } from './shaders/stellar';
+import { STELLAR_CONSTANTS } from '../core/constants';
 
 export class Pipeline {
     composer: EffectComposer;
@@ -40,7 +41,7 @@ export class Pipeline {
         const screenPos = new THREE.Vector2(0.5, 0.5);
         let screenRadius = 0.0;
 
-        if (selectedStar && selectedStar.phase === 5 && selectedStar.mass > 15.0) { // REMNANT = 5
+        if (selectedStar && selectedStar.phase === 5 && selectedStar.mass > STELLAR_CONSTANTS.PHYSICS.MASS_THRESHOLD_BLACK_HOLE) { // REMNANT = 5
             targetLensing = 1.0;
             
             // Project black hole position to screen space

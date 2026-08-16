@@ -1,6 +1,6 @@
 {
   "name": "ÆTHERGENESIS",
-  "description": "The Birth of Everything From Nothing. 13.8 billion years of cosmic evolution. 500,000 instanced stars with realistic IMF color distribution, logarithmic spiral galaxy, and advanced post-processing.",
+  "description": "The Birth of Everything From Nothing. 13.8 billion years of cosmic evolution. Real-time N-body orbital dynamics, multi-phase stellar astrophysics, astrobiology biosignatures, and relativistic post-processing.",
   "requestFramePermissions": [],
   "majorCapabilities": ["GEMINI_API"]
 }

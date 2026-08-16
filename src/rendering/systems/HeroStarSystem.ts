@@ -28,6 +28,8 @@ const getPhaseForT = (t: number): number => {
     return PHASES.REMNANT;
 };
 
+const _frustumSphere = new THREE.Sphere();
+
 export class HeroStarSystem extends THREE.Group {
     physicsId: string;
     velocity: THREE.Vector3 = new THREE.Vector3();
@@ -439,8 +441,13 @@ export class HeroStarSystem extends THREE.Group {
             this.phase = newPhase;
         }
 
-        // BOLT: Frustum culling early return (skip distance/LOD math for off-screen stars)
-        const isVisible = frustum ? frustum.containsPoint(this.position) : true;
+        // BOLT: Frustum culling early return with bounding radius padding for expanded phases
+        let boundRadius = this.baseRadius * 4.0;
+        if (this.phase === PHASES.SUPERNOVA) boundRadius = this.baseRadius * 60.0;
+        else if (this.phase === PHASES.NEBULA) boundRadius = 15.0;
+        _frustumSphere.center.copy(this.position);
+        _frustumSphere.radius = boundRadius * expL;
+        const isVisible = frustum ? frustum.intersectsSphere(_frustumSphere) : true;
         if (!isVisible && overrideT === undefined) {
             return;
         }
@@ -488,7 +495,7 @@ export class HeroStarSystem extends THREE.Group {
 
         } else if (this.phase === PHASES.SUPERNOVA) {
             targetSuper = 1;
-            this.supernovaPhase.update(delta, appTime, cameraPos, physics, this.t, lowDetail);
+            this.supernovaPhase.update(delta, appTime, cameraPos, physics, this.t, lowDetail, globalFade);
             isFlashingNow = this.supernovaPhase?.isFlashing ?? false;
             if (isFlashingNow && !this._wasSupernovaFlashing) {
                 audioEngine.playSupernovaSound();

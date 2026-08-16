@@ -6,7 +6,7 @@ import { DysonSwarmSystem } from '../rendering/systems/DysonSwarmSystem';
 import { AsteroidBeltSystem } from '../rendering/systems/AsteroidBeltSystem';
 import { detectPerformanceTier, getNumStarsForTier } from '../utils/performance';
 import { Pipeline } from '../rendering/pipeline';
-import { createStellarState, StellarState, PhaseTransitionEvent, computeMainSequenceLifetime } from '../simulation/StellarPhysics';
+import { createStellarState, StellarState, StellarPhase, PhaseTransitionEvent, computeMainSequenceLifetime } from '../simulation/StellarPhysics';
 import { STELLAR_CONSTANTS } from './constants';
 import { PlanetarySystemQueue } from '../rendering/systems/PlanetarySystem';
 
@@ -87,12 +87,24 @@ export class Engine {
     getStellarState(): StellarState {
         const star = this.selectedStar || this.heroStars[0];
         if (star) {
-            return createStellarState(
+            const state = createStellarState(
                 star.physicsId,
                 star.mass,
                 0.02,
                 star.currentRealAge * 1e6
             );
+            const phaseStrMap: Record<number, StellarPhase> = {
+                0: 'nebula',
+                1: 'protostar',
+                2: 'main_sequence',
+                3: 'red_giant',
+                4: 'supernova',
+                5: 'remnant'
+            };
+            if (phaseStrMap[star.phase]) {
+                state.phase = phaseStrMap[star.phase];
+            }
+            return state;
         }
         return createStellarState('hero_star', 1.0, 0.02, 0);
     }

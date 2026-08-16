@@ -23,6 +23,13 @@ This log is updated after every AI session. Each AI signs off with their entry. 
 
 ## RECENT LOGS
 
+### 2026-08-15 — Comet Lifecycle Sync, Supernova Fade & Mobile Polish (Gemini 3.7 Flash)
+- **Stellar State Phase Sync (`src/core/engine.ts`):** Synced visual `star.phase` into `Engine.getStellarState().phase` to ensure `CometSystem` immediately hides during Red Giant, Supernova, and Remnant phases.
+- **Supernova Edge Fade & Frustum Bounding (`src/simulation/phases/SupernovaPhase.ts`, `src/rendering/systems/HeroStarSystem.ts`):** Threaded `globalFade` into supernova ring opacity calculations at timeline extremes. Added bounding sphere padding to frustum culling checks in `HeroStarSystem` with a module-level `_frustumSphere`.
+- **Relativistic Black Hole Mass Constant (`src/rendering/pipeline.ts`):** Replaced literal mass threshold with `STELLAR_CONSTANTS.PHYSICS.MASS_THRESHOLD_BLACK_HOLE`.
+- **Accessibility & Copy Polish (`src/ui/Hud.tsx`, `metadata.json`):** Enlarged action button touch targets from 40px to 48px (`w-12 h-12`) in `Hud.tsx`, updated HUD phase header copy to Phase 03, and modernized `metadata.json` application description.
+- **Verification:** `npm run typecheck`, `npm run build`, `npm run lint`, and all 49/49 E2E test suites passed with 0 errors.
+
 ### 2026-08-15 — Star Preset Loading & Horizons Small Body Spawn Wiring (Gemini 3.7 Flash)
 - **Preset Application Pipeline (`src/rendering/systems/HeroStarSystem.ts`):** Implemented `applyPreset()` in `HeroStarSystem` to recalculate `lifespanReal`, `baseRadius`, `tHeat`, `_msLuminosity`, and `currentTemp` from the preset. Re-instantiated and initialized all 6 stellar phase components and reset state guards and timelines.
 - **Small Body Spawning & N-Body Worker Wiring (`src/utils/hooks/useSimulation.ts`):** Implemented `addBodyToSimulation()` to transform Keplerian orbital elements to Cartesian state vectors via `keplerianToCartesian()` and post `ADD_BODY` messages to `nbodyWorker`. Added coordinator lifecycle cleanup on hook unmount.

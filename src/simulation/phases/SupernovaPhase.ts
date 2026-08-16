@@ -79,17 +79,18 @@ export class SupernovaPhase implements PhaseComponent {
         this.hide();
     }
 
-    update(delta: number, appTime: number, cameraPos: THREE.Vector3, physics: PhysicsConstants, t: number, _lowDetail?: boolean): void {
+    update(delta: number, appTime: number, cameraPos: THREE.Vector3, physics: PhysicsConstants, t: number, _lowDetail?: boolean, globalFade: number = 1.0): void {
         const normT = (t - STELLAR_CONSTANTS.PHASE_BOUNDARIES.SUPERNOVA_START) / STELLAR_CONSTANTS.PHASE_BOUNDARIES.SUPERNOVA_DURATION;
         if (!this.ejectaMat?.uniforms?.uColor) return;
         this.isFlashing = false;
+        const fade = typeof globalFade === 'number' ? globalFade : 1.0;
         
         if (this.mass >= STELLAR_CONSTANTS.PHYSICS.MASS_THRESHOLD_SUPERNOVA) {
             if (normT < STELLAR_CONSTANTS.VISUALS.SUPERNOVA_FLASH_DURATION) this.isFlashing = true;
 
             this.snRing.visible = true;
             this.snRing.scale.setScalar((1.0 + normT * STELLAR_CONSTANTS.VISUALS.SUPERNOVA_RING_SCALE_HIGH_MASS) * (physics.strongForce || 1.0));
-            (this.snRing.material as THREE.MeshBasicMaterial).opacity = 1.0 - Math.pow(normT, 2);
+            (this.snRing.material as THREE.MeshBasicMaterial).opacity = (1.0 - Math.pow(normT, 2)) * fade;
             (this.snRing.material as THREE.MeshBasicMaterial).color.setHex(normT < 0.2 ? 0xffffff : 0xff5500);
             
             this.ejectaMesh.visible = true;
@@ -100,7 +101,7 @@ export class SupernovaPhase implements PhaseComponent {
         } else {
             this.snRing.visible = true;
             this.snRing.scale.setScalar((1.0 + normT * STELLAR_CONSTANTS.VISUALS.SUPERNOVA_RING_SCALE_LOW_MASS) * (physics.strongForce || 1.0));
-            (this.snRing.material as THREE.MeshBasicMaterial).opacity = 0.5 * (1.0 - normT);
+            (this.snRing.material as THREE.MeshBasicMaterial).opacity = 0.5 * (1.0 - normT) * fade;
             (this.snRing.material as THREE.MeshBasicMaterial).color.setHex(0x00ffaa);
             
             this.ejectaMesh.visible = true;
