@@ -728,6 +728,152 @@ app.get('/api/catalog/search', async (req, res) => {
   return res.json(results.slice(0, limit));
 });
 
+const FALLBACK_SMALL_BODIES: Record<string, {
+  body_name: string;
+  semi_major_axis_au: number;
+  eccentricity: number;
+  inclination_deg: number;
+  ascending_node_deg: number;
+  perihelion_arg_deg: number;
+  mean_anomaly_deg: number;
+  period_yr: number;
+  perihelion_au: number;
+  aphelion_au: number;
+}> = {
+  '1p': {
+    body_name: '1P/Halley',
+    semi_major_axis_au: 17.834,
+    eccentricity: 0.967,
+    inclination_deg: 162.26,
+    ascending_node_deg: 58.42,
+    perihelion_arg_deg: 111.33,
+    mean_anomaly_deg: 38.38,
+    period_yr: 75.3,
+    perihelion_au: 0.586,
+    aphelion_au: 35.08,
+  },
+  'halley': {
+    body_name: '1P/Halley',
+    semi_major_axis_au: 17.834,
+    eccentricity: 0.967,
+    inclination_deg: 162.26,
+    ascending_node_deg: 58.42,
+    perihelion_arg_deg: 111.33,
+    mean_anomaly_deg: 38.38,
+    period_yr: 75.3,
+    perihelion_au: 0.586,
+    aphelion_au: 35.08,
+  },
+  '67p': {
+    body_name: '67P/Churyumov-Gerasimenko',
+    semi_major_axis_au: 3.463,
+    eccentricity: 0.641,
+    inclination_deg: 7.04,
+    ascending_node_deg: 50.15,
+    perihelion_arg_deg: 22.14,
+    mean_anomaly_deg: 14.2,
+    period_yr: 6.44,
+    perihelion_au: 1.24,
+    aphelion_au: 5.68,
+  },
+  'hale-bopp': {
+    body_name: 'C/1995 O1 (Hale-Bopp)',
+    semi_major_axis_au: 186.0,
+    eccentricity: 0.995,
+    inclination_deg: 89.4,
+    ascending_node_deg: 282.5,
+    perihelion_arg_deg: 130.6,
+    mean_anomaly_deg: 5.0,
+    period_yr: 2534.0,
+    perihelion_au: 0.914,
+    aphelion_au: 371.1,
+  },
+  '2p': {
+    body_name: '2P/Encke',
+    semi_major_axis_au: 2.21,
+    eccentricity: 0.848,
+    inclination_deg: 11.78,
+    ascending_node_deg: 334.57,
+    perihelion_arg_deg: 186.55,
+    mean_anomaly_deg: 120.0,
+    period_yr: 3.3,
+    perihelion_au: 0.336,
+    aphelion_au: 4.09,
+  },
+  '9p': {
+    body_name: '9P/Tempel 1',
+    semi_major_axis_au: 3.12,
+    eccentricity: 0.517,
+    inclination_deg: 10.5,
+    ascending_node_deg: 68.9,
+    perihelion_arg_deg: 178.9,
+    mean_anomaly_deg: 45.0,
+    period_yr: 5.5,
+    perihelion_au: 1.5,
+    aphelion_au: 4.74,
+  },
+  'ceres': {
+    body_name: '1 Ceres',
+    semi_major_axis_au: 2.767,
+    eccentricity: 0.076,
+    inclination_deg: 10.59,
+    ascending_node_deg: 80.3,
+    perihelion_arg_deg: 73.6,
+    mean_anomaly_deg: 77.4,
+    period_yr: 4.6,
+    perihelion_au: 2.56,
+    aphelion_au: 2.98,
+  },
+  'pallas': {
+    body_name: '2 Pallas',
+    semi_major_axis_au: 2.772,
+    eccentricity: 0.231,
+    inclination_deg: 34.8,
+    ascending_node_deg: 173.1,
+    perihelion_arg_deg: 310.0,
+    mean_anomaly_deg: 60.0,
+    period_yr: 4.62,
+    perihelion_au: 2.13,
+    aphelion_au: 3.41,
+  },
+  'juno': {
+    body_name: '3 Juno',
+    semi_major_axis_au: 2.67,
+    eccentricity: 0.256,
+    inclination_deg: 13.0,
+    ascending_node_deg: 169.8,
+    perihelion_arg_deg: 248.4,
+    mean_anomaly_deg: 25.0,
+    period_yr: 4.36,
+    perihelion_au: 1.98,
+    aphelion_au: 3.35,
+  },
+  'vesta': {
+    body_name: '4 Vesta',
+    semi_major_axis_au: 2.36,
+    eccentricity: 0.089,
+    inclination_deg: 7.14,
+    ascending_node_deg: 103.8,
+    perihelion_arg_deg: 151.2,
+    mean_anomaly_deg: 20.0,
+    period_yr: 3.63,
+    perihelion_au: 2.15,
+    aphelion_au: 2.57,
+  },
+  'eros': {
+    body_name: '433 Eros',
+    semi_major_axis_au: 1.458,
+    eccentricity: 0.223,
+    inclination_deg: 10.83,
+    ascending_node_deg: 304.3,
+    perihelion_arg_deg: 178.8,
+    mean_anomaly_deg: 315.0,
+    period_yr: 1.76,
+    perihelion_au: 1.13,
+    aphelion_au: 1.78,
+  }
+};
+
 app.get('/api/horizons/search', async (req, res) => {
   if (!checkApiRateLimit(req, res)) return;
   // Security: Validate query parameter types to prevent array-injection
@@ -760,6 +906,9 @@ app.get('/api/horizons/search', async (req, res) => {
       return res.status(400).json({ error: 'Invalid body ID format' });
     }
 
+    const normalizedKey = bodyId.trim().toLowerCase();
+    const fallback = FALLBACK_SMALL_BODIES[normalizedKey];
+
     try {
       const epoch = '2000-01-01';
       const stopStr = '2000-01-02';
@@ -767,11 +916,17 @@ app.get('/api/horizons/search', async (req, res) => {
       
       const response = await fetchWithTimeout(url);
       if (response.status !== 200) {
-        return res.status(400).json({ error: 'Horizons API returned non-200' });
+        if (fallback) {
+          return res.json({ ...fallback, naif_id: bodyId, source: 'NASA JPL Horizons (Cached Fallback)' });
+        }
+        return res.status(502).json({ error: `Horizons API returned HTTP ${response.status}` });
       }
       const data = await response.json();
       if (data.error || !data.result) {
-        return res.status(400).json({ error: data.error || 'No results from Horizons' });
+        if (fallback) {
+          return res.json({ ...fallback, naif_id: bodyId, source: 'NASA JPL Horizons (Cached Fallback)' });
+        }
+        return res.status(502).json({ error: data.error || 'No results from Horizons' });
       }
       
       // Check if result is ambiguous/search list
@@ -790,13 +945,25 @@ app.get('/api/horizons/search', async (req, res) => {
           const bestRecord = recordNumbers[recordNumbers.length - 1];
           const retryUrl = `https://ssd.jpl.nasa.gov/api/horizons.api?format=json&EPHEM_TYPE=ELEMENTS&COMMAND=${encodeURIComponent("'" + bestRecord + ";'")}&MAKE_EPHEM=YES&CENTER=500@10&START_TIME=${epoch}&STOP_TIME=${stopStr}&STEP_SIZE=1d&OBJ_DATA=YES`;
           const retryRes = await fetchWithTimeout(retryUrl);
+          if (retryRes.status !== 200) {
+            if (fallback) {
+              return res.json({ ...fallback, naif_id: bodyId, source: 'NASA JPL Horizons (Cached Fallback)' });
+            }
+            return res.status(502).json({ error: `Horizons retry returned HTTP ${retryRes.status}` });
+          }
           const retryData = await retryRes.json();
           if (retryData.error || !retryData.result) {
-            return res.status(400).json({ error: 'Failed on retry' });
+            if (fallback) {
+              return res.json({ ...fallback, naif_id: bodyId, source: 'NASA JPL Horizons (Cached Fallback)' });
+            }
+            return res.status(502).json({ error: retryData.error || 'Failed on retry' });
           }
           resultText = retryData.result;
         } else {
-          return res.status(400).json({ error: 'Ambiguous body' });
+          if (fallback) {
+            return res.json({ ...fallback, naif_id: bodyId, source: 'NASA JPL Horizons (Cached Fallback)' });
+          }
+          return res.status(404).json({ error: `Ambiguous body or no records found for '${bodyId}'` });
         }
       }
       
@@ -810,10 +977,16 @@ app.get('/api/horizons/search', async (req, res) => {
         ...parsed,
         source: 'NASA JPL Horizons',
       });
-    } catch (err) {
+    } catch (err: any) {
       // Security: Log detailed error internally, return generic message to client
       console.error('Horizons body lookup error:', err);
-      return res.status(400).json({ error: 'Failed to retrieve data from Horizons API.' });
+      if (fallback) {
+        return res.json({ ...fallback, naif_id: bodyId, source: 'NASA JPL Horizons (Cached Fallback)' });
+      }
+      if (err?.name === 'AbortError' || err?.message?.includes('timeout')) {
+        return res.status(504).json({ error: 'NASA JPL Horizons service timed out.' });
+      }
+      return res.status(502).json({ error: 'Failed to retrieve data from Horizons API.' });
     }
   }
 
