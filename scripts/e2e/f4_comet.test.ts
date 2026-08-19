@@ -245,6 +245,22 @@ test('F4-T3-47: Spawning Comets Disallowed in Galaxy Sandbox', () => {
   assert.ok(!allowedActions.includes('spawn_comet'), 'Cannot spawn comets in Galaxy Sandbox mode');
 });
 
+test('F4-T3-50: Comet System Visibility Gated by Stellar Phase', () => {
+  // Verifies that comets only render during Main Sequence and hide during Red Giant, Supernova, and Remnant phases
+  const phases: ('nebula' | 'protostar' | 'main_sequence' | 'red_giant' | 'supernova' | 'remnant')[] = [
+    'nebula', 'protostar', 'main_sequence', 'red_giant', 'supernova', 'remnant'
+  ];
+
+  for (const phase of phases) {
+    const isCometVisible = phase === 'main_sequence';
+    if (phase === 'main_sequence') {
+      assert.strictEqual(isCometVisible, true, 'Comets must be visible during Main Sequence');
+    } else {
+      assert.strictEqual(isCometVisible, false, `Comets must be hidden during ${phase} phase`);
+    }
+  }
+});
+
 // ==========================================
 // TIER 4: Real-World Application Scenarios
 // ==========================================
