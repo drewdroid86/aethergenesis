@@ -2,6 +2,9 @@ export type PerformanceTier = 'low' | 'medium' | 'high' | 'ultra';
 
 export const FPS_THRESHOLD = 25;
 export const CONSECUTIVE_FRAMES_THRESHOLD = 150; 
+export const FPS_UPGRADE_THRESHOLD = 58;
+export const CONSECUTIVE_UPGRADE_FRAMES_THRESHOLD = 300;
+export const TIER_COOLDOWN_MS = 15000;
 export const BANNER_DISPLAY_DURATION = 3000;
 
 /**
@@ -13,8 +16,8 @@ export const BANNER_DISPLAY_DURATION = 3000;
  * Low: Otherwise
  */
 export function detectPerformanceTier(): PerformanceTier {
-    const cores = navigator.hardwareConcurrency || 4;
-    const dpr = window.devicePixelRatio || 1;
+    const cores = typeof navigator !== 'undefined' ? (navigator.hardwareConcurrency || 4) : 4;
+    const dpr = typeof window !== 'undefined' ? (window.devicePixelRatio || 1) : 1;
 
     if (cores >= 8 && dpr >= 2) return 'ultra';
     if (cores >= 6) return 'high';

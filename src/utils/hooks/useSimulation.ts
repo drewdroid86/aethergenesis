@@ -6,7 +6,7 @@ import { HeroStarSystem } from '../../rendering/systems/HeroStarSystem';
 import { NebulaSystem } from '../../rendering/systems/NebulaSystem';
 import { PHASE_NAMES } from '../../core/constants';
 import { PhysicsConstants, DEFAULT_CONSTANTS } from '../../types/physics';
-import { detectPerformanceTier, getNumStarsForTier } from '../../utils/performance';
+import { detectPerformanceTier, getNumStarsForTier, PerformanceTier } from '../../utils/performance';
 import { OrbitalBody, keplerianToCartesian } from '../../simulation/OrbitalMechanics';
 import { SimulationCoordinator } from '../../simulation/SimulationCoordinator';
 
@@ -68,10 +68,6 @@ export function useSimulation(containerRef: React.RefObject<HTMLDivElement | nul
         }
     }, [timeScale]);
 
-    // Performance State Owned by Main Hook for Rebuilding
-    const [currentTier, setCurrentTier] = useState<'low' | 'medium' | 'high' | 'ultra'>('medium');
-    const currentTierRef = useRef(currentTier);
-
     // Astrobiology UI State
     const [astrobiologyData, setAstrobiologyData] = useState<any[]>([]);
 
@@ -104,10 +100,6 @@ export function useSimulation(containerRef: React.RefObject<HTMLDivElement | nul
 
     const nbodyBufferRef = useRef<Float32Array | null>(null);
     const nbodyWorkerRef = useRef<Worker | null>(null);
-
-    const disposeStarSystem = (star: HeroStarSystem) => {
-        star.dispose();
-    };
 
     // Initialize sub-hooks (selection first so rebuild can clear it safely)
     const {
@@ -191,30 +183,28 @@ export function useSimulation(containerRef: React.RefObject<HTMLDivElement | nul
         }
     }, [selectedStarRef]);
 
-    const rebuildStarfieldGeometry = useCallback(() => {
+    const adjustStarfieldTier = useCallback((newTier: PerformanceTier) => {
         if (!engineRef.current || !engineRef.current.scene) return;
+        const targetCount = getNumStarsForTier(newTier);
+        const engine = engineRef.current;
 
-        // Dispose replaces every HeroStarSystem; drop selection so UI/refs
-        // never point at disposed objects.
-        setSelectedStar(null);
-        if (engineRef.current) {
-            engineRef.current.selectedStar = null;
+        // If a star is selected, ensure it remains in the active pool [0 .. targetCount-1]
+        const selected = selectedStarRef.current;
+        if (selected) {
+            const selectedIdx = engine.heroStars.indexOf(selected);
+            if (selectedIdx >= targetCount) {
+                // Swap selected star with index 0 so it stays active, visible, and selected
+                const temp = engine.heroStars[0];
+                engine.heroStars[0] = selected;
+                engine.heroStars[selectedIdx] = temp;
+            }
         }
 
-        engineRef.current.heroStars.forEach((star) => {
-            engineRef.current?.scene.remove(star);
-            disposeStarSystem(star);
-        });
-        engineRef.current.heroStars = [];
-        engineRef.current.activeHeroStarCount = 0;
-
-        const count = getNumStarsForTier(currentTierRef.current);
-        engineRef.current.createHeroStars(count, physicsRef.current);
-        engineRef.current.activeHeroStarCount = count;
-    }, [setSelectedStar]);
+        engine.setHeroStarCount(targetCount, physicsRef.current);
+    }, [selectedStarRef]);
 
     const {
-        currentTier: _tier,
+        currentTier,
         fps,
         showTierDownIndicator,
         registerFrameDelta,
@@ -223,7 +213,7 @@ export function useSimulation(containerRef: React.RefObject<HTMLDivElement | nul
         diagnostics,
         resetDiagnostics
     } = usePerformanceAutoTuning({
-        rebuildStarfieldGeometry,
+        adjustStarfieldTier,
         engineRef
     });
 
@@ -231,14 +221,6 @@ export function useSimulation(containerRef: React.RefObject<HTMLDivElement | nul
     useEffect(() => {
         registerFrameDeltaRef.current = registerFrameDelta;
     }, [registerFrameDelta]);
-
-    // Sync performance auto-tuning tier to our local state
-    useEffect(() => {
-        if (_tier !== currentTierRef.current) {
-            currentTierRef.current = _tier;
-            setCurrentTier(_tier);
-        }
-    }, [_tier]);
 
     const wsRef = useWebSocket({
         engineRef,
@@ -301,12 +283,6 @@ export function useSimulation(containerRef: React.RefObject<HTMLDivElement | nul
     }
 
     useEffect(() => {
-        const initialTier = detectPerformanceTier();
-        currentTierRef.current = initialTier;
-        setCurrentTier(initialTier);
-    }, []);
-
-    useEffect(() => {
         if (!containerRef.current) return;
         if (engineRef.current) return; // Prevent double initialization
 
@@ -340,6 +316,10 @@ export function useSimulation(containerRef: React.RefObject<HTMLDivElement | nul
                             engineRef.current.nbodyBuffer = e.data.buffer;
                         }
                     }
+                };
+
+                worker.onerror = (err) => {
+                    console.error('[NBodyWorker] Uncaught error:', err);
                 };
 
                 const centralMass = 1.0;

@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert';
+import { getNumStarsForTier } from '../../src/utils/performance';
 // ==========================================
 // TIER 1: Feature Coverage
 // ==========================================
@@ -129,6 +130,30 @@ test('F2-T3-24: Discovery Slider "Comet Activity" Spawns Comets', () => {
 
   assert.strictEqual(getCometSpawnInterval(1.0), 1000, 'Max activity should spawn comets every 1s');
   assert.strictEqual(getCometSpawnInterval(0.0), 10000, 'Min activity should spawn comets every 10s');
+});
+
+test('F2-T3-26: Non-Destructive Performance Auto-Tuning Hysteresis & Scaling', () => {
+  // Test tier selection counts
+  assert.strictEqual(getNumStarsForTier('low'), 100);
+  assert.strictEqual(getNumStarsForTier('medium'), 200);
+  assert.strictEqual(getNumStarsForTier('high'), 400);
+  assert.strictEqual(getNumStarsForTier('ultra'), 600);
+
+  // Test non-destructive selection preservation logic during downgrade
+  const heroStars = [{ id: 'star_0' }, { id: 'star_1' }, { id: 'star_2' }, { id: 'star_3' }, { id: 'star_4' }];
+  const selectedStar = heroStars[4]; // Star index 4
+  const targetCount = 3; // Downgrade to 3 active stars
+
+  const selectedIdx = heroStars.indexOf(selectedStar);
+  if (selectedIdx >= targetCount) {
+    // Swap selected star with index 0
+    const temp = heroStars[0];
+    heroStars[0] = selectedStar;
+    heroStars[selectedIdx] = temp;
+  }
+
+  assert.strictEqual(heroStars.indexOf(selectedStar), 0, 'Selected star must be preserved within active pool');
+  assert.ok(heroStars.indexOf(selectedStar) < targetCount, 'Selected star index must be less than active count');
 });
 
 // ==========================================

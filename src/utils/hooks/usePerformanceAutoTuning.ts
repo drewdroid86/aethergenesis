@@ -1,5 +1,15 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
-import { detectPerformanceTier, FPS_THRESHOLD, CONSECUTIVE_FRAMES_THRESHOLD, BANNER_DISPLAY_DURATION, phaseCounters } from '../../utils/performance';
+import { 
+    detectPerformanceTier, 
+    FPS_THRESHOLD, 
+    CONSECUTIVE_FRAMES_THRESHOLD, 
+    FPS_UPGRADE_THRESHOLD, 
+    CONSECUTIVE_UPGRADE_FRAMES_THRESHOLD, 
+    TIER_COOLDOWN_MS, 
+    BANNER_DISPLAY_DURATION, 
+    phaseCounters,
+    PerformanceTier 
+} from '../../utils/performance';
 import { Engine } from '../../core/engine';
 
 export interface PerformanceDiagnostics {
@@ -30,12 +40,13 @@ export interface PerformanceDiagnostics {
 }
 
 interface UsePerformanceAutoTuningProps {
-    rebuildStarfieldGeometry: () => void;
+    adjustStarfieldTier?: (tier: PerformanceTier) => void;
+    rebuildStarfieldGeometry?: () => void;
     engineRef?: React.MutableRefObject<Engine | null>;
 }
 
-export function usePerformanceAutoTuning({ rebuildStarfieldGeometry, engineRef }: UsePerformanceAutoTuningProps) {
-    const [currentTier, setCurrentTier] = useState<'low' | 'medium' | 'high' | 'ultra'>('medium');
+export function usePerformanceAutoTuning({ adjustStarfieldTier, rebuildStarfieldGeometry, engineRef }: UsePerformanceAutoTuningProps) {
+    const [currentTier, setCurrentTier] = useState<PerformanceTier>(detectPerformanceTier);
     const currentTierRef = useRef(currentTier);
     const [fps, setFps] = useState(0);
     const [showTierDownIndicator, setShowTierDownIndicator] = useState(false);
@@ -43,8 +54,9 @@ export function usePerformanceAutoTuning({ rebuildStarfieldGeometry, engineRef }
     const fpsHistoryRef = useRef<number[]>([]);
     const lastFpsUpdateTimeRef = useRef(0);
     const consecutiveFramesBelowThresholdRef = useRef(0);
+    const consecutiveFramesAboveThresholdRef = useRef(0);
     const tierDownIndicatorTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-    const lastDowngradeTimeRef = useRef(0);
+    const lastTierChangeTimeRef = useRef(0);
 
     const isDebugMode = typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('debug') === '1';
 
@@ -190,6 +202,10 @@ export function usePerformanceAutoTuning({ rebuildStarfieldGeometry, engineRef }
                 return;
             }
 
+            if (e.ctrlKey || e.metaKey || e.altKey) {
+                return;
+            }
+
             if (e.key === 'd' || e.key === 'D') {
                 e.preventDefault();
                 setDiagnosticsEnabled(prev => !prev);
@@ -199,14 +215,15 @@ export function usePerformanceAutoTuning({ rebuildStarfieldGeometry, engineRef }
         return () => window.removeEventListener('keydown', handleKeyDown);
     }, []);
 
-    const handleTierChange = useCallback((newTier: 'low' | 'medium' | 'high' | 'ultra') => {
+    const handleTierChange = useCallback((newTier: PerformanceTier) => {
         if (newTier === currentTierRef.current) return;
 
         const previousTier = currentTierRef.current;
         currentTierRef.current = newTier;
         setCurrentTier(newTier);
 
-        const isDowngrade = ['low', 'medium', 'high', 'ultra'].indexOf(newTier) < ['low', 'medium', 'high', 'ultra'].indexOf(previousTier);
+        const tiers: PerformanceTier[] = ['low', 'medium', 'high', 'ultra'];
+        const isDowngrade = tiers.indexOf(newTier) < tiers.indexOf(previousTier);
         if (isDowngrade) {
             setShowTierDownIndicator(true); 
 
@@ -218,8 +235,12 @@ export function usePerformanceAutoTuning({ rebuildStarfieldGeometry, engineRef }
             }, BANNER_DISPLAY_DURATION);
         }
 
-        rebuildStarfieldGeometry();
-    }, [rebuildStarfieldGeometry]);
+        if (adjustStarfieldTier) {
+            adjustStarfieldTier(newTier);
+        } else if (rebuildStarfieldGeometry) {
+            rebuildStarfieldGeometry();
+        }
+    }, [adjustStarfieldTier, rebuildStarfieldGeometry]);
 
     useEffect(() => {
         const initialTier = detectPerformanceTier();
@@ -342,18 +363,31 @@ export function usePerformanceAutoTuning({ rebuildStarfieldGeometry, engineRef }
 
         if (currentFps < FPS_THRESHOLD) {
             consecutiveFramesBelowThresholdRef.current++;
+            consecutiveFramesAboveThresholdRef.current = 0;
+        } else if (currentFps >= FPS_UPGRADE_THRESHOLD) {
+            consecutiveFramesAboveThresholdRef.current++;
+            consecutiveFramesBelowThresholdRef.current = 0;
         } else {
             consecutiveFramesBelowThresholdRef.current = 0;
+            consecutiveFramesAboveThresholdRef.current = 0;
         }
 
+        const tiers: PerformanceTier[] = ['low', 'medium', 'high', 'ultra'];
+        const currentTierIndex = tiers.indexOf(currentTierRef.current);
+
         if (consecutiveFramesBelowThresholdRef.current >= CONSECUTIVE_FRAMES_THRESHOLD) {
-            const tiers: ('low' | 'medium' | 'high' | 'ultra')[] = ['low', 'medium', 'high', 'ultra'];
-            const currentTierIndex = tiers.indexOf(currentTierRef.current);
-            if (currentTierIndex > 0 && (currentTime - lastDowngradeTimeRef.current > 10000)) {
+            if (currentTierIndex > 0 && (currentTime - lastTierChangeTimeRef.current > TIER_COOLDOWN_MS)) {
                 const newTier = tiers[currentTierIndex - 1];
                 handleTierChange(newTier);
-                lastDowngradeTimeRef.current = currentTime;
+                lastTierChangeTimeRef.current = currentTime;
                 consecutiveFramesBelowThresholdRef.current = 0; 
+            }
+        } else if (consecutiveFramesAboveThresholdRef.current >= CONSECUTIVE_UPGRADE_FRAMES_THRESHOLD) {
+            if (currentTierIndex < tiers.length - 1 && (currentTime - lastTierChangeTimeRef.current > TIER_COOLDOWN_MS)) {
+                const newTier = tiers[currentTierIndex + 1];
+                handleTierChange(newTier);
+                lastTierChangeTimeRef.current = currentTime;
+                consecutiveFramesAboveThresholdRef.current = 0;
             }
         }
     }, [handleTierChange, diagnosticsEnabled, engineRef, isDebugMode]);
