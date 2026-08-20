@@ -8,14 +8,6 @@ import { phaseCounters } from '../../utils/performance';
 import { colorTempToRGB } from '../../physics/math';
 import { computeLuminosity } from '../StellarPhysics';
 
-export interface PlanetInfo {
-    pivot: THREE.Group;
-    mesh: THREE.Mesh;
-    dist: number;
-    speed: number;
-    baseColor: number;
-}
-
 // BOLT: Static scratchpad to eliminate per-frame allocations
 const _scratchPos = new THREE.Vector3();
 
@@ -27,7 +19,6 @@ export class MainSequencePhase implements PhaseComponent {
     public flareMesh!: THREE.InstancedMesh;
     public flareMat!: THREE.ShaderMaterial;
     public hzMesh!: THREE.Mesh;
-    public planetsInfo: PlanetInfo[] = [];
     
     private parent!: THREE.Group;
     private mass: number;
@@ -220,23 +211,6 @@ export class MainSequencePhase implements PhaseComponent {
             }
         }
 
-        for (let i = 0; i < this.planetsInfo.length; i++) {
-            const p = this.planetsInfo[i];
-            // Only update rotations and planet healing if NOT in lowDetail
-            if (!lowDetail) {
-                p.pivot.rotation.y += p.speed * delta;
-                // Restore pristine appearance in case RedGiantPhase left burn
-                // damage from a previous forward/rewind cycle through red giant.
-                const mat = p.mesh.material as THREE.MeshStandardMaterial;
-                if (mat.emissiveIntensity !== 0) {
-                    mat.color.setHex(p.baseColor);
-                    mat.emissive.setHex(0x000000);
-                    mat.emissiveIntensity = 0;
-                    p.mesh.scale.setScalar(1.0);
-                }
-            }
-        }
-
         if (cameraPos) {
             const distSq = cameraPos.distanceToSquared(this.parent.position ?? _scratchPos);
             // BOLT: Use distanceToSquared for performance (35 * 35 = 1225)
@@ -258,17 +232,11 @@ export class MainSequencePhase implements PhaseComponent {
     show(): void {
         this.mainSeqGroup.visible = true;
         this.hzMesh.visible = true;
-        for (let i = 0; i < this.planetsInfo.length; i++) {
-            this.planetsInfo[i].pivot.visible = true;
-        }
     }
 
     hide(): void {
         this.mainSeqGroup.visible = false;
         this.hzMesh.visible = false;
-        for (let i = 0; i < this.planetsInfo.length; i++) {
-            this.planetsInfo[i].pivot.visible = false;
-        }
     }
 
     dispose(): void {
@@ -284,12 +252,6 @@ export class MainSequencePhase implements PhaseComponent {
             this._haloMat.dispose();
         }
         (this.hzMesh.material as THREE.Material).dispose();
-        for (let i = 0; i < this.planetsInfo.length; i++) {
-            const p = this.planetsInfo[i];
-            // Planet geometry is also shared GEOMETRIES.planet
-            (p.mesh.material as THREE.Material).dispose();
-            this.parent.remove(p.pivot);
-        }
         this.parent.remove(this.mainSeqGroup);
         this.parent.remove(this.hzMesh);
     }

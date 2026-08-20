@@ -1,9 +1,8 @@
 import * as THREE from 'three';
 import { PhaseComponent } from './types';
 import { PhysicsConstants } from '../../types/physics';
-import { basicVS, starSurfaceFS } from '../../rendering/shaders/stellar';
+import { subtleDisplacementVS, starSurfaceFS } from '../../rendering/shaders/stellar';
 import { GEOMETRIES } from './geometries';
-import { PlanetInfo } from './MainSequencePhase';
 import { STELLAR_CONSTANTS } from '../../core/constants';
 import { phaseCounters } from '../../utils/performance';
 import { colorTempToRGB } from '../../physics/math';
@@ -15,10 +14,11 @@ export class RedGiantPhase implements PhaseComponent {
     public redGiantMesh!: THREE.Mesh;
     public flareMesh!: THREE.InstancedMesh;
     public flareMat!: THREE.ShaderMaterial;
+    private _haloMesh!: THREE.Mesh;
+    private _haloMat!: THREE.MeshBasicMaterial;
     private parent!: THREE.Group;
     private baseRadius: number;
     private tHeat: number;
-    private planetsInfo: PlanetInfo[] = [];
 
     private initialized = false;
 
@@ -26,10 +26,6 @@ export class RedGiantPhase implements PhaseComponent {
         this.baseRadius = baseRadius;
         this.tHeat = tHeat;
         phaseCounters.inits++;
-    }
-
-    setPlanets(planets: PlanetInfo[]): void {
-        this.planetsInfo = planets;
     }
 
     init(parent: THREE.Group): void {
@@ -42,12 +38,12 @@ export class RedGiantPhase implements PhaseComponent {
         this.parent = parent;
         this.redGiantGroup = new THREE.Group();
         this.redGiantMat = new THREE.ShaderMaterial({
-            vertexShader: basicVS,
+            vertexShader: subtleDisplacementVS,
             fragmentShader: starSurfaceFS,
             uniforms: {
                 uTime: { value: 0 },
-                uColor: { value: new THREE.Color(0xff4400) },
-                uTurbulence: { value: 0.5 },
+                uColor: { value: new THREE.Color(0xff3300) },
+                uTurbulence: { value: 0.8 },
                 uOpacity: { value: 0.0 },
                 uHbar: { value: 1.0 },
                 uLowDetail: { value: 0.0 }
@@ -59,12 +55,24 @@ export class RedGiantPhase implements PhaseComponent {
         this.redGiantMesh = new THREE.Mesh(GEOMETRIES.redGiant, this.redGiantMat);
         this.redGiantGroup.add(this.redGiantMesh);
 
+        // Luminous red atmospheric halo envelope
+        this._haloMat = new THREE.MeshBasicMaterial({
+            color: 0xff2200,
+            transparent: true,
+            opacity: 0.0,
+            side: THREE.BackSide,
+            blending: THREE.AdditiveBlending
+        });
+        this._haloMat.name = 'RedGiantHaloMeshMaterial';
+        this._haloMesh = new THREE.Mesh(GEOMETRIES.redGiant, this._haloMat);
+        this.redGiantGroup.add(this._haloMesh);
+
         // Solar Flares
         const flareGeo = GEOMETRIES.flare;
         this.flareMat = new THREE.ShaderMaterial({
             uniforms: {
                 uTime: { value: 0 },
-                uColor: { value: new THREE.Color(0xff4400) },
+                uColor: { value: new THREE.Color(0xff3300) },
                 uOpacity: { value: 0.0 }
             },
             vertexShader: `
@@ -112,9 +120,14 @@ export class RedGiantPhase implements PhaseComponent {
     }
 
     update(delta: number, appTime: number, cameraPos: THREE.Vector3, physics: PhysicsConstants, t: number, lowDetail?: boolean, currentTemp?: number): void {
-        const normT = (t - STELLAR_CONSTANTS.PHASE_BOUNDARIES.RED_GIANT_START) / STELLAR_CONSTANTS.PHASE_BOUNDARIES.RED_GIANT_DURATION;
-        const giantScale = this.baseRadius * (1.0 + normT * STELLAR_CONSTANTS.VISUALS.RED_GIANT_MAX_SCALE_FACTOR) + Math.sin(appTime * STELLAR_CONSTANTS.VISUALS.RED_GIANT_PULSATION_SPEED) * STELLAR_CONSTANTS.VISUALS.RED_GIANT_PULSATION_AMP;
+        const giantScale = this.getCurrentScale(t, appTime);
         this.redGiantMesh.scale.setScalar(giantScale);
+        if (this._haloMesh) {
+            this._haloMesh.scale.setScalar(giantScale * 1.35);
+        }
+        if (this.flareMesh) {
+            this.flareMesh.scale.setScalar(giantScale / this.baseRadius);
+        }
         
         this.redGiantMat.uniforms.uTime.value = appTime;
         this.redGiantMat.uniforms.uHbar.value = physics.hbar || 1.0;
@@ -123,28 +136,28 @@ export class RedGiantPhase implements PhaseComponent {
 
         const effectiveTemp = currentTemp ?? this.getCurrentTemp(t);
         colorTempToRGB(effectiveTemp, this.redGiantMat.uniforms.uColor.value);
-        if (this.flareMat) {
-            colorTempToRGB(effectiveTemp, this.flareMat.uniforms.uColor.value);
-        }
+        // Titanium oxide & molecular absorption enhances deep red chromatic saturation for red giants
+        this.redGiantMat.uniforms.uColor.value.r = Math.max(this.redGiantMat.uniforms.uColor.value.r, 1.0);
+        this.redGiantMat.uniforms.uColor.value.g *= 0.45;
+        this.redGiantMat.uniforms.uColor.value.b *= 0.15;
 
-        if (!lowDetail) {
-            for (let i = 0; i < this.planetsInfo.length; i++) {
-                const p = this.planetsInfo[i];
-                p.pivot.visible = true;
-                p.pivot.rotation.y += p.speed * delta;
-                if (p.dist < giantScale * STELLAR_CONSTANTS.VISUALS.RED_GIANT_PLANET_DMG_RADIUS) {
-                    const denominator = giantScale * STELLAR_CONSTANTS.VISUALS.RED_GIANT_PLANET_BURN_RADIUS;
-                    const dmg = Math.min(1.0, Math.max(0, 1.0 - (p.dist - giantScale) / Math.max(0.001, denominator)));
-                    (p.mesh.material as THREE.MeshStandardMaterial).color.setHex(0x222222);
-                    (p.mesh.material as THREE.MeshStandardMaterial).emissive.setHex(0xffaa00);
-                    (p.mesh.material as THREE.MeshStandardMaterial).emissiveIntensity = dmg;
-                    p.mesh.scale.setScalar(Math.max(0.01, 1.0 - dmg));
-                } else {
-                    p.mesh.scale.setScalar(1.0);
-                    (p.mesh.material as THREE.MeshStandardMaterial).emissiveIntensity = 0;
-                }
-            }
+        if (this._haloMat) {
+            this._haloMat.color.copy(this.redGiantMat.uniforms.uColor.value);
         }
+        if (this.flareMat) {
+            this.flareMat.uniforms.uColor.value.copy(this.redGiantMat.uniforms.uColor.value);
+        }
+    }
+
+    /**
+     * Returns the current world-space radius of the red giant mesh.
+     * Extracted from update() so HeroStarSystem can pass it to
+     * PlanetarySystem.updateFromBuffer() without duplicating the formula.
+     */
+    getCurrentScale(t: number, appTime: number): number {
+        const normT = (t - STELLAR_CONSTANTS.PHASE_BOUNDARIES.RED_GIANT_START) / STELLAR_CONSTANTS.PHASE_BOUNDARIES.RED_GIANT_DURATION;
+        return this.baseRadius * (1.0 + normT * STELLAR_CONSTANTS.VISUALS.RED_GIANT_MAX_SCALE_FACTOR)
+            + Math.sin(appTime * STELLAR_CONSTANTS.VISUALS.RED_GIANT_PULSATION_SPEED) * STELLAR_CONSTANTS.VISUALS.RED_GIANT_PULSATION_AMP;
     }
 
     getCurrentTemp(t: number): number {
@@ -160,20 +173,17 @@ export class RedGiantPhase implements PhaseComponent {
     setOpacity(opacity: number): void {
         this.redGiantMat.uniforms.uOpacity.value = opacity;
         this.flareMat.uniforms.uOpacity.value = opacity * 0.8;
+        if (this._haloMat) {
+            this._haloMat.opacity = opacity * 0.35;
+        }
     }
 
     show(): void {
         this.redGiantGroup.visible = true;
-        for (let i = 0; i < this.planetsInfo.length; i++) {
-            this.planetsInfo[i].pivot.visible = true;
-        }
     }
 
     hide(): void {
         this.redGiantGroup.visible = false;
-        for (let i = 0; i < this.planetsInfo.length; i++) {
-            this.planetsInfo[i].pivot.visible = false;
-        }
     }
 
     dispose(): void {
@@ -181,6 +191,9 @@ export class RedGiantPhase implements PhaseComponent {
         // BOLT: redGiantMesh and flareMesh use shared GEOMETRIES, do NOT dispose
         this.redGiantMat.dispose();
         this.flareMat.dispose();
+        if (this._haloMat) {
+            this._haloMat.dispose();
+        }
         this.parent.remove(this.redGiantGroup);
     }
 }

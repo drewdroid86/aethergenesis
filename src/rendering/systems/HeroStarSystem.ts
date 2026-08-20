@@ -191,25 +191,75 @@ export class HeroStarSystem extends THREE.Group {
 
         if (this.t >= 0) {
             const initialPhase = getPhaseForT(this.t);
-            if (this._activePhase !== initialPhase) {
-                if (initialPhase === PHASES.NEBULA) this.nebulaPhase.show();
-                else if (initialPhase === PHASES.PROTOSTAR) this.protostarPhase.show();
-                else if (initialPhase === PHASES.MAIN_SEQUENCE) {
-                    this.mainSequencePhase.show();
-                    PlanetarySystemQueue.enqueueCreation(this, renderer);
-                }
-                else if (initialPhase === PHASES.RED_GIANT) {
-                    if (this._mainSequencePhase) {
-                        this.redGiantPhase.setPlanets(this._mainSequencePhase.planetsInfo);
-                    }
-                    this.redGiantPhase.show();
-                }
-                else if (initialPhase === PHASES.SUPERNOVA) this.supernovaPhase.show();
-                else if (initialPhase === PHASES.REMNANT) this.remnantPhase.show();
+            this.transitionToPhase(initialPhase, renderer);
+        }
+    }
 
-                this._activePhase = initialPhase;
-                this.phase = initialPhase;
+    public transitionToPhase(newPhase: number, renderer?: THREE.WebGLRenderer): void {
+        if (this._activePhase === newPhase) return;
+
+        // Hide previous active phase (full-reset path: always dispose planets)
+        this._exitPhase(this._activePhase, /* keepPlanetsForRedGiant */ false);
+
+        // Show new active phase
+        if (newPhase === PHASES.NEBULA) {
+            this.nebulaPhase.show();
+        } else if (newPhase === PHASES.PROTOSTAR) {
+            this.protostarPhase.show();
+        } else if (newPhase === PHASES.MAIN_SEQUENCE) {
+            this.mainSequencePhase.show();
+            PlanetarySystemQueue.enqueueCreation(this, renderer);
+        } else if (newPhase === PHASES.RED_GIANT) {
+            this.redGiantPhase.show();
+        } else if (newPhase === PHASES.SUPERNOVA) {
+            this.supernovaPhase.show();
+        } else if (newPhase === PHASES.REMNANT) {
+            this.remnantPhase.show();
+        }
+
+        this._activePhase = newPhase;
+        if (newPhase >= 0) {
+            this.phase = newPhase;
+        }
+    }
+
+    /**
+     * Hides the visuals for a departing phase and optionally keeps the PlanetarySystem
+     * alive when transitioning MAIN_SEQUENCE → RED_GIANT so scorch can render.
+     * @param exitingPhase   The phase being left.
+     * @param keepPlanetsForRedGiant  When true and exitingPhase is MAIN_SEQUENCE,
+     *                                the PlanetarySystem is NOT disposed — it carries
+     *                                forward into the Red Giant phase for scorch rendering.
+     *                                Always pass false for full-reset code paths (respawn,
+     *                                applyPreset, transitionToPhase called externally).
+     */
+    private _exitPhase(exitingPhase: number, keepPlanetsForRedGiant: boolean): void {
+        if (exitingPhase === PHASES.NEBULA) {
+            this._nebulaPhase?.hide();
+        } else if (exitingPhase === PHASES.PROTOSTAR) {
+            this._protostarPhase?.hide();
+        } else if (exitingPhase === PHASES.MAIN_SEQUENCE) {
+            this._mainSequencePhase?.hide();
+            if (!keepPlanetsForRedGiant) {
+                PlanetarySystemQueue.cancelCreation(this);
+                if (this.planetarySystem) {
+                    PlanetarySystemQueue.enqueueDisposal(this.planetarySystem);
+                    this.planetarySystem = undefined;
+                }
             }
+            // If keepPlanetsForRedGiant is true, planetarySystem stays alive intentionally.
+        } else if (exitingPhase === PHASES.RED_GIANT) {
+            this._redGiantPhase?.hide();
+            // Planets are vaporised when Red Giant ends — dispose regardless.
+            PlanetarySystemQueue.cancelCreation(this);
+            if (this.planetarySystem) {
+                PlanetarySystemQueue.enqueueDisposal(this.planetarySystem);
+                this.planetarySystem = undefined;
+            }
+        } else if (exitingPhase === PHASES.SUPERNOVA) {
+            this._supernovaPhase?.hide();
+        } else if (exitingPhase === PHASES.REMNANT) {
+            this._remnantPhase?.hide();
         }
     }
 
@@ -218,21 +268,7 @@ export class HeroStarSystem extends THREE.Group {
         this.t = -0.1;
         this.visible = false;
         
-        if (this._activePhase === PHASES.NEBULA) this._nebulaPhase?.hide();
-        else if (this._activePhase === PHASES.PROTOSTAR) this._protostarPhase?.hide();
-        else if (this._activePhase === PHASES.MAIN_SEQUENCE) {
-            this._mainSequencePhase?.hide();
-            PlanetarySystemQueue.cancelCreation(this);
-            if (this.planetarySystem) {
-                PlanetarySystemQueue.enqueueDisposal(this.planetarySystem);
-                this.planetarySystem = undefined;
-            }
-        }
-        else if (this._activePhase === PHASES.RED_GIANT) this._redGiantPhase?.hide();
-        else if (this._activePhase === PHASES.SUPERNOVA) this._supernovaPhase?.hide();
-        else if (this._activePhase === PHASES.REMNANT) this._remnantPhase?.hide();
-
-        this._activePhase = -1;
+        this.transitionToPhase(-1, renderer);
         this.phase = 0;
         
         this._opP = 0;
@@ -341,17 +377,7 @@ export class HeroStarSystem extends THREE.Group {
         }
 
         const initialPhase = getPhaseForT(this.t);
-        this._activePhase = initialPhase;
-        this.phase = initialPhase;
-        if (initialPhase === PHASES.NEBULA) this.nebulaPhase.show();
-        else if (initialPhase === PHASES.PROTOSTAR) this.protostarPhase.show();
-        else if (initialPhase === PHASES.MAIN_SEQUENCE) {
-            this.mainSequencePhase.show();
-            PlanetarySystemQueue.enqueueCreation(this, renderer);
-        }
-        else if (initialPhase === PHASES.RED_GIANT) this.redGiantPhase.show();
-        else if (initialPhase === PHASES.SUPERNOVA) this.supernovaPhase.show();
-        else if (initialPhase === PHASES.REMNANT) this.remnantPhase.show();
+        this.transitionToPhase(initialPhase, renderer);
     }
 
 
@@ -406,19 +432,10 @@ export class HeroStarSystem extends THREE.Group {
         // BOLT: Determine current phase and handle transitions
         const newPhase = getPhaseForT(this.t);
         if (this._activePhase !== newPhase) {
-            if (this._activePhase === PHASES.NEBULA) this._nebulaPhase?.hide();
-            else if (this._activePhase === PHASES.PROTOSTAR) this._protostarPhase?.hide();
-            else if (this._activePhase === PHASES.MAIN_SEQUENCE) {
-                this._mainSequencePhase?.hide();
-                PlanetarySystemQueue.cancelCreation(this);
-                if (this.planetarySystem) {
-                    PlanetarySystemQueue.enqueueDisposal(this.planetarySystem);
-                    this.planetarySystem = undefined;
-                }
-            }
-            else if (this._activePhase === PHASES.RED_GIANT) this._redGiantPhase?.hide();
-            else if (this._activePhase === PHASES.SUPERNOVA) this._supernovaPhase?.hide();
-            else if (this._activePhase === PHASES.REMNANT) this._remnantPhase?.hide();
+            // Keep planets alive specifically for MAIN_SEQUENCE → RED_GIANT so scorch can render.
+            // All other exits dispose planets unconditionally.
+            const keepPlanets = this._activePhase === PHASES.MAIN_SEQUENCE && newPhase === PHASES.RED_GIANT;
+            this._exitPhase(this._activePhase, /* keepPlanetsForRedGiant */ keepPlanets);
 
             if (newPhase === PHASES.NEBULA) this.nebulaPhase.show();
             else if (newPhase === PHASES.PROTOSTAR) this.protostarPhase.show();
@@ -427,9 +444,6 @@ export class HeroStarSystem extends THREE.Group {
                 PlanetarySystemQueue.enqueueCreation(this, renderer);
             }
             else if (newPhase === PHASES.RED_GIANT) {
-                if (this._mainSequencePhase) {
-                    this.redGiantPhase.setPlanets(this._mainSequencePhase.planetsInfo);
-                }
                 this.redGiantPhase.show();
             }
             else if (newPhase === PHASES.SUPERNOVA) {
@@ -492,6 +506,11 @@ export class HeroStarSystem extends THREE.Group {
             this.currentTemp = this.redGiantPhase.getCurrentTemp(this.t);
             this.currentLum = this.redGiantPhase.getCurrentLum(this.t, this.mass);
             this.redGiantPhase.update(delta, appTime, cameraPos, physics, this.t, lowDetail, this.currentTemp);
+            // Thread the live giant radius into updateFromBuffer for per-planet scorch computation.
+            if (nbodyBuffer && this.planetarySystem) {
+                const redGiantScale = this.redGiantPhase.getCurrentScale(this.t, appTime);
+                this.planetarySystem.updateFromBuffer(nbodyBuffer, delta, lowDetail, globalFade, redGiantScale);
+            }
 
         } else if (this.phase === PHASES.SUPERNOVA) {
             targetSuper = 1;

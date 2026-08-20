@@ -6,7 +6,7 @@ import { HeroStarSystem } from '../../rendering/systems/HeroStarSystem';
 import { NebulaSystem } from '../../rendering/systems/NebulaSystem';
 import { PHASE_NAMES } from '../../core/constants';
 import { PhysicsConstants, DEFAULT_CONSTANTS } from '../../types/physics';
-import { detectPerformanceTier, getNumStarsForTier, PerformanceTier } from '../../utils/performance';
+import { getNumStarsForTier, PerformanceTier } from '../../utils/performance';
 import { OrbitalBody, keplerianToCartesian } from '../../simulation/OrbitalMechanics';
 import { SimulationCoordinator } from '../../simulation/SimulationCoordinator';
 

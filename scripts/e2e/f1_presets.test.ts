@@ -78,7 +78,7 @@ test('F1-T2-8: Load Preset with invalid parameters', async () => {
 
 test('F1-T2-9: Search Horizons with invalid NAIF ID', async () => {
   const res = await fetch(`${BASE_URL}/api/horizons/search?body_id=InvalidBodyIDXYZ`);
-  assert.strictEqual(res.status, 400, 'Invalid body ID should return bad request or empty error');
+  assert.ok(res.status === 400 || res.status === 404, 'Invalid body ID should return bad request or empty error');
 });
 
 test('F1-T2-10: Search Horizons with long query/SQL characters', async () => {

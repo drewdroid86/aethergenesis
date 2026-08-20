@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { PHASES } from '../../core/constants';
+import { PHASES, STELLAR_CONSTANTS } from '../../core/constants';
 import { GEOMETRIES } from '../../simulation/phases/geometries';
 
 /**
@@ -12,6 +12,7 @@ attribute float planetType;
 attribute float planetSeed;
 attribute float biomass;
 attribute float civilizationTier;
+attribute float scorch;
 varying vec2 vUv;
 varying vec3 vNormal;
 varying vec3 vPosition;
@@ -19,6 +20,7 @@ varying float vType;
 varying float vSeed;
 varying float vBiomass;
 varying float vCivilizationTier;
+varying float vScorch;
 varying vec3 vLightDir;
 varying vec3 vWorldPosition;
 
@@ -29,6 +31,7 @@ void main() {
     vPosition = position;
     vBiomass = biomass;
     vCivilizationTier = civilizationTier;
+    vScorch = scorch;
     
     // Transform normal and position for lighting
     vec4 worldPos = instanceMatrix * vec4(position, 1.0);
@@ -49,6 +52,8 @@ varying float vType;
 varying float vSeed;
 varying float vBiomass;
 varying float vCivilizationTier;
+// Per-instance scorch driven by Red Giant proximity: 0.0 = normal, 1.0 = fully incinerated
+varying float vScorch;
 varying vec3 vLightDir;
 varying vec3 vWorldPosition;
 uniform vec3 u_starPosition;
@@ -148,24 +153,43 @@ void main() {
         if (water < -0.2) color = vec3(0.0, 0.25, 0.5);
     }
 
-    if (vBiomass > 0.0 && type != 1.0 && type != 3.0) {
-        color = mix(color, vec3(0.1, 0.6, 0.2), vBiomass * 0.4 * n);
+    // Red Giant scorch: progressively override toward molten/incinerated surface
+    if (vScorch > 0.0) {
+        float lava = snoise(p * 2.5 + uTime * 0.15) * 0.5 + 0.5;
+        // Phase 1 (0..0.5): surface reddening and drying
+        // Phase 2 (0.5..1.0): full magma ocean with glowing cracks
+        float earlyScorch = smoothstep(0.0, 0.5, vScorch);
+        float lateScorch  = smoothstep(0.5, 1.0, vScorch);
+        vec3 scorchedColor = mix(vec3(0.55, 0.18, 0.05), vec3(0.08, 0.03, 0.02), earlyScorch);
+        // Glowing magma cracks appear at late scorch
+        float crack = smoothstep(0.55, 0.75, lava);
+        scorchedColor = mix(scorchedColor, mix(vec3(1.0, 0.4, 0.0), vec3(1.0, 0.9, 0.3), crack), lateScorch * crack * 2.0);
+        color = mix(color, scorchedColor, vScorch);
+    }
+
+    // Biomass overlay (suppressed by scorch)
+    float biomassAlive = vBiomass * max(0.0, 1.0 - vScorch * 3.0);
+    if (biomassAlive > 0.0 && type != 1.0 && type != 3.0) {
+        color = mix(color, vec3(0.1, 0.6, 0.2), biomassAlive * 0.4 * n);
     }
 
     // Lighting
     float diff = max(dot(normalize(vNormal), vLightDir), 0.1);
-    vec3 finalColor = color * diff;
+    // During scorch, magma self-illuminates slightly
+    float selfEmit = vScorch * snoise(p * 2.5 + uTime * 0.15) * 0.3;
+    vec3 finalColor = color * max(diff, selfEmit);
     
     // Night side masking
     vec3 starDir = normalize(u_starPosition - vWorldPosition);
     float dayFactor = dot(normalize(vNormal), starDir);
     float nightMask = 1.0 - smoothstep(-0.1, 0.2, dayFactor);
     
-    // City lights (Kardashev Type I+)
-    if (vCivilizationTier >= 1.0 && type != 1.0 && type != 3.0) {
+    // City lights (Kardashev Type I+) — extinguished by scorch
+    if (vCivilizationTier >= 1.0 && type != 1.0 && type != 3.0 && vScorch < 0.8) {
         float cityNoise = hash(floor(vUv * 80.0));
         float cityLights = step(0.85, cityNoise) * nightMask;
-        finalColor += vec3(1.0, 0.85, 0.4) * cityLights * vBiomass * 2.0;
+        float cityFade = max(0.0, 1.0 - vScorch * 1.25);
+        finalColor += vec3(1.0, 0.85, 0.4) * cityLights * vBiomass * 2.0 * cityFade;
     }
 
     gl_FragColor = vec4(finalColor, uOpacity);
@@ -185,6 +209,7 @@ export class PlanetarySystem {
     private material: THREE.ShaderMaterial;
     private biomassAttr: THREE.InstancedBufferAttribute;
     private civAttr: THREE.InstancedBufferAttribute;
+    private scorchAttr: THREE.InstancedBufferAttribute;
     public renderer?: THREE.WebGLRenderer;
 
     constructor(star: THREE.Object3D, renderer?: THREE.WebGLRenderer) {
@@ -237,14 +262,17 @@ export class PlanetarySystem {
         
         const biomassArray = new Float32Array(numBodies).fill(0);
         const civArray = new Float32Array(numBodies).fill(0);
+        const scorchArray = new Float32Array(numBodies).fill(0);
         
         this.biomassAttr = new THREE.InstancedBufferAttribute(biomassArray, 1);
         this.civAttr = new THREE.InstancedBufferAttribute(civArray, 1);
+        this.scorchAttr = new THREE.InstancedBufferAttribute(scorchArray, 1);
 
         geometry.setAttribute('planetType', new THREE.InstancedBufferAttribute(types, 1));
         geometry.setAttribute('planetSeed', new THREE.InstancedBufferAttribute(seeds, 1));
         geometry.setAttribute('biomass', this.biomassAttr);
         geometry.setAttribute('civilizationTier', this.civAttr);
+        geometry.setAttribute('scorch', this.scorchAttr);
         
         this.group.add(this.instancedMesh);
         this.group.add(this.orbitLinesGroup);
@@ -257,21 +285,24 @@ export class PlanetarySystem {
         transparent: true,
         opacity: 0.3,
         blending: THREE.AdditiveBlending
-    });
-
-    /**
-     * Update orbits based on Float32Array from nbodyWorker.ts
+    });    /**
+     * Update orbits based on Float32Array from nbodyWorker.ts.
+     * @param redGiantScale  World-space radius of the expanding red giant (undefined during Main Sequence).
+     *                       Used to compute per-planet scorch from orbital distance.
      */
-    updateFromBuffer(buffer: Float32Array, delta: number, lowDetail?: boolean, globalFade: number = 1.0): void {
+    updateFromBuffer(buffer: Float32Array, delta: number, lowDetail?: boolean, globalFade: number = 1.0, redGiantScale?: number): void {
         const star = this.parent as any;
+        const isRedGiant = star.phase === PHASES.RED_GIANT;
         
-        if (star.phase !== PHASES.MAIN_SEQUENCE || lowDetail) {
+        if ((star.phase !== PHASES.MAIN_SEQUENCE && !isRedGiant) || lowDetail) {
             this.group.visible = false;
             return;
         }
         this.group.visible = true;
         this.material.uniforms.uTime.value += delta;
         this.material.uniforms.uOpacity.value = globalFade;
+        // Orbit lines are hidden during Red Giant — the expanded star dominates visually
+        this.orbitLinesGroup.visible = !isRedGiant;
         
         // BOLT: Optimized u_starPosition update. While .getWorldPosition is safer,
         // caching the result here avoids redundant matrix updates if called frequently.
@@ -280,6 +311,7 @@ export class PlanetarySystem {
         // Buffer has 7 floats per body: x, y, z, vx, vy, vz, type
         const numBodies = Math.min(this.bodies.length, buffer.length / 7);
         const matrixArray = this.instancedMesh.instanceMatrix.array;
+        const scorchArray = this.scorchAttr.array as Float32Array;
 
         // Construct orbit trajectory path lines once positions are established
         if (!this.orbitLinesBuilt && numBodies > 0) {
@@ -304,6 +336,7 @@ export class PlanetarySystem {
         }
         this.orbitLineMat.opacity = 0.35 * globalFade;
 
+        let scorchDirty = false;
         for (let i = 0; i < numBodies; i++) {
             const b = this.bodies[i];
             const offset = i * 16;
@@ -313,12 +346,30 @@ export class PlanetarySystem {
             const y = buffer[i * 7 + 1] * orbitScale;
             const z = buffer[i * 7 + 2] * orbitScale;
             
+            // Per-planet scorch from Red Giant proximity.
+            // RED_GIANT_PLANET_DMG_RADIUS: thermal envelope reaches (redGiantScale * factor).
+            // RED_GIANT_PLANET_BURN_RADIUS: width of scorch transition envelope.
+            let newScorch = 0.0;
+            if (redGiantScale !== undefined && redGiantScale > 0) {
+                const dist = Math.sqrt(x * x + y * y + z * z);
+                const dmgRadius = redGiantScale * STELLAR_CONSTANTS.VISUALS.RED_GIANT_PLANET_DMG_RADIUS;
+                const burnDenom = redGiantScale * STELLAR_CONSTANTS.VISUALS.RED_GIANT_PLANET_BURN_RADIUS;
+                newScorch = dist < dmgRadius
+                    ? Math.min(1.0, Math.max(0.0, 1.0 - (dist - redGiantScale) / Math.max(0.001, burnDenom)))
+                    : 0.0;
+            }
+
+            if (scorchArray[i] !== newScorch) {
+                scorchArray[i] = newScorch;
+                scorchDirty = true;
+            }
+
             // BOLT: Manual column-major matrix construction (Translation * RotationY * Scale)
             // Bypasses THREE.Matrix4.compose() and setMatrixAt() validation/method overhead.
             const theta = (x + y) * 0.01 + b.seed;
             const cos = Math.cos(theta);
             const sin = Math.sin(theta);
-            const s = b.scale;
+            const s = b.scale * Math.max(0.01, 1.0 - newScorch * 0.8);
             const sc = s * cos;
             const ss = s * sin;
 
@@ -350,6 +401,9 @@ export class PlanetarySystem {
         // BOLT: Setting .count natively handles hiding unused instances, removing redundant loop
         this.instancedMesh.instanceMatrix.needsUpdate = true;
         this.instancedMesh.count = numBodies;
+        if (scorchDirty) {
+            this.scorchAttr.needsUpdate = true;
+        }
     }
 
     /**
@@ -374,7 +428,7 @@ export class PlanetarySystem {
     }
 
     /**
-     * Updates biosphere shaders based on AstrobiologyEngine output
+     * Updates biosphere shaders based on AstrobiologyEngine output.
      */
     updateAstrobiology(astrobiologyStates: any[]): void {
         const biomassArray = this.biomassAttr.array as Float32Array;
