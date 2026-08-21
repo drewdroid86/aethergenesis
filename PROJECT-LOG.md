@@ -23,6 +23,10 @@ This log is updated after every AI session. Each AI signs off with their entry. 
 
 ## RECENT LOGS
 
+### 2026-08-21 — HUD Cosmic Age Card Responsive Width Constraint (Gemini 3.7 Flash)
+- **Constrain Cosmic Age Card Width (`src/ui/Hud.tsx`):** Changed the bottom timeline scrubber age-card wrapper from `w-1/3` to `w-full max-w-[220px]`, while preserving `absolute left-1/2 -translate-x-1/2`, ensuring a compact centered footprint that never impinges on corner instrumentation.
+- **Verification:** `npm run typecheck`, `npm run build`, and `npm run lint` passed with 0 errors and 0 warnings.
+
 ### 2026-08-21 — SpatialLabelsLayer 64px Euclidean Pixel Collision Pass (Gemini 3.7 Flash)
 - **64px Distance-Threshold Greedy Collision Resolution (`src/ui/navigation/SpatialLabelsLayer.tsx`):** Implemented a greedy 2D pixel collision filter with a strict 64px Euclidean radius threshold ($d^2 < 4096\,\text{px}^2$). Prioritizes selected stars and closest stars, dropping any candidate label that falls within 64px of an already-accepted label to guarantee clean spacing and zero HUD clutter.
 - **Verification:** `npm run typecheck`, `npm run build`, and `npm run lint` passed with 0 errors and 0 warnings.

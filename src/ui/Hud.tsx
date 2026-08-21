@@ -422,7 +422,7 @@ export const Hud: React.FC<HudProps> = ({
                     <span ref={uiRefs.hudZ}>0.0000</span>
                 </div>
 
-                <div className="absolute left-1/2 -translate-x-1/2 flex flex-col items-center gap-4 w-1/3 pointer-events-auto">
+                <div className="absolute left-1/2 -translate-x-1/2 flex flex-col items-center gap-4 w-full max-w-[220px] pointer-events-auto">
                     <div className="w-full px-8 py-4 bg-[rgba(8,8,20,0.6)] backdrop-blur-2xl border border-[rgba(126,184,255,0.2)] rounded-2xl flex flex-col items-center group">
                         <div className="flex justify-between w-full items-center mb-3">
                             <span className="text-[9px] uppercase tracking-widest text-[#7EB8FF]">
