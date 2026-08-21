@@ -138,11 +138,11 @@ export class SimulationCoordinator {
                 const r = Math.sqrt(x*x + y*y + z*z);
                 const vSq = vx*vx + vy*vy + vz*vz;
                 
-                const G_M = 4.0 * Math.PI * Math.PI * perStarState.mass_solar;
-                let a = 1.0;
+                const G_M = 4.0 * Math.PI * Math.PI * Math.max(0.01, perStarState.mass_solar);
+                let a = r > 0 ? r : 1.0;
                 if (G_M > 0 && r > 0) {
                     const invA = 2.0 / r - vSq / G_M;
-                    a = invA > 0 ? 1.0 / invA : 9999;
+                    a = invA > 0 ? 1.0 / invA : r;
                 }
 
                 const p = star.planetarySystem?.bodies[i];

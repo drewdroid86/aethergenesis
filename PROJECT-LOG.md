@@ -23,6 +23,12 @@ This log is updated after every AI session. Each AI signs off with their entry. 
 
 ## RECENT LOGS
 
+### 2026-08-21 — Astrobiology Scoring & Kopparapu Boundaries (Gemini 3.7 Flash)
+- **Smooth Habitability Time Decay (`src/simulation/AstrobiologyEngine.ts`):** Replaced instantaneous habitability history wipe (`timeInHz_yr = 0`) when `compositeScore <= 0.65` with smooth exponential decay (`timeInHz_yr = Math.max(0, timeInHz_yr - delta_yr * 2.0)`). Prevents transient thermal/orbital fluctuations from wiping hundreds of millions of years of evolutionary biogenesis progress in a single frame.
+- **Vis-Viva Semi-Major Axis Ejection Guard (`src/simulation/SimulationCoordinator.ts`):** Fixed vis-viva back-calculation energy formulation to fallback to instantaneous orbital distance $r$ instead of unphysical $9999\,\text{AU}$ when $\text{invA} \le 0$ (transient hyperbolic perturbations), preventing spurious 0 K deep-space freezes on non-solar stars.
+- **UI Metric Sanitization (`src/ui/AstrobiologyPanel.tsx`):** Added `Number.isFinite()` guards on temperature, composite habitability scores, and biomass calculations, preventing `NaN%` or `NaN°C` glitches during stellar phase transitions.
+- **Verification:** `npm run test:mcp`, `npm run typecheck`, `npm run build`, `npm run lint`, `npm run benchmark:physics` (1.084ms/tick), and all 4 E2E test suites (51/51 test cases) passed with 0 errors.
+
 ### 2026-08-21 — Per-Star Orbits Hybrid Engine Architecture (Gemini 3.7 Flash)
 - **Dynamic N-Body Central Mass (`src/simulation/nbodyWorker.ts`, `src/utils/hooks/useSimulation.ts`):** Added `UPDATE_CENTRAL_MASS` and `RESET_BODIES` message handlers in `nbodyWorker.ts`. Linked star selection in `useSimulation.ts` and `loadStarPreset` so the active worker dynamically integrates against the selected star's true mass ($M_{\text{selected}}$) rather than a hardcoded $1.0\,M_\odot$.
 - **Procedural Keplerian Background Planetary Systems (`src/rendering/systems/PlanetarySystem.ts`):** Implemented deterministic $O(1)$ procedural Keplerian orbit generator in `PlanetarySystem`. Background hero stars generate 2–6 unique planets deterministically seeded from `star.physicsId` and scaled by star mass $M_\star$ and luminosity $L_\star$. Orbits update analytically via $\theta_k(t) = \theta_{0,k} + \text{appTime} \cdot \sqrt{\frac{4\pi^2 M_\star}{a_k^3}}$, retaining full visual fidelity with zero N-body worker thread contention and zero heap allocations.

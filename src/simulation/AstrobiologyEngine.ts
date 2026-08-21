@@ -118,8 +118,11 @@ export class AstrobiologyEngine {
     if (compositeScore > 0.65) {
       record.timeInHz_yr += delta_yr;
     } else {
-      record.timeInHz_yr = 0;
-      record.civEmergenceTime = 0;
+      // Smooth decay: don't instantly wipe hundreds of millions of years of evolution in a single frame
+      record.timeInHz_yr = Math.max(0, record.timeInHz_yr - delta_yr * 2.0);
+      if (record.timeInHz_yr < 500e6) {
+        record.civEmergenceTime = 0;
+      }
     }
     if (compositeScore > record.highestScore) record.highestScore = compositeScore;
     this.history.set(planet_id, record);
@@ -144,7 +147,7 @@ export class AstrobiologyEngine {
     
     // Life Emergence
     let biomass = 0;
-    if (record.timeInHz_yr > 500e6 && compositeScore > 0.65) {
+    if (record.timeInHz_yr > 500e6 && compositeScore > 0.5) {
       biomass = Math.min(1.0, (record.timeInHz_yr - 500e6) / 1e9); 
     }
     

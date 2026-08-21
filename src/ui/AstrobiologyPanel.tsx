@@ -29,10 +29,13 @@ export const AstrobiologyPanel: React.FC<AstrobiologyPanelProps> = ({ data, sele
 
     const copyReport = () => {
         const report = data.map((planet, i) => {
+            const tempC = (Number.isFinite(planet.surfaceTemperature_K) ? planet.surfaceTemperature_K : 273.15) - 273.15;
+            const habPct = (Number.isFinite(planet.compositeScore) ? planet.compositeScore : 0) * 100;
+            const bioPct = (Number.isFinite(planet.biomass) ? planet.biomass : 0) * 100;
             return `Planet ${i + 1} (${planet.climateState.replace('_', ' ')})
-- Surface Temp: ${(planet.surfaceTemperature_K - 273.15).toFixed(1)}°C
-- Habitability: ${(planet.compositeScore * 100).toFixed(1)}%
-- Biomass: ${(planet.biomass * 100).toFixed(1)}%
+- Surface Temp: ${tempC.toFixed(1)}°C
+- Habitability: ${habPct.toFixed(1)}%
+- Biomass: ${bioPct.toFixed(1)}%
 - Extinction Risk: ${planet.extinctionRiskLevel.replace('_', ' ')}
 ${planet.civilizationTier > 0 ? `- Civilization: Type ${planet.civilizationTier}` : ''}`;
         }).join('\n\n');
@@ -121,12 +124,12 @@ ${planet.civilizationTier > 0 ? `- Civilization: Type ${planet.civilizationTier}
                                     <div className="flex justify-between">
                                         <span className="flex items-center"><Thermometer className="w-3 h-3 mr-1" /> Temp</span>
                                         <span className={planet.surfaceTemperature_K > 273 && planet.surfaceTemperature_K < 373 ? "text-emerald-400" : ""}>
-                                            {(planet.surfaceTemperature_K - 273.15).toFixed(1)}°C
+                                            {((Number.isFinite(planet.surfaceTemperature_K) ? planet.surfaceTemperature_K : 273.15) - 273.15).toFixed(1)}°C
                                         </span>
                                     </div>
                                     <div className="flex justify-between">
                                         <span className="flex items-center"><Droplets className="w-3 h-3 mr-1" /> Habitability</span>
-                                        <span>{(planet.compositeScore * 100).toFixed(1)}%</span>
+                                        <span>{((Number.isFinite(planet.compositeScore) ? planet.compositeScore : 0) * 100).toFixed(1)}%</span>
                                     </div>
                                     <div className="flex justify-between">
                                         <span className="flex items-center"><ShieldAlert className="w-3 h-3 mr-1" /> Extinction Risk</span>
@@ -147,19 +150,19 @@ ${planet.civilizationTier > 0 ? `- Civilization: Type ${planet.civilizationTier}
                                                 <Dna className="w-3 h-3 mr-1 opacity-60" aria-hidden="true" />
                                                 Biomass
                                             </span>
-                                            <span>{(planet.biomass * 100).toFixed(1)}%</span>
+                                            <span>{((Number.isFinite(planet.biomass) ? planet.biomass : 0) * 100).toFixed(1)}%</span>
                                         </div>
                                         <div
                                             className="w-full h-1.5 bg-black/50 rounded-full overflow-hidden"
                                             role="progressbar"
                                             aria-labelledby={`biomass-label-${planet.planet_id}`}
-                                            aria-valuenow={Math.round(planet.biomass * 100)}
+                                            aria-valuenow={Math.round((Number.isFinite(planet.biomass) ? planet.biomass : 0) * 100)}
                                             aria-valuemin={0}
                                             aria-valuemax={100}
                                         >
                                             <div 
                                                 className="h-full bg-emerald-400 transition-all duration-300" 
-                                                style={{ width: `${planet.biomass * 100}%` }}
+                                                style={{ width: `${Math.max(0, Math.min(100, (Number.isFinite(planet.biomass) ? planet.biomass : 0) * 100))}%` }}
                                             />
                                         </div>
                                     </div>
