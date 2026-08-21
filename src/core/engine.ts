@@ -409,6 +409,7 @@ export class Engine {
                 }
             }
 
+            const isFocused = star === selectedStar || (selectedStar === null && i === 0);
             star.update(
                  this.isPaused ? 0 : delta, 
                  this.appTime,
@@ -418,7 +419,7 @@ export class Engine {
                  cosmicAge,
                  this._frustum,
                  protostarFlicker,
-                 nbodyBuffer,
+                 isFocused ? nbodyBuffer : null,
                  this.renderer
              );
         }
@@ -429,10 +430,12 @@ export class Engine {
         if (!this.isPaused && !isScrubbing) {
             const deltaTime_yr = timeScale === 'cosmic' ? delta * 200000000 : delta * 1000;
             try {
-                const targetStarPos = this.selectedStar?.position || this.heroStars[0]?.position;
+                const targetStar = this.selectedStar || this.heroStars[0];
+                const targetStarPos = targetStar?.position;
+                const targetStarMass = targetStar?.mass || 1.0;
                 this.cometSystem.update(deltaTime_yr, this.getStellarState(), this.appTime, targetStarPos);
                 this.dysonSwarmSystem.update(this.highestKardashevTier, this.appTime, targetStarPos);
-                this.asteroidBeltSystem.update(this.appTime, targetStarPos);
+                this.asteroidBeltSystem.update(this.appTime, targetStarPos, targetStarMass);
             } catch (error) {
                 if (typeof (window as any).emitErrorOverlay === 'function') {
                     (window as any).emitErrorOverlay(error);

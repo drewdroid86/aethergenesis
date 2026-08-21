@@ -61,11 +61,9 @@ export class AsteroidBeltSystem {
         scene.add(this.instancedMesh);
     }
 
-    update(time: number, starPosition?: THREE.Vector3): void {
-        // We will just rotate the entire group slowly for performance, 
-        // as updating 10,000 matrices per frame is against Prompt 5 optimization rules
-        // "Since this is a background simulation... no physics"
-        this.instancedMesh.rotation.y = time * 0.05;
+    update(time: number, starPosition?: THREE.Vector3, starMass: number = 1.0): void {
+        // We will rotate the entire group scaled by Keplerian orbital frequency sqrt(M_star)
+        this.instancedMesh.rotation.y = time * 0.05 * Math.sqrt(Math.max(0.01, starMass));
         if (starPosition) {
             this.instancedMesh.position.copy(starPosition);
         }

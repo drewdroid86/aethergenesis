@@ -497,19 +497,17 @@ export class HeroStarSystem extends THREE.Group {
             this.currentTemp = this.tHeat;
             this.currentLum = this._msLuminosity;
             this.mainSequencePhase.update(delta, appTime, cameraPos, physics, this.t, lowDetail, this.currentTemp);
-            if (nbodyBuffer) {
-                this.planetarySystem?.updateFromBuffer(nbodyBuffer, delta, lowDetail, globalFade);
-            }
+            this.planetarySystem?.update(delta, appTime, nbodyBuffer, lowDetail, globalFade);
 
         } else if (this.phase === PHASES.RED_GIANT) {
             targetRed = 1;
             this.currentTemp = this.redGiantPhase.getCurrentTemp(this.t);
             this.currentLum = this.redGiantPhase.getCurrentLum(this.t, this.mass);
             this.redGiantPhase.update(delta, appTime, cameraPos, physics, this.t, lowDetail, this.currentTemp);
-            // Thread the live giant radius into updateFromBuffer for per-planet scorch computation.
-            if (nbodyBuffer && this.planetarySystem) {
+            // Thread the live giant radius into update for per-planet scorch computation.
+            if (this.planetarySystem) {
                 const redGiantScale = this.redGiantPhase.getCurrentScale(this.t, appTime);
-                this.planetarySystem.updateFromBuffer(nbodyBuffer, delta, lowDetail, globalFade, redGiantScale);
+                this.planetarySystem.update(delta, appTime, nbodyBuffer, lowDetail, globalFade, redGiantScale);
             }
 
         } else if (this.phase === PHASES.SUPERNOVA) {

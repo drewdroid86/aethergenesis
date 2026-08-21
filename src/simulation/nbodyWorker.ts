@@ -51,6 +51,18 @@ self.onmessage = (e) => {
         }
     } else if (type === 'UPDATE_TIMESTEP') {
         dt_yr = payload.dt_yr;
+    } else if (type === 'UPDATE_CENTRAL_MASS') {
+        if (payload && typeof payload.centralMass_solar === 'number' && payload.centralMass_solar > 0) {
+            centralMass_solar = payload.centralMass_solar;
+            accelsValid = false;
+        }
+    } else if (type === 'RESET_BODIES') {
+        bodies = payload.bodies || [];
+        if (payload.centralMass_solar && payload.centralMass_solar > 0) {
+            centralMass_solar = payload.centralMass_solar;
+        }
+        accelsValid = false;
+        dtAccumulator = 0;
     }
 };
 

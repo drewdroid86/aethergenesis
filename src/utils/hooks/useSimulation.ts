@@ -138,6 +138,12 @@ export function useSimulation(containerRef: React.RefObject<HTMLDivElement | nul
             if (coordinatorRef.current) {
                 coordinatorRef.current.clearHistory(star.physicsId);
             }
+            if (nbodyWorkerRef.current) {
+                nbodyWorkerRef.current.postMessage({
+                    type: 'UPDATE_CENTRAL_MASS',
+                    payload: { centralMass_solar: star.mass }
+                });
+            }
         }
     }, [selectedStarRef]);
 
@@ -528,6 +534,19 @@ export function useSimulation(containerRef: React.RefObject<HTMLDivElement | nul
     // re-init Three.js incorrectly.
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
+
+    // Sync selectedStar central mass to worker and engine
+    useEffect(() => {
+        if (engineRef.current) {
+            engineRef.current.selectedStar = selectedStar;
+        }
+        if (selectedStar && nbodyWorkerRef.current) {
+            nbodyWorkerRef.current.postMessage({
+                type: 'UPDATE_CENTRAL_MASS',
+                payload: { centralMass_solar: selectedStar.mass }
+            });
+        }
+    }, [selectedStar]);
 
     // Sync play/pause cosmic to engine
     useEffect(() => {

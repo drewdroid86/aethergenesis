@@ -214,7 +214,8 @@ export class CometSystem {
             const data = this.precalcData[i];
             // Kepler's equation — solved via standard OrbitalMechanics Kepler solver
             const visualYear = appTime * 100.0;
-            const M = (visualYear * data.twoPiOverP) % (2 * Math.PI);
+            const massFactor = Math.sqrt(Math.max(0.01, stellarState.mass_solar || 1.0));
+            const M = (visualYear * data.twoPiOverP * massFactor) % (2 * Math.PI);
             const E = solveKepler(M, data.e);
             const theta = 2 * Math.atan2(
                 data.sqrt1pe * Math.sin(E / 2),

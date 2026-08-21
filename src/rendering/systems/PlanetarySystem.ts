@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { PHASES, STELLAR_CONSTANTS } from '../../core/constants';
 import { GEOMETRIES } from '../../simulation/phases/geometries';
+import { computeLuminosity } from '../../simulation/StellarPhysics';
 
 /**
  * BOLT: PlanetarySystem manages a collection of orbital bodies
@@ -196,6 +197,24 @@ void main() {
 }
 `;
 
+interface ProceduralOrbit {
+    semiMajorAxis_au: number;
+    orbitalSpeed: number;
+    phaseOffset: number;
+    scale: number;
+    type: number;
+    seed: number;
+}
+
+function hashString(str: string): number {
+    let hash = 0x811c9dc5;
+    for (let i = 0; i < str.length; i++) {
+        hash ^= str.charCodeAt(i);
+        hash = Math.imul(hash, 0x01000193);
+    }
+    return (hash >>> 0);
+}
+
 export class PlanetarySystem {
     private instancedMesh: THREE.InstancedMesh;
     public bodies: {
@@ -203,6 +222,7 @@ export class PlanetarySystem {
         type: number;
         seed: number;
     }[] = [];
+    public proceduralOrbits: ProceduralOrbit[] = [];
     
     private group: THREE.Group;
     public parent: THREE.Object3D;
@@ -240,21 +260,85 @@ export class PlanetarySystem {
 
         this.instancedMesh = new THREE.InstancedMesh(geometry, this.material, numBodies);
         
-        // Add instance attributes for planet variation
         const types = new Float32Array(numBodies);
         const seeds = new Float32Array(numBodies);
+
+        // Deterministic per-star procedural planetary generation
+        const starMass = Math.max(0.08, (star as any).mass || 1.0);
+        const physicsId = (star as any).physicsId || `${starMass}_${Math.random()}`;
+        let rngState = hashString(physicsId);
+        const nextRand = () => {
+            rngState = (rngState * 1664525 + 1013904223) >>> 0;
+            return rngState / 4294967296;
+        };
+
+        const countRoll = nextRand();
+        let planetCount: number;
+        if (starMass < 0.3) {
+            planetCount = 2 + Math.floor(countRoll * 3);
+        } else if (starMass > 8.0) {
+            planetCount = 2 + Math.floor(countRoll * 3);
+        } else {
+            planetCount = 3 + Math.floor(countRoll * 4);
+        }
+
+        const lum = computeLuminosity(starMass);
+        const r_in = Math.sqrt(Math.max(0.001, lum / 1.1));
+        const r_out = Math.sqrt(Math.max(0.001, lum / 0.53));
+
+        let currentA = Math.max(0.15, 0.35 * Math.sqrt(starMass)) * (0.85 + nextRand() * 0.3);
         for (let i = 0; i < numBodies; i++) {
-            types[i] = Math.floor(Math.random() * 7);
-            seeds[i] = Math.random() * 1000.0;
-            
-            const isGasGiant = types[i] === 1;
-            const baseScale = 0.08 + Math.random() * 0.12;
-            const pScale = isGasGiant ? baseScale * 2.5 : baseScale;
-            this.bodies.push({
-                scale: pScale,
-                type: types[i],
-                seed: seeds[i]
-            });
+            if (i < planetCount) {
+                const a = currentA;
+                currentA = currentA * (1.35 + nextRand() * 0.35);
+
+                const omega = Math.sqrt((4.0 * Math.PI * Math.PI * starMass) / Math.max(0.001, a * a * a)) * 0.15;
+                const phase = nextRand() * Math.PI * 2;
+                const pSeed = nextRand() * 1000.0;
+
+                let pType: number;
+                if (a >= r_in * 0.85 && a <= r_out * 1.15) {
+                    const habRoll = nextRand();
+                    pType = habRoll > 0.6 ? 6 : (habRoll > 0.3 ? 4 : 0);
+                } else if (a < r_in * 0.85) {
+                    const hotRoll = nextRand();
+                    pType = hotRoll > 0.5 ? 3 : (hotRoll > 0.2 ? 5 : 0);
+                } else {
+                    const coldRoll = nextRand();
+                    pType = coldRoll > 0.5 ? 1 : 2;
+                }
+
+                const isGasGiant = pType === 1;
+                const baseScale = 0.08 + nextRand() * 0.12;
+                const pScale = isGasGiant ? baseScale * 2.2 : baseScale;
+
+                this.proceduralOrbits.push({
+                    semiMajorAxis_au: a,
+                    orbitalSpeed: omega,
+                    phaseOffset: phase,
+                    scale: pScale,
+                    type: pType,
+                    seed: pSeed
+                });
+
+                types[i] = pType;
+                seeds[i] = pSeed;
+                this.bodies.push({
+                    scale: pScale,
+                    type: pType,
+                    seed: pSeed
+                });
+            } else {
+                types[i] = Math.floor(nextRand() * 7);
+                seeds[i] = nextRand() * 1000.0;
+                const isGasGiant = types[i] === 1;
+                const baseScale = 0.08 + nextRand() * 0.12;
+                this.bodies.push({
+                    scale: isGasGiant ? baseScale * 2.2 : baseScale,
+                    type: types[i],
+                    seed: seeds[i]
+                });
+            }
         }
         
         // BOLT: Initialize count to 0 instead of looping hide matrices
@@ -285,12 +369,12 @@ export class PlanetarySystem {
         transparent: true,
         opacity: 0.3,
         blending: THREE.AdditiveBlending
-    });    /**
-     * Update orbits based on Float32Array from nbodyWorker.ts.
-     * @param redGiantScale  World-space radius of the expanding red giant (undefined during Main Sequence).
-     *                       Used to compute per-planet scorch from orbital distance.
+    });
+
+    /**
+     * Update orbits: evaluates live nbodyBuffer if focused star; evaluates unique procedural Keplerian orbits otherwise.
      */
-    updateFromBuffer(buffer: Float32Array, delta: number, lowDetail?: boolean, globalFade: number = 1.0, redGiantScale?: number): void {
+    update(delta: number, appTime: number, buffer?: Float32Array | null, lowDetail?: boolean, globalFade: number = 1.0, redGiantScale?: number): void {
         const star = this.parent as any;
         const isRedGiant = star.phase === PHASES.RED_GIANT;
         
@@ -301,26 +385,33 @@ export class PlanetarySystem {
         this.group.visible = true;
         this.material.uniforms.uTime.value += delta;
         this.material.uniforms.uOpacity.value = globalFade;
-        // Orbit lines are hidden during Red Giant — the expanded star dominates visually
         this.orbitLinesGroup.visible = !isRedGiant;
         
-        // BOLT: Optimized u_starPosition update. While .getWorldPosition is safer,
-        // caching the result here avoids redundant matrix updates if called frequently.
         this.parent.getWorldPosition(this.material.uniforms.u_starPosition.value);
         
-        // Buffer has 7 floats per body: x, y, z, vx, vy, vz, type
-        const numBodies = Math.min(this.bodies.length, buffer.length / 7);
         const matrixArray = this.instancedMesh.instanceMatrix.array;
         const scorchArray = this.scorchAttr.array as Float32Array;
+        let scorchDirty = false;
 
-        // Construct orbit trajectory path lines once positions are established
+        const isBufferDriven = buffer && buffer.length >= 7;
+        const numBodies = isBufferDriven 
+            ? Math.min(this.bodies.length, buffer!.length / 7) 
+            : this.proceduralOrbits.length;
+
+        // Construct orbit trajectory path lines once
         if (!this.orbitLinesBuilt && numBodies > 0) {
             this.orbitLinesBuilt = true;
             for (let i = 0; i < numBodies; i++) {
                 const orbitScale = 12.0;
-                const bx = buffer[i * 7 + 0] * orbitScale;
-                const bz = buffer[i * 7 + 2] * orbitScale;
-                const radius = Math.sqrt(bx * bx + bz * bz);
+                let radius: number;
+                if (isBufferDriven) {
+                    const bx = buffer![i * 7 + 0] * orbitScale;
+                    const bz = buffer![i * 7 + 2] * orbitScale;
+                    radius = Math.sqrt(bx * bx + bz * bz);
+                } else {
+                    radius = this.proceduralOrbits[i].semiMajorAxis_au * orbitScale;
+                }
+
                 if (radius > 0.1) {
                     const segments = 64;
                     const points: THREE.Vector3[] = [];
@@ -336,19 +427,30 @@ export class PlanetarySystem {
         }
         this.orbitLineMat.opacity = 0.35 * globalFade;
 
-        let scorchDirty = false;
         for (let i = 0; i < numBodies; i++) {
-            const b = this.bodies[i];
             const offset = i * 16;
-            
-            const orbitScale = 12.0;
-            const x = buffer[i * 7 + 0] * orbitScale;
-            const y = buffer[i * 7 + 1] * orbitScale;
-            const z = buffer[i * 7 + 2] * orbitScale;
-            
-            // Per-planet scorch from Red Giant proximity.
-            // RED_GIANT_PLANET_DMG_RADIUS: thermal envelope reaches (redGiantScale * factor).
-            // RED_GIANT_PLANET_BURN_RADIUS: width of scorch transition envelope.
+            let x: number, y: number, z: number, bScale: number, bSeed: number;
+
+            if (isBufferDriven) {
+                const b = this.bodies[i];
+                bScale = b.scale;
+                bSeed = b.seed;
+                const orbitScale = 12.0;
+                x = buffer![i * 7 + 0] * orbitScale;
+                y = buffer![i * 7 + 1] * orbitScale;
+                z = buffer![i * 7 + 2] * orbitScale;
+            } else {
+                const po = this.proceduralOrbits[i];
+                bScale = po.scale;
+                bSeed = po.seed;
+                const theta = po.phaseOffset + appTime * po.orbitalSpeed;
+                const r = po.semiMajorAxis_au * 12.0;
+                x = Math.cos(theta) * r;
+                y = 0.0;
+                z = Math.sin(theta) * r;
+            }
+
+            // Per-planet scorch from Red Giant proximity
             let newScorch = 0.0;
             if (redGiantScale !== undefined && redGiantScale > 0) {
                 const dist = Math.sqrt(x * x + y * y + z * z);
@@ -364,12 +466,11 @@ export class PlanetarySystem {
                 scorchDirty = true;
             }
 
-            // BOLT: Manual column-major matrix construction (Translation * RotationY * Scale)
-            // Bypasses THREE.Matrix4.compose() and setMatrixAt() validation/method overhead.
-            const theta = (x + y) * 0.01 + b.seed;
-            const cos = Math.cos(theta);
-            const sin = Math.sin(theta);
-            const s = b.scale * Math.max(0.01, 1.0 - newScorch * 0.8);
+            // Column-major matrix construction (Translation * RotationY * Scale)
+            const rotTheta = (x + y) * 0.01 + bSeed;
+            const cos = Math.cos(rotTheta);
+            const sin = Math.sin(rotTheta);
+            const s = bScale * Math.max(0.01, 1.0 - newScorch * 0.8);
             const sc = s * cos;
             const ss = s * sin;
 
@@ -398,12 +499,18 @@ export class PlanetarySystem {
             matrixArray[offset + 15] = 1;
         }
 
-        // BOLT: Setting .count natively handles hiding unused instances, removing redundant loop
         this.instancedMesh.instanceMatrix.needsUpdate = true;
         this.instancedMesh.count = numBodies;
         if (scorchDirty) {
             this.scorchAttr.needsUpdate = true;
         }
+    }
+
+    /**
+     * Backward-compatible wrapper for updateFromBuffer.
+     */
+    updateFromBuffer(buffer: Float32Array, delta: number, lowDetail?: boolean, globalFade: number = 1.0, redGiantScale?: number): void {
+        this.update(delta, this.material.uniforms.uTime.value, buffer, lowDetail, globalFade, redGiantScale);
     }
 
     /**
