@@ -199,6 +199,7 @@ export const NavigationDeck: React.FC<NavigationDeckProps> = ({
             {showBoresight && (
                 <BoresightScanner 
                     target={boresightTarget} 
+                    selectedStarId={selectedStar?.physicsId}
                     onLockTarget={handleSelectContact} 
                 />
             )}

@@ -23,6 +23,10 @@ This log is updated after every AI session. Each AI signs off with their entry. 
 
 ## RECENT LOGS
 
+### 2026-08-21 — BoresightScanner Telemetry Callout Deduplication (Gemini 3.7 Flash)
+- **Deduplicate Center Boresight Callout (`src/ui/navigation/BoresightScanner.tsx`, `src/ui/navigation/NavigationDeck.tsx`):** Added `selectedStarId?: string` prop to `BoresightScanner` and wired `selectedStar?.physicsId` from `NavigationDeck`. When the boresight crosshair is aligned with the already-selected star (`target.id === selectedStarId`), the telemetry callout box is hidden while preserving the reticle ticks and center dot, preventing clutter with `SpatialLabelsLayer`'s selection card.
+- **Verification:** `npm run typecheck`, `npm run build`, and `npm run lint` passed with 0 errors and 0 warnings.
+
 ### 2026-08-21 — TargetWaypointHUD On-Screen Label Deduplication (Gemini 3.7 Flash)
 - **Deduplicate Target HUD Labels (`src/ui/navigation/TargetWaypointHUD.tsx`):** Removed the redundant telemetry text tag (`name • distance`) from `TargetWaypointHUD`'s on-screen branch while preserving the bracket graphic. Resolves visual collision with `SpatialLabelsLayer`, which already renders full metadata cards for selected stars at the identical screen coordinates.
 - **Verification:** `npm run typecheck`, `npm run build`, and `npm run lint` passed with 0 errors and 0 warnings.

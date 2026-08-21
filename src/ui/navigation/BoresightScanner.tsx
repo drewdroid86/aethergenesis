@@ -4,10 +4,15 @@ import { BoresightTarget } from '../../types/navigation';
 
 interface BoresightScannerProps {
     target: BoresightTarget | null;
+    selectedStarId?: string;
     onLockTarget?: (id: string) => void;
 }
 
-export const BoresightScanner: React.FC<BoresightScannerProps> = ({ target, onLockTarget }) => {
+export const BoresightScanner: React.FC<BoresightScannerProps> = ({ 
+    target, 
+    selectedStarId, 
+    onLockTarget 
+}) => {
     return (
         <div 
             className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none z-15 flex flex-col items-center select-none"
@@ -25,8 +30,8 @@ export const BoresightScanner: React.FC<BoresightScannerProps> = ({ target, onLo
                 <div className={`w-1 h-1 rounded-full transition-all duration-200 ${target ? 'bg-[#C084FC] scale-150 shadow-[0_0_8px_#C084FC]' : 'bg-[#7EB8FF]/40'}`} />
             </div>
 
-            {/* Target telemetry callout if celestial object is in line of sight */}
-            {target && (
+            {/* Target telemetry callout if celestial object is in line of sight (and not already selected) */}
+            {target && target.id !== selectedStarId && (
                 <div 
                     onClick={() => onLockTarget?.(target.id)}
                     className="mt-3 pointer-events-auto bg-[rgba(8,8,20,0.85)] backdrop-blur-md border border-[#C084FC]/50 px-3 py-1.5 rounded-xl shadow-[0_0_20px_rgba(192,132,252,0.25)] flex flex-col items-center cursor-pointer transition-all hover:scale-105"
