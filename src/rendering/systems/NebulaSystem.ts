@@ -162,6 +162,7 @@ export class NebulaSystem {
             depthTest: true,
         });
         this.material.name = 'BackgroundNebulaMaterial';
+        this.material.customProgramCacheKey = () => 'background_nebula_material';
 
         this.points = new THREE.Points(geometry, this.material);
         this.points.renderOrder = -10;

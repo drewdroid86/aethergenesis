@@ -56,6 +56,12 @@ export const InspectPanel: React.FC<InspectPanelProps> = ({
     const lastAnalysisTimeRef = useRef(0);
     const [isDragging, setIsDragging] = useState(false);
 
+    // Reset AI analysis when selected star changes
+    useEffect(() => {
+        setGeminiData(null);
+        setAnalysisFailed(false);
+    }, [selectedStar?.physicsId]);
+
     useEffect(() => {
         if (cooldownRemaining <= 0) return;
         const timer = setInterval(() => {

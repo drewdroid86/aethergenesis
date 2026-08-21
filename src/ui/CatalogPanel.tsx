@@ -31,14 +31,19 @@ export const CatalogPanel: React.FC<CatalogPanelProps> = ({
     const [smallBodies, setSmallBodies] = useState<any[]>([]);
     const [loadingHorizons, setLoadingHorizons] = useState(false);
 
-    // Fetch presets on load
+    // Fetch presets on load with AbortController
     useEffect(() => {
-        if (isOpen && activeTab === 'presets' && presets.length === 0) {
-            fetch('/api/catalog/presets')
-                .then(res => res.json())
-                .then(data => setPresets(data))
-                .catch(err => console.error("Error loading presets:", err));
-        }
+        if (!isOpen || activeTab !== 'presets' || presets.length > 0) return;
+        const controller = new AbortController();
+
+        fetch('/api/catalog/presets', { signal: controller.signal })
+            .then(res => res.json())
+            .then(data => setPresets(data))
+            .catch(err => {
+                if (err.name !== 'AbortError') console.error("Error loading presets:", err);
+            });
+
+        return () => controller.abort();
     }, [isOpen, activeTab, presets.length]);
 
     // Handle catalog search
@@ -63,23 +68,24 @@ export const CatalogPanel: React.FC<CatalogPanelProps> = ({
     };
 
     // Handle horizons fetch
-    const handleLoadHorizons = useCallback(async () => {
+    const handleLoadHorizons = useCallback(async (signal?: AbortSignal) => {
         setLoadingHorizons(true);
         try {
-            const res = await fetch(`/api/horizons/search?type=${sbType}&limit=15`);
+            const res = await fetch(`/api/horizons/search?type=${sbType}&limit=15`, { signal });
             const data = await res.json();
             setSmallBodies(data);
-        } catch (err) {
-            console.error("Error querying JPL Horizons:", err);
+        } catch (err: any) {
+            if (err?.name !== 'AbortError') console.error("Error querying JPL Horizons:", err);
         } finally {
             setLoadingHorizons(false);
         }
     }, [sbType]);
 
     useEffect(() => {
-        if (isOpen && activeTab === 'horizons') {
-            handleLoadHorizons();
-        }
+        if (!isOpen || activeTab !== 'horizons') return;
+        const controller = new AbortController();
+        handleLoadHorizons(controller.signal);
+        return () => controller.abort();
     }, [isOpen, activeTab, handleLoadHorizons]);
 
     if (!isOpen) return null;

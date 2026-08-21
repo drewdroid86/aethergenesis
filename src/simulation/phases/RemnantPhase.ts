@@ -97,6 +97,7 @@ export class RemnantPhase implements PhaseComponent {
             `
         });
         this.beamMat.name = 'RemnantPulsarBeamMaterial';
+        this.beamMat.customProgramCacheKey = () => 'remnant_pulsar_beam_material';
         const beam1 = new THREE.Mesh(GEOMETRIES.pulsarBeam1, this.beamMat);
         const beam2 = new THREE.Mesh(GEOMETRIES.pulsarBeam2, this.beamMat);
         this.pulsarGroup.add(beam1);

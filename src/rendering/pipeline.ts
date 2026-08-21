@@ -13,6 +13,10 @@ export class Pipeline {
     cinematicPass: ShaderPass;
     lensingStrength: number = 0.0;
 
+    // BOLT: Cached vector instances to avoid per-frame allocations during 60/120fps render loop
+    private _tempV: THREE.Vector3 = new THREE.Vector3();
+    private _screenPos: THREE.Vector2 = new THREE.Vector2(0.5, 0.5);
+
     constructor(renderer: THREE.WebGLRenderer, scene: THREE.Scene, camera: THREE.PerspectiveCamera) {
         this.composer = new EffectComposer(renderer);
         this.composer.setPixelRatio(renderer.getPixelRatio());
@@ -30,6 +34,7 @@ export class Pipeline {
 
         this.cinematicPass = new ShaderPass(CinematicPassShader);
         this.cinematicPass.material.name = 'CinematicPassMaterial';
+        this.cinematicPass.material.customProgramCacheKey = () => 'cinematic_pass_material';
         this.composer.addPass(this.cinematicPass);
 
         const outputPass = new OutputPass();
@@ -38,21 +43,20 @@ export class Pipeline {
 
     public updateLensing(selectedStar: any, camera: THREE.PerspectiveCamera, delta: number) {
         let targetLensing = 0.0;
-        const screenPos = new THREE.Vector2(0.5, 0.5);
+        this._screenPos.set(0.5, 0.5);
         let screenRadius = 0.0;
 
         if (selectedStar && selectedStar.phase === 5 && selectedStar.mass > STELLAR_CONSTANTS.PHYSICS.MASS_THRESHOLD_BLACK_HOLE) { // REMNANT = 5
             targetLensing = 1.0;
             
-            // Project black hole position to screen space
-            const tempV = new THREE.Vector3();
-            tempV.copy(selectedStar.position);
-            tempV.project(camera);
+            // Project black hole position to screen space without heap allocation
+            this._tempV.copy(selectedStar.position);
+            this._tempV.project(camera);
             
             // Check if it's in front of the camera
-            if (tempV.z <= 1.0) {
-                screenPos.x = (tempV.x + 1.0) * 0.5;
-                screenPos.y = (tempV.y + 1.0) * 0.5;
+            if (this._tempV.z <= 1.0) {
+                this._screenPos.x = (this._tempV.x + 1.0) * 0.5;
+                this._screenPos.y = (this._tempV.y + 1.0) * 0.5;
                 
                 // Calculate distance from camera to black hole
                 const dist = camera.position.distanceTo(selectedStar.position);
@@ -85,13 +89,13 @@ export class Pipeline {
             this.cinematicPass.uniforms.uLensingStrength.value = this.lensingStrength;
         }
         if (this.cinematicPass.uniforms.uBlackHoleScreenPos) {
-            this.cinematicPass.uniforms.uBlackHoleScreenPos.value.copy(screenPos);
+            this.cinematicPass.uniforms.uBlackHoleScreenPos.value.copy(this._screenPos);
         }
         if (this.cinematicPass.uniforms.uBlackHoleRadius) {
             this.cinematicPass.uniforms.uBlackHoleRadius.value = Math.min(0.4, screenRadius);
         }
         if (this.cinematicPass.uniforms.uAspectRatio) {
-            this.cinematicPass.uniforms.uAspectRatio.value = window.innerWidth / window.innerHeight;
+            this.cinematicPass.uniforms.uAspectRatio.value = window.innerHeight > 0 ? window.innerWidth / window.innerHeight : 1.0;
         }
     }
 

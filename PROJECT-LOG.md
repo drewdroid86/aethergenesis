@@ -23,6 +23,13 @@ This log is updated after every AI session. Each AI signs off with their entry. 
 
 ## RECENT LOGS
 
+### 2026-08-21 — Shaders, Resource Management & UI Resilience (Gemini 3.7 Flash)
+- **WebGL Shader Program Caching (`src/rendering/systems/NebulaSystem.ts`, `src/simulation/phases/RemnantPhase.ts`, `src/rendering/pipeline.ts`):** Implemented `customProgramCacheKey` across background nebula cloud shaders, pulsar relativistic beam shaders, gravitational lensing passes, and cinematic post-processing passes. Ensures WebGL program reuse across all 600 instanced star systems without redundant driver shader recompilations.
+- **Zero-Allocation Post-Processing Pipeline (`src/rendering/pipeline.ts`):** Cached internal `THREE.Vector3` and `THREE.Vector2` instances in `Pipeline.updateLensing`, eliminating per-frame heap allocations in the 60/120 FPS camera update loop. Added division-by-zero aspect ratio guard.
+- **Asynchronous Request Cancellation & Stale UI Elimination (`src/ui/CatalogPanel.tsx`, `src/ui/InspectPanel.tsx`):** Added `AbortController` signal propagation to presets fetching and NASA Horizons catalog lookups in `CatalogPanel`. Wired automatic AI analysis cache reset in `InspectPanel` on `selectedStar` changes to prevent stale telemetry display across star switches.
+- **Production WebSocket Fallback (`src/utils/hooks/useWebSocket.ts`):** Scoped default development port 3001 redirection to `import.meta.env.DEV`, allowing production deployments with reverse proxies or standard ports to connect seamlessly.
+- **Verification:** `npm run test:mcp`, `npm run typecheck`, `npm run build`, `npm run lint`, `npm run benchmark:physics` (1.156ms/tick), and all 4 E2E test suites (51/51 test cases) passed with 0 errors.
+
 ### 2026-08-21 — Astrobiology Scoring & Kopparapu Boundaries (Gemini 3.7 Flash)
 - **Smooth Habitability Time Decay (`src/simulation/AstrobiologyEngine.ts`):** Replaced instantaneous habitability history wipe (`timeInHz_yr = 0`) when `compositeScore <= 0.65` with smooth exponential decay (`timeInHz_yr = Math.max(0, timeInHz_yr - delta_yr * 2.0)`). Prevents transient thermal/orbital fluctuations from wiping hundreds of millions of years of evolutionary biogenesis progress in a single frame.
 - **Vis-Viva Semi-Major Axis Ejection Guard (`src/simulation/SimulationCoordinator.ts`):** Fixed vis-viva back-calculation energy formulation to fallback to instantaneous orbital distance $r$ instead of unphysical $9999\,\text{AU}$ when $\text{invA} \le 0$ (transient hyperbolic perturbations), preventing spurious 0 K deep-space freezes on non-solar stars.
