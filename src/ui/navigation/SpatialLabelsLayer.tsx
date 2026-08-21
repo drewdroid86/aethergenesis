@@ -89,12 +89,76 @@ export const SpatialLabelsLayer: React.FC<SpatialLabelsLayerProps> = ({
                     isSelected: s === selectedStar
                 });
 
-                if (projected.length >= maxLabels) break;
+                if (projected.length >= maxLabels * 3) break;
             }
 
             // Sort so closest labels render on top
             projected.sort((a, b) => a.distance - b.distance);
-            setLabels(projected);
+
+            // Greedy 2D pixel collision detection pass
+            const placedBoxes: { x1: number; y1: number; x2: number; y2: number }[] = [];
+            const nonColliding: ProjectedStarLabel[] = [];
+            const screenW = typeof window !== 'undefined' ? window.innerWidth : 1920;
+            const screenH = typeof window !== 'undefined' ? window.innerHeight : 1080;
+
+            for (let i = 0; i < projected.length; i++) {
+                const item = projected[i];
+                const px = item.screenX * screenW;
+                const py = item.screenY * screenH;
+
+                if (item.isSelected) {
+                    // Selected star is always prioritized and kept
+                    const w = 140;
+                    const h = 48;
+                    placedBoxes.push({
+                        x1: px - w / 2,
+                        y1: py - h / 2,
+                        x2: px + w / 2,
+                        y2: py + h / 2
+                    });
+                    nonColliding.push(item);
+                    continue;
+                }
+
+                // Check collision based on current LOD
+                let currentLod = item.lod;
+                let w = currentLod === 'near' ? 140 : (currentLod === 'medium' ? 90 : 16);
+                let h = currentLod === 'near' ? 48 : (currentLod === 'medium' ? 24 : 16);
+
+                let collides = placedBoxes.some(box => 
+                    px + w / 2 > box.x1 &&
+                    px - w / 2 < box.x2 &&
+                    py + h / 2 > box.y1 &&
+                    py - h / 2 < box.y2
+                );
+
+                // If collision occurs with near/medium LOD, attempt falling back to 'far' dot
+                if (collides && currentLod !== 'far') {
+                    currentLod = 'far';
+                    w = 16;
+                    h = 16;
+                    collides = placedBoxes.some(box => 
+                        px + w / 2 > box.x1 &&
+                        px - w / 2 < box.x2 &&
+                        py + h / 2 > box.y1 &&
+                        py - h / 2 < box.y2
+                    );
+                }
+
+                if (!collides) {
+                    placedBoxes.push({
+                        x1: px - w / 2,
+                        y1: py - h / 2,
+                        x2: px + w / 2,
+                        y2: py + h / 2
+                    });
+                    nonColliding.push(currentLod === item.lod ? item : { ...item, lod: currentLod });
+                }
+
+                if (nonColliding.length >= maxLabels) break;
+            }
+
+            setLabels(nonColliding);
         };
 
         frameId = requestAnimationFrame(updateLabels);
