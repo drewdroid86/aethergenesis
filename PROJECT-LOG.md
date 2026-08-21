@@ -23,6 +23,10 @@ This log is updated after every AI session. Each AI signs off with their entry. 
 
 ## RECENT LOGS
 
+### 2026-08-21 — TargetWaypointHUD On-Screen Label Deduplication (Gemini 3.7 Flash)
+- **Deduplicate Target HUD Labels (`src/ui/navigation/TargetWaypointHUD.tsx`):** Removed the redundant telemetry text tag (`name • distance`) from `TargetWaypointHUD`'s on-screen branch while preserving the bracket graphic. Resolves visual collision with `SpatialLabelsLayer`, which already renders full metadata cards for selected stars at the identical screen coordinates.
+- **Verification:** `npm run typecheck`, `npm run build`, and `npm run lint` passed with 0 errors and 0 warnings.
+
 ### 2026-08-21 — HUD Button Cluster Right-Alignment Fix (Gemini 3.7 Flash)
 - **Pin Bottom-Right HUD Buttons (`src/ui/Hud.tsx`):** Added `ml-auto` to the bottom bar's button cluster div (`Audio`, `Catalog`, `Reset`, `Focus` + `Stellar Raycasting Active`), ensuring it stays pinned to the bottom-right corner regardless of absolute sibling elements and never overlaps `NavigationDeck`'s bottom-left attitude telemetry deck.
 - **Verification:** `npm run typecheck`, `npm run build`, and `npm run lint` passed with 0 errors and 0 warnings.

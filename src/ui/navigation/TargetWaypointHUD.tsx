@@ -41,13 +41,6 @@ export const TargetWaypointHUD: React.FC<TargetWaypointHUDProps> = ({ waypoint, 
                         <div className="absolute bottom-0 right-0 w-2.5 h-2.5 border-b-2 border-r-2 border-[#C084FC]" />
                         <div className="w-1.5 h-1.5 bg-[#C084FC] rounded-full animate-pulse shadow-[0_0_8px_#C084FC]" />
                     </div>
-
-                    {/* Telemetry Tag */}
-                    <div className="mt-1 bg-[rgba(8,8,20,0.75)] backdrop-blur-md border border-[#C084FC]/40 px-2 py-0.5 rounded text-[9px] font-mono text-[#7EB8FF] flex items-center gap-1.5 shadow-[0_0_15px_rgba(192,132,252,0.2)]">
-                        <span className="text-white font-semibold">{waypoint.targetName}</span>
-                        <span className="opacity-40">•</span>
-                        <span className="text-[#C084FC] font-medium">{waypoint.distanceFormatted}</span>
-                    </div>
                 </div>
             </div>
         );
