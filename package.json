@@ -12,6 +12,7 @@
     "typecheck": "node node_modules/typescript/bin/tsc --noEmit",
     "lint": "node node_modules/eslint/bin/eslint.js . && npm run typecheck",
     "test": "node node_modules/tsx/dist/cli.mjs scripts/run-e2e-tests.ts",
+    "test:mcp": "node node_modules/tsx/dist/cli.mjs scripts/test-mcp-servers.ts",
     "server": "node node_modules/tsx/dist/cli.mjs server.ts",
     "dev:full": "node node_modules/concurrently/dist/bin/concurrently.js \"npm run dev\" \"npm run server\"",
     "benchmark:physics": "node node_modules/tsx/dist/cli.mjs scripts/benchmark-physics.js",

@@ -130,7 +130,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
       },
       {
         name: 'trigger_simulation_event',
-        description: 'Send an event command to the live simulation (disabled by default for safety).',
+        description: 'Send an event command to the live simulation.',
         inputSchema: {
           type: 'object',
           properties: {
@@ -153,18 +153,52 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
 server.setRequestHandler(CallToolRequestSchema, async (request) => {
   const { name, arguments: args } = request.params;
 
-  if (!latestState) {
-    return {
-      content: [
-        {
-          type: 'text',
-          text: JSON.stringify({ error: 'No live simulation state available. Make sure the Vite dev server is running and the web page is open.', code: 503 }),
-        },
-      ],
-    };
-  }
-
   try {
+    if (name === 'trigger_simulation_event') {
+      const eventName = args.event;
+      const targetId = args.target_id;
+      const parameters = args.parameters || {};
+
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({
+          type: 'event',
+          event: eventName,
+          target_id: targetId,
+          parameters: parameters
+        }));
+
+        return {
+          content: [
+            {
+              type: 'text',
+              text: JSON.stringify({
+                success: true,
+                message: `Successfully sent event command "${eventName}" to simulation.`,
+                new_state_summary: latestState?.stellar ? {
+                  phase: latestState.stellar.phase,
+                  age_yr: latestState.stellar.age_yr,
+                  sim_time_yr: latestState.stellar.sim_time_yr
+                } : undefined
+              }),
+            },
+          ],
+        };
+      } else {
+        throw new Error('WebSocket connection to simulation is not active');
+      }
+    }
+
+    if (!latestState) {
+      return {
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify({ error: 'No live simulation state available. Make sure the Vite dev server is running and the web page is open.', code: 503 }),
+          },
+        ],
+      };
+    }
+
     if (name === 'get_stellar_state') {
       return {
         content: [
@@ -212,40 +246,6 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           },
         ],
       };
-    }
-
-    if (name === 'trigger_simulation_event') {
-      const eventName = args.event;
-      const targetId = args.target_id;
-      const parameters = args.parameters || {};
-
-      if (ws && ws.readyState === WebSocket.OPEN) {
-        ws.send(JSON.stringify({
-          type: 'event',
-          event: eventName,
-          target_id: targetId,
-          parameters: parameters
-        }));
-
-        return {
-          content: [
-            {
-              type: 'text',
-              text: JSON.stringify({
-                success: true,
-                message: `Successfully sent event command "${eventName}" to simulation.`,
-                new_state_summary: {
-                  phase: latestState.stellar.phase,
-                  age_yr: latestState.stellar.age_yr,
-                  sim_time_yr: latestState.stellar.sim_time_yr
-                }
-              }),
-            },
-          ],
-        };
-      } else {
-        throw new Error('WebSocket connection to simulation is not active');
-      }
     }
 
     throw new Error(`Unknown tool: ${name}`);

@@ -73,7 +73,7 @@ export function computeMainSequenceLifetime(mass_solar: number): number {
 /**
  * Compute stellar luminosity from mass using the mass-luminosity relation.
  *
- * For M > 0.43 M☉:  L = M^3.5  (Eddington 1924 / Standard Mass-Luminosity)
+ * For M > 0.43 M☉:  L = M^4.0  (Standard intermediate-mass power law / Kuiper 1938)
  * For M ≤ 0.43 M☉:  L = 0.23 × M^2.3  (Kroupa 2001)
  *
  * The break at 0.43 M☉ accounts for the transition to fully convective
@@ -99,7 +99,7 @@ export function computeLuminosity(mass_solar: number): number {
  * Compute stellar radius from mass, phase, age, and main sequence lifetime.
  *
  * Main sequence: R ≈ M^0.8 (empirical mass-radius relation)
- * Red giant: R = M^0.8 × (age/τ_MS)² × 100, clamped at 500 R☉
+ * Red giant: Smoothly expands from 1x to 100x R_MS over the red giant phase duration, clamped at 500 R☉
  *
  * @citation Demircan, O. & Kahraman, G. (1991) "Stellar mass-luminosity
  *           and mass-radius relations", Ap&SS 181, 313–322
@@ -125,7 +125,9 @@ export function computeRadius(
     case 'main_sequence':
       return r_ms;
     case 'red_giant': {
-      const raw = r_ms * Math.pow(age_yr / tau_ms, 2) * 100;
+      const t_norm = Math.max(0, Math.min(1, (age_yr - tau_ms) / (0.5 * tau_ms)));
+      const expansion = 1.0 + 99.0 * Math.pow(t_norm, 2);
+      const raw = r_ms * expansion;
       return Math.min(raw, 500);
     }
     case 'supernova':
