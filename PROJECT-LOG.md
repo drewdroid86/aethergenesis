@@ -23,6 +23,10 @@ This log is updated after every AI session. Each AI signs off with their entry. 
 
 ## RECENT LOGS
 
+### 2026-08-21 — HUD Button Cluster Right-Alignment Fix (Gemini 3.7 Flash)
+- **Pin Bottom-Right HUD Buttons (`src/ui/Hud.tsx`):** Added `ml-auto` to the bottom bar's button cluster div (`Audio`, `Catalog`, `Reset`, `Focus` + `Stellar Raycasting Active`), ensuring it stays pinned to the bottom-right corner regardless of absolute sibling elements and never overlaps `NavigationDeck`'s bottom-left attitude telemetry deck.
+- **Verification:** `npm run typecheck`, `npm run build`, and `npm run lint` passed with 0 errors and 0 warnings.
+
 ### 2026-08-21 — Navigation & Spatial Awareness Instrumentation Layer (Gemini 3.7 Flash)
 - **Persistent 3D Orientation & Galactic Gimbal (`src/ui/navigation/GalacticCompassGimbal.tsx`, `src/utils/navigationMath.ts`):** Added a real-time 3D orientation axis widget and compass heading indicator (`GALACTIC NORTH • HDG 274° / Pitch +12°`) projected directly from the camera's inverse rotation matrix.
 - **Human-Readable Location & Spatial Anchor (`src/ui/navigation/YouAreHereBadge.tsx`):** Replaced raw Cartesian XYZ coordinates with an intuitive spatial location deck (`YOU ARE HERE: Orion Sector 07 • Nearest Star: [Name] (0.18 ly)`), keeping technical coordinate inspection in an expandable drawer.

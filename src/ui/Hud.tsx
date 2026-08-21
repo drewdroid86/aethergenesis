@@ -514,7 +514,7 @@ export const Hud: React.FC<HudProps> = ({
                     <p className="text-[10px] text-[#7EB8FF]/50 italic text-center pointer-events-none">"Scrub to T=0 to observe pre-stellar plasma state."</p>
                 </div>
 
-                <div className="flex flex-col items-end gap-2 text-right">
+                <div className="flex flex-col items-end gap-2 text-right ml-auto">
                 <div className="grid grid-cols-4 gap-2 pointer-events-auto">
                     <button 
                         onClick={() => {
