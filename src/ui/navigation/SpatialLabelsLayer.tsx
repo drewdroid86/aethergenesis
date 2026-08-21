@@ -92,14 +92,19 @@ export const SpatialLabelsLayer: React.FC<SpatialLabelsLayerProps> = ({
                 if (projected.length >= maxLabels * 3) break;
             }
 
-            // Sort so closest labels render on top
-            projected.sort((a, b) => a.distance - b.distance);
+            // Sort: Selected star always wins, then sort by closest distance
+            projected.sort((a, b) => {
+                if (a.isSelected) return -1;
+                if (b.isSelected) return 1;
+                return a.distance - b.distance;
+            });
 
-            // Greedy 2D pixel collision detection pass
-            const placedBoxes: { x1: number; y1: number; x2: number; y2: number }[] = [];
+            // Greedy 2D pixel collision pass (~64px radius threshold)
+            const acceptedPoints: { x: number; y: number }[] = [];
             const nonColliding: ProjectedStarLabel[] = [];
             const screenW = typeof window !== 'undefined' ? window.innerWidth : 1920;
             const screenH = typeof window !== 'undefined' ? window.innerHeight : 1080;
+            const minDistanceSq = 64 * 64; // 4096 px^2
 
             for (let i = 0; i < projected.length; i++) {
                 const item = projected[i];
@@ -107,52 +112,26 @@ export const SpatialLabelsLayer: React.FC<SpatialLabelsLayerProps> = ({
                 const py = item.screenY * screenH;
 
                 if (item.isSelected) {
-                    // Selected star is always prioritized and kept
-                    const w = 140;
-                    const h = 48;
-                    placedBoxes.push({
-                        x1: px - w / 2,
-                        y1: py - h / 2,
-                        x2: px + w / 2,
-                        y2: py + h / 2
-                    });
+                    acceptedPoints.push({ x: px, y: py });
                     nonColliding.push(item);
                     continue;
                 }
 
-                // Check collision based on current LOD
-                let currentLod = item.lod;
-                let w = currentLod === 'near' ? 140 : (currentLod === 'medium' ? 90 : 16);
-                let h = currentLod === 'near' ? 48 : (currentLod === 'medium' ? 24 : 16);
-
-                let collides = placedBoxes.some(box => 
-                    px + w / 2 > box.x1 &&
-                    px - w / 2 < box.x2 &&
-                    py + h / 2 > box.y1 &&
-                    py - h / 2 < box.y2
-                );
-
-                // If collision occurs with near/medium LOD, attempt falling back to 'far' dot
-                if (collides && currentLod !== 'far') {
-                    currentLod = 'far';
-                    w = 16;
-                    h = 16;
-                    collides = placedBoxes.some(box => 
-                        px + w / 2 > box.x1 &&
-                        px - w / 2 < box.x2 &&
-                        py + h / 2 > box.y1 &&
-                        py - h / 2 < box.y2
-                    );
+                // Check distance against all already accepted labels
+                let collides = false;
+                for (let j = 0; j < acceptedPoints.length; j++) {
+                    const pt = acceptedPoints[j];
+                    const dx = px - pt.x;
+                    const dy = py - pt.y;
+                    if (dx * dx + dy * dy < minDistanceSq) {
+                        collides = true;
+                        break;
+                    }
                 }
 
                 if (!collides) {
-                    placedBoxes.push({
-                        x1: px - w / 2,
-                        y1: py - h / 2,
-                        x2: px + w / 2,
-                        y2: py + h / 2
-                    });
-                    nonColliding.push(currentLod === item.lod ? item : { ...item, lod: currentLod });
+                    acceptedPoints.push({ x: px, y: py });
+                    nonColliding.push(item);
                 }
 
                 if (nonColliding.length >= maxLabels) break;

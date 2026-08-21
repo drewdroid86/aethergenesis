@@ -23,6 +23,10 @@ This log is updated after every AI session. Each AI signs off with their entry. 
 
 ## RECENT LOGS
 
+### 2026-08-21 — SpatialLabelsLayer 64px Euclidean Pixel Collision Pass (Gemini 3.7 Flash)
+- **64px Distance-Threshold Greedy Collision Resolution (`src/ui/navigation/SpatialLabelsLayer.tsx`):** Implemented a greedy 2D pixel collision filter with a strict 64px Euclidean radius threshold ($d^2 < 4096\,\text{px}^2$). Prioritizes selected stars and closest stars, dropping any candidate label that falls within 64px of an already-accepted label to guarantee clean spacing and zero HUD clutter.
+- **Verification:** `npm run typecheck`, `npm run build`, and `npm run lint` passed with 0 errors and 0 warnings.
+
 ### 2026-08-21 — SpatialLabelsLayer 2D Pixel Collision Pass (Gemini 3.7 Flash)
 - **Greedy 2D Screen-Space Collision Detection (`src/ui/navigation/SpatialLabelsLayer.tsx`):** Added a greedy 2D pixel collision resolution pass over distance-sorted star labels. Computes dynamic bounding boxes based on LOD tier (`near: 140x48`, `medium: 90x24`, `far: 16x16`). Always prioritizes the selected star and closest stars, downgrades colliding medium/near labels to minimal far dots, and discards overlapping dots to prevent label clutter when viewing dense star clusters.
 - **Verification:** `npm run typecheck`, `npm run build` (937ms), and `npm run lint` passed with 0 errors and 0 warnings.
