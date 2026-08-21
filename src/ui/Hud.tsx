@@ -79,7 +79,6 @@ export const Hud: React.FC<HudProps> = ({
     onOpenCatalog
 }) => {
     const isDebugMode = typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('debug') === '1';
-    const [copied, setCopied] = useState(false);
     const [shareCopied, setShareCopied] = useState(false);
     const [idCopied, setIdCopied] = useState(false);
     const [announcement, setAnnouncement] = useState('');
@@ -98,20 +97,6 @@ export const Hud: React.FC<HudProps> = ({
     const announce = (msg: string) => {
         setAnnouncement(msg);
         setTimeout(() => setAnnouncement(''), 3000);
-    };
-
-    const copyCoordinates = () => {
-        audioEngine.playUiClick();
-        const x = uiRefs.hudX.current?.innerText || '0.0000';
-        const y = uiRefs.hudY.current?.innerText || '0.0000';
-        const z = uiRefs.hudZ.current?.innerText || '0.0000';
-        const coords = `X: ${x}, Y: ${y}, Z: ${z}`;
-
-        navigator.clipboard.writeText(coords).then(() => {
-            setCopied(true);
-            announce('Coordinates copied to clipboard');
-            setTimeout(() => setCopied(false), 2000);
-        });
     };
 
     const copyUniverseId = () => {
@@ -430,27 +415,11 @@ export const Hud: React.FC<HudProps> = ({
 
             {/* Bottom HUD */}
             <div className="absolute bottom-0 w-full p-8 pb-[max(2rem,env(safe-area-inset-bottom))] flex justify-between items-end z-20 pointer-events-none">
-                <div className="font-mono text-[10px] text-[#7EB8FF]/60 space-y-1 border-l border-[#C084FC]/50 pl-4 bg-[rgba(8,8,20,0.4)] backdrop-blur-md py-3 pr-4 rounded-r border-y-0 border-r-0 pointer-events-auto group/telemetry" tabIndex={-1}>
-                <div className="flex items-center justify-between gap-4 mb-2 pb-1 border-b border-[rgba(126,184,255,0.2)]">
-                    <div className="flex items-center gap-2">
-                        <span className="inline-block w-2 h-2 rounded-full bg-[#C084FC] animate-pulse shadow-[0_0_5px_#C084FC]" />
-                        <span className="uppercase tracking-widest text-[#7EB8FF]">Location</span>
-                    </div>
-                    <button
-                        onClick={copyCoordinates}
-                        className="text-[#7EB8FF]/40 hover:text-white transition-colors focus-visible:ring-2 focus-visible:ring-[#C084FC] outline-none rounded p-0.5 relative group/copy"
-                        aria-label={copied ? "Coordinates Copied" : "Copy Coordinates"}
-                        title="Copy Coordinates"
-                    >
-                        <span className={`absolute -top-6 right-0 text-[10px] text-[#C084FC] transition-opacity whitespace-nowrap ${copied ? 'opacity-100' : 'opacity-0 group-hover/copy:opacity-100 group-focus-visible/copy:opacity-100'}`}>
-                            {copied ? 'Copied!' : 'Copy'}
-                        </span>
-                        {copied ? <Check size={12} className="text-green-400" /> : <Copy size={12} />}
-                    </button>
-                </div>
-                <div className="text-white"><span className="text-[#7EB8FF]/70 mr-2">POS_X:</span><span ref={uiRefs.hudX}>0.0000</span></div>
-                <div className="text-white"><span className="text-[#7EB8FF]/70 mr-2">POS_Y:</span><span ref={uiRefs.hudY}>0.0000</span></div>
-                <div className="text-white"><span className="text-[#7EB8FF]/70 mr-2">POS_Z:</span><span ref={uiRefs.hudZ}>0.0000</span></div>
+                {/* Hidden DOM elements preserving refs for engine coordinate updates */}
+                <div className="sr-only" aria-hidden="true">
+                    <span ref={uiRefs.hudX}>0.0000</span>
+                    <span ref={uiRefs.hudY}>0.0000</span>
+                    <span ref={uiRefs.hudZ}>0.0000</span>
                 </div>
 
                 <div className="absolute left-1/2 -translate-x-1/2 flex flex-col items-center gap-4 w-1/3 pointer-events-auto">

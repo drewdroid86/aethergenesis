@@ -23,6 +23,16 @@ This log is updated after every AI session. Each AI signs off with their entry. 
 
 ## RECENT LOGS
 
+### 2026-08-21 — Navigation & Spatial Awareness Instrumentation Layer (Gemini 3.7 Flash)
+- **Persistent 3D Orientation & Galactic Gimbal (`src/ui/navigation/GalacticCompassGimbal.tsx`, `src/utils/navigationMath.ts`):** Added a real-time 3D orientation axis widget and compass heading indicator (`GALACTIC NORTH • HDG 274° / Pitch +12°`) projected directly from the camera's inverse rotation matrix.
+- **Human-Readable Location & Spatial Anchor (`src/ui/navigation/YouAreHereBadge.tsx`):** Replaced raw Cartesian XYZ coordinates with an intuitive spatial location deck (`YOU ARE HERE: Orion Sector 07 • Nearest Star: [Name] (0.18 ly)`), keeping technical coordinate inspection in an expandable drawer.
+- **Hierarchical Spatial Breadcrumbs (`src/ui/navigation/SpatialBreadcrumbs.tsx`):** Implemented interactive navigation trail (`Universe > Orion Sector > Star > Planet`) with one-click warp back to any hierarchical level.
+- **Cosmic Scale Ladder & Dynamic Optical Ruler (`src/ui/navigation/CosmicScaleLadder.tsx`, `src/ui/navigation/ScaleRuler.tsx`):** Added logarithmic cosmic range ladder (`Galactic (10 kpc)` → `Interstellar (10 ly)` → `System (1 AU)` → `Orbit (10,000 km)`) and a responsive physical optical ruler with FOV angle badge.
+- **3-Tier Distance-LOD In-World Spatial Labels (`src/ui/navigation/SpatialLabelsLayer.tsx`):** Added screen-space projected annotations with distance-based level of detail (Far: spectral marker dot, Medium: name/spectral badge, Near: full glass HUD metadata card with mass, temperature, and spectral type).
+- **Target Lock & 360° Waypoint Tracking (`src/ui/navigation/TargetLockHUD.tsx`, `src/ui/navigation/TargetWaypointHUD.tsx`):** Built interactive target lock action card with `[FOCUS]`, `[TRACK]`, and `[WARP TO]` actions, paired with 360-degree on-screen reticles and off-screen screen-edge bearing chevrons.
+- **Tactical Proximity Radar & Boresight Scanner (`src/ui/navigation/TacticalRadar.tsx`, `src/ui/navigation/BoresightScanner.tsx`):** Created 2.5D circular tactical radar with camera frustum cone and spectral-colored contact blips, plus a center-screen boresight rangefinder.
+- **Verification:** `npm run test:mcp`, `npm run typecheck`, `npm run build`, `npm run lint`, `npm run benchmark:physics` (1.44ms/tick), and all 4 E2E test suites (51/51 test cases) passed with 0 errors and 0 warnings.
+
 ### 2026-08-21 — Shaders, Resource Management & UI Resilience (Gemini 3.7 Flash)
 - **WebGL Shader Program Caching (`src/rendering/systems/NebulaSystem.ts`, `src/simulation/phases/RemnantPhase.ts`, `src/rendering/pipeline.ts`):** Implemented `customProgramCacheKey` across background nebula cloud shaders, pulsar relativistic beam shaders, gravitational lensing passes, and cinematic post-processing passes. Ensures WebGL program reuse across all 600 instanced star systems without redundant driver shader recompilations.
 - **Zero-Allocation Post-Processing Pipeline (`src/rendering/pipeline.ts`):** Cached internal `THREE.Vector3` and `THREE.Vector2` instances in `Pipeline.updateLensing`, eliminating per-frame heap allocations in the 60/120 FPS camera update loop. Added division-by-zero aspect ratio guard.

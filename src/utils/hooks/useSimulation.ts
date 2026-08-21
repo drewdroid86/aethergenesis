@@ -649,6 +649,9 @@ export function useSimulation(containerRef: React.RefObject<HTMLDivElement | nul
         isCatalogOpen,
         setIsCatalogOpen,
         loadStarPreset,
-        addBodyToSimulation
+        addBodyToSimulation,
+        engineRef,
+        camera: engineRef.current?.camera ?? null,
+        heroStars: engineRef.current?.heroStars ?? []
     };
 }

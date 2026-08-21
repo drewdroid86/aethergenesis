@@ -1,15 +1,34 @@
-import { useRef } from 'react';
+import { useRef, useState, useEffect } from 'react';
 import { AnimatePresence } from 'motion/react';
 import { useSimulation } from '../utils/hooks/useSimulation';
 import { Hud } from '../ui/Hud';
 import { InspectPanel } from '../ui/InspectPanel';
 import { ConstantsPanel } from '../ui/ConstantsPanel';
 import { AstrobiologyPanel } from '../ui/AstrobiologyPanel';
-
 import { CatalogPanel } from '../ui/CatalogPanel';
+import { NavigationDeck } from '../ui/navigation/NavigationDeck';
 
 export function AetherGenesis() {
   const mountRef = useRef<HTMLDivElement>(null);
+  const [showNavDeck, setShowNavDeck] = useState(true);
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const active = document.activeElement;
+      if (active && (
+        active.tagName === 'INPUT' ||
+        active.tagName === 'TEXTAREA' ||
+        (active as HTMLElement).isContentEditable
+      )) {
+        return;
+      }
+      if (e.key === 'n' || e.key === 'N') {
+        setShowNavDeck(prev => !prev);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
   const {
     selectedStar,
     setSelectedStar,
@@ -49,7 +68,8 @@ export function AetherGenesis() {
     centerOnStar,
     timeScale,
     setTimeScale,
-    astrobiologyData
+    astrobiologyData,
+    engineRef
   } = useSimulation(mountRef);
 
   if (fatalError) {
@@ -74,6 +94,18 @@ export function AetherGenesis() {
     <div className="relative w-full h-dvh bg-[#020205] overflow-hidden flex flex-col font-sans text-white select-none">
       <div ref={mountRef} className="absolute inset-0 cursor-crosshair z-0" />
       
+      {/* Spatial Navigation & Flight Deck Layer */}
+      {showNavDeck && (
+        <NavigationDeck 
+          camera={engineRef.current?.camera ?? null}
+          stars={engineRef.current?.heroStars ?? []}
+          selectedStar={selectedStar}
+          onSelectStar={(star) => setSelectedStar(star)}
+          onAlignCamera={centerOnStar}
+          uiRefs={hudRefs}
+        />
+      )}
+
       <Hud 
         uiRefs={hudRefs}
         cosmicAge={cosmicAge}
