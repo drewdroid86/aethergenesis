@@ -33,7 +33,7 @@ Optical Scale: ${telemetry.scaleRulerFormatted} (FOV ${telemetry.fovDeg}°)`;
 
     return (
         <div 
-            className="flex flex-col gap-2 font-mono text-[10px] text-[#7EB8FF]/70 bg-[rgba(8,8,20,0.65)] backdrop-blur-xl border border-[rgba(126,184,255,0.2)] rounded-2xl p-4 shadow-[0_0_30px_rgba(8,8,20,0.8)] pointer-events-auto select-none group/attitude"
+            className="flex flex-col gap-2 font-mono text-[10px] text-[#7EB8FF]/70 bg-[rgba(8,8,20,0.65)] backdrop-blur-xl border border-[rgba(126,184,255,0.2)] rounded-2xl p-4 shadow-[0_0_30px_rgba(8,8,20,0.8)] pointer-events-auto select-none group/attitude w-full max-w-[190px]"
             role="region"
             aria-label="Spatial Orientation & Attitude Telemetry"
         >
