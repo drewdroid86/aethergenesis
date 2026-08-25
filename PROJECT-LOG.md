@@ -23,6 +23,12 @@ This log is updated after every AI session. Each AI signs off with their entry. 
 
 ## RECENT LOGS
 
+### 2026-08-25 — AttitudeIndicator Responsive Max-Width Constraint (Gemini 3.7 Flash)
+- **Constrain AttitudeIndicator Root Width (`src/ui/navigation/AttitudeIndicator.tsx`):** Added `w-full max-w-[190px]` to the root wrapper className, mirroring `Hud.tsx`'s cosmic age card wrapper (`w-full max-w-[220px]`) to ensure the bottom telemetry panel maintains a compact layout and avoids overlapping adjacent HUD controls.
+- **Verification Pass (`AETHERGENESIS-VERIFICATION-2026-08-25.md`):** Verified current codebase against `AETHERGENESIS-AUDIT-2026-08-21-MASTER.md`, confirming 6/6 architectural claims were already fixed and closing this open UI constraint item.
+- **Verification:** `npm run typecheck`, `npm run build`, and `npm run lint` passed with 0 errors and 0 warnings.
+
+
 ### 2026-08-21 — HUD Cosmic Age Card Responsive Width Constraint (Gemini 3.7 Flash)
 - **Constrain Cosmic Age Card Width (`src/ui/Hud.tsx`):** Changed the bottom timeline scrubber age-card wrapper from `w-1/3` to `w-full max-w-[220px]`, while preserving `absolute left-1/2 -translate-x-1/2`, ensuring a compact centered footprint that never impinges on corner instrumentation.
 - **Verification:** `npm run typecheck`, `npm run build`, and `npm run lint` passed with 0 errors and 0 warnings.
