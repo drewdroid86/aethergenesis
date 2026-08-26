@@ -339,7 +339,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       if (type === 'comet') kindParam = '&sb-kind=c';
       if (type === 'asteroid') kindParam = '&sb-kind=a';
 
-      const url = `https://ssd-api.jpl.nasa.gov/sbdb_query.api?fields=spkid,full_name,e,q,i,per${kindParam}&limit=${limit}&phys-par=0`;
+      const url = `https://ssd-api.jpl.nasa.gov/sbdb_query.api?fields=spkid,full_name,e,q,i,per,kind${kindParam}&limit=${limit}`;
 
       let results = [];
       try {
@@ -349,6 +349,8 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         }
         const data = await response.json();
 
+        const COMET_KINDS = new Set(['c', 'cn', 'cu', 'cp', 'ci', 'cd', 'ce', 'cx']);
+
         if (data.data && Array.isArray(data.data)) {
           results = data.data.map((row) => {
             const naif_id = row[0];
@@ -357,8 +359,9 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
             const perihelion_au = parseFloat(row[3]);
             const inclination_deg = parseFloat(row[4]);
             const period_yr = row[5] ? (parseFloat(row[5]) / 365.25) : null;
+            const kind = row[6] ? String(row[6]).toLowerCase().trim() : null;
 
-            const isComet = type === 'comet' || name.includes('/') || name.includes('P');
+            const isComet = type === 'comet' || (type !== 'asteroid' && (kind ? (COMET_KINDS.has(kind) || kind.startsWith('c')) : name.includes('/')));
             const coma_onset_au = isComet ? 3.0 : null;
             const tail_onset_au = isComet ? 2.5 : null;
 

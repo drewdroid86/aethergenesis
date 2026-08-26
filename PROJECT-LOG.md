@@ -23,6 +23,10 @@ This log is updated after every AI session. Each AI signs off with their entry. 
 
 ## RECENT LOGS
 
+### 2026-08-26 — NASA Horizons MCP SBDB Kind-Based Classification (Gemini 3.7 Flash)
+- **Field-Based Small Body Classification (`server/mcp/nasa-horizons.mjs`):** Added the `kind` field to the JPL SBDB query API request (`sbdb_query.api?fields=spkid,full_name,e,q,i,per,kind`) and replaced naive name substring matching (`name.includes('P')`) with JPL body kind checking (`COMET_KINDS: c, cn, cu, cp, ci, cd, ce, cx`). Asteroids with a capital "P" (such as 2 Pallas, Psyche, Persephone) are now accurately classified as asteroids with `null` coma/tail onset thresholds instead of erroneously rendering comet tails.
+- **Verification:** `npm run typecheck`, `npm run build` (1.04s), and `npm run lint` passed with 0 errors and 0 warnings. Live query for `type: 'all'` verified that "2 Pallas" correctly returns `type: "asteroid"`, `coma_onset_au: null`, `tail_onset_au: null`.
+
 ### 2026-08-26 — Global Audio Initialization on First User Gesture (Gemini 3.7 Flash)
 - **Global Web Audio Context Initialization (`src/components/AetherGenesis.tsx`):** Added a one-time global `pointerdown`/`keydown` event listener on `window` to initialize `audioEngine.init()` on the very first user interaction anywhere in the app. Resolves an issue where `audioEngine.init()` was previously only invoked inside the `Hud.tsx` Audio toggle button, causing all other UI click sound effects (`playUiClick()`) across HUD and navigation components to silently no-op until that button was toggled.
 - **Verification:** `npm run typecheck`, `npm run build` (881ms), and `npm run lint` passed with 0 errors and 0 warnings.
