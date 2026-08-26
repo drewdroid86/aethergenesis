@@ -148,7 +148,7 @@ async function runMcpTests() {
   assert(invalidEpochData.code === 500 && invalidEpochData.error.includes('Invalid epoch date'), 'Invalid epoch date must return clean 500 error');
   console.log('  ✔ get_orbital_elements with malformed epoch handled cleanly');
 
-  // Test 2.3: Small Bodies Search Fallback
+  // Test 2.3: Small Bodies Search Fallback & Classification
   const smallBodiesRes = await horizonsClient.sendRequest('tools/call', {
     name: 'search_small_bodies',
     arguments: { type: 'all', limit: 10 }
@@ -160,6 +160,23 @@ async function runMcpTests() {
   assert(hasComet, 'search_small_bodies with type="all" must include comets');
   assert(hasAsteroid, 'search_small_bodies with type="all" must include asteroids');
   console.log('  ✔ search_small_bodies with type="all" contains both comets and asteroids');
+
+  // Test 2.4: Verify specific small body classifications (2 Pallas vs 1P/Halley)
+  const pallasBody = smallBodiesData.find((b: any) => b.name && b.name.includes('Pallas'));
+  if (pallasBody) {
+    assert(pallasBody.type === 'asteroid', '2 Pallas must be classified as asteroid');
+    assert(pallasBody.coma_onset_au === null, '2 Pallas coma_onset_au must be null');
+    assert(pallasBody.tail_onset_au === null, '2 Pallas tail_onset_au must be null');
+    console.log('  ✔ "2 Pallas" correctly classified as asteroid (no coma/tail)');
+  }
+
+  const halleyBody = smallBodiesData.find((b: any) => b.name && b.name.includes('Halley'));
+  if (halleyBody) {
+    assert(halleyBody.type === 'comet', '1P/Halley must be classified as comet');
+    assert(halleyBody.coma_onset_au === 3.0, '1P/Halley coma_onset_au must be 3.0');
+    assert(halleyBody.tail_onset_au === 2.5, '1P/Halley tail_onset_au must be 2.5');
+    console.log('  ✔ "1P/Halley" correctly classified as comet (coma: 3.0 AU, tail: 2.5 AU)');
+  }
 
   horizonsClient.close();
 

@@ -335,68 +335,115 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       const type = args.type;
       const limit = Math.min(50, args.limit || 20);
 
-      let kindParam = '';
-      if (type === 'comet') kindParam = '&sb-kind=c';
-      if (type === 'asteroid') kindParam = '&sb-kind=a';
+      const COMET_FALLBACKS = [
+        { naif_id: "1P", name: "1P/Halley", pdes: "1P", type: "comet", period_yr: 75.3, eccentricity: 0.967, perihelion_au: 0.586, inclination_deg: 162.2, coma_onset_au: 3.0, tail_onset_au: 2.5, source: 'cached_fallback' },
+        { naif_id: "67P", name: "67P/Churyumov-Gerasimenko", pdes: "67P", type: "comet", period_yr: 6.44, eccentricity: 0.641, perihelion_au: 1.24, inclination_deg: 7.04, coma_onset_au: 3.0, tail_onset_au: 2.5, source: 'cached_fallback' },
+        { naif_id: "Hale-Bopp", name: "C/1995 O1 (Hale-Bopp)", pdes: "C/1995 O1", type: "comet", period_yr: 2534.0, eccentricity: 0.995, perihelion_au: 0.914, inclination_deg: 89.4, coma_onset_au: 3.0, tail_onset_au: 2.5, source: 'cached_fallback' },
+        { naif_id: "2P", name: "2P/Encke", pdes: "2P", type: "comet", period_yr: 3.3, eccentricity: 0.848, perihelion_au: 0.336, inclination_deg: 11.78, coma_onset_au: 3.0, tail_onset_au: 2.5, source: 'cached_fallback' },
+        { naif_id: "9P", name: "9P/Tempel 1", pdes: "9P", type: "comet", period_yr: 5.5, eccentricity: 0.517, perihelion_au: 1.5, inclination_deg: 10.5, coma_onset_au: 3.0, tail_onset_au: 2.5, source: 'cached_fallback' }
+      ];
+      const ASTEROID_FALLBACKS = [
+        { naif_id: "Ceres", name: "1 Ceres", pdes: "1", type: "asteroid", period_yr: 4.6, eccentricity: 0.076, perihelion_au: 2.56, inclination_deg: 10.6, coma_onset_au: null, tail_onset_au: null, source: 'cached_fallback' },
+        { naif_id: "Pallas", name: "2 Pallas", pdes: "2", type: "asteroid", period_yr: 4.62, eccentricity: 0.231, perihelion_au: 2.13, inclination_deg: 34.8, coma_onset_au: null, tail_onset_au: null, source: 'cached_fallback' },
+        { naif_id: "Juno", name: "3 Juno", pdes: "3", type: "asteroid", period_yr: 4.36, eccentricity: 0.256, perihelion_au: 1.98, inclination_deg: 13.0, coma_onset_au: null, tail_onset_au: null, source: 'cached_fallback' },
+        { naif_id: "Vesta", name: "4 Vesta", pdes: "4", type: "asteroid", period_yr: 3.63, eccentricity: 0.089, perihelion_au: 2.15, inclination_deg: 7.14, coma_onset_au: null, tail_onset_au: null, source: 'cached_fallback' },
+        { naif_id: "Eros", name: "433 Eros", pdes: "433", type: "asteroid", period_yr: 1.76, eccentricity: 0.223, perihelion_au: 1.13, inclination_deg: 10.8, coma_onset_au: null, tail_onset_au: null, source: 'cached_fallback' }
+      ];
 
-      const url = `https://ssd-api.jpl.nasa.gov/sbdb_query.api?fields=spkid,full_name,e,q,i,per,kind${kindParam}&limit=${limit}`;
+      const COMET_KINDS = new Set(['c', 'cn', 'cu', 'cp', 'ci', 'cd', 'ce', 'cx']);
+      const PERIODIC_COMET_REGEX = /^\d+P(\b|[/-])/i;
+      const COMET_DESIG_REGEX = /^(?:\d+P|[CPDI]\/|\d+D(\b|[/-]))/i;
+
+      function classifySmallBody(naif_id, name, pdes, kind) {
+        if (type === 'comet') return true;
+        if (type === 'asteroid') return false;
+        if (pdes) {
+          const isPeriodicComet = PERIODIC_COMET_REGEX.test(pdes) || /^\d+P/i.test(pdes);
+          const isCometDesig = isPeriodicComet || COMET_DESIG_REGEX.test(pdes);
+          const isCometKind = kind ? (COMET_KINDS.has(kind) || kind.startsWith('c')) : false;
+          return isPeriodicComet || isCometDesig || isCometKind;
+        }
+        // Fall back to hardcoded comet list if pdes is unavailable
+        const isHardcodedComet = COMET_FALLBACKS.some(
+          (c) => c.naif_id === String(naif_id) || c.name === name || name.includes(c.name) || c.name.includes(name)
+        );
+        const isCometKind = kind ? (COMET_KINDS.has(kind) || kind.startsWith('c')) : false;
+        return isCometKind || isHardcodedComet;
+      }
 
       let results = [];
       try {
-        const response = await fetchWithTimeout(url);
-        if (response.status !== 200) {
-          throw new Error(`JPL SBDB Query API returned status ${response.status}`);
-        }
-        const data = await response.json();
+        let rawRows = [];
+        if (type === 'all') {
+          const cometLimit = Math.ceil(limit / 2);
+          const asteroidLimit = Math.floor(limit / 2);
+          const cometUrl = `https://ssd-api.jpl.nasa.gov/sbdb_query.api?fields=spkid,full_name,pdes,e,q,i,per,kind&sb-kind=c&limit=${cometLimit}`;
+          const asteroidUrl = `https://ssd-api.jpl.nasa.gov/sbdb_query.api?fields=spkid,full_name,pdes,e,q,i,per,kind&sb-kind=a&limit=${asteroidLimit}`;
 
-        const COMET_KINDS = new Set(['c', 'cn', 'cu', 'cp', 'ci', 'cd', 'ce', 'cx']);
+          const [cometRes, asteroidRes] = await Promise.all([
+            fetchWithTimeout(cometUrl),
+            fetchWithTimeout(asteroidUrl),
+          ]);
 
-        if (data.data && Array.isArray(data.data)) {
-          results = data.data.map((row) => {
-            const naif_id = row[0];
-            const name = row[1].trim();
-            const eccentricity = parseFloat(row[2]);
-            const perihelion_au = parseFloat(row[3]);
-            const inclination_deg = parseFloat(row[4]);
-            const period_yr = row[5] ? (parseFloat(row[5]) / 365.25) : null;
-            const kind = row[6] ? String(row[6]).toLowerCase().trim() : null;
+          if (cometRes.status !== 200 || asteroidRes.status !== 200) {
+            throw new Error(`JPL SBDB Query API returned non-200 status (comets: ${cometRes.status}, asteroids: ${asteroidRes.status})`);
+          }
 
-            const isComet = type === 'comet' || (type !== 'asteroid' && (kind ? (COMET_KINDS.has(kind) || kind.startsWith('c')) : name.includes('/')));
-            const coma_onset_au = isComet ? 3.0 : null;
-            const tail_onset_au = isComet ? 2.5 : null;
+          const [cometData, asteroidData] = await Promise.all([
+            cometRes.json(),
+            asteroidRes.json(),
+          ]);
 
-            return {
-              naif_id,
-              name,
-              type: isComet ? 'comet' : 'asteroid',
-              period_yr,
-              eccentricity,
-              perihelion_au,
-              inclination_deg,
-              coma_onset_au,
-              tail_onset_au,
-            };
-          });
+          const cRows = (cometData.data && Array.isArray(cometData.data)) ? cometData.data : [];
+          const aRows = (asteroidData.data && Array.isArray(asteroidData.data)) ? asteroidData.data : [];
+          rawRows = [...cRows, ...aRows];
         } else {
-          throw new Error('Invalid data structure from JPL SBDB API');
+          let kindParam = '';
+          if (type === 'comet') kindParam = '&sb-kind=c';
+          if (type === 'asteroid') kindParam = '&sb-kind=a';
+
+          const url = `https://ssd-api.jpl.nasa.gov/sbdb_query.api?fields=spkid,full_name,pdes,e,q,i,per,kind${kindParam}&limit=${limit}`;
+          const response = await fetchWithTimeout(url);
+          if (response.status !== 200) {
+            throw new Error(`JPL SBDB Query API returned status ${response.status}`);
+          }
+          const data = await response.json();
+          if (data.data && Array.isArray(data.data)) {
+            rawRows = data.data;
+          } else {
+            throw new Error('Invalid data structure from JPL SBDB API');
+          }
         }
+
+        results = rawRows.map((row) => {
+          const naif_id = row[0];
+          const name = row[1].trim();
+          const pdes = row[2] ? String(row[2]).trim() : null;
+          const eccentricity = parseFloat(row[3]);
+          const perihelion_au = parseFloat(row[4]);
+          const inclination_deg = parseFloat(row[5]);
+          const period_yr = row[6] ? (parseFloat(row[6]) / 365.25) : null;
+          const kind = row[7] ? String(row[7]).toLowerCase().trim() : null;
+
+          const isComet = classifySmallBody(naif_id, name, pdes, kind);
+          const coma_onset_au = isComet ? 3.0 : null;
+          const tail_onset_au = isComet ? 2.5 : null;
+
+          return {
+            naif_id,
+            name,
+            pdes: pdes || undefined,
+            type: isComet ? 'comet' : 'asteroid',
+            period_yr,
+            eccentricity,
+            perihelion_au,
+            inclination_deg,
+            coma_onset_au,
+            tail_onset_au,
+          };
+        });
       } catch (err) {
         console.error(`JPL SBDB query failed: ${err.message}. Falling back to cached small bodies library.`);
-        const COMET_FALLBACKS = [
-          { naif_id: "1P", name: "1P/Halley", type: "comet", period_yr: 75.3, eccentricity: 0.967, perihelion_au: 0.586, inclination_deg: 162.2, coma_onset_au: 3.0, tail_onset_au: 2.5, source: 'cached_fallback' },
-          { naif_id: "67P", name: "67P/Churyumov-Gerasimenko", type: "comet", period_yr: 6.44, eccentricity: 0.641, perihelion_au: 1.24, inclination_deg: 7.04, coma_onset_au: 3.0, tail_onset_au: 2.5, source: 'cached_fallback' },
-          { naif_id: "Hale-Bopp", name: "C/1995 O1 (Hale-Bopp)", type: "comet", period_yr: 2534.0, eccentricity: 0.995, perihelion_au: 0.914, inclination_deg: 89.4, coma_onset_au: 3.0, tail_onset_au: 2.5, source: 'cached_fallback' },
-          { naif_id: "2P", name: "2P/Encke", type: "comet", period_yr: 3.3, eccentricity: 0.848, perihelion_au: 0.336, inclination_deg: 11.78, coma_onset_au: 3.0, tail_onset_au: 2.5, source: 'cached_fallback' },
-          { naif_id: "9P", name: "9P/Tempel 1", type: "comet", period_yr: 5.5, eccentricity: 0.517, perihelion_au: 1.5, inclination_deg: 10.5, coma_onset_au: 3.0, tail_onset_au: 2.5, source: 'cached_fallback' }
-        ];
-        const ASTEROID_FALLBACKS = [
-          { naif_id: "Ceres", name: "1 Ceres", type: "asteroid", period_yr: 4.6, eccentricity: 0.076, perihelion_au: 2.56, inclination_deg: 10.6, coma_onset_au: null, tail_onset_au: null, source: 'cached_fallback' },
-          { naif_id: "Pallas", name: "2 Pallas", type: "asteroid", period_yr: 4.62, eccentricity: 0.231, perihelion_au: 2.13, inclination_deg: 34.8, coma_onset_au: null, tail_onset_au: null, source: 'cached_fallback' },
-          { naif_id: "Juno", name: "3 Juno", type: "asteroid", period_yr: 4.36, eccentricity: 0.256, perihelion_au: 1.98, inclination_deg: 13.0, coma_onset_au: null, tail_onset_au: null, source: 'cached_fallback' },
-          { naif_id: "Vesta", name: "4 Vesta", type: "asteroid", period_yr: 3.63, eccentricity: 0.089, perihelion_au: 2.15, inclination_deg: 7.14, coma_onset_au: null, tail_onset_au: null, source: 'cached_fallback' },
-          { naif_id: "Eros", name: "433 Eros", type: "asteroid", period_yr: 1.76, eccentricity: 0.223, perihelion_au: 1.13, inclination_deg: 10.8, coma_onset_au: null, tail_onset_au: null, source: 'cached_fallback' }
-        ];
-
         if (type === 'asteroid') {
           results = ASTEROID_FALLBACKS;
         } else if (type === 'comet') {
