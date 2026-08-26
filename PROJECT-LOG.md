@@ -23,6 +23,10 @@ This log is updated after every AI session. Each AI signs off with their entry. 
 
 ## RECENT LOGS
 
+### 2026-08-26 — Global Audio Initialization on First User Gesture (Gemini 3.7 Flash)
+- **Global Web Audio Context Initialization (`src/components/AetherGenesis.tsx`):** Added a one-time global `pointerdown`/`keydown` event listener on `window` to initialize `audioEngine.init()` on the very first user interaction anywhere in the app. Resolves an issue where `audioEngine.init()` was previously only invoked inside the `Hud.tsx` Audio toggle button, causing all other UI click sound effects (`playUiClick()`) across HUD and navigation components to silently no-op until that button was toggled.
+- **Verification:** `npm run typecheck`, `npm run build` (881ms), and `npm run lint` passed with 0 errors and 0 warnings.
+
 ### 2026-08-25 — AttitudeIndicator Responsive Max-Width Constraint (Gemini 3.7 Flash)
 - **Constrain AttitudeIndicator Root Width (`src/ui/navigation/AttitudeIndicator.tsx`):** Added `w-full max-w-[190px]` to the root wrapper className, mirroring `Hud.tsx`'s cosmic age card wrapper (`w-full max-w-[220px]`) to ensure the bottom telemetry panel maintains a compact layout and avoids overlapping adjacent HUD controls.
 - **Verification Pass (`AETHERGENESIS-VERIFICATION-2026-08-25.md`):** Verified current codebase against `AETHERGENESIS-AUDIT-2026-08-21-MASTER.md`, confirming 6/6 architectural claims were already fixed and closing this open UI constraint item.

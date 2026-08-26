@@ -7,10 +7,28 @@ import { ConstantsPanel } from '../ui/ConstantsPanel';
 import { AstrobiologyPanel } from '../ui/AstrobiologyPanel';
 import { CatalogPanel } from '../ui/CatalogPanel';
 import { NavigationDeck } from '../ui/navigation/NavigationDeck';
+import { audioEngine } from '../audio/AudioEngine';
 
 export function AetherGenesis() {
   const mountRef = useRef<HTMLDivElement>(null);
   const [showNavDeck, setShowNavDeck] = useState(true);
+
+  // Initialize Web Audio API on first user gesture anywhere in the app
+  useEffect(() => {
+    const handleFirstGesture = () => {
+      audioEngine.init();
+      window.removeEventListener('pointerdown', handleFirstGesture);
+      window.removeEventListener('keydown', handleFirstGesture);
+    };
+
+    window.addEventListener('pointerdown', handleFirstGesture);
+    window.addEventListener('keydown', handleFirstGesture);
+
+    return () => {
+      window.removeEventListener('pointerdown', handleFirstGesture);
+      window.removeEventListener('keydown', handleFirstGesture);
+    };
+  }, []);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
