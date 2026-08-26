@@ -134,7 +134,7 @@ export function useSimulation(containerRef: React.RefObject<HTMLDivElement | nul
         if (!preset) return;
         const star = selectedStarRef.current || engineRef.current?.heroStars[0];
         if (star) {
-            star.applyPreset(preset, engineRef.current?.renderer);
+            star.applyPreset(preset, engineRef.current?.renderer, engineRef.current?.cosmicAge);
             if (coordinatorRef.current) {
                 coordinatorRef.current.clearHistory(star.physicsId);
             }

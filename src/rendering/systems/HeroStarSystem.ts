@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { PHASES, STELLAR_CONSTANTS } from '../../core/constants';
-import { computeLuminosity } from '../../simulation/StellarPhysics';
+import { computeLuminosity, sampleKroupaMass } from '../../simulation/StellarPhysics';
 import { PhysicsConstants, DEFAULT_CONSTANTS } from '../../types/physics';
 import { colorTempToRGB } from '../../physics/math';
 import { NebulaPhase } from '../../simulation/phases/NebulaPhase';
@@ -26,6 +26,25 @@ const getPhaseForT = (t: number): number => {
     if (t < 0.85) return PHASES.RED_GIANT;
     if (t < 0.90) return PHASES.SUPERNOVA;
     return PHASES.REMNANT;
+};
+
+/**
+ * Samples an initial lifecycle progress t according to healthy galactic population proportions:
+ * ~8% Nebula/Protostar, ~76% Main Sequence, ~10% Red Giant, ~2% Supernova, ~4% Remnant.
+ */
+const sampleInitialProgress = (): number => {
+    const roll = Math.random();
+    if (roll < 0.08) {
+        return Math.random() * 0.15; // Nebula & Protostar [0.00, 0.15)
+    } else if (roll < 0.84) {
+        return 0.15 + Math.random() * 0.55; // Main Sequence [0.15, 0.70)
+    } else if (roll < 0.94) {
+        return 0.70 + Math.random() * 0.15; // Red Giant [0.70, 0.85)
+    } else if (roll < 0.96) {
+        return 0.85 + Math.random() * 0.05; // Supernova [0.85, 0.90)
+    } else {
+        return 0.90 + Math.random() * 0.20; // Remnant [0.90, 1.10)
+    }
 };
 
 const _frustumSphere = new THREE.Sphere();
@@ -107,30 +126,25 @@ export class HeroStarSystem extends THREE.Group {
 
     public baseRadius: number;
     private tHeat: number;
-    private birthAge: number;
+    public birthAge: number;
 
     constructor(cosmicAge: number = 5.0, physics: PhysicsConstants = DEFAULT_CONSTANTS) {
         super();
         this.physicsId = THREE.MathUtils.generateUUID();
-        const roll = Math.random();
-        if (roll > 0.82) {
-            this.mass = 8 + Math.random() * 12;         // Massive stars 18%
-        } else if (roll < 0.06) {
-            this.mass = 0.08 + Math.random() * 0.22;    // Brown dwarfs 6%
-        } else {
-            this.mass = 0.4 + Math.random() * 3;        // Main sequence 76%
-        }
+        this.mass = sampleKroupaMass();
         this.lifespanReal = 10000 * Math.pow(this.mass, -2.5);
         this.loopDuration = 40 + Math.random() * 20; 
         
-        this.birthAge = Math.random() * 13.0;
-        this.t = 0;
-
         // BOLT: Baryon ratio affects base heat distribution
         const baryonFactor = (DEFAULT_CONSTANTS.baryon || 0.05) / 0.05; 
         this.tHeat = 5778 * Math.pow(this.mass, 0.5) * baryonFactor;
         this.baseRadius = Math.pow(this.mass, 0.8) * 0.8;
         this._msLuminosity = computeLuminosity(this.mass);
+
+        this.t = sampleInitialProgress();
+        this.currentRealAge = Math.max(0, this.t * this.lifespanReal);
+        const effG = Math.max(0.01, physics.G);
+        this.birthAge = cosmicAge - (this.currentRealAge / 1000) / effG;
 
         // Hit mesh for raycaster
         const hitMat = new THREE.MeshBasicMaterial({visible: false});
@@ -176,18 +190,11 @@ export class HeroStarSystem extends THREE.Group {
             globalFade = Math.max(0, cosmicAge / 1.0);
         }
 
-        const ageMyr = (cosmicAge - this.birthAge) * 1000;
-        if (ageMyr < 0) {
-            this.t = -0.1;
-            this.visible = false;
-        } else {
-            this.t = ageMyr / (this.lifespanReal / effG);
-            if (this.t > 1.0) {
-                this.t = Math.min(1.05, this.t);
-            }
-            this.visible = globalFade > 0.01;
-        }
+        const initialProgress = sampleInitialProgress();
+        this.t = initialProgress;
         this.currentRealAge = Math.max(0, this.t * this.lifespanReal);
+        this.birthAge = cosmicAge - (this.currentRealAge / 1000) / effG;
+        this.visible = globalFade > 0.01;
 
         if (this.t >= 0) {
             const initialPhase = getPhaseForT(this.t);
@@ -263,8 +270,80 @@ export class HeroStarSystem extends THREE.Group {
         }
     }
 
+    public syncBirthAge(cosmicAge: number, effG: number = 1.0): void {
+        this.currentRealAge = Math.max(0, this.t * this.lifespanReal);
+        this.birthAge = cosmicAge - (this.currentRealAge / 1000) / effG;
+    }
+
+    public recycleToNewGeneration(cosmicAge: number, renderer?: THREE.WebGLRenderer): void {
+        this.mass = sampleKroupaMass();
+        this.lifespanReal = 10000 * Math.pow(this.mass, -2.5);
+        const baryonFactor = (DEFAULT_CONSTANTS.baryon || 0.05) / 0.05;
+        this.tHeat = 5778 * Math.pow(this.mass, 0.5) * baryonFactor;
+        this.baseRadius = Math.pow(this.mass, 0.8) * 0.8;
+        this._msLuminosity = computeLuminosity(this.mass);
+
+        this.t = 0.0;
+        this.currentRealAge = 0.0;
+        this.birthAge = cosmicAge;
+
+        // Reset transition opacities
+        this._opP = 0;
+        this._opM = 0;
+        this._opR = 0;
+        this._opS = 0;
+        this._opNs = 0;
+        this._lastOpP = -1;
+        this._lastOpM = -1;
+        this._lastOpR = -1;
+        this._lastOpS = -1;
+        this._lastVisP = false;
+        this._lastVisM = false;
+        this._lastVisR = false;
+        this._lastVisS = false;
+        this.isSupernovaFlashing = false;
+        this._wasSupernovaFlashing = false;
+
+        // Dispose old phase components
+        this._nebulaPhase?.dispose();
+        this._protostarPhase?.dispose();
+        this._mainSequencePhase?.dispose();
+        this._redGiantPhase?.dispose();
+        this._supernovaPhase?.dispose();
+        this._remnantPhase?.dispose();
+
+        PlanetarySystemQueue.cancelCreation(this);
+        if (this.planetarySystem) {
+            PlanetarySystemQueue.enqueueDisposal(this.planetarySystem);
+            this.planetarySystem = undefined;
+        }
+
+        // Re-initialize phases with updated mass and baseRadius
+        this._nebulaPhase = new NebulaPhase();
+        this._nebulaPhase.init(this);
+        this._protostarPhase = new ProtostarPhase(this.baseRadius);
+        this._protostarPhase.init(this);
+        this._mainSequencePhase = new MainSequencePhase(this.mass, this.baseRadius);
+        this._mainSequencePhase.init(this);
+        this._redGiantPhase = new RedGiantPhase(this.baseRadius, this.tHeat);
+        this._redGiantPhase.init(this);
+        this._supernovaPhase = new SupernovaPhase(this.mass, this.baseRadius);
+        this._supernovaPhase.init(this);
+        this._remnantPhase = new RemnantPhase(this.mass);
+        this._remnantPhase.init(this);
+
+        this._activePhase = -1;
+        this.transitionToPhase(PHASES.NEBULA, renderer);
+    }
+
     respawn(renderer?: THREE.WebGLRenderer, cosmicAge: number = 0.0, physics: PhysicsConstants = DEFAULT_CONSTANTS): void {
-        this.birthAge = Math.random() * 13.0;
+        this.mass = sampleKroupaMass();
+        this.lifespanReal = 10000 * Math.pow(this.mass, -2.5);
+        const baryonFactor = (DEFAULT_CONSTANTS.baryon || 0.05) / 0.05;
+        this.tHeat = 5778 * Math.pow(this.mass, 0.5) * baryonFactor;
+        this.baseRadius = Math.pow(this.mass, 0.8) * 0.8;
+        this._msLuminosity = computeLuminosity(this.mass);
+
         this.t = -0.1;
         this.visible = false;
         
@@ -292,10 +371,37 @@ export class HeroStarSystem extends THREE.Group {
             this.starLight.visible = false;
         }
 
+        // Dispose old phase components
+        this._nebulaPhase?.dispose();
+        this._protostarPhase?.dispose();
+        this._mainSequencePhase?.dispose();
+        this._redGiantPhase?.dispose();
+        this._supernovaPhase?.dispose();
+        this._remnantPhase?.dispose();
+
+        PlanetarySystemQueue.cancelCreation(this);
+        if (this.planetarySystem) {
+            PlanetarySystemQueue.enqueueDisposal(this.planetarySystem);
+            this.planetarySystem = undefined;
+        }
+
+        this._nebulaPhase = new NebulaPhase();
+        this._nebulaPhase.init(this);
+        this._protostarPhase = new ProtostarPhase(this.baseRadius);
+        this._protostarPhase.init(this);
+        this._mainSequencePhase = new MainSequencePhase(this.mass, this.baseRadius);
+        this._mainSequencePhase.init(this);
+        this._redGiantPhase = new RedGiantPhase(this.baseRadius, this.tHeat);
+        this._redGiantPhase.init(this);
+        this._supernovaPhase = new SupernovaPhase(this.mass, this.baseRadius);
+        this._supernovaPhase.init(this);
+        this._remnantPhase = new RemnantPhase(this.mass);
+        this._remnantPhase.init(this);
+
         this.applyInitialCosmicAge(cosmicAge, physics, renderer);
     }
 
-    applyPreset(preset: any, renderer?: THREE.WebGLRenderer): void {
+    applyPreset(preset: any, renderer?: THREE.WebGLRenderer, cosmicAge: number = 5.0): void {
         const massVal = preset.mass_solar ?? preset.mass;
         if (typeof massVal === 'number' && Number.isFinite(massVal) && massVal > 0) {
             this.mass = massVal;
@@ -375,6 +481,7 @@ export class HeroStarSystem extends THREE.Group {
             this.t = 0.2; // Main sequence default
             this.currentRealAge = this.t * this.lifespanReal;
         }
+        this.birthAge = cosmicAge - (this.currentRealAge / 1000);
 
         const initialPhase = getPhaseForT(this.t);
         this.transitionToPhase(initialPhase, renderer);
@@ -414,6 +521,11 @@ export class HeroStarSystem extends THREE.Group {
              this.t += (delta * 200) / (this.lifespanReal / effG);
         }
 
+        // Generational matter recycling when remnant phase completes
+        if (overrideT === undefined && this.t >= 1.15) {
+            this.recycleToNewGeneration(cosmicAge ?? 5.0, renderer);
+        }
+
         if (this.t < 0) {
             this.visible = false;
             return;
@@ -423,7 +535,7 @@ export class HeroStarSystem extends THREE.Group {
 
         if (!ignites && this.t > 0.14) this.t = 0.14;
         if (this.t > 1.0) {
-            this.t = Math.min(1.05, this.t);
+            this.t = Math.min(1.15, this.t);
             this.isSupernovaFlashing = false;
         }
 

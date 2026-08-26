@@ -56,7 +56,12 @@ export function useStarSelection({ engineRef, controlsRef }: UseStarSelectionPro
 
     const onScrubEnd = useCallback(() => {
         isScrubbingRef.current = false;
-    }, []);
+        if (selectedStarRef.current && engineRef.current) {
+            const cosmicAge = engineRef.current.cosmicAge ?? 5.0;
+            const effG = Math.max(0.01, engineRef.current.physicsConstants?.G ?? 1.0);
+            selectedStarRef.current.syncBirthAge(cosmicAge, effG);
+        }
+    }, [engineRef]);
 
     return {
         selectedStar,

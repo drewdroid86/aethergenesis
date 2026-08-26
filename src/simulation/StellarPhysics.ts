@@ -96,6 +96,32 @@ export function computeLuminosity(mass_solar: number): number {
 }
 
 /**
+ * Sample stellar birth mass using the empirical Kroupa (2001) Initial Mass Function.
+ *
+ * Implements inverse transform sampling on a piecewise power law:
+ *   ξ(M) ∝ M^(-1.3) for 0.08 ≤ M < 0.50 M☉ (sub-solar red dwarfs, 76.2% of population)
+ *   ξ(M) ∝ M^(-2.3) for 0.50 ≤ M ≤ 20.0 M☉ (intermediate and massive stars, 23.8% of population)
+ *
+ * @citation Kroupa, P. (2001) "On the variation of the initial mass function", MNRAS 322, 231–246
+ * @returns Sampled stellar birth mass in solar masses (M☉)
+ */
+export function sampleKroupaMass(): number {
+  const u = Math.random();
+  // Low-mass branch: [0.08, 0.50] M☉ (76.2% of stellar population)
+  if (u < 0.762) {
+    const uNorm = u / 0.762;
+    const mMinPow = 2.1334; // 0.08^(-0.3)
+    const mMaxPow = 1.2311; // 0.50^(-0.3)
+    return Math.pow(mMinPow - uNorm * (mMinPow - mMaxPow), -1 / 0.3);
+  }
+  // Intermediate & massive branch: [0.50, 20.0] M☉ (23.8% of stellar population)
+  const uNorm = (u - 0.762) / 0.238;
+  const mMinPow = 2.4623; // 0.50^(-1.3)
+  const mMaxPow = 0.0204; // 20.0^(-1.3)
+  return Math.pow(mMinPow - uNorm * (mMinPow - mMaxPow), -1 / 1.3);
+}
+
+/**
  * Compute stellar radius from mass, phase, age, and main sequence lifetime.
  *
  * Main sequence: R ≈ M^0.8 (empirical mass-radius relation)
