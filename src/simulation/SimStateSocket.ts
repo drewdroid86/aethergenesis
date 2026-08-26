@@ -109,8 +109,10 @@ export function broadcastSimState(state: SimBroadcast, exclude?: WebSocket): voi
 }
 
 export function initWebSocketServer(server: http.Server, allowedOrigins: string[]): void {
-    const expectedToken = process.env.WS_TOKEN || 'default_secret';
-    const isProduction = process.env.NODE_ENV === 'production';
+    const expectedToken = process.env.WS_TOKEN;
+    if (!expectedToken) {
+        throw new Error('FATAL: WS_TOKEN environment variable is not set. WebSocket server refused to start without authentication token.');
+    }
 
     wss = new WebSocketServer({
         server,
@@ -123,13 +125,6 @@ export function initWebSocketServer(server: http.Server, allowedOrigins: string[
 
             if (!isAllowed) {
                 cb(false, 403, 'Forbidden: Unauthorized origin');
-                return;
-            }
-
-            // Security: Mandatory subprotocol-based authentication
-            // handleProtocols alone allows bypass if no protocol is sent; verifyClient enforces its presence.
-            if (isProduction && expectedToken === 'default_secret') {
-                cb(false, 500, 'Internal Server Error: Secure token not configured');
                 return;
             }
 

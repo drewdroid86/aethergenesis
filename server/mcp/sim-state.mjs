@@ -18,7 +18,13 @@ const server = new Server(
 
 const SIM_PORT = process.env.SIM_PORT || '3001';
 const SIM_HOST = process.env.SIM_HOST || 'localhost';
-const WS_TOKEN = process.env.WS_TOKEN || 'default_secret';
+const WS_TOKEN = process.env.WS_TOKEN;
+
+if (!WS_TOKEN) {
+  console.error('FATAL: WS_TOKEN environment variable is not set. Refusing to start MCP sim-state server without authentication token.');
+  process.exit(1);
+}
+
 const wsUrl = `ws://${SIM_HOST}:${SIM_PORT}`;
 
 let latestState = null;

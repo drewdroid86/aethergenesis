@@ -23,6 +23,10 @@ This log is updated after every AI session. Each AI signs off with their entry. 
 
 ## RECENT LOGS
 
+### 2026-08-26 — Strict WebSocket Authentication Token Enforcement (Gemini 3.7 Flash)
+- **Mandatory WS_TOKEN Configuration (`src/simulation/SimStateSocket.ts`, `server/mcp/sim-state.mjs`):** Removed insecure fallback to public hardcoded `'default_secret'` string on both server and MCP client. `SimStateSocket.ts` now immediately throws a fatal startup error if `WS_TOKEN` is unset, and `server/mcp/sim-state.mjs` logs a fatal error and exits with code 1, ensuring the simulation server and MCP bridge fail loudly and close securely if unconfigured.
+- **Verification:** `npm run typecheck`, `npm run build` (979ms), and `npm run lint` passed with 0 errors and 0 warnings. Verified that both `server.ts` and `server/mcp/sim-state.mjs` fail immediately with exit code 1 when `WS_TOKEN` is unset, and connect successfully when `WS_TOKEN` is provided.
+
 ### 2026-08-26 — NASA Horizons MCP SBDB Kind-Based Classification (Gemini 3.7 Flash)
 - **Field-Based Small Body Classification (`server/mcp/nasa-horizons.mjs`):** Added the `kind` field to the JPL SBDB query API request (`sbdb_query.api?fields=spkid,full_name,e,q,i,per,kind`) and replaced naive name substring matching (`name.includes('P')`) with JPL body kind checking (`COMET_KINDS: c, cn, cu, cp, ci, cd, ce, cx`). Asteroids with a capital "P" (such as 2 Pallas, Psyche, Persephone) are now accurately classified as asteroids with `null` coma/tail onset thresholds instead of erroneously rendering comet tails.
 - **Verification:** `npm run typecheck`, `npm run build` (1.04s), and `npm run lint` passed with 0 errors and 0 warnings. Live query for `type: 'all'` verified that "2 Pallas" correctly returns `type: "asteroid"`, `coma_onset_au: null`, `tail_onset_au: null`.
