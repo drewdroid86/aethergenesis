@@ -54,6 +54,7 @@ export const InspectPanel: React.FC<InspectPanelProps> = ({
     const [announcement, setAnnouncement] = useState('');
     const [cooldownRemaining, setCooldownRemaining] = useState(0);
     const lastAnalysisTimeRef = useRef(0);
+    const abortControllerRef = useRef<AbortController | null>(null);
     const [isDragging, setIsDragging] = useState(false);
 
     // Reset AI analysis when selected star changes
@@ -140,6 +141,13 @@ Civilization: ${geminiData.civilization}`;
         lastAnalysisTimeRef.current = now;
         setCooldownRemaining(5000);
 
+        if (abortControllerRef.current) {
+            abortControllerRef.current.abort();
+        }
+        const controller = new AbortController();
+        abortControllerRef.current = controller;
+        const signal = controller.signal;
+
         try {
             setIsAnalyzing(true);
             const payload = {
@@ -156,33 +164,46 @@ Civilization: ${geminiData.civilization}`;
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(payload),
+                signal,
             });
 
             if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
 
             const data = await response.json() as GeminiAnalysisResult;
-            setGeminiData(data);
-            setAnalysisFailed(false);
-        } catch {
-            console.warn("Analysis unavailable - using predictive fallback.");
-            setAnalysisFailed(true);
-            setGeminiData({
-                planet_name: "Kerath-7",
-                biome: "Crystalline Deserts",
-                dominant_species: "Silicate Swarm",
-                life_stage: 4,
-                civilization: "Post-Scarcity Hive",
-                isFallback: true,
-            });
+            
+            if (!signal.aborted) {
+                setGeminiData(data);
+                setAnalysisFailed(false);
+            }
+        } catch (err: any) {
+            if (err.name !== 'AbortError') {
+                console.warn("Analysis unavailable - using predictive fallback.");
+                if (!signal.aborted) {
+                    setAnalysisFailed(true);
+                    setGeminiData({
+                        planet_name: "Kerath-7",
+                        biome: "Crystalline Deserts",
+                        dominant_species: "Silicate Swarm",
+                        life_stage: 4,
+                        civilization: "Post-Scarcity Hive",
+                        isFallback: true,
+                    });
+                }
+            }
         } finally {
-            setIsAnalyzing(false);
+            if (!signal.aborted) {
+                setIsAnalyzing(false);
+            }
         }
     };
 
     useEffect(() => {
-        setGeminiData(null);
-        setAnalysisFailed(false);
-    }, [selectedStar]);
+        return () => {
+            if (abortControllerRef.current) {
+                abortControllerRef.current.abort();
+            }
+        };
+    }, []);
 
     return (
         <motion.div
