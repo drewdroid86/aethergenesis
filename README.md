@@ -81,7 +81,7 @@ graph TD
 | **Physics** | Custom Velocity Verlet N-Body Sub-Stepped Integrator (Web Worker) |
 | **AI Integration** | Google Gemini API (`@google/genai`) |
 | **Backend & MCP** | Express 5, WebSocket (`ws`), MCP Servers (`nasa-horizons`, `sim-state`, `stellar-catalog`) |
-| **Testing** | 49-Scenario Automated E2E Test Suite |
+| **Testing** | 45-Scenario Automated E2E Test Suite |
 | **Deployment** | GitHub Pages (frontend) + Render (backend) |
 
 ---
@@ -141,7 +141,7 @@ npm run typecheck
 # Production Bundle Build
 npm run build
 
-# Run 49-Scenario E2E Automated Integration Suite
+# Run 45-Scenario E2E Automated Integration Suite
 node node_modules/tsx/dist/cli.mjs scripts/run-e2e-tests.ts
 ```
 
@@ -156,7 +156,9 @@ node node_modules/tsx/dist/cli.mjs scripts/run-e2e-tests.ts
 | `R` | Reset camera position and orientation |
 | `F` | Focus camera on selected hero star |
 | `Escape` | Deselect star / close InspectPanel |
-| `Alt + R` | Reset simulation |
+| `Space` | Toggle cosmic time progression (play/pause) |
+| `P` | Toggle simulation pause |
+| `Alt + R` | Reset physics constants to defaults |
 | `←` / `→` | Scrub selected star timeline |
 | `Home` / `End` | Jump to start / end of stellar timeline |
 
@@ -170,8 +172,10 @@ node node_modules/tsx/dist/cli.mjs scripts/run-e2e-tests.ts
 
 - **Manifest**: `plugin.json`
 - **Agent Skills**:
-  - `stellar-physics`: `skills/stellar-physics/SKILL.md`
-  - `shader-optimization`: `skills/shader-optimization/SKILL.md`
+  - `stellar-physics` — Mass-luminosity scaling, HR diagram mapping, phase transitions
+  - `orbital-mechanics` — Keplerian elements, N-body solver, comet trajectories
+  - `astrobiology` — Habitability scoring, HZ migration, atmosphere retention
+  - `shader-optimization` — WebGL/GLSL cross-platform compliance, raymarching, tone mapping
 
 AI coding assistants can invoke these skills directly during pair programming on cosmic physics or GLSL shader development.
 

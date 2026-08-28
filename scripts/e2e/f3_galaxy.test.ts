@@ -57,6 +57,14 @@ test('F3-T1-27: Symplectic Leapfrog Integration Step Updates Position (Real Cons
   }
 
   const finalEnergy = getEnergy(lastPosted.buffer);
+
+  // Stop the physics tick loop and clear setTimeout
+  (self as any).onmessage({
+    data: {
+      type: 'SET_RUNNING',
+      payload: { isRunning: false }
+    }
+  });
   
   const drift = Math.abs((finalEnergy - initialEnergy) / initialEnergy);
   assert.ok(drift < 1e-3, `Energy drift too high: ${drift}`);

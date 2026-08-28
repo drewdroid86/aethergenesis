@@ -9,6 +9,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- Kroupa IMF mass sampling (`sampleKroupaMass()`) with literature citation (Kroupa 2001) for realistic stellar mass distribution
+- Steady-state stellar recycling — remnant stars recycle into new molecular clouds maintaining dynamic galactic population
+- Full Navigation Deck instrumentation: GalacticCompassGimbal, TacticalRadar, BoresightScanner, SpatialLabelsLayer 2D collision, YouAreHereBadge, TargetLockHUD, CosmicScaleLadder, ScaleRuler, AttitudeIndicator
+- NASA Horizons MCP designation/pdes anchored comet classification using JPL SBDB `kind` field
+- Global audio initialization on first user gesture (no longer requires Audio button toggle first)
+- Antigravity 2.0 plugin skills: `orbital-mechanics` and `astrobiology` (joining existing `stellar-physics` and `shader-optimization`)
+
+### Fixed
+- CI audit gate moved after test step with `continue-on-error`, resolved 7 transitive advisories
+- Real symplectic integrator energy conservation test replacing mock leapfrog
+- Comet position clamp raised from 200 AU to 1000 AU with console.warn on trigger
+- Morgan-Keenan luminosity class regex: full VII→VI→IV→III→II→I ladder with \b word boundaries
+- Single-sourced stellar catalog into `server/shared/stellarCatalog.mjs` eliminating duplicate maintenance
+- InspectPanel: removed duplicate useEffect, added AbortController to analyzeSystem fetch
+- WebSocket token: removed insecure `default_secret` fallback, reworded as handshake key
+- SpatialLabelsLayer 64px Euclidean pixel collision pass for clean label spacing
+- BoresightScanner telemetry callout deduplication for selected stars
+- HUD button cluster right-alignment fix
+- Cosmic age card responsive max-width constraint
+- AttitudeIndicator responsive max-width constraint
+- Docs accuracy: version bump to 3.0.0, fixed star count claims, fixed octave count claims
+- Repo cleanup: removed duplicate audit files, moved historical docs to docs/audits/
+
 ---
 
 ## [3.0.0] - 2026-07-23
@@ -87,5 +111,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
-[Unreleased]: https://github.com/drewdroid86/aethergenesis/compare/v1.0.0...HEAD
+[Unreleased]: https://github.com/drewdroid86/aethergenesis/compare/v3.0.0...HEAD
+[3.0.0]: https://github.com/drewdroid86/aethergenesis/compare/v2.0.0...v3.0.0
+[2.0.0]: https://github.com/drewdroid86/aethergenesis/compare/v1.0.0...v2.0.0
 [1.0.0]: https://github.com/drewdroid86/aethergenesis/releases/tag/v1.0.0

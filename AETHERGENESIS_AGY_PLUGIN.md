@@ -1,6 +1,6 @@
 # AetherGenesis: Antigravity 2.0 Plugin Implementation
 **Runtime: `agy` (Antigravity CLI)**
-**Model: Gemini 3.5 Flash**
+**Model: Gemini 3.7 Flash**
 **Architecture: Native Plugin Bundle with MCP Servers + Agent Skills**
 
 ---
