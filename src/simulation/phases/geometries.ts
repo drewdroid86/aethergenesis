@@ -41,6 +41,10 @@ export const GEOMETRIES = {
         geo.rotateX(Math.PI / 2);
         return geo;
     })(),
+    blackHoleLensedArch: (() => {
+        const geo = new THREE.RingGeometry(1.02, 2.7, 64);
+        return geo;
+    })(),
     flare: (() => {
         const curve = new THREE.QuadraticBezierCurve3(
             new THREE.Vector3(0.8, 0, 0),

@@ -30,6 +30,9 @@ void main() {
     }
   }
 
+  vec3 photonRingGlow = vec3(0.0);
+  vec2 lensDispersion = vec2(0.0);
+
   if (uLensingStrength > 0.001 && uBlackHoleRadius > 0.001) {
     vec2 delta = uv - uBlackHoleScreenPos;
     // Correct for aspect ratio to make the lens perfectly circular
@@ -42,20 +45,33 @@ void main() {
     if (dist < rE) {
       horizonMask = 0.0;
     } else {
-      // Warp the UV coordinate based on gravitational lensing equation
-      float theta = dist - (rE * rE) * uLensingStrength / dist;
+      // Higher-order Schwarzschild gravitational deflection
+      float theta = dist - (rE * rE / dist + 0.35 * rE * rE * rE / (dist * dist)) * uLensingStrength;
       
       // Convert back to UV space (de-adjusting aspect ratio)
-      uv = uBlackHoleScreenPos + normalize(delta) * vec2(theta / uAspectRatio, theta);
+      vec2 normalDir = normalize(delta);
+      uv = uBlackHoleScreenPos + normalDir * vec2(theta / uAspectRatio, theta);
+
+      // Gravitational dispersion: spectral offset along deflection normal
+      lensDispersion = vec2(normalDir.x / uAspectRatio, normalDir.y) * (0.0035 * rE / max(0.01, dist)) * uLensingStrength;
+
+      // Photon sphere glow ring and gravitational redshift at shadow threshold
+      float photonRingWidth = rE * 0.22;
+      float ringProximity = (dist - rE) / max(0.001, photonRingWidth);
+      if (ringProximity < 1.0) {
+        float ringIntensity = pow(1.0 - ringProximity, 3.5) * 2.2 * uLensingStrength;
+        vec3 photonColor = mix(vec3(1.0, 0.45, 0.08), vec3(1.0, 0.95, 0.85), pow(1.0 - ringProximity, 5.0));
+        photonRingGlow = photonColor * ringIntensity;
+      }
     }
   }
 
-  // Chromatic Aberration (using warped uv)
+  // Chromatic Aberration & Gravitational Dispersion (using warped uv)
   vec2 offset = (uv - 0.5) * 0.002;
-  float r = texture2D(tDiffuse, uv + offset).r;
+  float r = texture2D(tDiffuse, uv + offset + lensDispersion).r;
   float g = texture2D(tDiffuse, uv).g;
-  float b = texture2D(tDiffuse, uv - offset).b;
-  vec3 color = vec3(r, g, b) * horizonMask;
+  float b = texture2D(tDiffuse, uv - offset - lensDispersion).b;
+  vec3 color = vec3(r, g, b) * horizonMask + photonRingGlow;
 
   // Dynamic Film Grain
   float noise = random(uv + fract(time));

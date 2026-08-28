@@ -23,6 +23,13 @@ This log is updated after every AI session. Each AI signs off with their entry. 
 
 ## RECENT LOGS
 
+### 2026-08-28 — Relativistic Black Hole Accretion Disk & Gravitational Lensing Shader (Gemini 3.7 Flash)
+- **Relativistic Doppler Beaming & Gravitational Redshift (`src/simulation/phases/RemnantPhase.ts`):** Upgraded `bhDiskMaterial` to calculate camera-relative line-of-sight velocity ($\beta_{\parallel} = \beta(r) \cdot (\vec{v} \cdot \vec{d}_{\text{cam}})$ with $\beta \approx 0.15\text{--}0.60c$), Lorentz factor $\gamma = 1/\sqrt{1 - \beta^2}$, and Doppler beaming factor $\delta = 1 / (\gamma(1 - \beta_{\parallel}))$. Applied relativistic flux boost ($I_{\text{obs}} \propto \delta^{3.2}$) and gravitational redshift ($g_{\text{grav}} = \sqrt{1 - r_s/r}$), dynamically shifting approaching accretion gas toward radiant cyan/UV-white and receding/inner plunge gas toward deep infrared-crimson with differential Keplerian swirling ($\Omega \propto r^{-1.5}$).
+- **Gravitationally Lensed Secondary Arch (`src/simulation/phases/geometries.ts`, `src/simulation/phases/RemnantPhase.ts`):** Added `GEOMETRIES.blackHoleLensedArch` and `bhArchMaterial` to render the secondary image of the rear accretion disk gravitationally deflected over and under the event horizon shadow.
+- **Higher-Order Deflection & Photon Sphere Glow Ring (`src/shaders/cinematic.frag.glsl`):** Enhanced post-processing screen-space lensing with higher-order Schwarzschild deflection ($\hat{\alpha} \propto \frac{r_E^2}{b} + 0.35\frac{r_E^3}{b^2}$), chromatic gravitational dispersion along deflection normals, and intense photon orbit glow ($r \approx 1.5\,r_s$) at the shadow boundary.
+- **Verification:** `npm run typecheck`, `npm run build` (3.79s), `npm run lint`, `npm test` (45 E2E scenarios), and `npm run test:mcp` passed with 0 errors and 0 warnings.
+
+
 ### 2026-08-28 — Stabilization Pass: 8-Fix Audit Response + Repo Cleanup (Claude Opus 4.6 + Gemini 3.7 Flash)
 - **Source:** Code review audit (`aethergenesis-code-review_2f5528ac.md`) verified against commit `94fb6eb`. F5 (acceleration cache) dropped — proven false by direct instrumentation.
 - **CI Audit Gate (`fix/ci-audit-gate-order`):** Moved `npm audit` step after `npm test` with `continue-on-error: true`. Ran `npm audit fix` resolving 7 transitive advisories (ip-address, fast-uri, hono, @hono/node-server, postcss, nanoid, brace-expansion).

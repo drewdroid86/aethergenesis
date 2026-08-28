@@ -25,6 +25,8 @@ export class RemnantPhase implements PhaseComponent {
     private bhRadius = 0.5;
     private bhDiskMaterial?: THREE.ShaderMaterial;
     private bhDiskGeometry?: THREE.RingGeometry;
+    private bhArchMaterial?: THREE.ShaderMaterial;
+    private bhArchMesh?: THREE.Mesh;
 
     private _lensMat?: THREE.ShaderMaterial;
     private _lensMesh?: THREE.Mesh;
@@ -126,53 +128,108 @@ export class RemnantPhase implements PhaseComponent {
         );
         
         // Accretion disk with custom shader material for high-quality gradient and animation
+        // Accretion disk with relativistic Doppler beaming, gravitational redshift & differential Keplerian velocity
         const bhDiskGeometry = GEOMETRIES.blackHoleDisk;
         this.bhDiskMaterial = new THREE.ShaderMaterial({
             uniforms: {
                 uTime: { value: 0 },
-                uOpacity: { value: 1.0 }
+                uOpacity: { value: 1.0 },
+                uCameraPos: { value: new THREE.Vector3(0, 0, 10) }
             },
             transparent: true,
             blending: THREE.AdditiveBlending,
             side: THREE.DoubleSide,
             vertexShader: `
                 varying vec3 vLocalPos;
+                varying vec3 vWorldPos;
                 varying vec2 vUv;
                 void main() {
                     vUv = uv;
                     vLocalPos = position;
-                    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+                    vec4 worldPos = modelMatrix * vec4(position, 1.0);
+                    vWorldPos = worldPos.xyz;
+                    gl_Position = projectionMatrix * viewMatrix * worldPos;
                 }
             `,
             fragmentShader: `
                 varying vec3 vLocalPos;
+                varying vec3 vWorldPos;
                 varying vec2 vUv;
                 uniform float uTime;
                 uniform float uOpacity;
+                uniform vec3 uCameraPos;
+
                 void main() {
                     float dist = length(vLocalPos.xz);
-                    float r = (dist - 1.2) / (4.0 - 1.2);
-                    r = clamp(r, 0.0, 1.0);
+                    // r is normalized from ISCO (1.2) to outer edge (4.0)
+                    float r = clamp((dist - 1.2) / (4.0 - 1.2), 0.0, 1.0);
                     
-                    // Doppler beaming: gas on one side of the disk (rotating towards us) is brighter
+                    // Azimuthal coordinate in disk plane
                     float angle = atan(vLocalPos.z, vLocalPos.x);
-                    float doppler = 1.0 + 0.6 * cos(angle);
                     
-                    // Orbiting structure: spiral waves with Keplerian-like differential rotation
-                    float orbitalSpeed = 4.0 / (dist * dist + 1.0);
-                    float wave = sin(angle * 6.0 - uTime * 12.0 * orbitalSpeed) * 0.5 + 0.5;
+                    // Relativistic velocity beta = v/c: ~0.55c at ISCO decaying to ~0.15c at outer edge
+                    float beta = clamp(0.60 / sqrt(dist * 0.8 + 0.4), 0.0, 0.70);
                     
-                    vec3 innerColor = vec3(1.0, 0.95, 0.85); // Ultra-hot white core
-                    vec3 midColor = vec3(1.0, 0.45, 0.05);   // High-heat orange
-                    vec3 outerColor = vec3(0.8, 0.1, 0.0);   // Cooler red edge
+                    // Tangential orbital velocity vector in local disk plane
+                    vec3 tangentDir = normalize(vec3(-sin(angle), 0.0, cos(angle)));
+                    vec3 viewDir = normalize(uCameraPos - vWorldPos);
                     
-                    vec3 color = mix(innerColor, midColor, smoothstep(0.0, 0.4, r));
-                    color = mix(color, outerColor, smoothstep(0.4, 1.0, r));
+                    // Line-of-sight velocity component (beta_parallel)
+                    float beta_los = beta * dot(tangentDir, viewDir);
                     
-                    // Accretion disk opacity: hot inner edge, fades out at the outer edge
-                    float alpha = (0.2 + 0.8 * wave) * (1.0 - smoothstep(0.8, 1.0, r)) * smoothstep(0.0, 0.15, r);
+                    // Relativistic Lorentz factor: gamma = 1 / sqrt(1 - beta^2)
+                    float gamma = 1.0 / sqrt(max(0.01, 1.0 - beta * beta));
                     
-                    gl_FragColor = vec4(color * doppler, alpha * 0.85 * uOpacity);
+                    // Relativistic Doppler factor: delta = 1 / (gamma * (1 - beta_los))
+                    float delta = 1.0 / max(0.1, gamma * (1.0 - beta_los));
+                    
+                    // Relativistic Doppler flux beaming: I_obs = I_0 * delta^(3 + alpha) where alpha ~ 1
+                    float beaming = pow(delta, 3.2);
+                    
+                    // Gravitational redshift factor: g = sqrt(1 - r_s / r) where r_s ~ 0.5
+                    float g_grav = sqrt(max(0.04, 1.0 - 0.5 / max(0.55, dist)));
+                    
+                    // Combined spectral frequency shift ratio
+                    float freqShift = g_grav * delta;
+                    
+                    // Differential Keplerian rotation: Omega(r) ~ r^(-1.5) for swirling magnetohydrodynamic gas
+                    float orbitalFreq = 4.5 / pow(dist + 0.2, 1.5);
+                    float turbulence = sin(angle * 7.0 - uTime * 8.0 * orbitalFreq + sin(dist * 5.0)) * 0.5 + 0.5;
+                    float fineStreams = sin(angle * 14.0 - uTime * 15.0 * orbitalFreq + cos(angle * 3.0)) * 0.35 + 0.65;
+                    float gasDensity = (0.35 + 0.65 * turbulence * fineStreams);
+                    
+                    // Base multi-temperature blackbody color gradient
+                    vec3 coreColor = vec3(1.0, 0.98, 0.92); // Ultra-hot white inner edge
+                    vec3 midColor  = vec3(1.0, 0.48, 0.06); // High-temperature orange
+                    vec3 outerColor = vec3(0.70, 0.10, 0.01); // Cooler crimson outer rim
+                    vec3 baseColor = mix(coreColor, midColor, smoothstep(0.0, 0.35, r));
+                    baseColor = mix(baseColor, outerColor, smoothstep(0.35, 1.0, r));
+                    
+                    // Relativistic spectral color shifting:
+                    // Blueshift (approaching side): shifts toward radiant electric cyan / UV-white
+                    // Redshift (receding side & gravitational plunge): shifts toward deep amber / infrared-crimson
+                    vec3 blueShiftColor = vec3(0.40, 0.85, 1.0);
+                    vec3 redShiftColor  = vec3(0.50, 0.05, 0.0);
+                    
+                    vec3 spectralColor = baseColor;
+                    if (freqShift > 1.05) {
+                        float bFactor = clamp((freqShift - 1.05) * 0.75, 0.0, 1.0);
+                        spectralColor = mix(spectralColor, blueShiftColor, bFactor * 0.60);
+                        spectralColor += vec3(0.25, 0.55, 1.0) * bFactor * 0.75;
+                    } else if (freqShift < 0.95) {
+                        float rFactor = clamp((0.95 - freqShift) * 1.6, 0.0, 1.0);
+                        spectralColor = mix(spectralColor, redShiftColor, rFactor * 0.70);
+                    }
+                    
+                    // Relativistic intensity modulation
+                    vec3 finalDiskColor = spectralColor * beaming;
+                    
+                    // Accretion disk opacity: sharp cutoff inside ISCO, gradual taper at outer edge
+                    float innerCut = smoothstep(0.0, 0.10, r);
+                    float outerCut = 1.0 - smoothstep(0.80, 1.0, r);
+                    float alpha = gasDensity * innerCut * outerCut * 0.90 * uOpacity;
+                    
+                    gl_FragColor = vec4(finalDiskColor, alpha);
                 }
             `
         });
@@ -181,6 +238,67 @@ export class RemnantPhase implements PhaseComponent {
         const diskMesh = new THREE.Mesh(bhDiskGeometry, this.bhDiskMaterial);
         this.blackHoleGroup.add(bhCore);
         this.blackHoleGroup.add(diskMesh);
+
+        // Secondary gravitationally lensed arch: light from the rear of the disk deflected over/under event horizon
+        this.bhArchMaterial = new THREE.ShaderMaterial({
+            uniforms: {
+                uTime: { value: 0 },
+                uOpacity: { value: 1.0 },
+                uCameraPos: { value: new THREE.Vector3(0, 0, 10) }
+            },
+            transparent: true,
+            blending: THREE.AdditiveBlending,
+            side: THREE.DoubleSide,
+            depthWrite: false,
+            vertexShader: `
+                varying vec3 vLocalPos;
+                varying vec3 vWorldPos;
+                varying vec2 vUv;
+                void main() {
+                    vUv = uv;
+                    vLocalPos = position;
+                    vec4 worldPos = modelMatrix * vec4(position, 1.0);
+                    vWorldPos = worldPos.xyz;
+                    gl_Position = projectionMatrix * viewMatrix * worldPos;
+                }
+            `,
+            fragmentShader: `
+                varying vec3 vLocalPos;
+                varying vec3 vWorldPos;
+                varying vec2 vUv;
+                uniform float uTime;
+                uniform float uOpacity;
+                uniform vec3 uCameraPos;
+
+                void main() {
+                    float dist = length(vLocalPos.xy);
+                    float r = clamp((dist - 1.02) / (2.7 - 1.02), 0.0, 1.0);
+                    
+                    float angle = atan(vLocalPos.y, vLocalPos.x);
+                    
+                    // Gravitationally bent arch from the far side of the accretion disk
+                    float orbitalFreq = 3.5 / pow(dist + 0.3, 1.5);
+                    float wave = sin(angle * 6.0 - uTime * 7.0 * orbitalFreq) * 0.5 + 0.5;
+                    
+                    // Asymmetric Doppler brightening on the approaching limb of the lensed arch
+                    float dopplerArch = 1.0 + 0.55 * cos(angle);
+                    
+                    vec3 archCore = vec3(1.0, 0.95, 0.88);
+                    vec3 archOuter = vec3(0.95, 0.40, 0.05);
+                    vec3 archColor = mix(archCore, archOuter, smoothstep(0.0, 0.6, r)) * dopplerArch;
+                    
+                    // Thin curved halo profile with highest intensity near the photon sphere
+                    float ringFade = (1.0 - smoothstep(0.7, 1.0, r)) * smoothstep(0.0, 0.08, r);
+                    float alpha = (0.3 + 0.7 * wave) * ringFade * 0.75 * uOpacity;
+                    
+                    gl_FragColor = vec4(archColor * 1.5, alpha);
+                }
+            `
+        });
+        this.bhArchMaterial.name = 'RemnantBlackHoleArchMaterial';
+        this.bhArchMaterial.customProgramCacheKey = () => 'remnant_bh_arch_material';
+        this.bhArchMesh = new THREE.Mesh(GEOMETRIES.blackHoleLensedArch, this.bhArchMaterial);
+        this.blackHoleGroup.add(this.bhArchMesh);
 
         // Gravitational lensing sphere using shared mainSeq geometry scaled
         const lensMat = new THREE.ShaderMaterial({
@@ -248,6 +366,13 @@ export class RemnantPhase implements PhaseComponent {
             if (this.bhDiskMaterial) {
                 this.bhDiskMaterial.uniforms.uTime.value = appTime;
                 this.bhDiskMaterial.uniforms.uOpacity.value = globalFade;
+                this.bhDiskMaterial.uniforms.uCameraPos.value.copy(cameraPos);
+            }
+
+            if (this.bhArchMaterial) {
+                this.bhArchMaterial.uniforms.uTime.value = appTime;
+                this.bhArchMaterial.uniforms.uOpacity.value = globalFade;
+                this.bhArchMaterial.uniforms.uCameraPos.value.copy(cameraPos);
             }
 
             if (this._lensMat) {
@@ -333,6 +458,7 @@ export class RemnantPhase implements PhaseComponent {
             if (mat instanceof THREE.Material && mat !== this.bhDiskMaterial) mat.dispose();
         }
         if (this.bhDiskMaterial) this.bhDiskMaterial.dispose();
+        if (this.bhArchMaterial) this.bhArchMaterial.dispose();
         this.parent.remove(this.neutronStarGroup);
         this.parent.remove(this.blackHoleGroup);
     }
