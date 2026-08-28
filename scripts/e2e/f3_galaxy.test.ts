@@ -1,66 +1,65 @@
 import test from 'node:test';
 import assert from 'node:assert';
 
-// N-body Verlet Leapfrog Integrator Step verification
-function leapfrogIntegrateStep(
-  pos: { x: number; y: number; z: number },
-  vel: { vx: number; vy: number; vz: number },
-  mass: number,
-  dt: number,
-  G: number,
-  softening: number
-) {
-  // Simple gravitational force from a central mass for mathematical verification
-  const distSq = pos.x * pos.x + pos.y * pos.y + pos.z * pos.z + softening * softening;
-  const dist = Math.sqrt(distSq);
-  const forceMag = -(G * mass) / distSq;
-  
-  const ax = (forceMag * pos.x) / dist;
-  const ay = (forceMag * pos.y) / dist;
-  const az = (forceMag * pos.z) / dist;
+;(globalThis as any).self = globalThis;
+;(globalThis as any).postMessage = (msg: any) => { lastPosted = msg; };
+let lastPosted: any = null;
 
-  const dt_half = dt * 0.5;
 
-  // v(t + dt/2) = v(t) + a(t) * dt/2
-  const v_half_x = vel.vx + ax * dt_half;
-  const v_half_y = vel.vy + ay * dt_half;
-  const v_half_z = vel.vz + az * dt_half;
 
-  // x(t + dt) = x(t) + v(t + dt/2) * dt
-  const new_x = pos.x + v_half_x * dt;
-  const new_y = pos.y + v_half_y * dt;
-  const new_z = pos.z + v_half_z * dt;
 
-  // Note: Standard Velocity Verlet recalculates accelerations at new position to complete the step.
-  // For validation, we just verify the leapfrog step structure is correct.
-  return {
-    position: { x: new_x, y: new_y, z: new_z },
-    v_half: { vx: v_half_x, vy: v_half_y, vz: v_half_z }
-  };
-}
 
 // ==========================================
 // TIER 1: Feature Coverage
 // ==========================================
 
-test('F3-T1-26: Galaxy Sandbox Initialization', () => {
-  // Galaxy sandbox should initialize two galaxies with >= 800 stars each.
-  const galaxy1Stars = 800;
-  const galaxy2Stars = 800;
-  const totalStars = galaxy1Stars + galaxy2Stars;
+// Removed: no real source of truth for galaxy sandbox star counts exists yet
+
+test('F3-T1-27: Symplectic Leapfrog Integration Step Updates Position (Real Conservation)', async () => {
+  const { physicsTick } = await import('../../src/simulation/nbodyWorker.ts');
+
+  // Fire INIT message
+  (self as any).onmessage({
+    data: {
+      type: 'INIT',
+      payload: {
+        bodies: [{
+          position_au: { x: 1.0, y: 0.0, z: 0.0 },
+          velocity_au_yr: { x: 0.0, y: 2.0 * Math.PI, z: 0.0 },
+          mass_solar: 1e-10, // negligible mass for the orbiting body
+          type: 'planet'
+        }],
+        centralMass_solar: 1.0,
+        dt_yr: 1.0 / 365.25,
+        isRunning: true
+      }
+    }
+  });
+
+  const G_mu = 4.0 * Math.PI * Math.PI;
+  const centralMass = 1.0;
+
+  function getEnergy(buffer: Float32Array) {
+    const x = buffer[0], y = buffer[1], z = buffer[2];
+    const vx = buffer[3], vy = buffer[4], vz = buffer[5];
+    const r = Math.sqrt(x*x + y*y + z*z);
+    const v2 = vx*vx + vy*vy + vz*vz;
+    return 0.5 * v2 - (G_mu * centralMass) / r;
+  }
+
+  // Get initial energy
+  physicsTick();
+  const initialEnergy = getEnergy(lastPosted.buffer);
+
+  // Run multiple orbits (1 yr = 365.25 ticks)
+  for (let i = 0; i < 365 * 3; i++) {
+    physicsTick();
+  }
+
+  const finalEnergy = getEnergy(lastPosted.buffer);
   
-  assert.ok(galaxy1Stars >= 800, 'Galaxy 1 should have at least 800 stars');
-  assert.ok(galaxy2Stars >= 800, 'Galaxy 2 should have at least 800 stars');
-  assert.ok(totalStars >= 1600, 'Total stars in collision sandbox must be >= 1600');
-});
-
-test('F3-T1-27: Symplectic Leapfrog Integration Step Updates Position', () => {
-  const pos = { x: 1.0, y: 0.0, z: 0.0 };
-  const vel = { vx: 0.0, vy: 6.28, vz: 0.0 }; // roughly 1 AU/yr
-  const dt = 1 / 365; // 1 day
-  const result = leapfrogIntegrateStep(pos, vel, 1.0, dt, 39.478, 0.01); // G = 4*pi^2
-
-  assert.notDeepEqual(result.position, pos, 'Position must change after integration step');
+  const drift = Math.abs((finalEnergy - initialEnergy) / initialEnergy);
+  assert.ok(drift < 1e-3, `Energy drift too high: ${drift}`);
 });
 
 test('F3-T1-28: Collision Speed Parameter Sets Relative Velocity', () => {
@@ -79,37 +78,9 @@ test('F3-T1-28: Collision Speed Parameter Sets Relative Velocity', () => {
   assert.ok(highSpeed.galaxyB_vel.vx > lowSpeed.galaxyB_vel.vx, 'High speed should scale velocities higher');
 });
 
-test('F3-T1-29: Galaxy Mass Parameter Scales Gravitational Force', () => {
-  const pos = { x: 1.0, y: 0.0, z: 0.0 };
-  const vel = { vx: 0.0, vy: 1.0, vz: 0.0 };
-  const dt = 0.1;
-  const G = 1.0;
+// Removed F3-T1-29: Depended on deleted leapfrogIntegrateStep
 
-  const lowMassResult = leapfrogIntegrateStep(pos, vel, 1.0, dt, G, 0.1);
-  const highMassResult = leapfrogIntegrateStep(pos, vel, 10.0, dt, G, 0.1);
-
-  assert.ok(
-    Math.abs(highMassResult.v_half.vx - vel.vx) > Math.abs(lowMassResult.v_half.vx - vel.vx),
-    'Force magnitude (indicated by velocity change) must scale with mass'
-  );
-});
-
-test('F3-T1-30: Softening Factor Redirection in Gravity Equation', () => {
-  const pos = { x: 0.01, y: 0.0, z: 0.0 };
-  const vel = { vx: 0.0, vy: 0.0, vz: 0.0 };
-  const dt = 0.1;
-  const G = 1.0;
-
-  // Without softening, force would blow up towards infinity near r = 0.
-  // With softening, the force magnitude is regularized.
-  const softResult = leapfrogIntegrateStep(pos, vel, 1.0, dt, G, 0.1);
-  const unsoftResult = leapfrogIntegrateStep(pos, vel, 1.0, dt, G, 0.0);
-
-  assert.ok(
-    Math.abs(softResult.v_half.vx) < Math.abs(unsoftResult.v_half.vx),
-    'Softening must reduce peak gravitational forces at close distances'
-  );
-});
+// Removed F3-T1-30: Depended on deleted leapfrogIntegrateStep
 
 // ==========================================
 // TIER 2: Boundary & Corner Cases
@@ -125,17 +96,7 @@ test('F3-T2-31: Softening Factor Division-by-Zero Protection', () => {
   assert.strictEqual(clampSoftening(-0.05), 0.001, 'Negative softening must clamp to min value');
 });
 
-test('F3-T2-32: Mass = 0 Implies Linear Motion', () => {
-  const pos = { x: 1.0, y: 0.0, z: 0.0 };
-  const vel = { vx: 0.0, vy: 5.0, vz: 0.0 };
-  const dt = 0.1;
-  
-  // Gravitational constant or mass = 0
-  const result = leapfrogIntegrateStep(pos, vel, 0.0, dt, 1.0, 0.1);
-  
-  assert.strictEqual(result.v_half.vx, vel.vx, 'Vel vx should not change');
-  assert.strictEqual(result.v_half.vy, vel.vy, 'Vel vy should not change');
-});
+// Removed F3-T2-32: Depended on deleted leapfrogIntegrateStep
 
 test('F3-T2-33: Extreme Speed Particles Exit Safely', () => {
   function checkBoundary(pos: { x: number; y: number; z: number }) {
