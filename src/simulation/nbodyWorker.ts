@@ -172,10 +172,12 @@ function integrate(subDt: number): void {
         b.position_au.y += b.velocity_au_yr.y * subDt;
         b.position_au.z += b.velocity_au_yr.z * subDt;
 
-        // Clamp maximum distance to 200 AU to prevent infinity propagation
+        // Clamp maximum distance to 1000 AU to prevent infinity propagation
         const distSq = b.position_au.x * b.position_au.x + b.position_au.y * b.position_au.y + b.position_au.z * b.position_au.z;
-        if (distSq > 40000.0) { // 200 AU squared
-            const scale = Math.sqrt(40000.0 / distSq);
+        if (distSq > 1000000.0) { // 1000 AU squared
+            const dist = Math.sqrt(distSq);
+            console.warn(`[nbody] Position clamp triggered: body index ${i} at ${dist.toFixed(1)} AU, clamped to 1000 AU`);
+            const scale = Math.sqrt(1000000.0 / distSq);
             b.position_au.x *= scale;
             b.position_au.y *= scale;
             b.position_au.z *= scale;
