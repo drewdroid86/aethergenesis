@@ -203,7 +203,7 @@ function integrate(subDt: number): void {
     }
 }
 
-function physicsTick() {
+export function physicsTick() {
     if (!isRunning) {
         tickTimeout = null;
         return;
