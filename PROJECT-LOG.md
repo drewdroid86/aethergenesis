@@ -23,6 +23,12 @@ This log is updated after every AI session. Each AI signs off with their entry. 
 
 ## RECENT LOGS
 
+### 2026-08-28 — Roche Limit Tidal Disruption & Fragment Debris Stream (`src/rendering/systems/CometSystem.ts`) (Gemini 3.7 Flash)
+- **Dynamic Stellar Roche Boundary Solver:** Computed dynamic Roche disruption radius ($d_{\text{Roche}} \approx 0.85\,\text{AU} \cdot (M_{\text{star}})^{1/3}$) based on host star mass.
+- **Tidal Train Fragmentation (Shoemaker-Levy 9 Effect):** Added an instanced `tidalDebrisMesh` (30 sub-fragment nuclei) with custom `DEBRIS_VS`/`DEBRIS_FS` shaders. When comets penetrate within $d < d_{\text{Roche}}$, tidal shear progressively fractures the nucleus into an elongated train of 6 sub-fragments along the velocity vector with volatile ionization flares (cyan/gold emission).
+- **Verification:** `npm run typecheck`, `npm run build` (2.89s), `npm run lint`, `npm test` (45 E2E scenarios), and `npm run test:mcp` passed with 0 errors and 0 warnings.
+
+
 ### 2026-08-28 — Relativistic Black Hole Accretion Disk & Gravitational Lensing Shader (Gemini 3.7 Flash)
 - **Relativistic Doppler Beaming & Gravitational Redshift (`src/simulation/phases/RemnantPhase.ts`):** Upgraded `bhDiskMaterial` to calculate camera-relative line-of-sight velocity ($\beta_{\parallel} = \beta(r) \cdot (\vec{v} \cdot \vec{d}_{\text{cam}})$ with $\beta \approx 0.15\text{--}0.60c$), Lorentz factor $\gamma = 1/\sqrt{1 - \beta^2}$, and Doppler beaming factor $\delta = 1 / (\gamma(1 - \beta_{\parallel}))$. Applied relativistic flux boost ($I_{\text{obs}} \propto \delta^{3.2}$) and gravitational redshift ($g_{\text{grav}} = \sqrt{1 - r_s/r}$), dynamically shifting approaching accretion gas toward radiant cyan/UV-white and receding/inner plunge gas toward deep infrared-crimson with differential Keplerian swirling ($\Omega \propto r^{-1.5}$).
 - **Gravitationally Lensed Secondary Arch (`src/simulation/phases/geometries.ts`, `src/simulation/phases/RemnantPhase.ts`):** Added `GEOMETRIES.blackHoleLensedArch` and `bhArchMaterial` to render the secondary image of the rear accretion disk gravitationally deflected over and under the event horizon shadow.

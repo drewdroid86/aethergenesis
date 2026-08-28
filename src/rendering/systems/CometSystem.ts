@@ -85,6 +85,48 @@ gl_FragColor = vec4(vColor, alpha * 0.5);
 }
 `;
 
+const DEBRIS_VS = `
+attribute float dScale;
+attribute vec3 dColor;
+attribute float dActive;
+
+varying vec2 vUv;
+varying float vActive;
+varying vec3 vColor;
+
+void main() {
+    vUv = uv;
+    vActive = dActive;
+    vColor = dColor;
+    
+    vec3 cameraRight = vec3(modelViewMatrix[0][0], modelViewMatrix[1][0], modelViewMatrix[2][0]);
+    vec3 cameraUp = vec3(modelViewMatrix[0][1], modelViewMatrix[1][1], modelViewMatrix[2][1]);
+    
+    vec3 worldPos = instanceMatrix[3].xyz;
+    
+    vec3 vertexPos = worldPos 
+        + cameraRight * position.x * dScale 
+        + cameraUp * position.y * dScale;
+        
+    gl_Position = projectionMatrix * viewMatrix * vec4(vertexPos, 1.0);
+}
+`;
+
+const DEBRIS_FS = `
+varying vec2 vUv;
+varying float vActive;
+varying vec3 vColor;
+
+void main() {
+    if (vActive < 0.5) discard;
+    
+    float d = distance(vUv, vec2(0.5));
+    float alpha = (1.0 - smoothstep(0.0, 0.5, d)) * (1.0 - smoothstep(0.1, 0.5, d));
+    
+    gl_FragColor = vec4(vColor * 1.5, alpha * 0.9);
+}
+`;
+
 const COMETS_DATA = [
 { a: 8.0,  e: 0.967, i: 162.2, p: 75.3  },
 { a: 2.2,  e: 0.847, i: 11.8,  p: 5.5   },
@@ -104,9 +146,11 @@ export class CometSystem {
     private comaMesh: THREE.InstancedMesh;
     private ionTailMesh: THREE.InstancedMesh;
     private dustTailMesh: THREE.InstancedMesh;
+    private tidalDebrisMesh: THREE.InstancedMesh;
     
     private comaMat: THREE.ShaderMaterial;
     private tailMat: THREE.ShaderMaterial;
+    private debrisMat: THREE.ShaderMaterial;
     private group: THREE.Group;
     private prevPositions: THREE.Vector3[];
     private precalcData: PrecalcComet[] = [];
@@ -182,9 +226,28 @@ export class CometSystem {
         });
         this.comaMesh.frustumCulled = false;
 
+        // Tidal Debris Stream Geometry (6 sub-fragment nuclei per comet)
+        const totalFragments = numComets * 6;
+        const debrisGeo = new THREE.PlaneGeometry(1, 1);
+        this.debrisMat = new THREE.ShaderMaterial({
+            vertexShader: DEBRIS_VS,
+            fragmentShader: DEBRIS_FS,
+            transparent: true,
+            blending: THREE.AdditiveBlending,
+            depthWrite: false
+        });
+        this.debrisMat.name = 'CometDebrisMaterial';
+        this.debrisMat.customProgramCacheKey = () => 'comet_debris_material';
+        this.tidalDebrisMesh = new THREE.InstancedMesh(debrisGeo, this.debrisMat, totalFragments);
+        this.tidalDebrisMesh.geometry.setAttribute('dScale', new THREE.InstancedBufferAttribute(new Float32Array(totalFragments), 1));
+        this.tidalDebrisMesh.geometry.setAttribute('dColor', new THREE.InstancedBufferAttribute(new Float32Array(totalFragments * 3), 3));
+        this.tidalDebrisMesh.geometry.setAttribute('dActive', new THREE.InstancedBufferAttribute(new Float32Array(totalFragments), 1));
+        this.tidalDebrisMesh.frustumCulled = false;
+
         this.group.add(this.comaMesh);
         this.group.add(this.ionTailMesh);
         this.group.add(this.dustTailMesh);
+        this.group.add(this.tidalDebrisMesh);
     }
 
     update(delta: number, stellarState: StellarState, appTime: number, starPosition?: THREE.Vector3): void {
@@ -209,6 +272,10 @@ export class CometSystem {
         const dustLengths  = this.dustTailMesh.geometry.attributes.cLength.array as Float32Array;
         const dustActives  = this.dustTailMesh.geometry.attributes.cActive.array as Float32Array;
         const dustColors   = this.dustTailMesh.geometry.attributes.cColor.array as Float32Array;
+
+        const debrisScales   = this.tidalDebrisMesh.geometry.attributes.dScale.array  as Float32Array;
+        const debrisColors   = this.tidalDebrisMesh.geometry.attributes.dColor.array  as Float32Array;
+        const debrisActives  = this.tidalDebrisMesh.geometry.attributes.dActive.array as Float32Array;
 
         for (let i = 0; i < 5; i++) {
             const data = this.precalcData[i];
@@ -248,6 +315,35 @@ export class CometSystem {
                 this._vel.set(0, 0, 0);
             }
             prev.set(x, y, z);
+
+            // Stellar Roche limit for volatile small bodies: d_roche ~ 0.85 AU * (M_star)^(1/3)
+            const rocheLimitAU = 0.85 * Math.cbrt(Math.max(0.1, stellarState.mass_solar || 1.0));
+            const isTidallyDisrupted = dist < rocheLimitAU;
+            const tidalShear = isTidallyDisrupted ? Math.min(1.0, (rocheLimitAU - dist) / (rocheLimitAU * 0.7)) : 0.0;
+
+            // Update tidal debris fragment train (Shoemaker-Levy 9 string-of-pearls effect)
+            for (let k = 0; k < 6; k++) {
+                const fragIdx = i * 6 + k;
+                if (isTidallyDisrupted && dist < 3.0) {
+                    const longitudinalSpread = (k - 2.5) * 0.04 * (1.0 + tidalShear * 2.5);
+                    const fx = x + this._vel.x * longitudinalSpread;
+                    const fy = y + this._vel.y * longitudinalSpread;
+                    const fz = z + this._vel.z * longitudinalSpread;
+
+                    this._matrix.makeTranslation(fx, fy, fz);
+                    this.tidalDebrisMesh.setMatrixAt(fragIdx, this._matrix);
+
+                    debrisActives[fragIdx] = 1.0;
+                    debrisScales[fragIdx] = Math.max(0.18, (0.45 - Math.abs(k - 2.5) * 0.05) * (0.6 + tidalShear * 0.8));
+                    // Volatile ionization flare: intense cyan/gold ion emission
+                    debrisColors[fragIdx * 3 + 0] = 0.6 + 0.4 * Math.sin(k * 1.5 + appTime * 5.0);
+                    debrisColors[fragIdx * 3 + 1] = 0.85 + 0.15 * Math.cos(k * 1.2);
+                    debrisColors[fragIdx * 3 + 2] = 1.0;
+                } else {
+                    debrisActives[fragIdx] = 0.0;
+                    debrisScales[fragIdx] = 0.0;
+                }
+            }
 
             if (dist < 3.0) {
                 comaActives[i] = 1.0;
@@ -294,6 +390,7 @@ export class CometSystem {
         this.comaMesh.instanceMatrix.needsUpdate       = true;
         this.ionTailMesh.instanceMatrix.needsUpdate    = true;
         this.dustTailMesh.instanceMatrix.needsUpdate   = true;
+        this.tidalDebrisMesh.instanceMatrix.needsUpdate = true;
 
         this.comaMesh.geometry.attributes.cScale.needsUpdate  = true;
         this.comaMesh.geometry.attributes.cColor.needsUpdate  = true;
@@ -311,17 +408,24 @@ export class CometSystem {
         this.dustTailMesh.geometry.attributes.cActive.needsUpdate = true;
         this.dustTailMesh.geometry.attributes.cColor.needsUpdate  = true;
 
-        this.comaMesh.count      = 5;
-        this.ionTailMesh.count   = 5;
-        this.dustTailMesh.count  = 5;
+        this.tidalDebrisMesh.geometry.attributes.dScale.needsUpdate  = true;
+        this.tidalDebrisMesh.geometry.attributes.dColor.needsUpdate  = true;
+        this.tidalDebrisMesh.geometry.attributes.dActive.needsUpdate = true;
+
+        this.comaMesh.count        = 5;
+        this.ionTailMesh.count     = 5;
+        this.dustTailMesh.count    = 5;
+        this.tidalDebrisMesh.count = 30;
     }
 
     dispose(): void {
         this.comaMesh.geometry.dispose();
         this.ionTailMesh.geometry.dispose();
         this.dustTailMesh.geometry.dispose();
+        this.tidalDebrisMesh.geometry.dispose();
         this.comaMat.dispose();
         this.tailMat.dispose();
+        this.debrisMat.dispose();
         if (this.group.parent) {
             this.group.parent.remove(this.group);
         }
