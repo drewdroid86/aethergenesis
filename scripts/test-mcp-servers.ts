@@ -178,6 +178,43 @@ async function runMcpTests() {
     console.log('  ✔ "1P/Halley" correctly classified as comet (coma: 3.0 AU, tail: 2.5 AU)');
   }
 
+  // Test 2.5: Luminosity Class Regex
+  const testSpTypes = ['B2II', 'B2VI', 'B2VII', 'B2I', 'B2Ia'];
+  for (const cleanSp of testSpTypes) {
+    let rad = 1;
+    let mass = 1;
+    if (/\bVII\b/.test(cleanSp)) {
+      rad = rad * 0.01;
+      mass = mass * 0.6;
+    } else if (/\bVI\b/.test(cleanSp)) {
+      rad = rad * 0.8;
+      mass = mass * 0.9;
+    } else if (/\bIV\b/.test(cleanSp)) {
+      rad = rad * 2;
+      mass = mass * 1.2;
+    } else if (/\bIII\b/.test(cleanSp)) {
+      rad = rad * 10;
+      mass = mass * 1.5;
+    } else if (/\bII\b/.test(cleanSp)) {
+      rad = rad * 25;
+      mass = mass * 4;
+    } else if (/\bI[AB]\b|\bIAB\b|\bI\b|(?<![IV])I(?![IV])/i.test(cleanSp) && !/\b(II|III|IV|VI|VII)\b/.test(cleanSp)) {
+      rad = rad * 100;
+      mass = mass * 10;
+    }
+    
+    if (cleanSp === 'B2II') {
+      assert(rad === 25 && mass === 4, `${cleanSp} should be Bright Giant`);
+    } else if (cleanSp === 'B2VI') {
+      assert(rad === 0.8 && mass === 0.9, `${cleanSp} should be Subdwarf`);
+    } else if (cleanSp === 'B2VII') {
+      assert(rad === 0.01 && mass === 0.6, `${cleanSp} should be White Dwarf`);
+    } else if (cleanSp === 'B2I' || cleanSp === 'B2Ia') {
+      assert(rad === 100 && mass === 10, `${cleanSp} should be Supergiant`);
+    }
+  }
+  console.log('  ✔ Luminosity class regex correctly parses MK ladder');
+
   horizonsClient.close();
 
   // Test 3: Sim State MCP Server
