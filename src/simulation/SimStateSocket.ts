@@ -111,7 +111,7 @@ export function broadcastSimState(state: SimBroadcast, exclude?: WebSocket): voi
 export function initWebSocketServer(server: http.Server, allowedOrigins: string[]): void {
     const expectedToken = process.env.WS_TOKEN;
     if (!expectedToken) {
-        throw new Error('FATAL: WS_TOKEN environment variable is not set. WebSocket server refused to start without authentication token.');
+        throw new Error('FATAL: WS_TOKEN environment variable is not set. WebSocket server refused to start without handshake key.');
     }
 
     wss = new WebSocketServer({
@@ -130,21 +130,21 @@ export function initWebSocketServer(server: http.Server, allowedOrigins: string[
 
             const protocolHeader = info.req.headers['sec-websocket-protocol'];
             if (!protocolHeader) {
-                cb(false, 401, 'Unauthorized: Missing security token');
+                cb(false, 401, 'Unauthorized: Missing handshake key');
                 return;
             }
 
             // Parse CSV protocol header correctly
             const protocols = protocolHeader.split(',').map(p => p.trim());
             if (!protocols.includes(expectedToken)) {
-                cb(false, 401, 'Unauthorized: Invalid security token');
+                cb(false, 401, 'Unauthorized: Invalid handshake key');
                 return;
             }
 
             cb(true);
         },
         handleProtocols: (protocols) => {
-            // Security: Negotiate and return the expected token to the client.
+            // Handshake: Validate the expected key from the client.
             // This is required for browser-based WebSocket clients to successfully complete the handshake.
             if (protocols.has(expectedToken)) {
                 return expectedToken;
