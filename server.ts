@@ -455,10 +455,30 @@ function estimateParams(spType: string) {
     const rRange = radMap[letter];
     rad = rRange[1] + (rRange[0] - rRange[1]) * ((10 - num) / 10);
 
-    if (cleanSp.includes('III')) {
+    // Morgan-Keenan luminosity classes:
+    // I / Ia / Ib: Supergiants (x100 rad, x10 mass)
+    // II: Bright Giants (x25 rad, x4 mass)
+    // III: Giants (x10 rad, x1.5 mass)
+    // IV: Subgiants (x2 rad, x1.2 mass)
+    // V: Main Sequence (default 1x)
+    // VI: Subdwarfs (x0.8 rad, x0.9 mass)
+    // VII: White Dwarfs (x0.01 rad)
+    if (/\bVII\b/.test(cleanSp)) {
+      rad = rad * 0.01;
+      mass = mass * 0.6;
+    } else if (/\bVI\b/.test(cleanSp)) {
+      rad = rad * 0.8;
+      mass = mass * 0.9;
+    } else if (/\bIV\b/.test(cleanSp)) {
+      rad = rad * 2;
+      mass = mass * 1.2;
+    } else if (/\bIII\b/.test(cleanSp)) {
       rad = rad * 10;
       mass = mass * 1.5;
-    } else if (cleanSp.includes('I')) {
+    } else if (/\bII\b/.test(cleanSp)) {
+      rad = rad * 25;
+      mass = mass * 4;
+    } else if (/\bI[AB]\b|\bIAB\b|\bI\b|(?<![IV])I(?![IV])/i.test(cleanSp) && !/\b(II|III|IV|VI|VII)\b/.test(cleanSp)) {
       rad = rad * 100;
       mass = mass * 10;
     }
