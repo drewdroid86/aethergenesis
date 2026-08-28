@@ -19,7 +19,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Dynamic Planet Orbit Path Lines** — Built `orbitLinesGroup` in `PlanetarySystem.ts` rendering glowing cyan orbital trajectory line loops (`LineLoop`) around host stars, synchronized with global timeline scrub fading.
 - **Planckian Blackbody Star Colors** — Integrated `colorTempToRGB()` continuous blackbody surface color temperature mapping into `MainSequencePhase.ts` and `HeroStarSystem.ts`.
 - **Twinkling Gaussian Background Stars** — Upgraded background starfield to custom `ShaderMaterial` with Gaussian radial falloff (`exp(-distSq * 14.0)`) and sinusoidal twinkling (`sin(uTime * 2.5 + aPhase)`).
-- **Surface Granulation & Sunspots** — Upgraded `starSurface.frag.glsl` with domain-warped FBM noise, 24-octave convective solar granulation, and dynamic sunspot cell darkening.
+- **Surface Granulation & Sunspots** — Upgraded `starSurface.frag.glsl` with domain-warped 5-octave FBM noise with high-frequency granulation detail, and dynamic sunspot cell darkening.
 - **Supernova Shockwave Radial Distortion** — Added `uShockwave` radial UV displacement distortion in `cinematic.frag.glsl` and `Pipeline.ts` during stellar supernova explosions.
 
 ### 🎵 Soundscapes & Audio

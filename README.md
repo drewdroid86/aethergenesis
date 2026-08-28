@@ -23,7 +23,7 @@
 
 ## ✨ What is ÆTHERGENESIS?
 
-ÆTHERGENESIS is a **physically accurate, real-time universe simulation** running entirely in your browser. Watch 500,000 stars ignite, galaxies spiral into being, comets trace Keplerian orbits, and civilizations rise and fall — all driven by real astrophysics and the fundamental constants *you* control.
+ÆTHERGENESIS is a **physically accurate, real-time universe simulation** running entirely in your browser. Watch ~5,000 decorative background points and up to 600 simulated hero stars ignite at 'ultra' tier, galaxies spiral into being, comets trace Keplerian orbits, and civilizations rise and fall — all driven by real astrophysics and the fundamental constants *you* control.
 
 Powered by **Three.js**, **WebGL/GLSL shaders**, **WebAudio synthesis**, and the **Google Gemini AI API**, it is equal parts simulation engine and interactive art installation.
 
@@ -51,7 +51,7 @@ graph TD
 
 ### 🎨 Cinematic Shaders & Visuals
 - 🌟 **Planckian Blackbody Star Colors** — Star surface color continuously updates via physical temperature ($T \in [2,400\text{K}, 40,000\text{K}]$) across the H-R diagram.
-- ☀️ **Granulation & Sunspots** — Star surfaces feature domain-warped FBM noise, 24-octave convective solar granulation, and cell-darkened sunspots (`starSurface.frag.glsl`).
+- ☀️ **Granulation & Sunspots** — Star surfaces feature domain-warped 5-octave FBM noise with high-frequency granulation detail, and cell-darkened sunspots (`starSurface.frag.glsl`).
 - 🌀 **Volumetric Gas Nebula** — Raymarched 3D gas cloud with emission lines, collapse dynamics, and unit-sphere scaling.
 - 🕳️ **Relativistic Black Hole Accretion Disk** — Features **Doppler beaming** (approaching edge is Doppler-shifted blue and brightened $1.6\times$, receding edge is redshifted to deep crimson and dimmed $0.4\times$) and screen-space gravitational lensing distortion (`cinematic.frag.glsl`).
 - ⚡ **Volumetric Pulsar Beams** — High-energy relativistic jets with 3D noise turbulence, cyan core glow, electric blue outer rims, and periodic time-dependent intensity modulation.
