@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { PHASES, STELLAR_CONSTANTS } from '../../core/constants';
-import { computeLuminosity, sampleKroupaMass } from '../../simulation/StellarPhysics';
+import { computeLuminosity, sampleKroupaMass, createStellarState, StellarPhase } from '../../simulation/StellarPhysics';
 import { PhysicsConstants, DEFAULT_CONSTANTS } from '../../types/physics';
 import { colorTempToRGB } from '../../physics/math';
 import { NebulaPhase } from '../../simulation/phases/NebulaPhase';
@@ -19,13 +19,13 @@ const stepOp = (current: number, target: number, speed: number) => {
     return current;
 };
 
-const getPhaseForT = (t: number): number => {
-    if (t < 0.05) return PHASES.NEBULA;
-    if (t < 0.15) return PHASES.PROTOSTAR;
-    if (t < 0.70) return PHASES.MAIN_SEQUENCE;
-    if (t < 0.85) return PHASES.RED_GIANT;
-    if (t < 0.90) return PHASES.SUPERNOVA;
-    return PHASES.REMNANT;
+const STELLAR_PHASE_TO_NUM: Record<StellarPhase, number> = {
+    'nebula': PHASES.NEBULA,
+    'protostar': PHASES.PROTOSTAR,
+    'main_sequence': PHASES.MAIN_SEQUENCE,
+    'red_giant': PHASES.RED_GIANT,
+    'supernova': PHASES.SUPERNOVA,
+    'remnant': PHASES.REMNANT,
 };
 
 /**
@@ -146,6 +146,12 @@ export class HeroStarSystem extends THREE.Group {
         const effG = Math.max(0.01, physics.G);
         this.birthAge = cosmicAge - (this.currentRealAge / 1000) / effG;
 
+        const age_yr = this.currentRealAge * 1e6;
+        const initState = createStellarState(this.physicsId, this.mass, (DEFAULT_CONSTANTS as any).metallicity ?? 0.02, age_yr);
+        this.phase = STELLAR_PHASE_TO_NUM[initState.phase];
+        this.currentTemp = initState.temperature_K;
+        this.currentLum = initState.luminosity_solar;
+
         // Hit mesh for raycaster
         const hitMat = new THREE.MeshBasicMaterial({visible: false});
         hitMat.name = 'HeroStarHitMeshMaterial';
@@ -197,7 +203,12 @@ export class HeroStarSystem extends THREE.Group {
         this.visible = globalFade > 0.01;
 
         if (this.t >= 0) {
-            const initialPhase = getPhaseForT(this.t);
+            const age_yr = this.currentRealAge * 1e6;
+            const initState = createStellarState(this.physicsId, this.mass, (DEFAULT_CONSTANTS as any).metallicity ?? 0.02, age_yr);
+            const initialPhase = STELLAR_PHASE_TO_NUM[initState.phase];
+            this.phase = initialPhase;
+            this.currentTemp = initState.temperature_K;
+            this.currentLum = initState.luminosity_solar;
             this.transitionToPhase(initialPhase, renderer);
         }
     }
@@ -483,7 +494,12 @@ export class HeroStarSystem extends THREE.Group {
         }
         this.birthAge = cosmicAge - (this.currentRealAge / 1000);
 
-        const initialPhase = getPhaseForT(this.t);
+        const age_yr = this.currentRealAge * 1e6;
+        const initState = createStellarState(this.physicsId, this.mass, (DEFAULT_CONSTANTS as any).metallicity ?? 0.02, age_yr);
+        const initialPhase = STELLAR_PHASE_TO_NUM[initState.phase];
+        this.phase = initialPhase;
+        this.currentTemp = initState.temperature_K;
+        this.currentLum = initState.luminosity_solar;
         this.transitionToPhase(initialPhase, renderer);
     }
 
@@ -539,10 +555,16 @@ export class HeroStarSystem extends THREE.Group {
             this.isSupernovaFlashing = false;
         }
 
-        this.currentRealAge = this.t * this.lifespanReal;
+        this.currentRealAge = Math.max(0, this.t * this.lifespanReal);
+        const age_yr = this.currentRealAge * 1e6;
+        const metallicity = (physics as any)?.metallicity ?? 0.02;
+        const stellarState = createStellarState(this.physicsId, this.mass, metallicity, age_yr);
+        const newPhase = STELLAR_PHASE_TO_NUM[stellarState.phase];
+
+        this.currentTemp = stellarState.temperature_K;
+        this.currentLum = stellarState.luminosity_solar;
 
         // BOLT: Determine current phase and handle transitions
-        const newPhase = getPhaseForT(this.t);
         if (this._activePhase !== newPhase) {
             // Keep planets alive specifically for MAIN_SEQUENCE → RED_GIANT so scorch can render.
             // All other exits dispose planets unconditionally.
@@ -584,44 +606,26 @@ export class HeroStarSystem extends THREE.Group {
 
         let isFlashingNow = false;
 
-        if (this.t < STELLAR_CONSTANTS.PHASE_BOUNDARIES.NEBULA_LIMIT) {
-            this.phase = PHASES.NEBULA;
+        if (this.phase === PHASES.NEBULA) {
             this.nebulaPhase.update(delta, appTime, cameraPos, physics, this.t, lowDetail, globalFade);
-            
-            const normT = this.t / STELLAR_CONSTANTS.PHASE_BOUNDARIES.NEBULA_LIMIT;
-            this.currentTemp = STELLAR_CONSTANTS.TEMPERATURES.NEBULA_START + normT * STELLAR_CONSTANTS.TEMPERATURES.NEBULA_MAX;
-            this.currentLum = normT * STELLAR_CONSTANTS.LUMINOSITY.NEBULA_MAX;
-
         } else if (this.phase === PHASES.PROTOSTAR) {
             targetProto = 1;
-            const normT = (this.t - STELLAR_CONSTANTS.PHASE_BOUNDARIES.NEBULA_LIMIT) / STELLAR_CONSTANTS.PHASE_BOUNDARIES.PROTOSTAR_DURATION;
-            
-            if (normT < STELLAR_CONSTANTS.PHASE_BOUNDARIES.NEBULA_SECONDARY_LIMIT) {
-                this.nebulaPhase.updateAsSecondary(delta, appTime, cameraPos, normT, globalFade);
+            if (this.t < STELLAR_CONSTANTS.PHASE_BOUNDARIES.PROTOSTAR_START + STELLAR_CONSTANTS.PHASE_BOUNDARIES.PROTOSTAR_DURATION * STELLAR_CONSTANTS.PHASE_BOUNDARIES.NEBULA_SECONDARY_LIMIT) {
+                this.nebulaPhase.updateAsSecondary(delta, appTime, cameraPos, this.t, globalFade);
             }
-
-            this.currentTemp = STELLAR_CONSTANTS.TEMPERATURES.PROTOSTAR_START + normT * (this.tHeat - STELLAR_CONSTANTS.TEMPERATURES.PROTOSTAR_START);
-            this.currentLum = normT * this._msLuminosity;
             this.protostarPhase.update(delta, appTime, cameraPos, physics, this.t, lowDetail, this.currentTemp);
-
         } else if (this.phase === PHASES.MAIN_SEQUENCE) {
             targetMain = 1;
-            this.currentTemp = this.tHeat;
-            this.currentLum = this._msLuminosity;
             this.mainSequencePhase.update(delta, appTime, cameraPos, physics, this.t, lowDetail, this.currentTemp);
             this.planetarySystem?.update(delta, appTime, nbodyBuffer, lowDetail, globalFade);
-
         } else if (this.phase === PHASES.RED_GIANT) {
             targetRed = 1;
-            this.currentTemp = this.redGiantPhase.getCurrentTemp(this.t);
-            this.currentLum = this.redGiantPhase.getCurrentLum(this.t, this.mass);
             this.redGiantPhase.update(delta, appTime, cameraPos, physics, this.t, lowDetail, this.currentTemp);
             // Thread the live giant radius into update for per-planet scorch computation.
             if (this.planetarySystem) {
                 const redGiantScale = this.redGiantPhase.getCurrentScale(this.t, appTime);
                 this.planetarySystem.update(delta, appTime, nbodyBuffer, lowDetail, globalFade, redGiantScale);
             }
-
         } else if (this.phase === PHASES.SUPERNOVA) {
             targetSuper = 1;
             this.supernovaPhase.update(delta, appTime, cameraPos, physics, this.t, lowDetail, globalFade);
@@ -629,31 +633,10 @@ export class HeroStarSystem extends THREE.Group {
             if (isFlashingNow && !this._wasSupernovaFlashing) {
                 audioEngine.playSupernovaSound();
             }
-
-            if (this.mass >= STELLAR_CONSTANTS.PHYSICS.MASS_THRESHOLD_SUPERNOVA) {
-                this.currentTemp = STELLAR_CONSTANTS.TEMPERATURES.SUPERNOVA_HIGH_MASS;
-                this.currentLum = STELLAR_CONSTANTS.LUMINOSITY.SUPERNOVA_HIGH_MASS;
-            } else {
-                this.currentTemp = STELLAR_CONSTANTS.TEMPERATURES.SUPERNOVA_LOW_MASS;
-            }
-
         } else {
-            this.phase = PHASES.REMNANT;
             this.remnantPhase.update(delta, appTime, cameraPos, physics, this.t, lowDetail, globalFade);
-            
-            if (this.mass > STELLAR_CONSTANTS.PHYSICS.MASS_THRESHOLD_BLACK_HOLE) {
-                this.currentTemp = STELLAR_CONSTANTS.TEMPERATURES.REMNANT_BH;
-                this.currentLum = STELLAR_CONSTANTS.LUMINOSITY.REMNANT_BH;
-
-
-            } else if (this.mass >= STELLAR_CONSTANTS.PHYSICS.MASS_THRESHOLD_SUPERNOVA) {
+            if (this.mass < STELLAR_CONSTANTS.PHYSICS.MASS_THRESHOLD_BLACK_HOLE) {
                 targetNs = 1;
-                this.currentTemp = STELLAR_CONSTANTS.TEMPERATURES.REMNANT_NS_HIGH_MASS;
-                this.currentLum = STELLAR_CONSTANTS.LUMINOSITY.REMNANT_NS_HIGH_MASS;
-            } else {
-                targetNs = 1;
-                this.currentTemp = STELLAR_CONSTANTS.TEMPERATURES.REMNANT_NS_LOW_MASS;
-                this.currentLum = STELLAR_CONSTANTS.LUMINOSITY.REMNANT_NS_LOW_MASS;
             }
         }
         

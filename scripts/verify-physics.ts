@@ -40,3 +40,13 @@ console.log('Remnant type (expect black_hole):', postSN.state.remnantType)
 console.log('Schwarzschild radius km:', postSN.state.schwarzschildRadius_km)
 assert(postSN.state.remnantType === 'black_hole', 'Remnant type mismatch');
 assert(postSN.state.schwarzschildRadius_km && postSN.state.schwarzschildRadius_km > 0, 'Invalid Schwarzschild radius');
+
+// Test 5: M-dwarf low-mass longevity (0.22 M☉ at 9.568 Gyr)
+const mDwarf = createStellarState('m_dwarf_b59a8e3', 0.22, 0.02, 9.568e9);
+console.log('0.22M star phase (expect main_sequence):', mDwarf.phase);
+console.log('0.22M star temperature (expect ~3000K):', mDwarf.temperature_K);
+console.log('0.22M star luminosity (expect ~0.007L☉):', mDwarf.luminosity_solar);
+assert(mDwarf.phase === 'main_sequence', 'M-dwarf at 9.568 Gyr must be main_sequence');
+assert(mDwarf.temperature_K > 2500 && mDwarf.temperature_K < 4000, 'M-dwarf temperature must be in MS range');
+assert(mDwarf.luminosity_solar > 0.001 && mDwarf.luminosity_solar < 0.1, 'M-dwarf luminosity must be in MS range');
+

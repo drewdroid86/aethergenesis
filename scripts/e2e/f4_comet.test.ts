@@ -313,6 +313,12 @@ test('F4-T4-49: Complete Cosmic Lifecycle Integration Workload', () => {
   star = createStellarState('hero_star', 1.0, 0.02, 1e7);
   assert.strictEqual(star.phase, 'main_sequence', 'Should ignite core fusion and enter Main Sequence');
 
+  // 3b. M-dwarf longevity check (0.22 M☉ at 9.568 Gyr remains main_sequence, not nebula)
+  const mDwarf = createStellarState('m_dwarf_b59a8e3', 0.22, 0.02, 9.568e9);
+  assert.strictEqual(mDwarf.phase, 'main_sequence', 'M-dwarf at 9.568 Gyr must be in Main Sequence');
+  assert.ok(mDwarf.temperature_K > 2500 && mDwarf.temperature_K < 4000, 'M-dwarf temperature must be in MS range (~3000K), not 480K');
+  assert.ok(mDwarf.luminosity_solar > 0.001 && mDwarf.luminosity_solar < 0.1, 'M-dwarf luminosity must be in MS range');
+
   // 4. Planet evaluation on Main Sequence
   let planetState = astrobiology.evaluatePlanet(
     'planet_c',
