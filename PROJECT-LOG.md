@@ -23,6 +23,13 @@ This log is updated after every AI session. Each AI signs off with their entry. 
 
 ## RECENT LOGS
 
+### 2026-09-01 — WebSocket Heartbeat Keep-Alive & GLSL Precision Hardening (Gemini 3.7 Flash)
+- **Bidirectional WebSocket Keepalive (`src/utils/hooks/useWebSocket.ts`, `src/simulation/SimStateSocket.ts`):** Implemented client-side periodic ping heartbeat interval (30s) with clean termination on disconnect and unmount. Added server-side heartbeat interval in `initWebSocketServer` with `ws.ping()` and `ws.on('pong')` tracking to proactively detect and purge zombie connection descriptors behind proxies and load balancers, alongside handling application-layer `{ type: 'ping' }`/`{ type: 'pong' }` packets.
+- **Cross-Platform GLSL Precision Headers (`src/shaders/cinematic.frag.glsl`, `src/rendering/systems/CometSystem.ts`, `src/simulation/phases/RemnantPhase.ts`):** Annotated custom fragment shaders (`cinematic.frag.glsl`, `COMET_FS`, `TAIL_FS`, `DEBRIS_FS`, `RemnantPhase` pulsar beam, accretion disk, lensed arch, and gravitational lensing shaders) with `#ifdef GL_FRAGMENT_PRECISION_HIGH / precision highp float; / #else / precision mediump float; / #endif` headers for strict embedded mobile and WebGL driver compliance.
+- **Verification:** `npm run typecheck`, `npm run build` (831ms), `npm run lint`, `npm test` (47/47 E2E tests), and `npm run test:mcp` passed with 0 errors and 0 warnings.
+
+
+
 ### 2026-08-28 — Roche Limit Tidal Disruption & Fragment Debris Stream (`src/rendering/systems/CometSystem.ts`) (Gemini 3.7 Flash)
 - **Dynamic Stellar Roche Boundary Solver:** Computed dynamic Roche disruption radius ($d_{\text{Roche}} \approx 0.85\,\text{AU} \cdot (M_{\text{star}})^{1/3}$) based on host star mass.
 - **Tidal Train Fragmentation (Shoemaker-Levy 9 Effect):** Added an instanced `tidalDebrisMesh` (30 sub-fragment nuclei) with custom `DEBRIS_VS`/`DEBRIS_FS` shaders. When comets penetrate within $d < d_{\text{Roche}}$, tidal shear progressively fractures the nucleus into an elongated train of 6 sub-fragments along the velocity vector with volatile ionization flares (cyan/gold emission).

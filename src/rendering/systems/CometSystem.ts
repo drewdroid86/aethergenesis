@@ -30,6 +30,12 @@ void main() {
 `;
 
 const COMET_FS = `
+#ifdef GL_FRAGMENT_PRECISION_HIGH
+precision highp float;
+#else
+precision mediump float;
+#endif
+
 varying vec2 vUv;
 varying float vActive;
 varying vec3 vColor;
@@ -73,6 +79,12 @@ void main() {
 `;
 
 const TAIL_FS = `
+#ifdef GL_FRAGMENT_PRECISION_HIGH
+precision highp float;
+#else
+precision mediump float;
+#endif
+
 varying vec2 vUv;
 varying float vActive;
 varying vec3 vColor;
@@ -113,6 +125,12 @@ void main() {
 `;
 
 const DEBRIS_FS = `
+#ifdef GL_FRAGMENT_PRECISION_HIGH
+precision highp float;
+#else
+precision mediump float;
+#endif
+
 varying vec2 vUv;
 varying float vActive;
 varying vec3 vColor;

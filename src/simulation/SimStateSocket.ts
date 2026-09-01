@@ -153,7 +153,47 @@ export function initWebSocketServer(server: http.Server, allowedOrigins: string[
         }
     });
     
+    // Server-side heartbeat to detect and purge dead client connections (every 30s)
+    const heartbeatInterval = setInterval(() => {
+        if (!wss) return;
+        for (const ws of clients) {
+            const clientWithAlive = ws as WebSocket & { isAlive?: boolean };
+            if (clientWithAlive.isAlive === false) {
+                clients.delete(ws);
+                clientMetadataMap.delete(ws);
+                try {
+                    ws.terminate();
+                } catch {
+                    // Suppress termination error
+                }
+                continue;
+            }
+            clientWithAlive.isAlive = false;
+            try {
+                ws.ping();
+            } catch {
+                clients.delete(ws);
+                clientMetadataMap.delete(ws);
+                try {
+                    ws.terminate();
+                } catch {
+                    // Suppress termination error
+                }
+            }
+        }
+    }, 30000);
+
+    wss.on('close', () => {
+        clearInterval(heartbeatInterval);
+    });
+
     wss.on('connection', (ws: WebSocket) => {
+        const clientWithAlive = ws as WebSocket & { isAlive?: boolean };
+        clientWithAlive.isAlive = true;
+
+        ws.on('pong', () => {
+            clientWithAlive.isAlive = true;
+        });
 
         // Security: Limit concurrent connections
         if (clients.size >= MAX_CLIENTS) {
@@ -193,6 +233,22 @@ export function initWebSocketServer(server: http.Server, allowedOrigins: string[
 
                 // Security: Defensive parsing and structure validation
                 if (!data || typeof data !== 'object') return;
+
+                // Handle application-layer heartbeat
+                if (data.type === 'ping') {
+                    if (ws.readyState === WebSocket.OPEN) {
+                        try {
+                            ws.send(JSON.stringify({ type: 'pong' }));
+                        } catch {
+                            // Suppressed
+                        }
+                    }
+                    return;
+                }
+                if (data.type === 'pong') {
+                    clientWithAlive.isAlive = true;
+                    return;
+                }
 
                 if (data.type === 'state') {
                     // Security: Validate state structure and limits before broadcasting to prevent DoS via massive payloads
