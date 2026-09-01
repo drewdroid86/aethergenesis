@@ -76,6 +76,12 @@ export class RemnantPhase implements PhaseComponent {
                 }
             `,
             fragmentShader: `
+                #ifdef GL_FRAGMENT_PRECISION_HIGH
+                precision highp float;
+                #else
+                precision mediump float;
+                #endif
+
                 varying vec3 vPosition;
                 varying vec2 vUv;
                 uniform float uTime;
@@ -152,6 +158,12 @@ export class RemnantPhase implements PhaseComponent {
                 }
             `,
             fragmentShader: `
+                #ifdef GL_FRAGMENT_PRECISION_HIGH
+                precision highp float;
+                #else
+                precision mediump float;
+                #endif
+
                 varying vec3 vLocalPos;
                 varying vec3 vWorldPos;
                 varying vec2 vUv;
@@ -263,6 +275,12 @@ export class RemnantPhase implements PhaseComponent {
                 }
             `,
             fragmentShader: `
+                #ifdef GL_FRAGMENT_PRECISION_HIGH
+                precision highp float;
+                #else
+                precision mediump float;
+                #endif
+
                 varying vec3 vLocalPos;
                 varying vec3 vWorldPos;
                 varying vec2 vUv;
@@ -318,6 +336,12 @@ export class RemnantPhase implements PhaseComponent {
                 }
             `,
             fragmentShader: `
+                #ifdef GL_FRAGMENT_PRECISION_HIGH
+                precision highp float;
+                #else
+                precision mediump float;
+                #endif
+
                 uniform float uTime;
                 uniform float uStrength;
                 uniform float uOpacity;

@@ -30,6 +30,7 @@ export function useWebSocket({ engineRef, selectedStarRef }: UseWebSocketProps) 
         const wsUrl = `${protocol}//${host}${port ? `:${port}` : ''}`;
         let socket: WebSocket | null = null;
         let reconnectTimeout: ReturnType<typeof setTimeout>;
+        let pingInterval: ReturnType<typeof setInterval> | null = null;
         let reconnectDelay = 3000;
         const maxReconnectDelay = 60000;
 
@@ -41,11 +42,26 @@ export function useWebSocket({ engineRef, selectedStarRef }: UseWebSocketProps) 
             socket.onopen = () => {
                 console.log('Simulation WebSocket connected.');
                 reconnectDelay = 3000; // Reset backoff delay on connection success
+
+                // Client-side heartbeat keepalive (ping every 30s)
+                if (pingInterval) clearInterval(pingInterval);
+                pingInterval = setInterval(() => {
+                    if (socket && socket.readyState === WebSocket.OPEN) {
+                        try {
+                            socket.send(JSON.stringify({ type: 'ping' }));
+                        } catch {
+                            // Suppress ping error
+                        }
+                    }
+                }, 30000);
             };
 
             socket.onmessage = (event) => {
                 try {
                     const msg = JSON.parse(event.data);
+                    if (msg.type === 'pong') {
+                        return; // Heartbeat ack received
+                    }
                     if (msg.type === 'event') {
                         console.log('Received event command from WS:', msg);
                         if (msg.event === 'force_supernova') {
@@ -62,6 +78,10 @@ export function useWebSocket({ engineRef, selectedStarRef }: UseWebSocketProps) 
             };
 
             socket.onclose = (event: CloseEvent) => {
+                if (pingInterval) {
+                    clearInterval(pingInterval);
+                    pingInterval = null;
+                }
                 console.error(`[WS Diagnostic] Closed. Code: ${event.code}, Reason: "${event.reason || 'None'}", Clean: ${event.wasClean}, readyState: ${socket?.readyState}. Reconnecting in ${reconnectDelay / 1000}s...`);
                 reconnectTimeout = setTimeout(connect, reconnectDelay);
                 reconnectDelay = Math.min(reconnectDelay * 2, maxReconnectDelay); // Exponential backoff
@@ -75,6 +95,10 @@ export function useWebSocket({ engineRef, selectedStarRef }: UseWebSocketProps) 
         connect();
 
         return () => {
+            if (pingInterval) {
+                clearInterval(pingInterval);
+                pingInterval = null;
+            }
             if (socket) {
                 socket.onclose = null;
                 socket.close();

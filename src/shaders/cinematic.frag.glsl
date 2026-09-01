@@ -1,3 +1,9 @@
+#ifdef GL_FRAGMENT_PRECISION_HIGH
+precision highp float;
+#else
+precision mediump float;
+#endif
+
 uniform sampler2D tDiffuse;
 uniform float time;
 varying vec2 vUv;
