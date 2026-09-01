@@ -611,7 +611,7 @@ export function useSimulation(containerRef: React.RefObject<HTMLDivElement | nul
         setDiagnosticsEnabled,
         diagnostics,
         resetDiagnostics,
-        numHeroStars: engineRef.current?.heroStars.length ?? 0,
+        numHeroStars: engineRef.current?.activeHeroStarCount ?? getNumStarsForTier(currentTier),
         onScrubStart: wrappedOnScrubStart,
         onScrubMove: wrappedOnScrubMove,
         onScrubEnd: wrappedOnScrubEnd,

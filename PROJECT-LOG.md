@@ -23,6 +23,11 @@ This log is updated after every AI session. Each AI signs off with their entry. 
 
 ## RECENT LOGS
 
+### 2026-09-01 — Mobile Performance Tier Calibration & Active Star HUD Threading (Gemini 3.7 Flash)
+- **Mobile Tier Capping (`src/utils/performance.ts`):** Added touch / coarse pointer detection (`navigator.maxTouchPoints > 0 || matchMedia('(pointer: coarse)').matches`) in `detectPerformanceTier()` to cap mobile devices at `'medium'` tier regardless of high core counts or high DPR (preventing phone GPUs from initializing on `'ultra'`), while leaving desktop `'ultra'` behavior completely unchanged.
+- **Active Star Count HUD Threading (`src/utils/hooks/useSimulation.ts`):** Changed `numHeroStars` to return `engineRef.current?.activeHeroStarCount ?? getNumStarsForTier(currentTier)`, ensuring the HUD `BACKGROUND MASS` indicator accurately renders the active simulated star count across tier auto-tuning without reading raw allocated buffer capacity (`heroStars.length`).
+- **Verification:** `npm run typecheck`, `npm run build` (1.56s), `npm run lint`, `npm test` (47/47 E2E tests), and `npm run test:mcp` passed with 0 errors and 0 warnings.
+
 ### 2026-09-01 — WebSocket Heartbeat Keep-Alive & GLSL Precision Hardening (Gemini 3.7 Flash)
 - **Bidirectional WebSocket Keepalive (`src/utils/hooks/useWebSocket.ts`, `src/simulation/SimStateSocket.ts`):** Implemented client-side periodic ping heartbeat interval (30s) with clean termination on disconnect and unmount. Added server-side heartbeat interval in `initWebSocketServer` with `ws.ping()` and `ws.on('pong')` tracking to proactively detect and purge zombie connection descriptors behind proxies and load balancers, alongside handling application-layer `{ type: 'ping' }`/`{ type: 'pong' }` packets.
 - **Cross-Platform GLSL Precision Headers (`src/shaders/cinematic.frag.glsl`, `src/rendering/systems/CometSystem.ts`, `src/simulation/phases/RemnantPhase.ts`):** Annotated custom fragment shaders (`cinematic.frag.glsl`, `COMET_FS`, `TAIL_FS`, `DEBRIS_FS`, `RemnantPhase` pulsar beam, accretion disk, lensed arch, and gravitational lensing shaders) with `#ifdef GL_FRAGMENT_PRECISION_HIGH / precision highp float; / #else / precision mediump float; / #endif` headers for strict embedded mobile and WebGL driver compliance.

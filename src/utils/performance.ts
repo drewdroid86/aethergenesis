@@ -18,11 +18,25 @@ export const BANNER_DISPLAY_DURATION = 3000;
 export function detectPerformanceTier(): PerformanceTier {
     const cores = typeof navigator !== 'undefined' ? (navigator.hardwareConcurrency || 4) : 4;
     const dpr = typeof window !== 'undefined' ? (window.devicePixelRatio || 1) : 1;
+    const isTouch = typeof navigator !== 'undefined' && (
+        (navigator.maxTouchPoints && navigator.maxTouchPoints > 0) ||
+        (typeof window !== 'undefined' && typeof window.matchMedia === 'function' && window.matchMedia('(pointer: coarse)').matches)
+    );
 
-    if (cores >= 8 && dpr >= 2) return 'ultra';
-    if (cores >= 6) return 'high';
-    if (cores >= 4) return 'medium';
-    return 'low';
+    let rawTier: PerformanceTier;
+    if (cores >= 8 && dpr >= 2) rawTier = 'ultra';
+    else if (cores >= 6) rawTier = 'high';
+    else if (cores >= 4) rawTier = 'medium';
+    else rawTier = 'low';
+
+    if (isTouch) {
+        const tiers: PerformanceTier[] = ['low', 'medium', 'high', 'ultra'];
+        if (tiers.indexOf(rawTier) > tiers.indexOf('medium')) {
+            return 'medium';
+        }
+    }
+
+    return rawTier;
 }
 
 export function getNumStarsForTier(tier: PerformanceTier): number {
