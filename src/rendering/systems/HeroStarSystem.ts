@@ -125,12 +125,12 @@ export class HeroStarSystem extends THREE.Group {
         const effG = Math.max(0.01, physics.G);
         this.birthAge = Math.random() * Math.max(0.1, cosmicAge);
         const ageMyr = Math.max(0, (cosmicAge - this.birthAge) * 1000);
-        this.currentRealAge = ageMyr;
         this.t = Math.max(0, Math.min(1.15, ageMyr / (this.lifespanReal / effG)));
+        const cosmicAgeMyr = Math.max(0.01, cosmicAge) * 1000;
+        this.currentRealAge = Math.min(this.t * this.lifespanReal, cosmicAgeMyr);
 
-        const maxCosmicAgeYr = Math.max(0.01, cosmicAge) * 1e9;
-        const physicalAgeYr = Math.min(this.currentRealAge * 1e6, maxCosmicAgeYr);
-        const initState = createStellarState(this.physicsId, this.mass, (DEFAULT_CONSTANTS as any).metallicity ?? 0.02, physicalAgeYr);
+        const age_yr = this.currentRealAge * 1e6;
+        const initState = createStellarState(this.physicsId, this.mass, (DEFAULT_CONSTANTS as any).metallicity ?? 0.02, age_yr);
         this.phase = STELLAR_PHASE_TO_NUM[initState.phase];
         this.currentTemp = initState.temperature_K;
         this.currentLum = initState.luminosity_solar;
@@ -181,14 +181,14 @@ export class HeroStarSystem extends THREE.Group {
 
         this.birthAge = Math.random() * Math.max(0.1, cosmicAge);
         const ageMyr = Math.max(0, (cosmicAge - this.birthAge) * 1000);
-        this.currentRealAge = ageMyr;
         this.t = Math.max(0, Math.min(1.15, ageMyr / (this.lifespanReal / effG)));
+        const cosmicAgeMyr = Math.max(0.01, cosmicAge) * 1000;
+        this.currentRealAge = Math.min(this.t * this.lifespanReal, cosmicAgeMyr);
         this.visible = globalFade > 0.01;
 
         if (this.t >= 0) {
-            const maxCosmicAgeYr = Math.max(0.01, cosmicAge) * 1e9;
-            const physicalAgeYr = Math.min(this.currentRealAge * 1e6, maxCosmicAgeYr);
-            const initState = createStellarState(this.physicsId, this.mass, (DEFAULT_CONSTANTS as any).metallicity ?? 0.02, physicalAgeYr);
+            const age_yr = this.currentRealAge * 1e6;
+            const initState = createStellarState(this.physicsId, this.mass, (DEFAULT_CONSTANTS as any).metallicity ?? 0.02, age_yr);
             const initialPhase = STELLAR_PHASE_TO_NUM[initState.phase];
             this.phase = initialPhase;
             this.currentTemp = initState.temperature_K;
@@ -266,7 +266,8 @@ export class HeroStarSystem extends THREE.Group {
     }
 
     public syncBirthAge(cosmicAge: number, effG: number = 1.0): void {
-        this.currentRealAge = Math.max(0, this.t * this.lifespanReal);
+        const cosmicAgeMyr = Math.max(0.01, cosmicAge) * 1000;
+        this.currentRealAge = Math.min(this.t * this.lifespanReal, cosmicAgeMyr);
         this.birthAge = cosmicAge - (this.currentRealAge / 1000) / effG;
     }
 
@@ -470,17 +471,17 @@ export class HeroStarSystem extends THREE.Group {
 
         // Reset real age / progress
         if (typeof preset.age_gyr === 'number' && Number.isFinite(preset.age_gyr)) {
-            this.currentRealAge = Math.max(0, preset.age_gyr * 1000);
-            this.t = Math.max(0.0, Math.min(1.0, this.currentRealAge / this.lifespanReal));
+            const presetAgeMyr = Math.max(0, preset.age_gyr * 1000);
+            this.t = Math.max(0.0, Math.min(1.0, presetAgeMyr / this.lifespanReal));
         } else {
-            this.currentRealAge = Math.min(1000, cosmicAge * 1000);
-            this.t = Math.max(0.0, Math.min(1.0, this.currentRealAge / this.lifespanReal));
+            this.t = 0.0;
         }
+        const cosmicAgeMyr = Math.max(0.01, cosmicAge) * 1000;
+        this.currentRealAge = Math.min(this.t * this.lifespanReal, cosmicAgeMyr);
         this.birthAge = cosmicAge - (this.currentRealAge / 1000);
 
-        const maxCosmicAgeYr = Math.max(0.01, cosmicAge) * 1e9;
-        const physicalAgeYr = Math.min(this.currentRealAge * 1e6, maxCosmicAgeYr);
-        const initState = createStellarState(this.physicsId, this.mass, (DEFAULT_CONSTANTS as any).metallicity ?? 0.02, physicalAgeYr);
+        const age_yr = this.currentRealAge * 1e6;
+        const initState = createStellarState(this.physicsId, this.mass, (DEFAULT_CONSTANTS as any).metallicity ?? 0.02, age_yr);
         const initialPhase = STELLAR_PHASE_TO_NUM[initState.phase];
         this.phase = initialPhase;
         this.currentTemp = initState.temperature_K;
@@ -540,20 +541,14 @@ export class HeroStarSystem extends THREE.Group {
             this.isSupernovaFlashing = false;
         }
 
-        // Real age follows the cosmic clock (or currentRealAge capped by cosmic age)
-        const effectiveCosmicAge = cosmicAge ?? 13.8;
-        const maxCosmicAgeYr = Math.max(0.01, effectiveCosmicAge) * 1e9;
-        const starCosmicAgeMyr = cosmicAge !== undefined
-            ? Math.max(0, (cosmicAge - this.birthAge) * 1000)
-            : this.t * this.lifespanReal;
-        this.currentRealAge = Math.min(starCosmicAgeMyr, effectiveCosmicAge * 1000);
+        // Real age cannot exceed the cosmic age in Myr:
+        // age_yr = min(t * lifespanReal, cosmicAge_Gyr * 1000) * 1e6
+        const cosmicAgeMyr = Math.max(0.01, cosmicAge ?? 13.8) * 1000;
+        this.currentRealAge = Math.min(this.t * this.lifespanReal, cosmicAgeMyr);
+        const age_yr = this.currentRealAge * 1e6;
 
-        // Physical age in years for StellarPhysics is capped strictly by the cosmic clock.
-        // TIME OVERRIDE moves the inspect slider UI (this.t), but cannot push a star past
-        // the phase/temperature/luminosity StellarPhysics allows at current cosmicAge.
-        const physicalAgeYr = Math.min(this.currentRealAge * 1e6, maxCosmicAgeYr);
         const metallicity = (physics as any)?.metallicity ?? 0.02;
-        const stellarState = createStellarState(this.physicsId, this.mass, metallicity, physicalAgeYr);
+        const stellarState = createStellarState(this.physicsId, this.mass, metallicity, age_yr);
         const newPhase = STELLAR_PHASE_TO_NUM[stellarState.phase];
 
         this.currentTemp = stellarState.temperature_K;

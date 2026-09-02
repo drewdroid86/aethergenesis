@@ -23,6 +23,11 @@ This log is updated after every AI session. Each AI signs off with their entry. 
 
 ## RECENT LOGS
 
+### 2026-09-02 — Unified Cosmic Clock Age Bounding Refactor (Gemini)
+- **Unified Age Bounding (`src/rendering/systems/HeroStarSystem.ts`):** Streamlined and unified `currentRealAge` derivation across constructor, `applyInitialCosmicAge`, `syncBirthAge`, `applyPreset`, and `update` loops to `this.currentRealAge = Math.min(this.t * this.lifespanReal, cosmicAgeMyr)` with `age_yr = this.currentRealAge * 1e6`.
+- **Elimination of Redundant Caps:** Removed redundant intermediate `maxCosmicAgeYr` / `physicalAgeYr` clamping variables in favor of single-source `age_yr` passed to `createStellarState()`, ensuring zero drift across all stellar evolution phases.
+- **Verification:** `npm run typecheck`, `npm run build` (1.89s), `npm run lint` (0 warnings, 0 errors), `npm test` (47/47 E2E tests passing across all suites), and `scripts/verify-physics.ts` passed cleanly.
+
 ### 2026-09-01 — Cosmic Clock Age Bounding & Stellar State Synchronization (Gemini)
 - **Cosmic Clock Age Bounding (`src/rendering/systems/HeroStarSystem.ts`):** Enforced that physical age $\text{age\_yr}$ used for `createStellarState()` evaluation is strictly bounded by the cosmic clock ($\text{physicalAgeYr} = \min(\text{currentRealAge} \times 10^6, \text{cosmicAge} \times 10^9)$). Inspect timeline scrub (`TIME OVERRIDE` moving `this.t \in [0, 1]`) moves the UI scrub playhead without pushing physical phase/temperature/luminosity beyond what `cosmicAge` physically permits.
 - **Physical Phase & Thermodynamic State Sync:**
