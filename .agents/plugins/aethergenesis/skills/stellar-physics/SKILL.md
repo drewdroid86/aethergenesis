@@ -23,9 +23,10 @@ version: 1.0.0
 - **K-Class**: $3,700\text{ K} - 5,200\text{ K}$ (Orange, `#ffd2a1`)
 - **M-Class**: $2,400\text{ K} - 3,700\text{ K}$ (Red Dwarf, `#ffad63`)
 
-## Phase Boundaries
-- Protostar: $0 \le t < 0.05\tau$
-- Main Sequence: $0.05\tau \le t < \tau$
-- Red Giant: $\tau \le t < 1.2\tau$
-- Supernova Flash: $1.2\tau \le t < 1.5\tau$ (Mass $\ge 8 M_\odot$)
-- Remnant Phase (Neutron Star / Black Hole): $t \ge 1.5\tau$
+## Phase Boundaries (canonical, from `REAL_PHASE_FRACTIONS`)
+- Nebula: $0 \le t < 0.000001\tau$ (molecular cloud collapse)
+- Protostar: $0.000001\tau \le t < 0.001\tau$ (Kelvin-Helmholtz contraction)
+- Main Sequence: $0.001\tau \le t < \tau$ (core hydrogen burning)
+- Red Giant: $\tau \le t < 1.2\tau$ (shell H / core He burning)
+- Supernova Flash: $1.2\tau \le t < 1.5\tau$ (core collapse, Mass $\ge 8 M_\odot$)
+- Remnant Phase (WD / NS / BH): $t \ge 1.5\tau$

@@ -151,7 +151,7 @@ export function computeRadius(
     case 'main_sequence':
       return r_ms;
     case 'red_giant': {
-      const t_norm = Math.max(0, Math.min(1, (age_yr - tau_ms) / (0.5 * tau_ms)));
+      const t_norm = Math.max(0, Math.min(1, (age_yr - tau_ms) / (0.2 * tau_ms)));
       const expansion = 1.0 + 99.0 * Math.pow(t_norm, 2);
       const raw = r_ms * expansion;
       return Math.min(raw, 500);
@@ -261,6 +261,27 @@ export function computeSchwarzschild(mass_solar: number): number {
 }
 
 /**
+ * Canonical fractional thresholds of main sequence lifetime τ_MS determining stellar phase transitions.
+ *
+ * Phase boundaries:
+ *   age_yr < τ_MS × 0.000001 → nebula (molecular cloud collapse)
+ *   age_yr < τ_MS × 0.001    → protostar (Kelvin-Helmholtz contraction)
+ *   age_yr < τ_MS × 1.0      → main_sequence (core hydrogen burning)
+ *   age_yr < τ_MS × 1.2      → red_giant (shell hydrogen / core helium burning)
+ *   age_yr < τ_MS × 1.5      → supernova (core collapse, mass ≥ 8 M☉)
+ *   age_yr ≥ τ_MS × 1.5      → remnant (WD / NS / BH)
+ *
+ * @citation Kippenhahn, R., Weigert, A. & Weiss, A. (2012) "Stellar Structure and Evolution", Springer
+ */
+export const REAL_PHASE_FRACTIONS = {
+  NEBULA_END: 0.000001,
+  PROTOSTAR_END: 0.001,
+  MAIN_SEQUENCE_END: 1.0,
+  RED_GIANT_END: 1.2,
+  SUPERNOVA_END: 1.5,
+} as const;
+
+/**
  * Determine evolutionary phase from mass, age, and main sequence lifetime.
  *
  * Phase boundaries are defined by physical timescales relative to τ_MS:
@@ -282,11 +303,11 @@ export function computePhase(
   age_yr: number,
   tau_ms: number
 ): StellarPhase {
-  if (age_yr < tau_ms * 0.000001) return 'nebula';
-  if (age_yr < tau_ms * 0.001) return 'protostar';
-  if (age_yr < tau_ms) return 'main_sequence';
-  if (age_yr < tau_ms * 1.2) return 'red_giant';
-  if (age_yr < tau_ms * 1.5 && mass_solar >= STELLAR_CONSTANTS.PHYSICS.MASS_THRESHOLD_SUPERNOVA) return 'supernova';
+  if (age_yr < tau_ms * REAL_PHASE_FRACTIONS.NEBULA_END) return 'nebula';
+  if (age_yr < tau_ms * REAL_PHASE_FRACTIONS.PROTOSTAR_END) return 'protostar';
+  if (age_yr < tau_ms * REAL_PHASE_FRACTIONS.MAIN_SEQUENCE_END) return 'main_sequence';
+  if (age_yr < tau_ms * REAL_PHASE_FRACTIONS.RED_GIANT_END) return 'red_giant';
+  if (age_yr < tau_ms * REAL_PHASE_FRACTIONS.SUPERNOVA_END && mass_solar >= STELLAR_CONSTANTS.PHYSICS.MASS_THRESHOLD_SUPERNOVA) return 'supernova';
   return 'remnant';
 }
 
@@ -488,12 +509,12 @@ export function advanceStellarState(
       case 'protostar':
         trigger_condition =
           `age_yr ${newAge.toExponential(2)} exceeded nebula duration ` +
-          `(${(tau_ms * 0.000001).toExponential(2)} yr) — Jeans collapse complete`;
+          `(${(tau_ms * REAL_PHASE_FRACTIONS.NEBULA_END).toExponential(2)} yr) — Jeans collapse complete`;
         break;
       case 'main_sequence':
         trigger_condition =
           `age_yr ${newAge.toExponential(2)} exceeded protostar duration ` +
-          `(${(tau_ms * 0.001).toExponential(2)} yr) — core hydrogen ignition at T_c > 10^7 K`;
+          `(${(tau_ms * REAL_PHASE_FRACTIONS.PROTOSTAR_END).toExponential(2)} yr) — core hydrogen ignition at T_c > 10^7 K`;
         break;
       case 'red_giant':
         trigger_condition =

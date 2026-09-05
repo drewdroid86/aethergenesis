@@ -125,7 +125,7 @@ export class HeroStarSystem extends THREE.Group {
         const effG = Math.max(0.01, physics.G);
         this.birthAge = Math.random() * Math.max(0.1, cosmicAge);
         const ageMyr = Math.max(0, (cosmicAge - this.birthAge) * 1000);
-        this.t = Math.max(0, Math.min(1.15, ageMyr / (this.lifespanReal / effG)));
+        this.t = Math.max(0, Math.min(1.65, ageMyr / (this.lifespanReal / effG)));
         const cosmicAgeMyr = Math.max(0.01, cosmicAge) * 1000;
         this.currentRealAge = Math.min(this.t * this.lifespanReal, cosmicAgeMyr);
 
@@ -182,7 +182,7 @@ export class HeroStarSystem extends THREE.Group {
 
         this.birthAge = Math.random() * Math.max(0.1, cosmicAge);
         const ageMyr = Math.max(0, (cosmicAge - this.birthAge) * 1000);
-        this.t = Math.max(0, Math.min(1.15, ageMyr / (this.lifespanReal / effG)));
+        this.t = Math.max(0, Math.min(1.65, ageMyr / (this.lifespanReal / effG)));
         const cosmicAgeMyr = Math.max(0.01, cosmicAge) * 1000;
         this.currentRealAge = Math.min(this.t * this.lifespanReal, cosmicAgeMyr);
         this.visible = globalFade > 0.01;
@@ -528,7 +528,7 @@ export class HeroStarSystem extends THREE.Group {
         }
 
         // Generational matter recycling when remnant phase completes
-        if (overrideT === undefined && this.t >= 1.15) {
+        if (overrideT === undefined && this.t >= 1.65) {
             this.recycleToNewGeneration(cosmicAge ?? 5.0, renderer);
         }
 
@@ -539,9 +539,9 @@ export class HeroStarSystem extends THREE.Group {
             this.visible = globalFade > 0.01;
         }
 
-        if (!ignites && this.t > 0.14) this.t = 0.14;
-        if (this.t > 1.0) {
-            this.t = Math.min(1.15, this.t);
+        if (!ignites && this.t > STELLAR_CONSTANTS.PHASE_BOUNDARIES.PROTOSTAR_LIMIT) this.t = STELLAR_CONSTANTS.PHASE_BOUNDARIES.PROTOSTAR_LIMIT;
+        if (this.t > STELLAR_CONSTANTS.PHASE_BOUNDARIES.REMNANT_START) {
+            this.t = Math.min(1.65, this.t);
             this.isSupernovaFlashing = false;
         }
 

@@ -120,7 +120,7 @@ export class Engine {
         star.lifespanReal = computeMainSequenceLifetime(mass) / 1e6;
         star.baseRadius = Math.pow(mass, 0.8) * 0.8;
         
-        // Advance normalized timeline progress t to supernova phase start
+        // Advance normalized timeline progress t to supernova phase start (1.2 τ_MS)
         star.t = STELLAR_CONSTANTS.PHASE_BOUNDARIES.SUPERNOVA_START + 0.01;
         star.currentRealAge = star.t * star.lifespanReal;
     }

@@ -12,21 +12,32 @@ export const PHASES = {
 };
 
 export const STELLAR_CONSTANTS = {
+    /**
+     * Phase boundaries as fractions of τ_MS (= this.t = age_yr / tau_ms).
+     * Synchronised with REAL_PHASE_FRACTIONS in StellarPhysics.ts.
+     *
+     * nebula:      0          → 0.000001 τ_MS
+     * protostar:   0.000001   → 0.001    τ_MS
+     * main_seq:    0.001      → 1.0      τ_MS
+     * red_giant:   1.0        → 1.2      τ_MS
+     * supernova:   1.2        → 1.5      τ_MS  (mass ≥ 8 M☉)
+     * remnant:     ≥ 1.5      τ_MS
+     */
     PHASE_BOUNDARIES: {
         NEBULA_START: 0.0,
-        NEBULA_LIMIT: 0.05,
-        PROTOSTAR_START: 0.05,
-        PROTOSTAR_LIMIT: 0.15,
-        PROTOSTAR_DURATION: 0.10,
-        MAIN_SEQUENCE_START: 0.15,
-        MAIN_SEQUENCE_LIMIT: 0.70,
-        RED_GIANT_START: 0.70,
-        RED_GIANT_LIMIT: 0.85,
-        RED_GIANT_DURATION: 0.15,
-        SUPERNOVA_START: 0.85,
-        SUPERNOVA_LIMIT: 0.90,
-        SUPERNOVA_DURATION: 0.05,
-        REMNANT_START: 0.90,
+        NEBULA_LIMIT: 0.000001,
+        PROTOSTAR_START: 0.000001,
+        PROTOSTAR_LIMIT: 0.001,
+        PROTOSTAR_DURATION: 0.001 - 0.000001,
+        MAIN_SEQUENCE_START: 0.001,
+        MAIN_SEQUENCE_LIMIT: 1.0,
+        RED_GIANT_START: 1.0,
+        RED_GIANT_LIMIT: 1.2,
+        RED_GIANT_DURATION: 0.2,
+        SUPERNOVA_START: 1.2,
+        SUPERNOVA_LIMIT: 1.5,
+        SUPERNOVA_DURATION: 0.3,
+        REMNANT_START: 1.5,
         NEBULA_SECONDARY_LIMIT: 0.8,
     },
     PHYSICS: {
