@@ -23,6 +23,12 @@ This log is updated after every AI session. Each AI signs off with their entry. 
 
 ## RECENT LOGS
 
+### 2026-09-06 — Atmospheric Corona Gaussian Glow & Eddington Limb Darkening (Gemini)
+- **Atmospheric Corona Glow (`src/rendering/shaders/stellar.ts`, `src/simulation/phases/MainSequencePhase.ts`):** Implemented view-space `glowVS` and `glowFS` replacing power-law rim geometry clipping with a smooth exponential Gaussian falloff (`exp(-rim * uFalloff)`). Added `uTint` white-point chromatic blending (`mix(uColor, vec3(1.0), uTint * rim)`) reflecting the optically thin, high-temperature nature of stellar coronal plasma.
+- **Eddington-Approximation Limb Darkening (`src/shaders/starSurface.frag.glsl`, `src/shaders/subDisplacement.vert.glsl`, `src/shaders/displacement.vert.glsl`):** Replaced heavy per-pixel quadratic limb darkening with classical Eddington linear approximation $I(\mu)/I(1) \approx 0.4 + 0.6\mu$. Computed view-space `vViewDir` (`normalize(-mv.xyz)`) and `vNormal` (`normalize(normalMatrix * normal)`) in vertex shaders, eliminating fragment shader view vector reconstruction and improving mobile GPU throughput.
+- **Verification:** `npm run typecheck`, `npm run build` (3.01s), `npm run lint` (0 errors, 0 warnings), `npm test` (48/48 E2E tests passing across all 4 suites), `npm run verify:physics`, and `scripts/verify-astrobiology.ts` passed cleanly.
+
+
 ### 2026-09-06 — Astrobiology Engine HABITABILITY_CONFIG & Climate Hysteresis Refactor (Gemini)
 - **Centralized Habitability Configuration (`src/simulation/AstrobiologyEngine.ts`):** Exported authoritative `HABITABILITY_CONFIG` consolidating all tunables across `hz` (inner/outer flux limits), `water` (liquid water temperature range & falloff), `climate` (hysteresis thresholds for snowball & moist greenhouse), `atmosphere` (Jeans escape factor), `life` (emergence thresholds, decay rate, maturation period), `civ` (Kardashev tier thresholds), `weights` (weighted geometric mean exponents), and `greenhouseByType` (biome-specific greenhouse additions).
 - **Climate Bistability Hysteresis (`src/simulation/AstrobiologyEngine.ts`):** Implemented climate state tracking in `PlanetRecord.prevClimate`. Runaway snowball glaciations require warming to `snowballExitK` (245 K) to thaw, while warm planets freeze only below `snowballEnterK` (233 K). Moist greenhouse states persist until cooling below `greenhouseExitK` (328 K), preventing rapid oscillating state transitions.

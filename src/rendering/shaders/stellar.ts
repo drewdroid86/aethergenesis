@@ -28,6 +28,40 @@ export const particleFS = resolveIncludes(particleFrag);
 export const ejectaVS = resolveIncludes(ejectaVert);
 export const ejectaFS = resolveIncludes(ejectaFrag);
 
+export const glowVS = /* glsl */`
+varying vec3 vNormal;
+varying vec3 vViewDir;
+void main() {
+    vNormal = normalize(normalMatrix * normal);
+    vec4 mv = modelViewMatrix * vec4(position, 1.0);
+    vViewDir = normalize(-mv.xyz);
+    gl_Position = projectionMatrix * mv;
+}
+`;
+
+export const glowFS = /* glsl */`
+#ifdef GL_FRAGMENT_PRECISION_HIGH
+precision highp float;
+#else
+precision mediump float;
+#endif
+
+uniform vec3 uColor;
+uniform float uOpacity;
+uniform float uFalloff;
+uniform float uTint;
+varying vec3 vNormal;
+varying vec3 vViewDir;
+void main() {
+    float rim = 1.0 - abs(dot(vNormal, vViewDir));
+    float glow = exp(-rim * uFalloff);          // Gaussian-ish falloff, no hard edge
+    // Corona is optically thin and hotter → push slightly toward white
+    vec3 col = mix(uColor, vec3(1.0), uTint * rim);
+    gl_FragColor = vec4(col, glow * uOpacity);
+}
+`;
+
+
 
 export const CinematicPassShader = {
   uniforms: {

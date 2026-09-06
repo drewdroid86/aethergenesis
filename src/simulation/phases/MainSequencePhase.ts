@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { PhaseComponent } from './types';
 import { PhysicsConstants } from '../../types/physics';
-import { subtleDisplacementVS, starSurfaceFS } from '../../rendering/shaders/stellar';
+import { subtleDisplacementVS, starSurfaceFS, glowVS, glowFS } from '../../rendering/shaders/stellar';
 import { GEOMETRIES } from './geometries';
 import { STELLAR_CONSTANTS } from '../../core/constants';
 import { phaseCounters } from '../../utils/performance';
@@ -84,29 +84,12 @@ export class MainSequencePhase implements PhaseComponent {
         const coronaMat = new THREE.ShaderMaterial({
             uniforms: {
                 uColor: { value: new THREE.Color(msColor) },
-                uOpacity: { value: 0.0 }
+                uOpacity: { value: 0.0 },
+                uFalloff: { value: 3.5 },
+                uTint: { value: 0.4 }
             },
-            vertexShader: `
-                varying vec3 vNormal;
-                varying vec3 vWorldPos;
-                void main() {
-                    vNormal = normalize(mat3(modelMatrix) * normal);
-                    vWorldPos = (modelMatrix * vec4(position, 1.0)).xyz;
-                    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-                }
-            `,
-            fragmentShader: `
-                uniform vec3 uColor;
-                uniform float uOpacity;
-                varying vec3 vNormal;
-                varying vec3 vWorldPos;
-                void main() {
-                    vec3 viewDir = normalize(cameraPosition - vWorldPos);
-                    float rim = 1.0 - max(0.0, dot(-normalize(vNormal), viewDir));
-                    rim = pow(rim, 3.0);
-                    gl_FragColor = vec4(uColor, rim * uOpacity * 0.6);
-                }
-            `,
+            vertexShader: glowVS,
+            fragmentShader: glowFS,
             transparent: true,
             blending: THREE.AdditiveBlending,
             depthWrite: false,

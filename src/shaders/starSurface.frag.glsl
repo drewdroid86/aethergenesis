@@ -7,6 +7,7 @@ uniform float uLowDetail;
 varying vec3 vLocalPosition;
 varying vec3 vWorldPosition;
 varying vec3 vNormal;
+varying vec3 vViewDir;
 
 #include <noise>
 
@@ -37,14 +38,9 @@ void main() {
     vec3 baseCol = mix(uColor * 0.4, uColor * 1.6, noiseVal);
     vec3 finalColor = mix(baseCol, uColor * 0.1, sunspotMask * 0.7);
     
-    // Quadratic limb darkening — scientifically accurate (Claret 2000)
-    vec3 viewDir = normalize(cameraPosition - vWorldPosition);
-    float mu = max(0.0, dot(normalize(vNormal), viewDir));
-    float u1 = 0.4;
-    float u2 = 0.3;
-    float limbDarkening = 1.0 - u1 * (1.0 - mu) - u2 * (1.0 - mu) * (1.0 - mu);
-    limbDarkening = clamp(limbDarkening, 0.0, 1.0);
-    finalColor *= limbDarkening;
+    // Eddington-approximation limb darkening: I(mu)/I(1) ≈ 0.4 + 0.6*mu
+    float mu = max(0.0, dot(normalize(vNormal), normalize(vViewDir)));
+    finalColor *= 0.4 + 0.6 * mu;
     
     gl_FragColor = vec4(finalColor, uOpacity);
 }
