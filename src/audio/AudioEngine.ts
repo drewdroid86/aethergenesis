@@ -92,6 +92,10 @@ export class CosmicAudioEngine {
         return this.isMuted;
     }
 
+    public getIsMuted(): boolean {
+        return this.isMuted;
+    }
+
     public playSupernovaSound(): void {
         if (!this.ctx || this.isMuted) return;
         this.resume();

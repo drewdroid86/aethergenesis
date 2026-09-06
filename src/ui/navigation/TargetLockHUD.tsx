@@ -36,7 +36,7 @@ export const TargetLockHUD: React.FC<TargetLockHUDProps> = ({
 
     return (
         <div 
-            className="flex flex-col bg-[rgba(8,8,20,0.85)] backdrop-blur-2xl border border-[#C084FC]/40 rounded-2xl p-3.5 shadow-[0_0_30px_rgba(192,132,252,0.3)] pointer-events-auto select-none font-mono text-[10px] min-w-[260px] group/targetlock"
+            className="flex flex-col bg-[rgba(8,8,20,0.85)] backdrop-blur-2xl border border-[#C084FC]/40 rounded-2xl p-3.5 shadow-[0_0_30px_rgba(192,132,252,0.3)] pointer-events-auto select-none font-mono text-[10px] min-w-[240px] sm:min-w-[260px] max-w-full group/targetlock"
             role="region"
             aria-label={`Target Lock: ${name}`}
         >

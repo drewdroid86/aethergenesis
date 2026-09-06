@@ -2,24 +2,24 @@ import React, { useRef, useState, useEffect } from 'react';
 import { Check, Copy, Crosshair, Navigation, Pause, Play, Search, Volume2, VolumeX } from 'lucide-react';
 import { audioEngine } from '../audio/AudioEngine';
 
-interface HudProps {
+export interface HudProps {
     uiRefs: {
         hudX: React.RefObject<HTMLSpanElement | null>;
         hudY: React.RefObject<HTMLSpanElement | null>;
         hudZ: React.RefObject<HTMLSpanElement | null>;
-        hudAge: React.RefObject<HTMLSpanElement | null>;
-        globalTimelineFill: React.RefObject<HTMLDivElement | null>;
-        globalSlider: React.RefObject<HTMLDivElement | null>;
+        hudAge?: React.RefObject<HTMLSpanElement | null>;
+        globalTimelineFill?: React.RefObject<HTMLDivElement | null>;
+        globalSlider?: React.RefObject<HTMLDivElement | null>;
     };
-    cosmicAge: number;
-    isPlayingCosmic: boolean;
-    setIsPlayingCosmic: (playing: boolean) => void;
-    onGlobalScrubStart: (e: React.PointerEvent) => void;
-    onGlobalScrubMove: (e: React.PointerEvent) => void;
-    onGlobalScrubEnd: () => void;
-    onKeyDown: (e: React.KeyboardEvent, isGlobal: boolean) => void;
-    resetCamera: () => void;
-    centerOnStar: () => void;
+    cosmicAge?: number;
+    isPlayingCosmic?: boolean;
+    setIsPlayingCosmic?: (playing: boolean) => void;
+    onGlobalScrubStart?: (e: React.PointerEvent) => void;
+    onGlobalScrubMove?: (e: React.PointerEvent) => void;
+    onGlobalScrubEnd?: () => void;
+    onKeyDown?: (e: React.KeyboardEvent, isGlobal: boolean) => void;
+    resetCamera?: () => void;
+    centerOnStar?: () => void;
     performance: {
         tier: string;
         numStars: number;
@@ -56,34 +56,20 @@ interface HudProps {
         resetDiagnostics?: () => void;
     };
     currentSeed: string;
-    timeScale: 'cosmic' | 'realtime';
-    setTimeScale: (scale: 'cosmic' | 'realtime') => void;
+    timeScale?: 'cosmic' | 'realtime';
+    setTimeScale?: (scale: 'cosmic' | 'realtime') => void;
     onOpenCatalog?: () => void;
 }
 
 export const Hud: React.FC<HudProps> = ({ 
     uiRefs, 
-    cosmicAge, 
-    isPlayingCosmic, 
-    setIsPlayingCosmic,
-    timeScale,
-    setTimeScale,
-    onGlobalScrubStart,
-    onGlobalScrubMove,
-    onGlobalScrubEnd,
-    onKeyDown,
-    resetCamera,
-    centerOnStar,
+    timeScale = 'cosmic',
     performance,
     currentSeed,
-    onOpenCatalog
 }) => {
     const isDebugMode = typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('debug') === '1';
-    const [shareCopied, setShareCopied] = useState(false);
     const [idCopied, setIdCopied] = useState(false);
     const [announcement, setAnnouncement] = useState('');
-    const [isDragging, setIsDragging] = useState(false);
-    const [isMuted, setIsMuted] = useState(false);
     const isFirstRenderRef = useRef(true);
 
     useEffect(() => {
@@ -106,41 +92,6 @@ export const Hud: React.FC<HudProps> = ({
             announce('Universe ID copied to clipboard');
             setTimeout(() => setIdCopied(false), 2000);
         });
-    };
-
-    const shareUniverse = () => {
-        audioEngine.playUiClick();
-        const url = new URL(window.location.href);
-        url.searchParams.set('seed', currentSeed);
-        navigator.clipboard.writeText(url.toString()).then(() => {
-            setShareCopied(true);
-            announce('Universe Share URL copied to clipboard');
-            setTimeout(() => setShareCopied(false), 2000);
-        });
-    };
-
-    const handlePointerDown = (e: React.PointerEvent) => {
-        setIsDragging(true);
-        try {
-            (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
-        } catch {
-            // Ignored
-        }
-        onGlobalScrubStart(e);
-    };
-
-    const handlePointerMove = (e: React.PointerEvent) => {
-        if (isDragging) onGlobalScrubMove(e);
-    };
-
-    const handlePointerUp = (e: React.PointerEvent) => {
-        setIsDragging(false);
-        try {
-            (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId);
-        } catch {
-            // Ignored
-        }
-        onGlobalScrubEnd();
     };
 
     return (
@@ -413,173 +364,11 @@ export const Hud: React.FC<HudProps> = ({
                 </div>
             )}
 
-            {/* Bottom HUD */}
-            <div className="absolute bottom-0 w-full p-8 pb-[max(2rem,env(safe-area-inset-bottom))] flex justify-between items-end z-20 pointer-events-none">
-                {/* Hidden DOM elements preserving refs for engine coordinate updates */}
-                <div className="sr-only" aria-hidden="true">
-                    <span ref={uiRefs.hudX}>0.0000</span>
-                    <span ref={uiRefs.hudY}>0.0000</span>
-                    <span ref={uiRefs.hudZ}>0.0000</span>
-                </div>
-
-                <div className="absolute left-1/2 -translate-x-1/2 flex flex-col items-center gap-4 w-full max-w-[220px] pointer-events-auto">
-                    <div className="w-full px-8 py-4 bg-[rgba(8,8,20,0.6)] backdrop-blur-2xl border border-[rgba(126,184,255,0.2)] rounded-2xl flex flex-col items-center group">
-                        <div className="flex justify-between w-full items-center mb-3">
-                            <span className="text-[9px] uppercase tracking-widest text-[#7EB8FF]">
-                                Global Cosmic Age (Gyr) <span className="opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity ml-2 text-[8px] text-[#C084FC] hidden sm:inline">[Arrows to Seek]</span>
-                            </span>
-                            <div className="flex gap-2">
-                                <div
-                                    className="flex bg-[rgba(8,8,20,0.8)] border border-[rgba(126,184,255,0.2)] rounded-full p-0.5 pointer-events-auto mr-2 relative group/timescale"
-                                    role="radiogroup"
-                                    aria-label="Simulation timescale"
-                                    aria-keyshortcuts="t"
-                                >
-                                    <span className="absolute -top-6 left-1/2 -translate-x-1/2 text-[10px] text-[#C084FC] opacity-0 group-hover/timescale:opacity-100 group-focus-within/timescale:opacity-100 transition-opacity whitespace-nowrap">
-                                        [T] Scale
-                                    </span>
-                                    <button 
-                                        onClick={() => {
-                                            audioEngine.playUiClick();
-                                            setTimeScale('cosmic');
-                                        }}
-                                        className={`px-3 py-1 text-[9px] uppercase tracking-wider rounded-full transition-colors focus-visible:ring-1 focus-visible:ring-[#7EB8FF] outline-none ${timeScale === 'cosmic' ? 'bg-[#7EB8FF]/20 text-[#7EB8FF]' : 'text-white/40 hover:text-white'}`}
-                                        title="1 second = 200 Million Years"
-                                        role="radio"
-                                        aria-checked={timeScale === 'cosmic'}
-                                        aria-label="Cosmic timescale: 1 second equals 200 Million Years"
-                                    >
-                                        Cosmic
-                                    </button>
-                                    <button 
-                                        onClick={() => {
-                                            audioEngine.playUiClick();
-                                            setTimeScale('realtime');
-                                        }}
-                                        className={`px-3 py-1 text-[9px] uppercase tracking-wider rounded-full transition-colors focus-visible:ring-1 focus-visible:ring-[#C084FC] outline-none ${timeScale === 'realtime' ? 'bg-[#C084FC]/20 text-[#C084FC]' : 'text-white/40 hover:text-white'}`}
-                                        title="1 second = 1 second"
-                                        role="radio"
-                                        aria-checked={timeScale === 'realtime'}
-                                        aria-label="Realtime timescale: 1 second equals 1 second"
-                                    >
-                                        Realtime
-                                    </button>
-                                </div>
-                                <button
-                                    onClick={shareUniverse}
-                                    className="flex items-center gap-1.5 px-3 py-1 bg-[#C084FC]/10 border border-[#C084FC]/30 rounded-full text-[9px] uppercase tracking-wider text-[#C084FC] hover:bg-[#C084FC]/20 transition-colors pointer-events-auto focus-visible:ring-2 focus-visible:ring-[#C084FC] outline-none"
-                                    aria-label={shareCopied ? "Universe Seed URL Copied" : "Copy Universe Seed URL to clipboard"}
-                                    title="Copy Universe Seed URL"
-                                >
-                                    {shareCopied ? <Check size={10} /> : <Copy size={10} />}
-                                    {shareCopied ? "Copied" : "Share Universe"}
-                                </button>
-                                <button
-                                    onClick={() => {
-                                        audioEngine.playUiClick();
-                                        setIsPlayingCosmic(!isPlayingCosmic);
-                                    }}
-                                    className="text-white/40 hover:text-white transition-colors focus-visible:ring-2 focus-visible:ring-[#C084FC] outline-none rounded relative group/play"
-                                    aria-label={isPlayingCosmic ? "Pause cosmic simulation" : "Play cosmic simulation"}
-                                    title={isPlayingCosmic ? "Pause Cosmic Simulation" : "Play Cosmic Simulation"}
-                                    aria-keyshortcuts="Space"
-                                >
-                                    <span className="absolute -top-6 left-1/2 -translate-x-1/2 text-[10px] text-[#C084FC] opacity-0 group-hover/play:opacity-100 group-focus-visible/play:opacity-100 transition-opacity whitespace-nowrap">
-                                        [Space]
-                                    </span>
-                                    {isPlayingCosmic ? <Pause size={14} /> : <Play size={14} />}
-                                </button>
-                            </div>
-                        </div>
-                        
-                        <div 
-                            ref={uiRefs.globalSlider}
-                            role="slider"
-                            tabIndex={0}
-                            aria-label="Global cosmic age timeline"
-                            aria-valuemin={0}
-                            aria-valuemax={14}
-                            aria-valuenow={parseFloat(cosmicAge.toFixed(2))}
-                            className="w-full h-3 bg-white/10 rounded-full overflow-hidden cursor-ew-resize relative focus-visible:ring-2 focus-visible:ring-[#C084FC] outline-none"
-                            onPointerDown={handlePointerDown}
-                            onPointerMove={handlePointerMove}
-                            onPointerUp={handlePointerUp}
-                            onKeyDown={(e) => onKeyDown(e, true)}
-                        >
-                            <div ref={uiRefs.globalTimelineFill} className="h-full bg-gradient-to-r from-[#7EB8FF] to-[#C084FC]" style={{width: `${(cosmicAge / 14.0) * 100}%`}}></div>
-                            <div className="absolute inset-0 bg-white/20 opacity-0 group-hover:opacity-100 transition-opacity"></div>
-                        </div>
-                        <span className="font-mono text-2xl font-light tracking-wider mt-2" ref={uiRefs.hudAge}>{cosmicAge.toFixed(2)}</span>
-                    </div>
-                    <p className="text-[10px] text-[#7EB8FF]/50 italic text-center pointer-events-none">"Scrub to T=0 to observe pre-stellar plasma state."</p>
-                </div>
-
-                <div className="flex flex-col items-end gap-2 text-right ml-auto">
-                <div className="grid grid-cols-4 gap-2 pointer-events-auto">
-                    <button 
-                        onClick={() => {
-                            audioEngine.init();
-                            audioEngine.playUiClick();
-                            const muted = audioEngine.toggleMute();
-                            setIsMuted(muted);
-                        }}
-                        className="w-12 h-12 flex items-center justify-center bg-[rgba(8,8,20,0.6)] border border-[rgba(126,184,255,0.2)] rounded-md backdrop-blur-md transition-colors hover:bg-[rgba(126,184,255,0.1)] cursor-pointer focus-visible:ring-2 focus-visible:ring-[#C084FC] outline-none relative group/audio"
-                        aria-label="Toggle ambient audio drone and sound effects" title="Toggle Audio"
-                    >
-                    <span className="absolute -top-6 left-1/2 -translate-x-1/2 text-[10px] text-[#C084FC] opacity-0 group-hover/audio:opacity-100 group-focus-visible/audio:opacity-100 transition-opacity whitespace-nowrap">
-                        Audio
-                    </span>
-                    {isMuted ? <VolumeX size={16} className="text-red-400" /> : <Volume2 size={16} className="text-[#7EB8FF]" />}
-                    </button>
-
-                    {onOpenCatalog && (
-                        <button 
-                            onClick={() => {
-                                audioEngine.playUiClick();
-                                onOpenCatalog();
-                            }}
-                            className="w-12 h-12 flex items-center justify-center bg-[rgba(8,8,20,0.6)] border border-[rgba(126,184,255,0.2)] rounded-md backdrop-blur-md transition-colors hover:bg-[rgba(126,184,255,0.1)] cursor-pointer focus-visible:ring-2 focus-visible:ring-[#C084FC] outline-none relative group/catalog"
-                            aria-label="Open Astronomical Catalog & Presets" title="Catalog Search"
-                        >
-                        <span className="absolute -top-6 left-1/2 -translate-x-1/2 text-[10px] text-[#C084FC] opacity-0 group-hover/catalog:opacity-100 group-focus-visible/catalog:opacity-100 transition-opacity whitespace-nowrap">
-                            Catalog
-                        </span>
-                        <Search size={16} className="text-[#C084FC]" />
-                        </button>
-                    )}
-
-                    <button 
-                        onClick={() => {
-                            audioEngine.playUiClick();
-                            resetCamera();
-                        }}
-                        className="w-12 h-12 flex items-center justify-center bg-[rgba(8,8,20,0.6)] border border-[rgba(126,184,255,0.2)] rounded-md backdrop-blur-md transition-colors hover:bg-[rgba(126,184,255,0.1)] cursor-pointer focus-visible:ring-2 focus-visible:ring-[#C084FC] outline-none relative group/reset"
-                        aria-label="Reset camera position and orientation" title="Reset Camera [R]"
-                        aria-keyshortcuts="r"
-                    >
-                    <span className="absolute -top-6 left-1/2 -translate-x-1/2 text-[10px] text-[#C084FC] opacity-0 group-hover/reset:opacity-100 group-focus-visible/reset:opacity-100 transition-opacity whitespace-nowrap">
-                        [R] Reset
-                    </span>
-                    <Crosshair size={16} className="text-[#7EB8FF]" />
-                    </button>
-
-                    <button 
-                        onClick={() => {
-                            audioEngine.playUiClick();
-                            centerOnStar();
-                        }}
-                        className="w-12 h-12 flex items-center justify-center bg-[rgba(8,8,20,0.6)] border border-[rgba(126,184,255,0.2)] rounded-md backdrop-blur-md transition-colors hover:bg-[rgba(126,184,255,0.1)] cursor-pointer focus-visible:ring-2 focus-visible:ring-[#C084FC] outline-none relative group/focus"
-                        aria-label="Center camera on selected star" title="Focus on Star [F]"
-                        aria-keyshortcuts="f"
-                    >
-                    <span className="absolute -top-6 left-1/2 -translate-x-1/2 text-[10px] text-[#C084FC] opacity-0 group-hover/focus:opacity-100 group-focus-visible/focus:opacity-100 transition-opacity whitespace-nowrap">
-                        [F] Focus
-                    </span>
-                    <Navigation size={16} className="text-[#C084FC]" />
-                    </button>
-                </div>
-                <span className="text-[9px] uppercase tracking-widest text-[#7EB8FF]/60 mt-1">Stellar Raycasting Active</span>
-                </div>
+            {/* Hidden DOM elements preserving refs for engine coordinate updates */}
+            <div className="sr-only" aria-hidden="true">
+                <span ref={uiRefs.hudX}>0.0000</span>
+                <span ref={uiRefs.hudY}>0.0000</span>
+                <span ref={uiRefs.hudZ}>0.0000</span>
             </div>
 
             {/* Screen Reader Announcements */}
@@ -587,5 +376,263 @@ export const Hud: React.FC<HudProps> = ({
                 {announcement}
             </div>
         </>
+    );
+};
+
+export interface CosmicAgeCardProps {
+    cosmicAge: number;
+    isPlayingCosmic: boolean;
+    setIsPlayingCosmic: (playing: boolean) => void;
+    timeScale: 'cosmic' | 'realtime';
+    setTimeScale: (scale: 'cosmic' | 'realtime') => void;
+    onGlobalScrubStart: (e: React.PointerEvent) => void;
+    onGlobalScrubMove: (e: React.PointerEvent) => void;
+    onGlobalScrubEnd: () => void;
+    onKeyDown: (e: React.KeyboardEvent, isCosmic: boolean) => void;
+    uiRefs: {
+        globalSlider?: React.RefObject<HTMLDivElement | null>;
+        globalTimelineFill?: React.RefObject<HTMLDivElement | null>;
+        hudAge?: React.RefObject<HTMLSpanElement | null>;
+    };
+    currentSeed: string;
+    className?: string;
+}
+
+/**
+ * Self-contained cosmic age timeline scrubber card.
+ * Slotted into BottomHud center prop without absolute positioning wrappers.
+ */
+export const CosmicAgeCard: React.FC<CosmicAgeCardProps> = ({
+    cosmicAge,
+    isPlayingCosmic,
+    setIsPlayingCosmic,
+    timeScale,
+    setTimeScale,
+    onGlobalScrubStart,
+    onGlobalScrubMove,
+    onGlobalScrubEnd,
+    onKeyDown,
+    uiRefs,
+    currentSeed,
+    className = '',
+}) => {
+    const [shareCopied, setShareCopied] = useState(false);
+    const [isDragging, setIsDragging] = useState(false);
+
+    const shareUniverse = () => {
+        audioEngine.playUiClick();
+        const url = new URL(window.location.href);
+        url.searchParams.set('seed', currentSeed);
+        navigator.clipboard.writeText(url.toString()).then(() => {
+            setShareCopied(true);
+            setTimeout(() => setShareCopied(false), 2000);
+        });
+    };
+
+    const handlePointerDown = (e: React.PointerEvent) => {
+        setIsDragging(true);
+        try {
+            (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+        } catch {
+            // Ignored
+        }
+        onGlobalScrubStart(e);
+    };
+
+    const handlePointerMove = (e: React.PointerEvent) => {
+        if (isDragging) onGlobalScrubMove(e);
+    };
+
+    const handlePointerUp = (e: React.PointerEvent) => {
+        setIsDragging(false);
+        try {
+            (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId);
+        } catch {
+            // Ignored
+        }
+        onGlobalScrubEnd();
+    };
+
+    return (
+        <div className={`flex flex-col items-center gap-3 sm:gap-4 w-full max-w-full sm:max-w-md md:max-w-[440px] lg:max-w-xl pointer-events-none ${className}`.trim()}>
+            <div className="w-full px-4 py-3 sm:px-8 sm:py-4 bg-[rgba(8,8,20,0.6)] backdrop-blur-2xl border border-[rgba(126,184,255,0.2)] rounded-2xl flex flex-col items-center group pointer-events-auto">
+                <div className="flex flex-wrap justify-between w-full items-center gap-2 mb-3">
+                    <span className="text-[9px] uppercase tracking-widest text-[#7EB8FF] truncate">
+                        Global Cosmic Age (Gyr) <span className="opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity ml-2 text-[8px] text-[#C084FC] hidden sm:inline">[Arrows to Seek]</span>
+                    </span>
+                    <div className="flex gap-1.5 sm:gap-2">
+                        <div
+                            className="flex bg-[rgba(8,8,20,0.8)] border border-[rgba(126,184,255,0.2)] rounded-full p-0.5 pointer-events-auto mr-2 relative group/timescale"
+                            role="radiogroup"
+                            aria-label="Simulation timescale"
+                            aria-keyshortcuts="t"
+                        >
+                            <span className="absolute -top-6 left-1/2 -translate-x-1/2 text-[10px] text-[#C084FC] opacity-0 group-hover/timescale:opacity-100 group-focus-within/timescale:opacity-100 transition-opacity whitespace-nowrap">
+                                [T] Scale
+                            </span>
+                            <button 
+                                onClick={() => {
+                                    audioEngine.playUiClick();
+                                    setTimeScale('cosmic');
+                                }}
+                                className={`px-3 py-1 text-[9px] uppercase tracking-wider rounded-full transition-colors focus-visible:ring-1 focus-visible:ring-[#7EB8FF] outline-none ${timeScale === 'cosmic' ? 'bg-[#7EB8FF]/20 text-[#7EB8FF]' : 'text-white/40 hover:text-white'}`}
+                                title="1 second = 200 Million Years"
+                                role="radio"
+                                aria-checked={timeScale === 'cosmic'}
+                                aria-label="Cosmic timescale: 1 second equals 200 Million Years"
+                            >
+                                Cosmic
+                            </button>
+                            <button 
+                                onClick={() => {
+                                    audioEngine.playUiClick();
+                                    setTimeScale('realtime');
+                                }}
+                                className={`px-3 py-1 text-[9px] uppercase tracking-wider rounded-full transition-colors focus-visible:ring-1 focus-visible:ring-[#C084FC] outline-none ${timeScale === 'realtime' ? 'bg-[#C084FC]/20 text-[#C084FC]' : 'text-white/40 hover:text-white'}`}
+                                title="1 second = 1 second"
+                                role="radio"
+                                aria-checked={timeScale === 'realtime'}
+                                aria-label="Realtime timescale: 1 second equals 1 second"
+                            >
+                                Realtime
+                            </button>
+                        </div>
+                        <button
+                            onClick={shareUniverse}
+                            className="flex items-center gap-1.5 px-3 py-1 bg-[#C084FC]/10 border border-[#C084FC]/30 rounded-full text-[9px] uppercase tracking-wider text-[#C084FC] hover:bg-[#C084FC]/20 transition-colors pointer-events-auto focus-visible:ring-2 focus-visible:ring-[#C084FC] outline-none"
+                            aria-label={shareCopied ? "Universe Seed URL Copied" : "Copy Universe Seed URL to clipboard"}
+                            title="Copy Universe Seed URL"
+                        >
+                            {shareCopied ? <Check size={10} /> : <Copy size={10} />}
+                            {shareCopied ? "Copied" : "Share Universe"}
+                        </button>
+                        <button
+                            onClick={() => {
+                                audioEngine.playUiClick();
+                                setIsPlayingCosmic(!isPlayingCosmic);
+                            }}
+                            className="text-white/40 hover:text-white transition-colors focus-visible:ring-2 focus-visible:ring-[#C084FC] outline-none rounded relative group/play"
+                            aria-label={isPlayingCosmic ? "Pause cosmic simulation" : "Play cosmic simulation"}
+                            title={isPlayingCosmic ? "Pause Cosmic Simulation" : "Play Cosmic Simulation"}
+                            aria-keyshortcuts="Space"
+                        >
+                            <span className="absolute -top-6 left-1/2 -translate-x-1/2 text-[10px] text-[#C084FC] opacity-0 group-hover/play:opacity-100 group-focus-visible/play:opacity-100 transition-opacity whitespace-nowrap">
+                                [Space]
+                            </span>
+                            {isPlayingCosmic ? <Pause size={14} /> : <Play size={14} />}
+                        </button>
+                    </div>
+                </div>
+                
+                <div 
+                    ref={uiRefs.globalSlider}
+                    role="slider"
+                    tabIndex={0}
+                    aria-label="Global cosmic age timeline"
+                    aria-valuemin={0}
+                    aria-valuemax={14}
+                    aria-valuenow={parseFloat(cosmicAge.toFixed(2))}
+                    className="w-full h-3 bg-white/10 rounded-full overflow-hidden cursor-ew-resize relative focus-visible:ring-2 focus-visible:ring-[#C084FC] outline-none"
+                    onPointerDown={handlePointerDown}
+                    onPointerMove={handlePointerMove}
+                    onPointerUp={handlePointerUp}
+                    onKeyDown={(e) => onKeyDown(e, true)}
+                >
+                    <div ref={uiRefs.globalTimelineFill} className="h-full bg-gradient-to-r from-[#7EB8FF] to-[#C084FC]" style={{width: `${(cosmicAge / 14.0) * 100}%`}}></div>
+                    <div className="absolute inset-0 bg-white/20 opacity-0 group-hover:opacity-100 transition-opacity"></div>
+                </div>
+                <span className="font-mono text-2xl font-light tracking-wider mt-2" ref={uiRefs.hudAge}>{cosmicAge.toFixed(2)}</span>
+            </div>
+            <p className="text-[10px] text-[#7EB8FF]/50 italic text-center pointer-events-none">"Scrub to T=0 to observe pre-stellar plasma state."</p>
+        </div>
+    );
+};
+
+export interface HudActionButtonsProps {
+    onOpenCatalog?: () => void;
+    resetCamera: () => void;
+    centerOnStar: () => void;
+    className?: string;
+}
+
+/**
+ * Self-contained bottom-right action controls cluster (Audio, Catalog, Reset, Focus).
+ * Slotted into BottomHud right prop.
+ */
+export const HudActionButtons: React.FC<HudActionButtonsProps> = ({
+    onOpenCatalog,
+    resetCamera,
+    centerOnStar,
+    className = '',
+}) => {
+    const [isMuted, setIsMuted] = useState(() => audioEngine.getIsMuted());
+
+    return (
+        <div className={`flex flex-col items-center md:items-end gap-2 text-center md:text-right ${className}`.trim()}>
+            <div className="grid grid-cols-4 gap-2 pointer-events-auto">
+                <button 
+                    onClick={() => {
+                        audioEngine.init();
+                        audioEngine.playUiClick();
+                        const muted = audioEngine.toggleMute();
+                        setIsMuted(muted);
+                    }}
+                    className="w-12 h-12 flex items-center justify-center bg-[rgba(8,8,20,0.6)] border border-[rgba(126,184,255,0.2)] rounded-md backdrop-blur-md transition-colors hover:bg-[rgba(126,184,255,0.1)] cursor-pointer focus-visible:ring-2 focus-visible:ring-[#C084FC] outline-none relative group/audio"
+                    aria-label="Toggle ambient audio drone and sound effects" title="Toggle Audio"
+                >
+                    <span className="absolute -top-6 left-1/2 -translate-x-1/2 text-[10px] text-[#C084FC] opacity-0 group-hover/audio:opacity-100 group-focus-visible/audio:opacity-100 transition-opacity whitespace-nowrap">
+                        Audio
+                    </span>
+                    {isMuted ? <VolumeX size={16} className="text-red-400" /> : <Volume2 size={16} className="text-[#7EB8FF]" />}
+                </button>
+
+                {onOpenCatalog && (
+                    <button 
+                        onClick={() => {
+                            audioEngine.playUiClick();
+                            onOpenCatalog();
+                        }}
+                        className="w-12 h-12 flex items-center justify-center bg-[rgba(8,8,20,0.6)] border border-[rgba(126,184,255,0.2)] rounded-md backdrop-blur-md transition-colors hover:bg-[rgba(126,184,255,0.1)] cursor-pointer focus-visible:ring-2 focus-visible:ring-[#C084FC] outline-none relative group/catalog"
+                        aria-label="Open Astronomical Catalog & Presets" title="Catalog Search"
+                    >
+                        <span className="absolute -top-6 left-1/2 -translate-x-1/2 text-[10px] text-[#C084FC] opacity-0 group-hover/catalog:opacity-100 group-focus-visible/catalog:opacity-100 transition-opacity whitespace-nowrap">
+                            Catalog
+                        </span>
+                        <Search size={16} className="text-[#C084FC]" />
+                    </button>
+                )}
+
+                <button 
+                    onClick={() => {
+                        audioEngine.playUiClick();
+                        resetCamera();
+                    }}
+                    className="w-12 h-12 flex items-center justify-center bg-[rgba(8,8,20,0.6)] border border-[rgba(126,184,255,0.2)] rounded-md backdrop-blur-md transition-colors hover:bg-[rgba(126,184,255,0.1)] cursor-pointer focus-visible:ring-2 focus-visible:ring-[#C084FC] outline-none relative group/reset"
+                    aria-label="Reset camera position and orientation" title="Reset Camera [R]"
+                    aria-keyshortcuts="r"
+                >
+                    <span className="absolute -top-6 left-1/2 -translate-x-1/2 text-[10px] text-[#C084FC] opacity-0 group-hover/reset:opacity-100 group-focus-visible/reset:opacity-100 transition-opacity whitespace-nowrap">
+                        [R] Reset
+                    </span>
+                    <Crosshair size={16} className="text-[#7EB8FF]" />
+                </button>
+
+                <button 
+                    onClick={() => {
+                        audioEngine.playUiClick();
+                        centerOnStar();
+                    }}
+                    className="w-12 h-12 flex items-center justify-center bg-[rgba(8,8,20,0.6)] border border-[rgba(126,184,255,0.2)] rounded-md backdrop-blur-md transition-colors hover:bg-[rgba(126,184,255,0.1)] cursor-pointer focus-visible:ring-2 focus-visible:ring-[#C084FC] outline-none relative group/focus"
+                    aria-label="Center camera on selected star" title="Focus on Star [F]"
+                    aria-keyshortcuts="f"
+                >
+                    <span className="absolute -top-6 left-1/2 -translate-x-1/2 text-[10px] text-[#C084FC] opacity-0 group-hover/focus:opacity-100 group-focus-visible/focus:opacity-100 transition-opacity whitespace-nowrap">
+                        [F] Focus
+                    </span>
+                    <Navigation size={16} className="text-[#C084FC]" />
+                </button>
+            </div>
+            <span className="text-[9px] uppercase tracking-widest text-[#7EB8FF]/60 mt-1">Stellar Raycasting Active</span>
+        </div>
     );
 };

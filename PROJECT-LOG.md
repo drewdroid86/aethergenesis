@@ -23,6 +23,14 @@ This log is updated after every AI session. Each AI signs off with their entry. 
 
 ## RECENT LOGS
 
+### 2026-09-06 — Responsive Bottom HUD Slots Refactor & Cockpit Decoupling (Gemini)
+- **Bottom HUD Slot Composition (`src/ui/BottomHud.tsx`, `src/components/AetherGenesis.tsx`):** Composed `<BottomHud left={...} center={...} right={...} />` into `AetherGenesis.tsx`. Mobile viewports (<768px) cleanly stack into 3 vertical rows with zero overlap, while desktop viewports (>=768px) display horizontally 3-across preserving cockpit flight deck layout.
+- **NavigationDeck Bottom Wrapper Decoupling (`src/ui/navigation/NavigationDeck.tsx`):** Removed hardcoded absolute positioning wrappers (`bottom-8 left-8` and `bottom-28 right-8`). Extracted inner instrumentation clusters into dedicated sub-renders (`FlightDeckTelemetry` for AttitudeIndicator + GalacticCompassGimbal; `TacticalFlightDeck` for TargetLockHUD + TacticalRadar) and supported `renderBottom` slot delegation.
+- **Hud Center Age-Card & Action Button Slot Exposure (`src/ui/Hud.tsx`):** Removed outer absolute bottom band container from `Hud.tsx`, preserved hidden DOM coordinate refs for high-frequency engine updates, and extracted `CosmicAgeCard` (timeline scrubber playhead, timescale selector, share URL) and `HudActionButtons` (Audio, Catalog, Reset [R], Focus [F]).
+- **TacticalRadar Dimension Parity (`src/ui/navigation/TacticalRadar.tsx`):** Added `w-full max-w-[190px]` to container div, establishing visual and responsive width parity with `AttitudeIndicator`.
+- **Stable Viewport Height via VisualViewport (`src/utils/hooks/useViewportHeight.ts`, `src/components/AetherGenesis.tsx`):** Created `useViewportHeight` listening to `window.visualViewport` (`resize`/`orientationchange`), binding `style={{ height: viewportHeight || '100dvh' }}` across both root containers in `AetherGenesis.tsx` to eliminate bottom-anchored panel bunching near the top on Android Chrome initial paint.
+- **Verification:** `npm run typecheck`, `npm run build` (4.38s), `npm run lint` (0 errors, 0 warnings), `npm test` (47/47 E2E tests passing across all suites), and `npm run verify:physics` passed cleanly.
+
 ### 2026-09-02 — Unified Cosmic Clock Age Bounding Refactor (Gemini)
 - **Unified Age Bounding (`src/rendering/systems/HeroStarSystem.ts`):** Streamlined and unified `currentRealAge` derivation across constructor, `applyInitialCosmicAge`, `syncBirthAge`, `applyPreset`, and `update` loops to `this.currentRealAge = Math.min(this.t * this.lifespanReal, cosmicAgeMyr)` with `age_yr = this.currentRealAge * 1e6`.
 - **Elimination of Redundant Caps:** Removed redundant intermediate `maxCosmicAgeYr` / `physicalAgeYr` clamping variables in favor of single-source `age_yr` passed to `createStellarState()`, ensuring zero drift across all stellar evolution phases.

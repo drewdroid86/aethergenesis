@@ -20,7 +20,7 @@ import { CosmicScaleLadder } from './CosmicScaleLadder';
 import { SpatialLabelsLayer } from './SpatialLabelsLayer';
 import { TargetLockHUD } from './TargetLockHUD';
 
-interface NavigationDeckProps {
+export interface NavigationDeckProps {
     camera: THREE.PerspectiveCamera | null;
     stars: HeroStarSystem[];
     selectedStar: HeroStarSystem | null;
@@ -34,6 +34,11 @@ interface NavigationDeckProps {
     showRadar?: boolean;
     showBoresight?: boolean;
     showSpatialLabels?: boolean;
+    visible?: boolean;
+    renderBottom?: (slots: {
+        left: React.ReactNode;
+        right: React.ReactNode;
+    }) => React.ReactNode;
 }
 
 export const NavigationDeck: React.FC<NavigationDeckProps> = ({
@@ -46,6 +51,8 @@ export const NavigationDeck: React.FC<NavigationDeckProps> = ({
     showRadar = true,
     showBoresight = true,
     showSpatialLabels = true,
+    visible = true,
+    renderBottom,
 }) => {
     const [waypoint, setWaypoint] = useState<TargetWaypoint | null>(null);
     const [contacts, setContacts] = useState<RadarContact[]>([]);
@@ -69,7 +76,7 @@ export const NavigationDeck: React.FC<NavigationDeckProps> = ({
 
     // High-frequency telemetry update loop (throttled to ~30fps for zero GC overhead)
     useEffect(() => {
-        if (!camera) return;
+        if (!camera || !visible) return;
 
         let frameId: number;
         let lastUpdateTime = 0;
@@ -117,8 +124,8 @@ export const NavigationDeck: React.FC<NavigationDeckProps> = ({
                 setWaypoint(null);
             }
 
-            // 3. Calculate Radar Contacts
-            if (stars.length > 0) {
+            // 3. Calculate Radar Contacts (only if radar is active and rendered via slot)
+            if (showRadar && (renderBottom != null) && stars.length > 0) {
                 const c = calculateRadarContacts(camera, stars, selectedStar, radarRange);
                 setContacts(c);
             }
@@ -168,7 +175,7 @@ export const NavigationDeck: React.FC<NavigationDeckProps> = ({
 
         frameId = requestAnimationFrame(updateLoop);
         return () => cancelAnimationFrame(frameId);
-    }, [camera, stars, selectedStar, radarRange, showBoresight]);
+    }, [camera, stars, selectedStar, radarRange, showBoresight, showRadar, renderBottom, visible]);
 
     const handleSelectContact = (id: string) => {
         const found = stars.find(s => s.physicsId === id);
@@ -180,7 +187,7 @@ export const NavigationDeck: React.FC<NavigationDeckProps> = ({
     return (
         <>
             {/* 3-Tier Distance LOD In-World Spatial Labels */}
-            {showSpatialLabels && (
+            {visible && showSpatialLabels && (
                 <SpatialLabelsLayer 
                     camera={camera}
                     stars={stars}
@@ -190,13 +197,15 @@ export const NavigationDeck: React.FC<NavigationDeckProps> = ({
             )}
 
             {/* 360° Target Lock Reticle & Off-Screen Waypoint Pointer */}
-            <TargetWaypointHUD 
-                waypoint={waypoint} 
-                onAlignCamera={onAlignCamera} 
-            />
+            {visible && (
+                <TargetWaypointHUD 
+                    waypoint={waypoint} 
+                    onAlignCamera={onAlignCamera} 
+                />
+            )}
 
             {/* Center-Screen Flight Boresight Rangefinder */}
-            {showBoresight && (
+            {visible && showBoresight && (
                 <BoresightScanner 
                     target={boresightTarget} 
                     selectedStarId={selectedStar?.physicsId}
@@ -205,64 +214,254 @@ export const NavigationDeck: React.FC<NavigationDeckProps> = ({
             )}
 
             {/* TOP INSTRUMENTATION BAR: Breadcrumbs + Scale Ladder + You Are Here */}
-            <div className="absolute top-20 left-8 right-8 flex justify-between items-start z-20 pointer-events-none gap-4">
-                <div className="flex flex-col gap-2">
-                    <SpatialBreadcrumbs 
-                        starName={selectedStar?.physicsId ? `Star ${selectedStar.physicsId.substring(0, 6)}` : undefined}
-                        onResetUniverse={onAlignCamera}
-                        onFocusStar={onAlignCamera}
-                    />
-                    <CosmicScaleLadder 
-                        currentDistanceUnits={cameraDistanceUnits}
-                        formattedScale={telemetry.scaleRulerFormatted}
-                    />
-                </div>
+            {visible && (
+                <div className="absolute top-20 left-8 right-8 flex justify-between items-start z-20 pointer-events-none gap-4">
+                    <div className="flex flex-col gap-2">
+                        <SpatialBreadcrumbs 
+                            starName={selectedStar?.physicsId ? `Star ${selectedStar.physicsId.substring(0, 6)}` : undefined}
+                            onResetUniverse={onAlignCamera}
+                            onFocusStar={onAlignCamera}
+                        />
+                        <CosmicScaleLadder 
+                            currentDistanceUnits={cameraDistanceUnits}
+                            formattedScale={telemetry.scaleRulerFormatted}
+                        />
+                    </div>
 
-                <div className="flex flex-col items-end gap-2">
-                    <YouAreHereBadge 
-                        nearestStarName={nearestStarInfo.name}
-                        distanceToNearest={nearestStarInfo.distance}
+                    <div className="flex flex-col items-end gap-2">
+                        <YouAreHereBadge 
+                            nearestStarName={nearestStarInfo.name}
+                            distanceToNearest={nearestStarInfo.distance}
+                            uiRefs={uiRefs}
+                        />
+                    </div>
+                </div>
+            )}
+
+            {/* Optional bottom slot delegation if renderBottom is provided */}
+            {renderBottom?.({
+                left: visible ? (
+                    <FlightDeckTelemetry 
+                        camera={camera}
+                        selectedStar={selectedStar}
+                        telemetry={telemetry}
                         uiRefs={uiRefs}
                     />
-                </div>
-            </div>
-
-            {/* BOTTOM-LEFT FLIGHT DECK: Attitude Indicator & 3D Gimbal */}
-            <div className="absolute bottom-8 left-8 z-20 pointer-events-none flex flex-col gap-2.5">
-                <GalacticCompassGimbal 
-                    camera={camera}
-                    headingDeg={telemetry.headingDeg}
-                    pitchDeg={telemetry.pitchDeg}
-                />
-                <AttitudeIndicator 
-                    telemetry={telemetry} 
-                    uiRefs={uiRefs} 
-                />
-            </div>
-
-            {/* BOTTOM-RIGHT: Target Lock Action Card + Tactical Radar */}
-            <div className="absolute bottom-28 right-8 z-20 pointer-events-none flex flex-col items-end gap-3">
-                {selectedStar && (
-                    <TargetLockHUD 
-                        star={selectedStar}
-                        distanceUnits={cameraDistanceUnits}
-                        bearingDeg={waypoint?.bearingDeg || 0}
-                        onFocus={onAlignCamera}
-                        onWarpTo={onAlignCamera}
-                        onClearTarget={() => onSelectStar(null)}
-                    />
-                )}
-
-                {showRadar && (
-                    <TacticalRadar 
+                ) : null,
+                right: visible ? (
+                    <TacticalFlightDeck 
+                        camera={camera}
+                        stars={stars}
+                        selectedStar={selectedStar}
+                        onSelectStar={onSelectStar}
+                        onAlignCamera={onAlignCamera}
+                        showRadar={showRadar}
                         contacts={contacts}
-                        selectedTargetName={telemetry.targetName}
-                        onSelectContact={handleSelectContact}
-                        rangeAU={radarRange}
+                        waypoint={waypoint}
+                        radarRange={radarRange}
                         onRangeChange={setRadarRange}
+                        cameraDistanceUnits={cameraDistanceUnits}
+                        targetName={telemetry.targetName}
                     />
-                )}
-            </div>
+                ) : null
+            })}
         </>
+    );
+};
+
+export interface FlightDeckTelemetryProps {
+    camera: THREE.PerspectiveCamera | null;
+    selectedStar?: HeroStarSystem | null;
+    telemetry?: AttitudeTelemetry;
+    uiRefs?: {
+        hudX?: React.RefObject<HTMLSpanElement | null>;
+        hudY?: React.RefObject<HTMLSpanElement | null>;
+        hudZ?: React.RefObject<HTMLSpanElement | null>;
+    };
+    className?: string;
+}
+
+/**
+ * Self-contained bottom-left flight deck telemetry cluster (GalacticCompassGimbal + AttitudeIndicator).
+ * Designed to slot into BottomHud's left prop.
+ */
+export const FlightDeckTelemetry: React.FC<FlightDeckTelemetryProps> = ({
+    camera,
+    selectedStar = null,
+    telemetry: telemetryProp,
+    uiRefs,
+    className = '',
+}) => {
+    const [internalTelemetry, setInternalTelemetry] = useState<AttitudeTelemetry>({
+        headingDeg: 0,
+        pitchDeg: 0,
+        altitudeFormatted: '+0.00 AU',
+        distanceToTargetFormatted: '0.00 AU',
+        targetName: 'Sol',
+        fovDeg: 60,
+        scaleRulerFormatted: '1.00 AU',
+        scaleRulerWidthPx: 90
+    });
+
+    const activeTelemetry = telemetryProp ?? internalTelemetry;
+
+    useEffect(() => {
+        // Skip fallback RAF loop if telemetry is supplied externally (e.g. from NavigationDeck)
+        if (!camera || telemetryProp != null) return;
+
+        let frameId: number;
+        let lastUpdateTime = 0;
+
+        const updateLoop = (now: number) => {
+            frameId = requestAnimationFrame(updateLoop);
+
+            if (now - lastUpdateTime < 33) return;
+            lastUpdateTime = now;
+
+            const att = calculateAttitudeTelemetry(camera, selectedStar);
+            setInternalTelemetry(att);
+        };
+
+        frameId = requestAnimationFrame(updateLoop);
+        return () => cancelAnimationFrame(frameId);
+    }, [camera, selectedStar, telemetryProp]);
+
+    return (
+        <div className={`pointer-events-none flex flex-col items-center md:items-start gap-2.5 ${className}`.trim()}>
+            <GalacticCompassGimbal 
+                camera={camera}
+                headingDeg={activeTelemetry.headingDeg}
+                pitchDeg={activeTelemetry.pitchDeg}
+            />
+            <AttitudeIndicator 
+                telemetry={activeTelemetry} 
+                uiRefs={uiRefs} 
+            />
+        </div>
+    );
+};
+
+export interface TacticalFlightDeckProps {
+    camera: THREE.PerspectiveCamera | null;
+    stars: HeroStarSystem[];
+    selectedStar: HeroStarSystem | null;
+    onSelectStar: (star: HeroStarSystem | null) => void;
+    onAlignCamera: () => void;
+    showRadar?: boolean;
+    contacts?: RadarContact[];
+    waypoint?: TargetWaypoint | null;
+    radarRange?: number;
+    onRangeChange?: (range: number) => void;
+    cameraDistanceUnits?: number;
+    targetName?: string;
+    className?: string;
+}
+
+/**
+ * Self-contained bottom-right tactical flight deck cluster (TargetLockHUD + TacticalRadar).
+ * Designed to slot into BottomHud's right prop alongside action buttons.
+ */
+export const TacticalFlightDeck: React.FC<TacticalFlightDeckProps> = ({
+    camera,
+    stars,
+    selectedStar,
+    onSelectStar,
+    onAlignCamera,
+    showRadar = true,
+    contacts: contactsProp,
+    waypoint: waypointProp,
+    radarRange: radarRangeProp,
+    onRangeChange: onRangeChangeProp,
+    cameraDistanceUnits: cameraDistanceUnitsProp,
+    targetName: targetNameProp,
+    className = '',
+}) => {
+    const isControlled = contactsProp != null;
+
+    const [internalWaypoint, setInternalWaypoint] = useState<TargetWaypoint | null>(null);
+    const [internalContacts, setInternalContacts] = useState<RadarContact[]>([]);
+    const [internalRadarRange, setInternalRadarRange] = useState(100);
+    const [internalDistanceUnits, setInternalDistanceUnits] = useState(10);
+    const [internalTargetName, setInternalTargetName] = useState('Sol');
+
+    const activeWaypoint = waypointProp !== undefined ? waypointProp : internalWaypoint;
+    const activeContacts = contactsProp ?? internalContacts;
+    const activeRadarRange = radarRangeProp ?? internalRadarRange;
+    const handleRangeChange = onRangeChangeProp ?? setInternalRadarRange;
+    const activeDistanceUnits = cameraDistanceUnitsProp ?? internalDistanceUnits;
+    const activeTargetName = targetNameProp ?? internalTargetName;
+
+    useEffect(() => {
+        // Skip fallback RAF loop if contacts are supplied externally (e.g. from NavigationDeck)
+        if (!camera || isControlled) return;
+
+        let frameId: number;
+        let lastUpdateTime = 0;
+
+        const updateLoop = (now: number) => {
+            frameId = requestAnimationFrame(updateLoop);
+
+            if (now - lastUpdateTime < 33) return;
+            lastUpdateTime = now;
+
+            const camPos = camera.position;
+
+            if (selectedStar) {
+                const d = camPos.distanceTo(selectedStar.position);
+                setInternalDistanceUnits(d);
+                const sName = selectedStar.physicsId ? `Star ${selectedStar.physicsId.substring(0, 6)}` : 'Host Star';
+                setInternalTargetName(sName);
+                const wp = calculateTargetWaypoint(
+                    camera,
+                    selectedStar.position,
+                    sName,
+                    'Host Star'
+                );
+                setInternalWaypoint(wp);
+            } else {
+                setInternalWaypoint(null);
+                setInternalTargetName('Sol');
+            }
+
+            if (stars.length > 0) {
+                const c = calculateRadarContacts(camera, stars, selectedStar, activeRadarRange);
+                setInternalContacts(c);
+            }
+        };
+
+        frameId = requestAnimationFrame(updateLoop);
+        return () => cancelAnimationFrame(frameId);
+    }, [camera, stars, selectedStar, activeRadarRange, isControlled]);
+
+    const handleSelectContact = (id: string) => {
+        const found = stars.find(s => s.physicsId === id);
+        if (found) {
+            onSelectStar(found);
+        }
+    };
+
+    return (
+        <div className={`pointer-events-none flex flex-col items-center md:items-end gap-3 ${className}`.trim()}>
+            {selectedStar && (
+                <TargetLockHUD 
+                    star={selectedStar}
+                    distanceUnits={activeDistanceUnits}
+                    bearingDeg={activeWaypoint?.bearingDeg || 0}
+                    onFocus={onAlignCamera}
+                    onWarpTo={onAlignCamera}
+                    onClearTarget={() => onSelectStar(null)}
+                />
+            )}
+
+            {showRadar && (
+                <TacticalRadar 
+                    contacts={activeContacts}
+                    selectedTargetName={activeTargetName}
+                    onSelectContact={handleSelectContact}
+                    rangeAU={activeRadarRange}
+                    onRangeChange={handleRangeChange}
+                />
+            )}
+        </div>
     );
 };

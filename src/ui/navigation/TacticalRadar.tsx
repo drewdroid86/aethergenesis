@@ -44,7 +44,7 @@ export const TacticalRadar: React.FC<TacticalRadarProps> = ({
 
     return (
         <div 
-            className="flex flex-col items-center bg-[rgba(8,8,20,0.75)] backdrop-blur-xl border border-[rgba(126,184,255,0.25)] rounded-2xl p-2.5 shadow-[0_0_25px_rgba(8,8,20,0.9)] select-none pointer-events-auto group/radar"
+            className="flex flex-col items-center bg-[rgba(8,8,20,0.75)] backdrop-blur-xl border border-[rgba(126,184,255,0.25)] rounded-2xl p-2.5 shadow-[0_0_25px_rgba(8,8,20,0.9)] select-none pointer-events-auto group/radar w-full max-w-[190px]"
             role="region"
             aria-label="Tactical Proximity Radar"
         >
