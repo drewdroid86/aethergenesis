@@ -20,32 +20,51 @@ export interface HabitabilityState {
   civilizationTier: number; // 0: None, 1: Planetary, 2: Stellar (Dyson), 3: Galactic
 }
 
-const CONSTANTS = {
-  // Physical constants
-  G: 6.67430e-11, // m^3 kg^-1 s^-2
-  k_B: 1.380649e-23, // J/K
-  m_H2O: 2.99e-26, // kg
-  M_sun: 1.989e30, // kg
-  L_sun: 3.828e26, // W
-  AU: 1.496e11, // m
-  sigma: 5.670374419e-8, // W m^-2 K^-4
-  // BOLT: Pre-calculated factors to reduce redundant operations in hot loops
+// All tunables in one place — easier to balance and to expose in the Physics panel
+export const HABITABILITY_CONFIG = {
+  hz: { innerFlux: 1.1, outerFlux: 0.53 },
+  water: { minK: 273, maxK: 373, falloffK: 50 },
+  climate: {
+    snowballEnterK: 233, snowballExitK: 245,     // hysteresis pair
+    greenhouseEnterK: 340, greenhouseExitK: 328,
+  },
+  atmosphere: { jeansFactor: 6 },                // v_esc > 6 * v_thermal keeps H2O for Gyr
+  life: { minScore: 0.5, sustainScore: 0.65, delayYr: 500e6, matureYr: 1e9 },
+  civ: { planetaryYr: 20e6, stellarYr: 100e6, galacticYr: 200e6 },
+  weights: { orbital: 1.0, thermal: 1.5, atmosphere: 1.0, stellar: 1.0, age: 0.5 },
+  greenhouseByType: {
+    lava: 150, ocean: 40, jungle: 35, gas_giant: 75, ice: 15, desert: 20, rocky: 25,
+  } as Record<string, number>,
+} as const;
+
+const C = {
   TWO_G: 2 * 6.67430e-11,
   THREE_KB_OVER_MH2O: (3 * 1.380649e-23) / 2.99e-26,
 };
 
+interface PlanetRecord {
+  timeInHz_yr: number;
+  highestScore: number;
+  civEmergenceTime: number;
+  prevClimate: HabitabilityState['climateState'];
+}
+
 export class AstrobiologyEngine {
-  private history: Map<string, { timeInHz_yr: number; highestScore: number; civEmergenceTime: number }> = new Map();
+  private history = new Map<string, PlanetRecord>();
+
+  /** Build the canonical key so clearHistory() prefix matching actually works. */
+  public static key(starId: string, planetId: string) {
+    return `${starId}:${planetId}`;
+  }
 
   public clearHistory(starPhysicsId?: string): void {
     if (!starPhysicsId) {
       this.history.clear();
       return;
     }
-    for (const key of this.history.keys()) {
-      if (key.startsWith(`${starPhysicsId}:`)) {
-        this.history.delete(key);
-      }
+    const prefix = `${starPhysicsId}:`;
+    for (const k of this.history.keys()) {
+      if (k.startsWith(prefix)) this.history.delete(k);
     }
   }
 
@@ -57,119 +76,119 @@ export class AstrobiologyEngine {
     planetAlbedo: number,
     stellarState: StellarState,
     delta_yr: number,
-    bodyType: string = 'rocky'
+    bodyType: string = 'rocky',
   ): HabitabilityState {
-    
-    const L_star = Math.max(0.0001, stellarState.luminosity_solar);
-    
-    // 1. Orbital Score (Kopparapu et al. simplified HZ)
-    const S_eff = L_star / (semiMajorAxis_au * semiMajorAxis_au);
-    
-    // Approximate boundaries for HZ
-    const S_inner = 1.1; // Runaway greenhouse limit
-    const S_outer = 0.53; // Maximum greenhouse limit
-    
-    const isInHabitableZone = S_eff < S_inner && S_eff > S_outer;
-    const orbitalScore = isInHabitableZone ? 1.0 : Math.max(0, 1.0 - Math.min(Math.abs(S_eff - 1.0), 1.0));
+    const cfg = HABITABILITY_CONFIG;
+    const L_star = Math.max(1e-4, stellarState.luminosity_solar);
+    const a = Math.max(1e-3, semiMajorAxis_au);
 
-    // 2. Thermal Score
-    // T_eq = 278.5 * (L_star / d^2)^0.25 * (1 - albedo)^0.25
-    // BOLT: Optimized term combining and using sqrt(sqrt(x)) for pow(x, 0.25)
-    const T_surface = 278.5 * Math.sqrt(Math.sqrt(S_eff * (1 - planetAlbedo)));
-    
-    // Add greenhouse effect dynamically based on planet biome type
-    let greenhouseAdd = 0;
-    if (planetMass_kg > 1e23) {
-      if (bodyType === 'lava') greenhouseAdd = 150;
-      else if (bodyType === 'ocean') greenhouseAdd = 40;
-      else if (bodyType === 'jungle') greenhouseAdd = 35;
-      else if (bodyType === 'gas_giant') greenhouseAdd = 75;
-      else if (bodyType === 'ice') greenhouseAdd = 15;
-      else if (bodyType === 'desert') greenhouseAdd = 20;
-      else greenhouseAdd = 25; // rocky or standard terrestrial
-    }
-    const T_actual = T_surface + greenhouseAdd;
-    
-    const thermalScore = (T_actual >= 273 && T_actual <= 373)
+    // 1. Orbital — smooth falloff outside HZ instead of a kink at S_eff = 1
+    const S_eff = L_star / (a * a);
+    const isInHabitableZone = S_eff < cfg.hz.innerFlux && S_eff > cfg.hz.outerFlux;
+    const orbitalScore = isInHabitableZone
       ? 1.0
-      : Math.max(0, 1.0 - Math.min(Math.abs(T_actual - 273), Math.abs(T_actual - 373)) / 50.0);
+      : S_eff >= cfg.hz.innerFlux
+      ? Math.exp(-(S_eff - cfg.hz.innerFlux) * 2.0)
+      : Math.exp(-(cfg.hz.outerFlux - S_eff) * 6.0);
 
-    // 3. Atmosphere Score
-    // BOLT: Using squared comparisons to avoid Math.sqrt in hot path
-    const v_esc_sq = (CONSTANTS.TWO_G * planetMass_kg) / planetRadius_m;
-    const v_thermal_sq = CONSTANTS.THREE_KB_OVER_MH2O * T_actual;
-    const atmosphereScore = v_esc_sq > 36 * v_thermal_sq ? 1.0 : Math.max(0, Math.sqrt(v_esc_sq / v_thermal_sq) / 6.0);
-    
-    // 4. Stellar Activity Score
+    // 2. Thermal
+    const T_eq = 278.5 * Math.sqrt(Math.sqrt(S_eff * (1 - planetAlbedo)));
+    const greenhouse = planetMass_kg > 1e23 ? (cfg.greenhouseByType[bodyType] ?? cfg.greenhouseByType.rocky) : 0;
+    const T_actual = T_eq + greenhouse;
+    const { minK, maxK, falloffK } = cfg.water;
+    const thermalScore = T_actual >= minK && T_actual <= maxK
+      ? 1.0
+      : Math.max(0, 1 - Math.min(Math.abs(T_actual - minK), Math.abs(T_actual - maxK)) / falloffK);
+
+    // 3. Atmosphere (Jeans escape, squared to avoid sqrt)
+    const v_esc_sq = (C.TWO_G * planetMass_kg) / planetRadius_m;
+    const v_th_sq = C.THREE_KB_OVER_MH2O * T_actual;
+    const jeans_sq = cfg.atmosphere.jeansFactor ** 2;
+    const retainsAtmosphere = v_esc_sq > jeans_sq * v_th_sq;
+    const atmosphereScore = retainsAtmosphere ? 1.0 : Math.sqrt(v_esc_sq / v_th_sq) / cfg.atmosphere.jeansFactor;
+
+    // 4. Stellar activity — broader than O/B only
     let stellarActivityScore = 1.0;
-    if (stellarState.phase === 'supernova' || stellarState.phase === 'remnant') {
+    const { phase, spectralClass, age_yr } = stellarState;
+    if (phase === 'supernova' || phase === 'remnant') {
       stellarActivityScore = 0.0;
-    } else if (stellarState.spectralClass === 'O' || stellarState.spectralClass === 'B') {
-      stellarActivityScore = 0.2; // Massive UV
+    } else if (phase === 'red_giant' || (phase as string) === 'agb') {
+      stellarActivityScore = 0.3; // HZ sweeps outward, stellar winds
+    } else if (spectralClass === 'O' || spectralClass === 'B') {
+      stellarActivityScore = 0.2;
+    } else if (spectralClass === 'A') {
+      stellarActivityScore = 0.6;
+    } else if (spectralClass === 'M') {
+      stellarActivityScore = age_yr < 1e9 ? 0.4 : 0.8; // young M-dwarfs flare hard
     }
-    
-    // 5. Age Score
-    const ageScore = stellarState.age_yr > 1e9 ? 1.0 : stellarState.age_yr / 1e9;
-    
-    const compositeScore = orbitalScore * thermalScore * atmosphereScore * stellarActivityScore * ageScore;
 
-    // History tracking
-    const record = this.history.get(planet_id) || { timeInHz_yr: 0, highestScore: 0, civEmergenceTime: 0 };
-    if (compositeScore > 0.65) {
-      record.timeInHz_yr += delta_yr;
+    // 5. Age — smooth ramp
+    const ageScore = 1 - Math.exp(-age_yr / 7e8);
+
+    // Weighted geometric mean — a single weak factor no longer zeroes everything
+    // If sterilized (supernova/remnant) or zero stellar activity, habitability drops to 0.0
+    const w = cfg.weights;
+    const wSum = w.orbital + w.thermal + w.atmosphere + w.stellar + w.age;
+    const eps = 1e-6;
+    const compositeScore = stellarActivityScore === 0.0 ? 0.0 : Math.exp((
+      w.orbital    * Math.log(orbitalScore + eps) +
+      w.thermal    * Math.log(thermalScore + eps) +
+      w.atmosphere * Math.log(atmosphereScore + eps) +
+      w.stellar    * Math.log(stellarActivityScore + eps) +
+      w.age        * Math.log(ageScore + eps)
+    ) / wSum);
+
+    // History
+    const rec = this.history.get(planet_id) ?? {
+      timeInHz_yr: 0,
+      highestScore: 0,
+      civEmergenceTime: 0,
+      prevClimate: 'habitable',
+    };
+    if (compositeScore > cfg.life.sustainScore) {
+      rec.timeInHz_yr += delta_yr;
     } else {
-      // Smooth decay: don't instantly wipe hundreds of millions of years of evolution in a single frame
-      record.timeInHz_yr = Math.max(0, record.timeInHz_yr - delta_yr * 2.0);
-      if (record.timeInHz_yr < 500e6) {
-        record.civEmergenceTime = 0;
-      }
+      rec.timeInHz_yr = Math.max(0, rec.timeInHz_yr - delta_yr * 2);
+      if (rec.timeInHz_yr < cfg.life.delayYr) rec.civEmergenceTime = 0;
     }
-    if (compositeScore > record.highestScore) record.highestScore = compositeScore;
-    this.history.set(planet_id, record);
+    rec.highestScore = Math.max(rec.highestScore, compositeScore);
 
-    // Event Thresholds
-    let climateState: 'snowball' | 'moist_greenhouse' | 'habitable' | 'barren' = 'habitable';
+    // Climate state with hysteresis
+    let climateState = rec.prevClimate;
     let extinctionRiskLevel = 'none';
-    
-    if (stellarState.phase === 'supernova') {
+    const cl = cfg.climate;
+    if (phase === 'supernova' || phase === 'remnant') {
+      climateState = 'barren';
       extinctionRiskLevel = 'sterilized';
+    } else if (!retainsAtmosphere) {
       climateState = 'barren';
-    } else if (v_esc_sq < 36 * v_thermal_sq) {
       extinctionRiskLevel = 'atmosphere_loss';
-      climateState = 'barren';
-    } else if (T_actual < 233) {
-      extinctionRiskLevel = 'snowball';
+    } else if (T_actual < (climateState === 'snowball' ? cl.snowballExitK : cl.snowballEnterK)) {
       climateState = 'snowball';
-    } else if (T_actual > 340) {
-      extinctionRiskLevel = 'greenhouse';
+      extinctionRiskLevel = 'snowball';
+    } else if (T_actual > (climateState === 'moist_greenhouse' ? cl.greenhouseExitK : cl.greenhouseEnterK)) {
       climateState = 'moist_greenhouse';
-    }
-    
-    // Life Emergence
-    let biomass = 0;
-    if (record.timeInHz_yr > 500e6 && compositeScore > 0.5) {
-      biomass = Math.min(1.0, (record.timeInHz_yr - 500e6) / 1e9); 
-    }
-    
-    // Civilization Emergence
-    let civilizationTier = 0;
-    if (biomass >= 1.0) {
-      if (record.civEmergenceTime === 0) {
-         record.civEmergenceTime = record.timeInHz_yr;
-      }
-      
-      const timeSinceEmergence = record.timeInHz_yr - record.civEmergenceTime;
-      
-      if (timeSinceEmergence > 200e6) {
-          civilizationTier = 3; // Galactic
-      } else if (timeSinceEmergence > 100e6) {
-          civilizationTier = 2; // Stellar (Dyson Swarm)
-      } else if (timeSinceEmergence > 20e6) {
-          civilizationTier = 1; // Planetary (City Lights)
-      }
+      extinctionRiskLevel = 'greenhouse';
     } else {
-       record.civEmergenceTime = 0;
+      climateState = 'habitable';
     }
+    rec.prevClimate = climateState;
+
+    // Life & civilization
+    let biomass = 0;
+    if (rec.timeInHz_yr > cfg.life.delayYr && compositeScore > cfg.life.minScore) {
+      biomass = Math.min(1, (rec.timeInHz_yr - cfg.life.delayYr) / cfg.life.matureYr);
+    }
+    let civilizationTier = 0;
+    if (biomass >= 1) {
+      if (rec.civEmergenceTime === 0) rec.civEmergenceTime = rec.timeInHz_yr;
+      const t = rec.timeInHz_yr - rec.civEmergenceTime;
+      civilizationTier = t > cfg.civ.galacticYr ? 3 : t > cfg.civ.stellarYr ? 2 : t > cfg.civ.planetaryYr ? 1 : 0;
+    } else {
+      rec.civEmergenceTime = 0;
+    }
+
+    this.history.set(planet_id, rec);
 
     return {
       planet_id,
@@ -180,13 +199,13 @@ export class AstrobiologyEngine {
       stellarActivityScore,
       ageScore,
       isInHabitableZone,
-      hasLiquidWater: T_actual >= 273 && T_actual <= 373,
+      hasLiquidWater: T_actual >= minK && T_actual <= maxK,
       surfaceTemperature_K: T_actual,
       extinctionRiskLevel,
       climateState,
-      triggered_at_yr: extinctionRiskLevel !== 'none' ? stellarState.age_yr : null,
+      triggered_at_yr: extinctionRiskLevel !== 'none' ? age_yr : null,
       biomass,
-      civilizationTier
+      civilizationTier,
     };
   }
 }

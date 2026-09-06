@@ -178,8 +178,9 @@ export class SimulationCoordinator {
                     mass *= 0.6; radius *= 0.75; albedo = 0.15;
                 }
 
+                const planetKey = AstrobiologyEngine.key(star.physicsId, `body_${i}`);
                 const habState: AstrobiologyStateData = this.astrobiologyEngine.evaluatePlanet(
-                    `${star.physicsId}:body_${i}`, a, mass, radius, albedo, perStarState, deltaTime_yr, bodyType
+                    planetKey, a, mass, radius, albedo, perStarState, deltaTime_yr, bodyType
                 );
 
                 habState.sim_time_yr = sim_time_yr;

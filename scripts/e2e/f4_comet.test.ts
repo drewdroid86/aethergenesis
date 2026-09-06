@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert';
-import { AstrobiologyEngine, HabitabilityState } from '../../src/simulation/AstrobiologyEngine';
+import { AstrobiologyEngine, HabitabilityState, HABITABILITY_CONFIG } from '../../src/simulation/AstrobiologyEngine';
 import { createStellarState } from '../../src/simulation/StellarPhysics';
 
 // Proximity detection function used by the engine
@@ -357,3 +357,57 @@ test('F4-T4-49: Complete Cosmic Lifecycle Integration Workload', () => {
   assert.strictEqual(planetState.extinctionRiskLevel, 'sterilized', 'Planet must be sterilized after supernova event');
   assert.strictEqual(planetState.compositeScore, 0.0, 'Habitability score must drop to 0.0');
 });
+
+test('F4-T4-51: AstrobiologyEngine Climate Hysteresis & HABITABILITY_CONFIG Tunables', () => {
+  const engine = new AstrobiologyEngine();
+  const sun = createStellarState('hero_star', 1.0, 0.02, 4.6e9);
+  const planetId = 'test_hysteresis_planet';
+
+  // Verify HABITABILITY_CONFIG structure and values
+  assert.strictEqual(HABITABILITY_CONFIG.hz.innerFlux, 1.1);
+  assert.strictEqual(HABITABILITY_CONFIG.hz.outerFlux, 0.53);
+  assert.strictEqual(HABITABILITY_CONFIG.water.minK, 273);
+  assert.strictEqual(HABITABILITY_CONFIG.water.maxK, 373);
+  assert.strictEqual(HABITABILITY_CONFIG.water.falloffK, 50);
+  assert.strictEqual(HABITABILITY_CONFIG.climate.snowballEnterK, 233);
+  assert.strictEqual(HABITABILITY_CONFIG.climate.snowballExitK, 245);
+  assert.strictEqual(HABITABILITY_CONFIG.climate.greenhouseEnterK, 340);
+  assert.strictEqual(HABITABILITY_CONFIG.climate.greenhouseExitK, 328);
+  assert.strictEqual(HABITABILITY_CONFIG.atmosphere.jeansFactor, 6);
+
+  // 1. Initial habitable state at 1.0 AU
+  let state = engine.evaluatePlanet(planetId, 1.0, 5.97e24, 6.37e6, 0.3, sun, 1e6, 'rocky');
+  assert.strictEqual(state.climateState, 'habitable');
+  assert.strictEqual(state.extinctionRiskLevel, 'none');
+
+  // 2. Snowball entry: temperature drops below snowballEnterK (233 K) at 2.0 AU
+  state = engine.evaluatePlanet(planetId, 2.0, 5.97e24, 6.37e6, 0.3, sun, 1e6, 'rocky');
+  assert.strictEqual(state.climateState, 'snowball');
+  assert.strictEqual(state.extinctionRiskLevel, 'snowball');
+
+  // 3. Snowball hysteresis: warm to 1.43 AU (T ≈ 238 K, within [233, 245) K)
+  state = engine.evaluatePlanet(planetId, 1.43, 5.97e24, 6.37e6, 0.3, sun, 1e6, 'rocky');
+  assert.ok(state.surfaceTemperature_K >= 233 && state.surfaceTemperature_K < 245);
+  assert.strictEqual(state.climateState, 'snowball', 'Planet must remain in snowball state due to hysteresis');
+
+  // 4. Snowball thaw: warm above snowballExitK (245 K) at 1.2 AU
+  state = engine.evaluatePlanet(planetId, 1.2, 5.97e24, 6.37e6, 0.3, sun, 1e6, 'rocky');
+  assert.ok(state.surfaceTemperature_K >= 245);
+  assert.strictEqual(state.climateState, 'habitable', 'Planet must thaw once exceeding snowballExitK');
+
+  // 5. Moist greenhouse entry: move to 0.5 AU (T > 340 K)
+  state = engine.evaluatePlanet(planetId, 0.5, 5.97e24, 6.37e6, 0.3, sun, 1e6, 'rocky');
+  assert.strictEqual(state.climateState, 'moist_greenhouse');
+  assert.strictEqual(state.extinctionRiskLevel, 'greenhouse');
+
+  // 6. Moist greenhouse hysteresis: cool to 0.68 AU (T ≈ 334 K, within (328, 340] K)
+  state = engine.evaluatePlanet(planetId, 0.68, 5.97e24, 6.37e6, 0.3, sun, 1e6, 'rocky');
+  assert.ok(state.surfaceTemperature_K > 328 && state.surfaceTemperature_K <= 340);
+  assert.strictEqual(state.climateState, 'moist_greenhouse', 'Planet must remain in moist greenhouse due to hysteresis');
+
+  // 7. Moist greenhouse recovery: cool below greenhouseExitK (328 K) at 0.8 AU
+  state = engine.evaluatePlanet(planetId, 0.8, 5.97e24, 6.37e6, 0.3, sun, 1e6, 'rocky');
+  assert.ok(state.surfaceTemperature_K <= 328);
+  assert.strictEqual(state.climateState, 'habitable', 'Planet must collapse out of runaway greenhouse when below greenhouseExitK');
+});
+
