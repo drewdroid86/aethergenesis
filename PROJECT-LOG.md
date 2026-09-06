@@ -23,6 +23,13 @@ This log is updated after every AI session. Each AI signs off with their entry. 
 
 ## RECENT LOGS
 
+### 2026-09-06 — Dynamic Solar Flare & Prominence Lifecycle (Gemini)
+- **Dynamic 6-Prominence System (`src/simulation/phases/MainSequencePhase.ts`):** Upgraded static 4-arch prominence mesh to 6 dynamic solar flare arches with individual randomized lifecycle state (`phase`, `speed`, `rot`, `scale`).
+- **Rise-and-Fall Oscillation & Stellar Drift:** Computed dynamic prominence height $s = f_{\text{scale}} \times (0.4 + 0.6 \times \text{life}) \times r_{\text{base}}$ driven by sinusoidal lifecycle $\text{life} = 0.5 \times (\sin(t \cdot f_{\text{speed}} + f_{\text{phase}}) + 1.0)$, preserving a 40% minimum arch foundation while expanding to 100% at peak eruption. Added continuous stellar rotation drift to prominence azimuthal orientations ($f_{\text{rot}}.z \mathrel{+}= 0.0004$).
+- **Zero-Allocation Animation Scratchpads:** Leveraged instance-level scratchpads (`_m4`, `_q`, `_s`, `_p`) to eliminate heap allocations within the per-frame prominence rendering loop (`updateProminences`).
+- **Verification:** `npm run typecheck`, `npm run build` (2.06s), `npm run lint` (0 errors, 0 warnings), `npm test` (48/48 E2E tests passing across all 4 suites), `npm run verify:physics`, and `scripts/verify-astrobiology.ts` passed cleanly.
+
+
 ### 2026-09-06 — Atmospheric Corona Gaussian Glow & Eddington Limb Darkening (Gemini)
 - **Atmospheric Corona Glow (`src/rendering/shaders/stellar.ts`, `src/simulation/phases/MainSequencePhase.ts`):** Implemented view-space `glowVS` and `glowFS` replacing power-law rim geometry clipping with a smooth exponential Gaussian falloff (`exp(-rim * uFalloff)`). Added `uTint` white-point chromatic blending (`mix(uColor, vec3(1.0), uTint * rim)`) reflecting the optically thin, high-temperature nature of stellar coronal plasma.
 - **Eddington-Approximation Limb Darkening (`src/shaders/starSurface.frag.glsl`, `src/shaders/subDisplacement.vert.glsl`, `src/shaders/displacement.vert.glsl`):** Replaced heavy per-pixel quadratic limb darkening with classical Eddington linear approximation $I(\mu)/I(1) \approx 0.4 + 0.6\mu$. Computed view-space `vViewDir` (`normalize(-mv.xyz)`) and `vNormal` (`normalize(normalMatrix * normal)`) in vertex shaders, eliminating fragment shader view vector reconstruction and improving mobile GPU throughput.

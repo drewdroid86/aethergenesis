@@ -29,6 +29,17 @@ export class MainSequencePhase implements PhaseComponent {
 
     private initialized = false;
 
+    private flareState = Array.from({ length: 6 }, () => ({
+        phase: Math.random() * Math.PI * 2,   // where in the rise/fall cycle
+        speed: 0.15 + Math.random() * 0.25,
+        rot: new THREE.Euler(Math.random() * Math.PI * 2, Math.random() * Math.PI * 2, Math.random() * Math.PI * 2),
+        scale: 0.6 + Math.random() * 0.5,
+    }));
+    private _m4 = new THREE.Matrix4();
+    private _q = new THREE.Quaternion();
+    private _s = new THREE.Vector3();
+    private _p = new THREE.Vector3();
+
     constructor(mass: number, baseRadius: number) {
         this.mass = mass;
         this.baseRadius = baseRadius;
@@ -136,19 +147,8 @@ export class MainSequencePhase implements PhaseComponent {
         this.flareMat.name = 'MainSequenceFlareMaterial';
         this.flareMat.customProgramCacheKey = () => 'main_sequence_flare_material';
         
-        this.flareMesh = new THREE.InstancedMesh(flareGeo, this.flareMat, 4);
-        for(let i=0; i<4; i++) {
-            const matrix = new THREE.Matrix4();
-            matrix.makeRotationFromEuler(new THREE.Euler(
-                Math.random() * Math.PI * 2,
-                Math.random() * Math.PI * 2,
-                Math.random() * Math.PI * 2
-            ));
-            const s = 0.5 + Math.random() * 0.5;
-            matrix.scale(new THREE.Vector3(s * this.baseRadius, s * this.baseRadius, s * this.baseRadius));
-            this.flareMesh.setMatrixAt(i, matrix);
-        }
-        this.flareMesh.instanceMatrix.needsUpdate = true;
+        this.flareMesh = new THREE.InstancedMesh(flareGeo, this.flareMat, this.flareState.length);
+        this.updateProminences(0);
         this.mainSeqGroup.add(this.flareMesh);
         
         this.parent.add(this.mainSeqGroup);
@@ -179,6 +179,7 @@ export class MainSequencePhase implements PhaseComponent {
         this.starMat.uniforms.uHbar.value = physics.hbar || 1.0;
         this.starMat.uniforms.uLowDetail.value = (lowDetail || false) ? 1.0 : 0.0;
         this.flareMat.uniforms.uTime.value = appTime;
+        this.updateProminences(appTime);
 
         // Drive dynamic blackbody star colors from Planckian locus (colorTempToRGB)
         if (currentTemp) {
@@ -199,6 +200,22 @@ export class MainSequencePhase implements PhaseComponent {
             // BOLT: Use distanceToSquared for performance (35 * 35 = 1225)
             if (this.hzMesh) this.hzMesh.visible = this.mainSeqGroup.visible && distSq < 1225;
         }
+    }
+
+    private updateProminences(appTime: number): void {
+        if (!this.flareMesh) return;
+        this._p.set(0, 0, 0);
+        for (let i = 0; i < this.flareState.length; i++) {
+            const f = this.flareState[i];
+            const life = (Math.sin(appTime * f.speed + f.phase) + 1.0) * 0.5; // 0..1 rise & fall
+            const s = f.scale * (0.4 + 0.6 * life) * this.baseRadius;
+            this._q.setFromEuler(f.rot);
+            this._s.set(s, s, s);
+            this._m4.compose(this._p, this._q, this._s);
+            this.flareMesh.setMatrixAt(i, this._m4);
+            f.rot.z += 0.0004; // slow drift with stellar rotation
+        }
+        this.flareMesh.instanceMatrix.needsUpdate = true;
     }
 
     setOpacity(opacity: number): void {
