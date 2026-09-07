@@ -23,6 +23,13 @@ This log is updated after every AI session. Each AI signs off with their entry. 
 
 ## RECENT LOGS
 
+### 2026-09-07 — Visual Overhaul: Volumetric Supernova Shell, Star Diffraction Spikes & Type II Planet Night Lights (Gemini)
+- **Volumetric Supernova Spherical Shell (`src/simulation/phases/SupernovaPhase.ts`):** Upgraded `snRing` from a flat torus `MeshBasicMaterial` to a 3D spherical shell (`GEOMETRIES.supernovaCore`) with a custom `ShaderMaterial`. Implemented view-space rim falloff combined with 3D procedural fBm noise, dynamic expansion progress `uExp`, cubic end-fade `(1.0 - pow(uExp, 3.0))`, and mobile-compliant GLSL precision qualifiers.
+- **Star Diffraction Spikes (`src/simulation/phases/MainSequencePhase.ts`):** Added a camera-aligned billboard optical diffraction spikes plane mesh and custom shader (`MainSequenceDiffractionMaterial`) to `MainSequencePhase` with dual exponential falloff cross-arms, Planckian locus blackbody dynamic color sync via `colorTempToRGB`, and lifecycle disposal.
+- **Kardashev Type II+ Planetary Night Lights (`src/rendering/systems/PlanetarySystem.ts`):** Upgraded `PLANET_FS` city lights to dynamically branch on `vCivilizationTier >= 2.0`, rendering radiant cyan/blue high-energy planetary distribution grids (`snoise(p * 20.0)`) and denser megacity clusters on night hemispheres while fully preserving scorch attenuation.
+- **Repo & Branch Cleanup:** Closed stale PR #243 from outdated August 15 base commit. Pruned merged remote branch `fix/phase-timeline-desync` and deleted merged local branches `fix/nebulasystem-point-size-pixel-ratio` and `fix/phase-timeline-desync`.
+- **Verification:** `npm run typecheck`, `npm run lint` (0 errors, 0 warnings), `npm run build` (2.55s), `npm test` (48/48 E2E scenarios passing across all 4 suites), `npm run verify:physics`, and `scripts/verify-astrobiology.ts` all passed cleanly.
+
 ### 2026-09-06 — Dynamic Solar Flare & Prominence Lifecycle (Gemini)
 - **Dynamic 6-Prominence System (`src/simulation/phases/MainSequencePhase.ts`):** Upgraded static 4-arch prominence mesh to 6 dynamic solar flare arches with individual randomized lifecycle state (`phase`, `speed`, `rot`, `scale`).
 - **Rise-and-Fall Oscillation & Stellar Drift:** Computed dynamic prominence height $s = f_{\text{scale}} \times (0.4 + 0.6 \times \text{life}) \times r_{\text{base}}$ driven by sinusoidal lifecycle $\text{life} = 0.5 \times (\sin(t \cdot f_{\text{speed}} + f_{\text{phase}}) + 1.0)$, preserving a 40% minimum arch foundation while expanding to 100% at peak eruption. Added continuous stellar rotation drift to prominence azimuthal orientations ($f_{\text{rot}}.z \mathrel{+}= 0.0004$).
