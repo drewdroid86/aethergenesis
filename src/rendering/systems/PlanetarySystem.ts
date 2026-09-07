@@ -165,7 +165,22 @@ void main() {
     if (vCivilizationTier >= 1.0 && type != 1.0 && type != 3.0) {
         float cityNoise = hash(floor(vUv * 80.0));
         float cityLights = step(0.85, cityNoise) * nightMask;
-        finalColor += vec3(1.0, 0.85, 0.4) * cityLights * vBiomass * 2.0;
+        
+        vec3 lightColor = vec3(1.0, 0.85, 0.4); // Type I: Warm yellow/orange
+        if (vCivilizationTier >= 2.0) {
+            lightColor = vec3(0.2, 0.8, 1.0); // Type II+: Advanced cyan energy
+            cityLights = step(0.65, cityNoise) * nightMask; // denser cities
+        }
+        
+        // Add glowing planetary network for Type II+
+        if (vCivilizationTier >= 2.0) {
+            float network = snoise(p * 20.0);
+            if (network > 0.6) {
+                finalColor += lightColor * (network - 0.6) * 5.0 * nightMask;
+            }
+        }
+        
+        finalColor += lightColor * cityLights * vBiomass * 2.0;
     }
 
     gl_FragColor = vec4(finalColor, uOpacity);

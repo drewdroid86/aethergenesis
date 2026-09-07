@@ -44,13 +44,82 @@ export class SupernovaPhase implements PhaseComponent {
         this.supernovaGroup.add(this.coreFlashMesh);
         this.parent.add(this.supernovaGroup);
 
-        const snRingMat = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0, blending: THREE.AdditiveBlending });
-        snRingMat.name = 'SupernovaPhaseRingMaterial';
+        const snShellMat = new THREE.ShaderMaterial({
+            uniforms: {
+                uExp: { value: 0 },
+                uColor: { value: new THREE.Color(0xffffff) },
+                uOpacity: { value: 0.0 }
+            },
+            vertexShader: `
+                varying vec3 vNormal;
+                varying vec3 vLocalPos;
+                varying vec3 vWorldPos;
+                void main() {
+                    vNormal = normalize(mat3(modelMatrix) * normal);
+                    vLocalPos = position;
+                    vWorldPos = (modelMatrix * vec4(position, 1.0)).xyz;
+                    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+                }
+            `,
+            fragmentShader: `
+                uniform float uExp;
+                uniform vec3 uColor;
+                uniform float uOpacity;
+                varying vec3 vNormal;
+                varying vec3 vLocalPos;
+                varying vec3 vWorldPos;
+
+                float hash(vec3 p) {
+                    p = fract(p * 0.3183099 + .1);
+                    p *= 17.0;
+                    return fract(p.x * p.y * p.z * (p.x + p.y + p.z));
+                }
+                float noise(vec3 x) {
+                    vec3 i = floor(x);
+                    vec3 f = fract(x);
+                    f = f*f*(3.0-2.0*f);
+                    return mix(mix(mix(hash(i+vec3(0,0,0)), hash(i+vec3(1,0,0)),f.x),
+                                   mix(hash(i+vec3(0,1,0)), hash(i+vec3(1,1,0)),f.x),f.y),
+                               mix(mix(hash(i+vec3(0,0,1)), hash(i+vec3(1,0,1)),f.x),
+                                   mix(hash(i+vec3(0,1,1)), hash(i+vec3(1,1,1)),f.x),f.y),f.z);
+                }
+                float fbm(vec3 p) {
+                    float f = 0.0;
+                    f += 0.5000 * noise(p); p *= 2.02;
+                    f += 0.2500 * noise(p); p *= 2.03;
+                    f += 0.1250 * noise(p); p *= 2.01;
+                    return f;
+                }
+
+                void main() {
+                    vec3 viewDir = normalize(cameraPosition - vWorldPos);
+                    float rim = max(0.0, 1.0 - dot(viewDir, normalize(vNormal)));
+                    
+                    float n = fbm(vLocalPos * 4.0 - vec3(0.0, uExp * 2.0, 0.0));
+                    
+                    // Creates a fiery, torn shell structure
+                    float shell = pow(rim, 2.0) + n * 0.5;
+                    shell *= smoothstep(0.1, 0.5, n);
+                    
+                    vec3 col = uColor * (1.0 + shell * 2.0);
+                    
+                    // Fade aggressively at the end of expansion
+                    float fade = 1.0 - pow(uExp, 3.0);
+                    
+                    gl_FragColor = vec4(col, clamp(shell * fade * uOpacity, 0.0, 1.0));
+                }
+            `,
+            transparent: true,
+            blending: THREE.AdditiveBlending,
+            depthWrite: false,
+            side: THREE.DoubleSide
+        });
+        snShellMat.name = 'SupernovaPhaseShellMaterial';
+        snShellMat.customProgramCacheKey = () => 'supernova_shell_material';
         this.snRing = new THREE.Mesh(
-            GEOMETRIES.supernovaRing,
-            snRingMat
+            GEOMETRIES.supernovaCore, // Use sphere for full volumetric shell
+            snShellMat
         );
-        this.snRing.rotation.x = Math.PI / 2;
         this.parent.add(this.snRing);
         
         const ejectaGeo = new THREE.BufferGeometry();
@@ -90,8 +159,10 @@ export class SupernovaPhase implements PhaseComponent {
 
             this.snRing.visible = true;
             this.snRing.scale.setScalar((1.0 + normT * STELLAR_CONSTANTS.VISUALS.SUPERNOVA_RING_SCALE_HIGH_MASS) * (physics.strongForce || 1.0));
-            (this.snRing.material as THREE.MeshBasicMaterial).opacity = (1.0 - Math.pow(normT, 2)) * fade;
-            (this.snRing.material as THREE.MeshBasicMaterial).color.setHex(normT < 0.2 ? 0xffffff : 0xff5500);
+            const shellMat = this.snRing.material as THREE.ShaderMaterial;
+            shellMat.uniforms.uOpacity.value = fade;
+            shellMat.uniforms.uExp.value = normT;
+            shellMat.uniforms.uColor.value.setHex(normT < 0.2 ? 0xffffff : 0xff5500);
             
             this.ejectaMesh.visible = true;
             this.ejectaMat.uniforms.uExp.value = normT * (physics.strongForce || 1.0);
@@ -101,8 +172,10 @@ export class SupernovaPhase implements PhaseComponent {
         } else {
             this.snRing.visible = true;
             this.snRing.scale.setScalar((1.0 + normT * STELLAR_CONSTANTS.VISUALS.SUPERNOVA_RING_SCALE_LOW_MASS) * (physics.strongForce || 1.0));
-            (this.snRing.material as THREE.MeshBasicMaterial).opacity = 0.5 * (1.0 - normT) * fade;
-            (this.snRing.material as THREE.MeshBasicMaterial).color.setHex(0x00ffaa);
+            const shellMat = this.snRing.material as THREE.ShaderMaterial;
+            shellMat.uniforms.uOpacity.value = 0.5 * fade;
+            shellMat.uniforms.uExp.value = normT;
+            shellMat.uniforms.uColor.value.setHex(0x00ffaa);
             
             this.ejectaMesh.visible = true;
             this.ejectaMat.uniforms.uExp.value = normT * STELLAR_CONSTANTS.VISUALS.SUPERNOVA_EJECTA_EXP_SPEED * (physics.strongForce || 1.0);

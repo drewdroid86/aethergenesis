@@ -23,6 +23,12 @@ This log is updated after every AI session. Each AI signs off with their entry. 
 
 ## RECENT LOGS
 
+### 2026-08-17 — Visual Overhaul: Supernova Shockwave, Diffraction Spikes, Civilized Planet Lights (Agent Mode)
+- **Supernova Expanding Shockwave (`src/simulation/phases/SupernovaPhase.ts`):** Replaced the bare torus `MeshBasicMaterial` ring with a `ShaderMaterial` on a full 3D sphere. Added fbm noise and procedural edge-burning effects to render an explosive, torn spherical shockwave.
+- **Star Diffraction Spikes (`src/simulation/phases/MainSequencePhase.ts`):** Added a new billboarded `PlaneGeometry` with a custom shader to render star diffraction spikes (telescope artifact) for main-sequence stars, properly aligned to the camera and dynamically colored using `colorTempToRGB`.
+- **Advanced Civilization Lights (`src/rendering/systems/PlanetarySystem.ts`):** Upgraded `PLANET_FS` so that Kardashev Type II+ civilizations show glowing cyan/blue energy grids and megacity networks on their night side instead of the standard yellow city lights.
+- **Verification:** `npm run typecheck` passed with 0 errors.
+
 ### 2026-08-15 — Comet Lifecycle Sync, Supernova Fade & Mobile Polish (Gemini 3.7 Flash)
 - **Stellar State Phase Sync (`src/core/engine.ts`):** Synced visual `star.phase` into `Engine.getStellarState().phase` to ensure `CometSystem` immediately hides during Red Giant, Supernova, and Remnant phases.
 - **Supernova Edge Fade & Frustum Bounding (`src/simulation/phases/SupernovaPhase.ts`, `src/rendering/systems/HeroStarSystem.ts`):** Threaded `globalFade` into supernova ring opacity calculations at timeline extremes. Added bounding sphere padding to frustum culling checks in `HeroStarSystem` with a module-level `_frustumSphere`.

@@ -27,6 +27,8 @@ export class MainSequencePhase implements PhaseComponent {
     public flareMesh!: THREE.InstancedMesh;
     public flareMat!: THREE.ShaderMaterial;
     public hzMesh!: THREE.Mesh;
+    public diffractionMesh!: THREE.Mesh;
+    public diffractionMat!: THREE.ShaderMaterial;
     public planetsInfo: PlanetInfo[] = [];
     
     private parent!: THREE.Group;
@@ -177,6 +179,49 @@ export class MainSequencePhase implements PhaseComponent {
         this.flareMesh.instanceMatrix.needsUpdate = true;
         this.mainSeqGroup.add(this.flareMesh);
         
+        // Diffraction Spikes
+        this.diffractionMat = new THREE.ShaderMaterial({
+            uniforms: {
+                uColor: { value: new THREE.Color(msColor) },
+                uOpacity: { value: 0.0 }
+            },
+            vertexShader: `
+                varying vec2 vUv;
+                void main() {
+                    vUv = uv;
+                    // Billboard by ignoring modelView rotation
+                    vec4 mvPos = modelViewMatrix * vec4(0.0, 0.0, 0.0, 1.0);
+                    mvPos.xy += position.xy;
+                    gl_Position = projectionMatrix * mvPos;
+                }
+            `,
+            fragmentShader: `
+                uniform vec3 uColor;
+                uniform float uOpacity;
+                varying vec2 vUv;
+                void main() {
+                    vec2 p = vUv * 2.0 - 1.0;
+                    // Rotate spike slightly
+                    float angle = 0.2;
+                    float s = sin(angle), c = cos(angle);
+                    mat2 rot = mat2(c, -s, s, c);
+                    p = rot * p;
+                    float d1 = exp(-abs(p.x) * 60.0) * exp(-abs(p.y) * 2.0);
+                    float d2 = exp(-abs(p.y) * 60.0) * exp(-abs(p.x) * 2.0);
+                    float d = clamp(d1 + d2, 0.0, 1.0);
+                    gl_FragColor = vec4(uColor, d * uOpacity);
+                }
+            `,
+            transparent: true,
+            blending: THREE.AdditiveBlending,
+            depthWrite: false,
+            side: THREE.DoubleSide
+        });
+        this.diffractionMat.name = 'MainSequenceDiffractionMaterial';
+        this.diffractionMat.customProgramCacheKey = () => 'main_sequence_diffraction_material';
+        this.diffractionMesh = new THREE.Mesh(new THREE.PlaneGeometry(this.baseRadius * 12.0, this.baseRadius * 12.0), this.diffractionMat);
+        this.mainSeqGroup.add(this.diffractionMesh);
+
         this.parent.add(this.mainSeqGroup);
 
         // Habitable Zone
@@ -215,6 +260,9 @@ export class MainSequencePhase implements PhaseComponent {
             if (this._coronaMat) {
                 colorTempToRGB(currentTemp, this._coronaMat.uniforms.uColor.value);
             }
+            if (this.diffractionMat) {
+                colorTempToRGB(currentTemp, this.diffractionMat.uniforms.uColor.value);
+            }
             if (this._haloMat instanceof THREE.MeshBasicMaterial) {
                 colorTempToRGB(currentTemp, this._haloMat.color);
             }
@@ -250,6 +298,9 @@ export class MainSequencePhase implements PhaseComponent {
         if (this._coronaMat) {
             this._coronaMat.uniforms.uOpacity.value = opacity;
         }
+        if (this.diffractionMat) {
+            this.diffractionMat.uniforms.uOpacity.value = opacity * 1.5;
+        }
         if (this._haloMat instanceof THREE.MeshBasicMaterial) {
             this._haloMat.opacity = opacity * 0.1;
         }
@@ -277,6 +328,10 @@ export class MainSequencePhase implements PhaseComponent {
         // BOLT: Star, corona, flares, and HZ use shared GEOMETRIES, do NOT dispose
         this.starMat.dispose();
         this.flareMat.dispose();
+        if (this.diffractionMat) {
+            this.diffractionMat.dispose();
+            this.diffractionMesh.geometry.dispose();
+        }
         if (this._coronaMat) {
             this._coronaMat.dispose();
         }
