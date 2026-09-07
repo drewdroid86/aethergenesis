@@ -19,6 +19,8 @@ export class MainSequencePhase implements PhaseComponent {
     public flareMesh!: THREE.InstancedMesh;
     public flareMat!: THREE.ShaderMaterial;
     public hzMesh!: THREE.Mesh;
+    public diffractionMesh!: THREE.Mesh;
+    public diffractionMat!: THREE.ShaderMaterial;
     
     private parent!: THREE.Group;
     private mass: number;
@@ -151,6 +153,55 @@ export class MainSequencePhase implements PhaseComponent {
         this.updateProminences(0);
         this.mainSeqGroup.add(this.flareMesh);
         
+        // Diffraction Spikes (telescope optical bloom artifact)
+        this.diffractionMat = new THREE.ShaderMaterial({
+            uniforms: {
+                uColor: { value: new THREE.Color(msColor) },
+                uOpacity: { value: 0.0 }
+            },
+            vertexShader: `
+                varying vec2 vUv;
+                void main() {
+                    vUv = uv;
+                    // Camera-aligned billboard
+                    vec4 mvPos = modelViewMatrix * vec4(0.0, 0.0, 0.0, 1.0);
+                    mvPos.xy += position.xy;
+                    gl_Position = projectionMatrix * mvPos;
+                }
+            `,
+            fragmentShader: `
+                #ifdef GL_FRAGMENT_PRECISION_HIGH
+                precision highp float;
+                #else
+                precision mediump float;
+                #endif
+
+                uniform vec3 uColor;
+                uniform float uOpacity;
+                varying vec2 vUv;
+                void main() {
+                    vec2 p = vUv * 2.0 - 1.0;
+                    float angle = 0.2;
+                    float s = sin(angle), c = cos(angle);
+                    mat2 rot = mat2(c, -s, s, c);
+                    p = rot * p;
+                    float d1 = exp(-abs(p.x) * 60.0) * exp(-abs(p.y) * 2.0);
+                    float d2 = exp(-abs(p.y) * 60.0) * exp(-abs(p.x) * 2.0);
+                    float d = clamp(d1 + d2, 0.0, 1.0);
+                    gl_FragColor = vec4(uColor, d * uOpacity);
+                }
+            `,
+            transparent: true,
+            blending: THREE.AdditiveBlending,
+            depthWrite: false,
+            side: THREE.DoubleSide
+        });
+        this.diffractionMat.name = 'MainSequenceDiffractionMaterial';
+        this.diffractionMat.customProgramCacheKey = () => 'main_sequence_diffraction_material';
+        this.diffractionMesh = new THREE.Mesh(new THREE.PlaneGeometry(this.baseRadius * 12.0, this.baseRadius * 12.0), this.diffractionMat);
+        this.diffractionMesh.renderOrder = 1;
+        this.mainSeqGroup.add(this.diffractionMesh);
+        
         this.parent.add(this.mainSeqGroup);
 
         // Habitable Zone
@@ -190,6 +241,9 @@ export class MainSequencePhase implements PhaseComponent {
             if (this._coronaMat) {
                 colorTempToRGB(currentTemp, this._coronaMat.uniforms.uColor.value);
             }
+            if (this.diffractionMat) {
+                colorTempToRGB(currentTemp, this.diffractionMat.uniforms.uColor.value);
+            }
             if (this._haloMat instanceof THREE.MeshBasicMaterial) {
                 colorTempToRGB(currentTemp, this._haloMat.color);
             }
@@ -224,6 +278,9 @@ export class MainSequencePhase implements PhaseComponent {
         if (this._coronaMat) {
             this._coronaMat.uniforms.uOpacity.value = opacity;
         }
+        if (this.diffractionMat) {
+            this.diffractionMat.uniforms.uOpacity.value = opacity * 0.8;
+        }
         if (this._haloMat instanceof THREE.MeshBasicMaterial) {
             this._haloMat.opacity = opacity * 0.1;
         }
@@ -245,6 +302,10 @@ export class MainSequencePhase implements PhaseComponent {
         // BOLT: Star, corona, flares, and HZ use shared GEOMETRIES, do NOT dispose
         this.starMat.dispose();
         this.flareMat.dispose();
+        if (this.diffractionMat) {
+            this.diffractionMat.dispose();
+            this.diffractionMesh.geometry.dispose();
+        }
         if (this._coronaMat) {
             this._coronaMat.dispose();
         }

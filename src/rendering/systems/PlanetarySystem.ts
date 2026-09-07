@@ -188,9 +188,23 @@ void main() {
     // City lights (Kardashev Type I+) — extinguished by scorch
     if (vCivilizationTier >= 1.0 && type != 1.0 && type != 3.0 && vScorch < 0.8) {
         float cityNoise = hash(floor(vUv * 80.0));
-        float cityLights = step(0.85, cityNoise) * nightMask;
         float cityFade = max(0.0, 1.0 - vScorch * 1.25);
-        finalColor += vec3(1.0, 0.85, 0.4) * cityLights * vBiomass * 2.0 * cityFade;
+        
+        vec3 lightColor = vec3(1.0, 0.85, 0.4); // Type I: Warm golden yellow/orange
+        float cityLights = step(0.85, cityNoise) * nightMask;
+        
+        if (vCivilizationTier >= 2.0) {
+            lightColor = vec3(0.2, 0.8, 1.0); // Type II+: High-energy cyan grid
+            cityLights = step(0.65, cityNoise) * nightMask; // denser urban clusters
+            
+            // Glowing planetary energy distribution network for Type II+
+            float network = snoise(p * 20.0);
+            if (network > 0.6) {
+                finalColor += lightColor * (network - 0.6) * 5.0 * nightMask * cityFade;
+            }
+        }
+        
+        finalColor += lightColor * cityLights * vBiomass * 2.0 * cityFade;
     }
 
     gl_FragColor = vec4(finalColor, uOpacity);
