@@ -52,12 +52,24 @@ export class SimulationCoordinator {
     onAstrobiologyUpdate: ((data: AstrobiologyStateData[]) => void) | null = null;
     onTick: ((cosmicAge: number, delta: number) => void) | null = null;
 
-    wsClient: WebSocket | null = null;
+    // H3 fix: the socket is resolved through this getter on every send.
+    // useWebSocket replaces wsRef.current on reconnect — capturing the socket
+    // by value in the constructor silently killed the 5 Hz state feed after
+    // the first reconnect. Pass () => wsRef.current (or a socket) instead.
+    private getWsClient: () => WebSocket | null = () => null;
 
-    constructor(engine: Engine, wsClient: WebSocket | null = null) {
+    /** Live view of the current socket (resolves the getter each access). */
+    get wsClient(): WebSocket | null {
+        return this.getWsClient();
+    }
+    set wsClient(socket: WebSocket | null) {
+        this.getWsClient = () => socket;
+    }
+
+    constructor(engine: Engine, wsClient: WebSocket | null | (() => WebSocket | null) = null) {
         this.engine = engine;
         this.astrobiologyEngine = new AstrobiologyEngine();
-        this.wsClient = wsClient;
+        this.getWsClient = typeof wsClient === 'function' ? wsClient : () => wsClient;
 
         // Register to the engine's tick loop
         this.engine.onTick = (delta, appTime) => {
@@ -98,9 +110,13 @@ export class SimulationCoordinator {
             initialMass_solar: star.mass,
             metallicity_Z: 0.02,
             age_yr: star.currentRealAge * 1e6,
-            mass_solar: star.mass,
+            // M3: phase-aware mass/radius from the authoritative StellarPhysics
+            // state carried by the star — not the main-sequence formulas.
+            // (e.g. a red giant reports ~100× r_ms; a remnant reports its
+            // post-mass-loss core mass and WD/NS/BH radius.)
+            mass_solar: star.currentMass ?? star.mass,
             luminosity_solar: star.currentLum,
-            radius_solar: Math.pow(star.mass, 0.8),
+            radius_solar: star.currentRadius ?? Math.pow(star.mass, 0.8),
             temperature_K: star.currentTemp,
             phase: (phaseStrMap[star.phase] || 'main_sequence'),
             spectralClass: computeSpectralClass(star.currentTemp),
@@ -207,8 +223,9 @@ export class SimulationCoordinator {
             star.planetarySystem.updateAstrobiology(astrobiologyStates);
         }
 
-        // Send to websocket if open
-        if (this.wsClient && this.wsClient.readyState === WebSocket.OPEN) {
+        // Send to websocket if open (socket resolved fresh each send — see H3)
+        const ws = this.getWsClient();
+        if (ws && ws.readyState === WebSocket.OPEN) {
             const outPayload = {
                 timestamp_ms: Date.now(),
                 stellar: perStarState,
@@ -216,7 +233,7 @@ export class SimulationCoordinator {
                 astrobiology: astrobiologyStates
             };
             try {
-                this.wsClient.send(JSON.stringify({ type: 'state', data: outPayload }));
+                ws.send(JSON.stringify({ type: 'state', data: outPayload }));
             } catch {
                 // Suppress socket send failure
             }
@@ -230,7 +247,7 @@ export class SimulationCoordinator {
     public dispose(): void {
         this.onAstrobiologyUpdate = null;
         this.onTick = null;
-        this.wsClient = null;
+        this.wsClient = null; // setter swaps the getter to () => null
         this.astrobiologyEngine.clearHistory();
     }
 }

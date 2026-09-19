@@ -42,6 +42,10 @@ export class HeroStarSystem extends THREE.Group {
     currentTemp: number = 3000;
     currentLum: number = 1;
     currentRealAge: number = 0;
+    /** Authoritative current mass (M☉) from StellarPhysics — accounts for wind/mass loss. M3. */
+    currentMass: number = 1;
+    /** Authoritative current radius (R☉) from StellarPhysics — phase-aware. M3/PH4. */
+    currentRadius: number = 1;
     phase: number = 0;
     isSupernovaFlashing: boolean = false;
     private _wasSupernovaFlashing: boolean = false;
@@ -119,7 +123,7 @@ export class HeroStarSystem extends THREE.Group {
         // BOLT: Baryon ratio affects base heat distribution
         const baryonFactor = (DEFAULT_CONSTANTS.baryon || 0.05) / 0.05; 
         this.tHeat = 5778 * Math.pow(this.mass, 0.5) * baryonFactor;
-        this.baseRadius = Math.pow(this.mass, 0.8) * 0.8;
+        this.baseRadius = Math.pow(this.mass, 0.8) * STELLAR_CONSTANTS.VISUALS.WORLD_UNITS_PER_R_SUN;
         this._msLuminosity = computeLuminosity(this.mass);
 
         const effG = Math.max(0.01, physics.G);
@@ -135,6 +139,8 @@ export class HeroStarSystem extends THREE.Group {
         this.phase = STELLAR_PHASE_TO_NUM[initState.phase];
         this.currentTemp = initState.temperature_K;
         this.currentLum = initState.luminosity_solar;
+        this.currentMass = initState.mass_solar;
+        this.currentRadius = initState.radius_solar;
 
         // Hit mesh for raycaster
         const hitMat = new THREE.MeshBasicMaterial({visible: false});
@@ -195,6 +201,8 @@ export class HeroStarSystem extends THREE.Group {
             this.phase = initialPhase;
             this.currentTemp = initState.temperature_K;
             this.currentLum = initState.luminosity_solar;
+        this.currentMass = initState.mass_solar;
+        this.currentRadius = initState.radius_solar;
             this.transitionToPhase(initialPhase, renderer);
         }
     }
@@ -278,7 +286,7 @@ export class HeroStarSystem extends THREE.Group {
         this.lifespanReal = 10000 * Math.pow(this.mass, -2.5);
         const baryonFactor = (DEFAULT_CONSTANTS.baryon || 0.05) / 0.05;
         this.tHeat = 5778 * Math.pow(this.mass, 0.5) * baryonFactor;
-        this.baseRadius = Math.pow(this.mass, 0.8) * 0.8;
+        this.baseRadius = Math.pow(this.mass, 0.8) * STELLAR_CONSTANTS.VISUALS.WORLD_UNITS_PER_R_SUN;
         this._msLuminosity = computeLuminosity(this.mass);
 
         this.t = 0.0;
@@ -339,7 +347,7 @@ export class HeroStarSystem extends THREE.Group {
         this.lifespanReal = 10000 * Math.pow(this.mass, -2.5);
         const baryonFactor = (DEFAULT_CONSTANTS.baryon || 0.05) / 0.05;
         this.tHeat = 5778 * Math.pow(this.mass, 0.5) * baryonFactor;
-        this.baseRadius = Math.pow(this.mass, 0.8) * 0.8;
+        this.baseRadius = Math.pow(this.mass, 0.8) * STELLAR_CONSTANTS.VISUALS.WORLD_UNITS_PER_R_SUN;
         this._msLuminosity = computeLuminosity(this.mass);
 
         this.t = -0.1;
@@ -415,7 +423,7 @@ export class HeroStarSystem extends THREE.Group {
         this.currentTemp = this.tHeat;
 
         this.lifespanReal = 10000 * Math.pow(this.mass, -2.5);
-        this.baseRadius = Math.pow(this.mass, 0.8) * 0.8;
+        this.baseRadius = Math.pow(this.mass, 0.8) * STELLAR_CONSTANTS.VISUALS.WORLD_UNITS_PER_R_SUN;
         this._msLuminosity = preset.luminosity_solar ?? computeLuminosity(this.mass);
         this.currentLum = this._msLuminosity;
 
@@ -490,6 +498,8 @@ export class HeroStarSystem extends THREE.Group {
         this.phase = initialPhase;
         this.currentTemp = initState.temperature_K;
         this.currentLum = initState.luminosity_solar;
+        this.currentMass = initState.mass_solar;
+        this.currentRadius = initState.radius_solar;
         this.transitionToPhase(initialPhase, renderer);
     }
 
@@ -557,6 +567,8 @@ export class HeroStarSystem extends THREE.Group {
 
         this.currentTemp = stellarState.temperature_K;
         this.currentLum = stellarState.luminosity_solar;
+        this.currentMass = stellarState.mass_solar;
+        this.currentRadius = stellarState.radius_solar;
 
         // BOLT: Determine current phase and handle transitions
         if (this._activePhase !== newPhase) {
@@ -614,10 +626,10 @@ export class HeroStarSystem extends THREE.Group {
             this.planetarySystem?.update(delta, appTime, nbodyBuffer, lowDetail, globalFade);
         } else if (this.phase === PHASES.RED_GIANT) {
             targetRed = 1;
-            this.redGiantPhase.update(delta, appTime, cameraPos, physics, this.t, lowDetail, this.currentTemp);
+            this.redGiantPhase.update(delta, appTime, cameraPos, physics, this.t, lowDetail, this.currentTemp, stellarState.radius_solar);
             // Thread the live giant radius into update for per-planet scorch computation.
             if (this.planetarySystem) {
-                const redGiantScale = this.redGiantPhase.getCurrentScale(this.t, appTime);
+                const redGiantScale = this.redGiantPhase.getCurrentScale(this.t, appTime, stellarState.radius_solar);
                 this.planetarySystem.update(delta, appTime, nbodyBuffer, lowDetail, globalFade, redGiantScale);
             }
         } else if (this.phase === PHASES.SUPERNOVA) {

@@ -1,0 +1,323 @@
+From f6c2a383eb29abcd0362fb7230b1735d17f42264 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Muse=20=28=C3=86THERGENESIS=20review=29?= <review@localhost>
+Date: Sat, 19 Sep 2026 05:13:38 -0400
+Subject: [PATCH] Week 2 fixes: 5 simulation-correctness bugs (PH1, PH4, M1-M3)
+
+PH1: n-body no longer discards ~57% of cosmic-mode time. MAX_SUBSTEPS 64->160
+covers a full 0.3 yr tick (150 substeps at 0.002 yr); accumulator-cap drops are
+now logged, not silent.
+PH4: red-giant visuals use authoritative StellarPhysics radius (up to 100x)
+instead of the rederived 6x-linear approximation; removed dead getCurrentLum
+(6x vs physics 100x luminosity curve); shared WORLD_UNITS_PER_R_SUN constant.
+M1: white-dwarf remnant mass clamped to progenitor mass (0.3 Msun progenitor
+no longer yields a 0.5 Msun remnant).
+M2: remnant visual boundaries aligned with physics: BH branch >= 15 (was >),
+pulsar branch > 8 (was >=) so exact 15.0/8.0 Msun match computeRemnantType.
+M3: WS sim-state payload reports phase-aware currentMass/currentRadius from
+the star's authoritative StellarPhysics state instead of MS formulas.
+---
+ src/core/constants.ts                   |  4 ++++
+ src/rendering/systems/HeroStarSystem.ts | 24 +++++++++++++++-----
+ src/simulation/SimulationCoordinator.ts |  8 +++++--
+ src/simulation/StellarPhysics.ts        |  9 +++++---
+ src/simulation/nbodyWorker.ts           | 27 ++++++++++++++++++++---
+ src/simulation/phases/RedGiantPhase.ts  | 29 +++++++++++++++++--------
+ src/simulation/phases/RemnantPhase.ts   |  8 +++++--
+ 7 files changed, 84 insertions(+), 25 deletions(-)
+
+diff --git a/src/core/constants.ts b/src/core/constants.ts
+index 3561b30..260a978 100644
+--- a/src/core/constants.ts
++++ b/src/core/constants.ts
+@@ -71,6 +71,10 @@ export const STELLAR_CONSTANTS = {
+     },
+     VISUALS: {
+         HALO_SCALE_FACTOR: 1.4,
++        // PH4: world units per solar radius. HeroStarSystem.baseRadius has always
++        // been mass^0.8 * 0.8, i.e. the main-sequence mesh scale for 1 R☉ — the
++        // red-giant visuals now reuse it to map authoritative physics radii.
++        WORLD_UNITS_PER_R_SUN: 0.8,
+         HZ_RADIUS_BASE: 4,
+         HZ_LUM_FACTOR: 2.5,
+         PLANET_HZ_DIST_FACTOR: 1.2,
+diff --git a/src/rendering/systems/HeroStarSystem.ts b/src/rendering/systems/HeroStarSystem.ts
+index a3ba38d..03a9c58 100644
+--- a/src/rendering/systems/HeroStarSystem.ts
++++ b/src/rendering/systems/HeroStarSystem.ts
+@@ -42,6 +42,10 @@ export class HeroStarSystem extends THREE.Group {
+     currentTemp: number = 3000;
+     currentLum: number = 1;
+     currentRealAge: number = 0;
++    /** Authoritative current mass (M☉) from StellarPhysics — accounts for wind/mass loss. M3. */
++    currentMass: number = 1;
++    /** Authoritative current radius (R☉) from StellarPhysics — phase-aware. M3/PH4. */
++    currentRadius: number = 1;
+     phase: number = 0;
+     isSupernovaFlashing: boolean = false;
+     private _wasSupernovaFlashing: boolean = false;
+@@ -119,7 +123,7 @@ export class HeroStarSystem extends THREE.Group {
+         // BOLT: Baryon ratio affects base heat distribution
+         const baryonFactor = (DEFAULT_CONSTANTS.baryon || 0.05) / 0.05; 
+         this.tHeat = 5778 * Math.pow(this.mass, 0.5) * baryonFactor;
+-        this.baseRadius = Math.pow(this.mass, 0.8) * 0.8;
++        this.baseRadius = Math.pow(this.mass, 0.8) * STELLAR_CONSTANTS.VISUALS.WORLD_UNITS_PER_R_SUN;
+         this._msLuminosity = computeLuminosity(this.mass);
+ 
+         const effG = Math.max(0.01, physics.G);
+@@ -135,6 +139,8 @@ export class HeroStarSystem extends THREE.Group {
+         this.phase = STELLAR_PHASE_TO_NUM[initState.phase];
+         this.currentTemp = initState.temperature_K;
+         this.currentLum = initState.luminosity_solar;
++        this.currentMass = initState.mass_solar;
++        this.currentRadius = initState.radius_solar;
+ 
+         // Hit mesh for raycaster
+         const hitMat = new THREE.MeshBasicMaterial({visible: false});
+@@ -195,6 +201,8 @@ export class HeroStarSystem extends THREE.Group {
+             this.phase = initialPhase;
+             this.currentTemp = initState.temperature_K;
+             this.currentLum = initState.luminosity_solar;
++        this.currentMass = initState.mass_solar;
++        this.currentRadius = initState.radius_solar;
+             this.transitionToPhase(initialPhase, renderer);
+         }
+     }
+@@ -278,7 +286,7 @@ export class HeroStarSystem extends THREE.Group {
+         this.lifespanReal = 10000 * Math.pow(this.mass, -2.5);
+         const baryonFactor = (DEFAULT_CONSTANTS.baryon || 0.05) / 0.05;
+         this.tHeat = 5778 * Math.pow(this.mass, 0.5) * baryonFactor;
+-        this.baseRadius = Math.pow(this.mass, 0.8) * 0.8;
++        this.baseRadius = Math.pow(this.mass, 0.8) * STELLAR_CONSTANTS.VISUALS.WORLD_UNITS_PER_R_SUN;
+         this._msLuminosity = computeLuminosity(this.mass);
+ 
+         this.t = 0.0;
+@@ -339,7 +347,7 @@ export class HeroStarSystem extends THREE.Group {
+         this.lifespanReal = 10000 * Math.pow(this.mass, -2.5);
+         const baryonFactor = (DEFAULT_CONSTANTS.baryon || 0.05) / 0.05;
+         this.tHeat = 5778 * Math.pow(this.mass, 0.5) * baryonFactor;
+-        this.baseRadius = Math.pow(this.mass, 0.8) * 0.8;
++        this.baseRadius = Math.pow(this.mass, 0.8) * STELLAR_CONSTANTS.VISUALS.WORLD_UNITS_PER_R_SUN;
+         this._msLuminosity = computeLuminosity(this.mass);
+ 
+         this.t = -0.1;
+@@ -415,7 +423,7 @@ export class HeroStarSystem extends THREE.Group {
+         this.currentTemp = this.tHeat;
+ 
+         this.lifespanReal = 10000 * Math.pow(this.mass, -2.5);
+-        this.baseRadius = Math.pow(this.mass, 0.8) * 0.8;
++        this.baseRadius = Math.pow(this.mass, 0.8) * STELLAR_CONSTANTS.VISUALS.WORLD_UNITS_PER_R_SUN;
+         this._msLuminosity = preset.luminosity_solar ?? computeLuminosity(this.mass);
+         this.currentLum = this._msLuminosity;
+ 
+@@ -490,6 +498,8 @@ export class HeroStarSystem extends THREE.Group {
+         this.phase = initialPhase;
+         this.currentTemp = initState.temperature_K;
+         this.currentLum = initState.luminosity_solar;
++        this.currentMass = initState.mass_solar;
++        this.currentRadius = initState.radius_solar;
+         this.transitionToPhase(initialPhase, renderer);
+     }
+ 
+@@ -557,6 +567,8 @@ export class HeroStarSystem extends THREE.Group {
+ 
+         this.currentTemp = stellarState.temperature_K;
+         this.currentLum = stellarState.luminosity_solar;
++        this.currentMass = stellarState.mass_solar;
++        this.currentRadius = stellarState.radius_solar;
+ 
+         // BOLT: Determine current phase and handle transitions
+         if (this._activePhase !== newPhase) {
+@@ -614,10 +626,10 @@ export class HeroStarSystem extends THREE.Group {
+             this.planetarySystem?.update(delta, appTime, nbodyBuffer, lowDetail, globalFade);
+         } else if (this.phase === PHASES.RED_GIANT) {
+             targetRed = 1;
+-            this.redGiantPhase.update(delta, appTime, cameraPos, physics, this.t, lowDetail, this.currentTemp);
++            this.redGiantPhase.update(delta, appTime, cameraPos, physics, this.t, lowDetail, this.currentTemp, stellarState.radius_solar);
+             // Thread the live giant radius into update for per-planet scorch computation.
+             if (this.planetarySystem) {
+-                const redGiantScale = this.redGiantPhase.getCurrentScale(this.t, appTime);
++                const redGiantScale = this.redGiantPhase.getCurrentScale(this.t, appTime, stellarState.radius_solar);
+                 this.planetarySystem.update(delta, appTime, nbodyBuffer, lowDetail, globalFade, redGiantScale);
+             }
+         } else if (this.phase === PHASES.SUPERNOVA) {
+diff --git a/src/simulation/SimulationCoordinator.ts b/src/simulation/SimulationCoordinator.ts
+index 4ce4510..76bffd4 100644
+--- a/src/simulation/SimulationCoordinator.ts
++++ b/src/simulation/SimulationCoordinator.ts
+@@ -110,9 +110,13 @@ export class SimulationCoordinator {
+             initialMass_solar: star.mass,
+             metallicity_Z: 0.02,
+             age_yr: star.currentRealAge * 1e6,
+-            mass_solar: star.mass,
++            // M3: phase-aware mass/radius from the authoritative StellarPhysics
++            // state carried by the star — not the main-sequence formulas.
++            // (e.g. a red giant reports ~100× r_ms; a remnant reports its
++            // post-mass-loss core mass and WD/NS/BH radius.)
++            mass_solar: star.currentMass ?? star.mass,
+             luminosity_solar: star.currentLum,
+-            radius_solar: Math.pow(star.mass, 0.8),
++            radius_solar: star.currentRadius ?? Math.pow(star.mass, 0.8),
+             temperature_K: star.currentTemp,
+             phase: (phaseStrMap[star.phase] || 'main_sequence'),
+             spectralClass: computeSpectralClass(star.currentTemp),
+diff --git a/src/simulation/StellarPhysics.ts b/src/simulation/StellarPhysics.ts
+index ceeb9f8..4f4013a 100644
+--- a/src/simulation/StellarPhysics.ts
++++ b/src/simulation/StellarPhysics.ts
+@@ -359,11 +359,14 @@ function computeCurrentMass(
+     }
+     case 'supernova':
+     case 'remnant':
+-      // Core mass after envelope ejection
++      // Core mass after envelope ejection.
++      // M1 fix: the WD floor must never exceed the progenitor mass — the old
++      // Math.max(0.5, ...) created 0.5 M☉ remnants from e.g. 0.3 M☉ progenitors,
++      // manufacturing mass from nothing.
+       if (initialMass_solar <= STELLAR_CONSTANTS.PHYSICS.MASS_THRESHOLD_SUPERNOVA) {
+-        return Math.max(0.5, 0.394 + 0.109 * initialMass_solar);
++        return Math.min(initialMass_solar, Math.max(0.5, 0.394 + 0.109 * initialMass_solar));
+       }
+-      return Math.max(1.4, initialMass_solar * 0.2);
++      return Math.min(initialMass_solar, Math.max(1.4, initialMass_solar * 0.2));
+     default:
+       return initialMass_solar;
+   }
+diff --git a/src/simulation/nbodyWorker.ts b/src/simulation/nbodyWorker.ts
+index 0d9d777..28b6e24 100644
+--- a/src/simulation/nbodyWorker.ts
++++ b/src/simulation/nbodyWorker.ts
+@@ -156,7 +156,17 @@ function calculateAccelerations(targetBuffer: Float32Array): void {
+ }
+ 
+ const MAX_PHYSICS_DT = 0.002; // Max physics timestep in years (~17.5 hrs) to maintain Verlet stability
+-const MAX_SUBSTEPS = 64;      // Cap steps to prevent freeze on tab-switch stall
++// PH1 fix: the substep budget must cover a full cosmic-mode tick (dt_yr = 0.3 yr
++// → 0.3 / 0.002 = 150 substeps). The old budget of 64 consumed only 0.128 yr per
++// tick, so ~57% of requested cosmic time hit the accumulator cap and was
++// silently discarded every tick — planets orbited at less than half the speed
++// of the stellar/astrobiology clocks. 160 steps × O(n²) for a handful of bodies
++// is still far below the 16 ms tick budget.
++const MAX_SUBSTEPS = 160;      // Cap steps to prevent freeze on tab-switch stall
++// PH1: diagnostic for time dropped by the accumulator cap (stall protection).
++// Steady-state drops should now be zero; any drop is logged, not silent.
++let discardedTime_yr = 0;
++let lastDiscardWarn_yr = 0;
+ 
+ /**
+  * Perform a single Velocity-Verlet integration step of size subDt
+@@ -259,9 +269,20 @@ function physicsTickInner() {
+     }
+ 
+     // Accumulate requested timestep and consume in fixed MAX_PHYSICS_DT chunks.
+-    // Cap accumulator at 5x max batch size (0.64 yr) to prevent unbounded accumulation on long tab stalls.
++    // Cap accumulator at 5x max batch size to prevent unbounded accumulation on
++    // long tab stalls. PH1: drops are now logged instead of silent.
+     dtAccumulator += dt_yr;
+-    dtAccumulator = Math.min(dtAccumulator, MAX_PHYSICS_DT * MAX_SUBSTEPS * 5);
++    const accumulatorCap = MAX_PHYSICS_DT * MAX_SUBSTEPS * 5;
++    if (dtAccumulator > accumulatorCap) {
++        discardedTime_yr += dtAccumulator - accumulatorCap;
++        // Throttle the warning: at most one per simulated year of dropped time.
++        if (discardedTime_yr - lastDiscardWarn_yr >= 1.0) {
++            console.warn(`[nbody] accumulator cap discarded ${(dtAccumulator - accumulatorCap).toFixed(3)} yr ` +
++                `(total ${discardedTime_yr.toFixed(2)} yr) — tab stall or dt_yr exceeds the substep budget`);
++            lastDiscardWarn_yr = discardedTime_yr;
++        }
++        dtAccumulator = accumulatorCap;
++    }
+ 
+     let steps = 0;
+     while (dtAccumulator >= MAX_PHYSICS_DT && steps < MAX_SUBSTEPS) {
+diff --git a/src/simulation/phases/RedGiantPhase.ts b/src/simulation/phases/RedGiantPhase.ts
+index beed92a..2edd49a 100644
+--- a/src/simulation/phases/RedGiantPhase.ts
++++ b/src/simulation/phases/RedGiantPhase.ts
+@@ -6,7 +6,6 @@ import { GEOMETRIES } from './geometries';
+ import { STELLAR_CONSTANTS } from '../../core/constants';
+ import { phaseCounters } from '../../utils/performance';
+ import { colorTempToRGB } from '../../physics/math';
+-import { computeLuminosity } from '../StellarPhysics';
+ 
+ export class RedGiantPhase implements PhaseComponent {
+     public redGiantGroup!: THREE.Group;
+@@ -119,8 +118,8 @@ export class RedGiantPhase implements PhaseComponent {
+         this.hide();
+     }
+ 
+-    update(delta: number, appTime: number, cameraPos: THREE.Vector3, physics: PhysicsConstants, t: number, lowDetail?: boolean, currentTemp?: number): void {
+-        const giantScale = this.getCurrentScale(t, appTime);
++    update(delta: number, appTime: number, cameraPos: THREE.Vector3, physics: PhysicsConstants, t: number, lowDetail?: boolean, currentTemp?: number, currentRadiusSolar?: number): void {
++        const giantScale = this.getCurrentScale(t, appTime, currentRadiusSolar);
+         this.redGiantMesh.scale.setScalar(giantScale);
+         if (this._haloMesh) {
+             this._haloMesh.scale.setScalar(giantScale * 1.35);
+@@ -153,11 +152,22 @@ export class RedGiantPhase implements PhaseComponent {
+      * Returns the current world-space radius of the red giant mesh.
+      * Extracted from update() so HeroStarSystem can pass it to
+      * PlanetarySystem.updateFromBuffer() without duplicating the formula.
++     *
++     * PH4 fix: when the authoritative StellarPhysics radius (in R☉) is provided,
++     * it is used directly — mapped to world units with the same
++     * WORLD_UNITS_PER_R_SUN factor as the main-sequence mesh — instead of the
++     * old rederived linear approximation (baseRadius × (1 + 6·t)), which topped
++     * out at ~5.6× r_ms while physics expands up to 100× r_ms. The legacy
++     * formula remains only as a fallback when no physics radius is supplied.
+      */
+-    getCurrentScale(t: number, appTime: number): number {
++    getCurrentScale(t: number, appTime: number, radiusSolar?: number): number {
++        const pulsation = Math.sin(appTime * STELLAR_CONSTANTS.VISUALS.RED_GIANT_PULSATION_SPEED) * STELLAR_CONSTANTS.VISUALS.RED_GIANT_PULSATION_AMP;
++        if (radiusSolar !== undefined && Number.isFinite(radiusSolar) && radiusSolar > 0) {
++            return radiusSolar * STELLAR_CONSTANTS.VISUALS.WORLD_UNITS_PER_R_SUN + pulsation;
++        }
+         const normT = (t - STELLAR_CONSTANTS.PHASE_BOUNDARIES.RED_GIANT_START) / STELLAR_CONSTANTS.PHASE_BOUNDARIES.RED_GIANT_DURATION;
+         return this.baseRadius * (1.0 + normT * STELLAR_CONSTANTS.VISUALS.RED_GIANT_MAX_SCALE_FACTOR)
+-            + Math.sin(appTime * STELLAR_CONSTANTS.VISUALS.RED_GIANT_PULSATION_SPEED) * STELLAR_CONSTANTS.VISUALS.RED_GIANT_PULSATION_AMP;
++            + pulsation;
+     }
+ 
+     getCurrentTemp(t: number): number {
+@@ -165,10 +175,11 @@ export class RedGiantPhase implements PhaseComponent {
+         return this.tHeat - normT * (this.tHeat - STELLAR_CONSTANTS.TEMPERATURES.RED_GIANT_TARGET);
+     }
+ 
+-    getCurrentLum(t: number, mass: number): number {
+-        const normT = (t - STELLAR_CONSTANTS.PHASE_BOUNDARIES.RED_GIANT_START) / STELLAR_CONSTANTS.PHASE_BOUNDARIES.RED_GIANT_DURATION;
+-        return computeLuminosity(mass) * (1.0 + normT * 5.0);
+-    }
++    // PH4: getCurrentLum removed — it had zero callers and rederived luminosity as
++    // computeLuminosity(mass) × (1 + 5·t) (max 6×), far from the authoritative
++    // StellarPhysics red-giant curve (10× → 100×). HeroStarSystem already carries
++    // the authoritative value as currentLum from createStellarState; any future
++    // visual needing luminosity must use that, not a local rederivation.
+ 
+     setOpacity(opacity: number): void {
+         this.redGiantMat.uniforms.uOpacity.value = opacity;
+diff --git a/src/simulation/phases/RemnantPhase.ts b/src/simulation/phases/RemnantPhase.ts
+index 716379d..574d50d 100644
+--- a/src/simulation/phases/RemnantPhase.ts
++++ b/src/simulation/phases/RemnantPhase.ts
+@@ -382,7 +382,11 @@ export class RemnantPhase implements PhaseComponent {
+     }
+ 
+     update(delta: number, appTime: number, cameraPos: THREE.Vector3, physics: PhysicsConstants, t: number, lowDetail?: boolean, globalFade: number = 1.0): void {
+-        if (this.mass > STELLAR_CONSTANTS.PHYSICS.MASS_THRESHOLD_BLACK_HOLE) {
++        // M2 fix: boundaries must match StellarPhysics.computeRemnantType. A 15.0 M☉
++        // progenitor yields current mass 3.0 M☉ → 'black_hole' (not < 3.0), so the
++        // visual BH branch is >=, not >. Likewise an 8.0 M☉ progenitor yields a
++        // white dwarf (<= 8 branch), so the pulsar branch is > 8, not >= 8.
++        if (this.mass >= STELLAR_CONSTANTS.PHYSICS.MASS_THRESHOLD_BLACK_HOLE) {
+             this.blackHoleGroup.visible = globalFade > 0.01;
+             if (!lowDetail) this.blackHoleGroup.rotation.y += delta;
+             this.blackHoleGroup.rotation.z = Math.PI / 8;
+@@ -408,7 +412,7 @@ export class RemnantPhase implements PhaseComponent {
+                 );
+                 this._lensMat.uniforms.uOpacity.value = globalFade;
+             }
+-        } else if (this.mass >= STELLAR_CONSTANTS.PHYSICS.MASS_THRESHOLD_SUPERNOVA) {
++        } else if (this.mass > STELLAR_CONSTANTS.PHYSICS.MASS_THRESHOLD_SUPERNOVA) {
+             if (!lowDetail) {
+                 this.pulsarGroup.rotation.y += delta * 5.0 * (physics.weakForce || 1.0);
+                 this.nsMagneticLines.rotation.y += delta * 2.0 * (physics.weakForce || 1.0);
+-- 
+2.43.0
+

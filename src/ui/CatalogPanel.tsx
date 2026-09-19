@@ -30,6 +30,9 @@ export const CatalogPanel: React.FC<CatalogPanelProps> = ({
     const [sbType, setSbType] = useState<'comet' | 'asteroid'>('comet');
     const [smallBodies, setSmallBodies] = useState<any[]>([]);
     const [loadingHorizons, setLoadingHorizons] = useState(false);
+    // H4 fix: surfaces API failures (e.g. 429/502 error-JSON) instead of
+    // storing them as arrays and crashing render.
+    const [fetchError, setFetchError] = useState<string | null>(null);
 
     // Fetch presets on load with AbortController
     useEffect(() => {
@@ -37,10 +40,21 @@ export const CatalogPanel: React.FC<CatalogPanelProps> = ({
         const controller = new AbortController();
 
         fetch('/api/catalog/presets', { signal: controller.signal })
-            .then(res => res.json())
-            .then(data => setPresets(data))
+            .then(async res => {
+                const data = await res.json();
+                // H4 fix: on 429/502 the server returns { error } JSON, not an
+                // array — storing it would crash render (.map on a non-array).
+                if (!res.ok || !Array.isArray(data)) {
+                    throw new Error(data?.error || `Presets request failed (${res.status})`);
+                }
+                return data;
+            })
+            .then(data => { setPresets(data); setFetchError(null); })
             .catch(err => {
-                if (err.name !== 'AbortError') console.error("Error loading presets:", err);
+                if (err.name !== 'AbortError') {
+                    console.error("Error loading presets:", err);
+                    setFetchError(err?.message || "Failed to load presets.");
+                }
             });
 
         return () => controller.abort();
@@ -50,6 +64,7 @@ export const CatalogPanel: React.FC<CatalogPanelProps> = ({
     const handleSearch = async (e: React.FormEvent) => {
         e.preventDefault();
         setSearching(true);
+        setFetchError(null);
         try {
             const params = new URLSearchParams();
             if (spectralClass) params.append('spectral_class', spectralClass);
@@ -59,9 +74,14 @@ export const CatalogPanel: React.FC<CatalogPanelProps> = ({
             
             const res = await fetch(`/api/catalog/search?${params.toString()}`);
             const data = await res.json();
+            // H4 fix: guard against error-JSON responses (429/502 upstream).
+            if (!res.ok || !Array.isArray(data)) {
+                throw new Error(data?.error || `Search failed (${res.status})`);
+            }
             setSearchResults(data);
         } catch (err) {
             console.error("Error searching stars:", err);
+            setFetchError(err instanceof Error ? err.message : "Search failed.");
         } finally {
             setSearching(false);
         }
@@ -70,12 +90,20 @@ export const CatalogPanel: React.FC<CatalogPanelProps> = ({
     // Handle horizons fetch
     const handleLoadHorizons = useCallback(async (signal?: AbortSignal) => {
         setLoadingHorizons(true);
+        setFetchError(null);
         try {
             const res = await fetch(`/api/horizons/search?type=${sbType}&limit=15`, { signal });
             const data = await res.json();
+            // H4 fix: guard against error-JSON responses (429/502 upstream).
+            if (!res.ok || !Array.isArray(data)) {
+                throw new Error(data?.error || `Horizons query failed (${res.status})`);
+            }
             setSmallBodies(data);
         } catch (err: any) {
-            if (err?.name !== 'AbortError') console.error("Error querying JPL Horizons:", err);
+            if (err?.name !== 'AbortError') {
+                console.error("Error querying JPL Horizons:", err);
+                setFetchError(err?.message || "Horizons query failed.");
+            }
         } finally {
             setLoadingHorizons(false);
         }
@@ -112,7 +140,7 @@ export const CatalogPanel: React.FC<CatalogPanelProps> = ({
                 {(['presets', 'search', 'horizons'] as const).map(tab => (
                     <button
                         key={tab}
-                        onClick={() => setActiveTab(tab)}
+                        onClick={() => { setActiveTab(tab); setFetchError(null); }}
                         className={`flex-1 text-center py-1.5 rounded-md text-xs font-mono capitalize transition-all ${
                             activeTab === tab ? 'bg-purple-600/30 text-white font-bold' : 'text-gray-400 hover:text-white'
                         }`}
@@ -124,6 +152,11 @@ export const CatalogPanel: React.FC<CatalogPanelProps> = ({
 
             {/* Tab Panels */}
             <div className="max-h-[50vh] overflow-y-auto pr-1 font-mono text-xs custom-scrollbar">
+                {fetchError && (
+                    <div role="alert" className="mb-3 px-3 py-2 rounded-lg bg-red-500/10 border border-red-500/30 text-red-300">
+                        {fetchError}
+                    </div>
+                )}
                 {activeTab === 'presets' && (
                     <div className="space-y-3">
                         {presets.map(p => (

@@ -19,7 +19,9 @@ void main() {
     vec3 cameraRight = vec3(modelViewMatrix[0][0], modelViewMatrix[1][0], modelViewMatrix[2][0]);
     vec3 cameraUp = vec3(modelViewMatrix[0][1], modelViewMatrix[1][1], modelViewMatrix[2][1]);
     
-    vec3 worldPos = instanceMatrix[3].xyz;
+    // RH1 fix: apply modelMatrix — the group is positioned at the target star
+    // every frame, so instance-local positions must be transformed to world.
+    vec3 worldPos = (modelMatrix * vec4(instanceMatrix[3].xyz, 1.0)).xyz;
     
     vec3 vertexPos = worldPos 
         + cameraRight * position.x * cScale 
@@ -67,7 +69,9 @@ void main() {
     vColor = cColor;
     
     vec3 cameraRight = vec3(modelViewMatrix[0][0], modelViewMatrix[1][0], modelViewMatrix[2][0]);
-    vec3 worldPos = instanceMatrix[3].xyz;
+    // RH1 fix: apply modelMatrix — the group is positioned at the target star
+    // every frame, so instance-local positions must be transformed to world.
+    vec3 worldPos = (modelMatrix * vec4(instanceMatrix[3].xyz, 1.0)).xyz;
     
     // Stretch along cDir (tail direction), and widen along cameraRight
     vec3 vertexPos = worldPos 
@@ -114,7 +118,9 @@ void main() {
     vec3 cameraRight = vec3(modelViewMatrix[0][0], modelViewMatrix[1][0], modelViewMatrix[2][0]);
     vec3 cameraUp = vec3(modelViewMatrix[0][1], modelViewMatrix[1][1], modelViewMatrix[2][1]);
     
-    vec3 worldPos = instanceMatrix[3].xyz;
+    // RH1 fix: apply modelMatrix — the group is positioned at the target star
+    // every frame, so instance-local positions must be transformed to world.
+    vec3 worldPos = (modelMatrix * vec4(instanceMatrix[3].xyz, 1.0)).xyz;
     
     vec3 vertexPos = worldPos 
         + cameraRight * position.x * dScale 

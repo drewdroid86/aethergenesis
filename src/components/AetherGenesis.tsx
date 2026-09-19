@@ -58,6 +58,8 @@ export function AetherGenesis() {
     fatalError,
     hudRefs,
     uiRefs,
+    badgeCoordRefs,
+    attitudeCoordRefs,
     physics,
     setPhysics,
     cosmicAge,
@@ -129,7 +131,7 @@ export function AetherGenesis() {
         selectedStar={selectedStar}
         onSelectStar={(star) => setSelectedStar(star)}
         onAlignCamera={centerOnStar}
-        uiRefs={hudRefs}
+        coordUiRefs={{ badge: badgeCoordRefs, attitude: attitudeCoordRefs }}
         renderBottom={({ left, right }) => (
           <BottomHud 
             left={left}

@@ -359,11 +359,14 @@ function computeCurrentMass(
     }
     case 'supernova':
     case 'remnant':
-      // Core mass after envelope ejection
+      // Core mass after envelope ejection.
+      // M1 fix: the WD floor must never exceed the progenitor mass — the old
+      // Math.max(0.5, ...) created 0.5 M☉ remnants from e.g. 0.3 M☉ progenitors,
+      // manufacturing mass from nothing.
       if (initialMass_solar <= STELLAR_CONSTANTS.PHYSICS.MASS_THRESHOLD_SUPERNOVA) {
-        return Math.max(0.5, 0.394 + 0.109 * initialMass_solar);
+        return Math.min(initialMass_solar, Math.max(0.5, 0.394 + 0.109 * initialMass_solar));
       }
-      return Math.max(1.4, initialMass_solar * 0.2);
+      return Math.min(initialMass_solar, Math.max(1.4, initialMass_solar * 0.2));
     default:
       return initialMass_solar;
   }

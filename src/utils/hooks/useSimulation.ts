@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useCallback } from 'react';
+import { useEffect, useRef, useState, useCallback, type RefObject } from 'react';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { Engine } from '../../core/engine';
@@ -16,6 +16,16 @@ import { useCosmicAge } from './useCosmicAge';
 import { usePerformanceAutoTuning } from './usePerformanceAutoTuning';
 import { useStarSelection } from './useStarSelection';
 import { useKeyboardShortcuts } from './useKeyboardShortcuts';
+
+/**
+ * Dedicated XYZ coordinate refs for one HUD consumer.
+ * See the H1 fix note at the ref declarations inside useSimulation.
+ */
+export interface HudCoordRefs {
+    hudX: RefObject<HTMLSpanElement | null>;
+    hudY: RefObject<HTMLSpanElement | null>;
+    hudZ: RefObject<HTMLSpanElement | null>;
+}
 
 export function useSimulation(containerRef: React.RefObject<HTMLDivElement | null>) {
     const engineRef = useRef<Engine | null>(null);
@@ -86,6 +96,23 @@ export function useSimulation(containerRef: React.RefObject<HTMLDivElement | nul
         globalTimelineFill: useRef<HTMLDivElement>(null),
         globalSlider: useRef<HTMLDivElement>(null),
         tierDownIndicator: useRef<HTMLDivElement>(null),
+    };
+
+    // H1 fix — dedicated coordinate refs per consumer. Attaching the same ref
+    // object to elements in Hud, YouAreHereBadge, and AttitudeIndicator meant
+    // React nulled the shared ref whenever any one of them unmounted (e.g.
+    // closing the coordinates drawer), permanently freezing the tick-loop
+    // updates for the still-mounted consumers. Each consumer now gets its own
+    // set, and the tick loop updates all of them.
+    const badgeCoordRefs: HudCoordRefs = {
+        hudX: useRef<HTMLSpanElement>(null),
+        hudY: useRef<HTMLSpanElement>(null),
+        hudZ: useRef<HTMLSpanElement>(null),
+    };
+    const attitudeCoordRefs: HudCoordRefs = {
+        hudX: useRef<HTMLSpanElement>(null),
+        hudY: useRef<HTMLSpanElement>(null),
+        hudZ: useRef<HTMLSpanElement>(null),
     };
 
     const uiRefs = {
@@ -420,7 +447,10 @@ export function useSimulation(containerRef: React.RefObject<HTMLDivElement | nul
             window.addEventListener('pointerup', onPointerUp);
 
             // Instantiate Simulation Coordinator
-            const coordinator = new SimulationCoordinator(engine, wsRef.current);
+            // H3 fix: pass a getter, not a snapshot — useWebSocket replaces
+            // wsRef.current on reconnect, and a captured socket would silently
+            // stop the 5 Hz sim-state feed after the first reconnect.
+            const coordinator = new SimulationCoordinator(engine, () => wsRef.current);
             coordinatorRef.current = coordinator;
             coordinator.onAstrobiologyUpdate = (data) => {
                 setAstrobiologyData(data);
@@ -450,9 +480,16 @@ export function useSimulation(containerRef: React.RefObject<HTMLDivElement | nul
 
                     controls.update();
 
-                    if (hudRefs.hudX.current) hudRefs.hudX.current.innerText = engine.camera.position.x.toFixed(4);
-                    if (hudRefs.hudY.current) hudRefs.hudY.current.innerText = engine.camera.position.y.toFixed(4);
-                    if (hudRefs.hudZ.current) hudRefs.hudZ.current.innerText = engine.camera.position.z.toFixed(4);
+                    // H1 fix: update every consumer's dedicated coordinate refs.
+                    // Sharing one ref object across conditionally-mounted
+                    // elements lets React null it on unmount, permanently
+                    // freezing these readouts for still-mounted consumers.
+                    const coordRefSets: HudCoordRefs[] = [hudRefs, badgeCoordRefs, attitudeCoordRefs];
+                    for (const coordRefs of coordRefSets) {
+                        if (coordRefs.hudX.current) coordRefs.hudX.current.innerText = engine.camera.position.x.toFixed(4);
+                        if (coordRefs.hudY.current) coordRefs.hudY.current.innerText = engine.camera.position.y.toFixed(4);
+                        if (coordRefs.hudZ.current) coordRefs.hudZ.current.innerText = engine.camera.position.z.toFixed(4);
+                    }
                     if (hudRefs.hudAge.current) hudRefs.hudAge.current.innerText = cosmicAgeVal.toFixed(2);
 
                     if (selectedStarRef.current) {
@@ -596,6 +633,8 @@ export function useSimulation(containerRef: React.RefObject<HTMLDivElement | nul
         setFatalError,
         hudRefs,
         uiRefs,
+        badgeCoordRefs,
+        attitudeCoordRefs,
         physics,
         setPhysics,
         cosmicAge,

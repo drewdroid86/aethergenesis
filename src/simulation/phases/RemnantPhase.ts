@@ -382,7 +382,11 @@ export class RemnantPhase implements PhaseComponent {
     }
 
     update(delta: number, appTime: number, cameraPos: THREE.Vector3, physics: PhysicsConstants, t: number, lowDetail?: boolean, globalFade: number = 1.0): void {
-        if (this.mass > STELLAR_CONSTANTS.PHYSICS.MASS_THRESHOLD_BLACK_HOLE) {
+        // M2 fix: boundaries must match StellarPhysics.computeRemnantType. A 15.0 M☉
+        // progenitor yields current mass 3.0 M☉ → 'black_hole' (not < 3.0), so the
+        // visual BH branch is >=, not >. Likewise an 8.0 M☉ progenitor yields a
+        // white dwarf (<= 8 branch), so the pulsar branch is > 8, not >= 8.
+        if (this.mass >= STELLAR_CONSTANTS.PHYSICS.MASS_THRESHOLD_BLACK_HOLE) {
             this.blackHoleGroup.visible = globalFade > 0.01;
             if (!lowDetail) this.blackHoleGroup.rotation.y += delta;
             this.blackHoleGroup.rotation.z = Math.PI / 8;
@@ -408,7 +412,7 @@ export class RemnantPhase implements PhaseComponent {
                 );
                 this._lensMat.uniforms.uOpacity.value = globalFade;
             }
-        } else if (this.mass >= STELLAR_CONSTANTS.PHYSICS.MASS_THRESHOLD_SUPERNOVA) {
+        } else if (this.mass > STELLAR_CONSTANTS.PHYSICS.MASS_THRESHOLD_SUPERNOVA) {
             if (!lowDetail) {
                 this.pulsarGroup.rotation.y += delta * 5.0 * (physics.weakForce || 1.0);
                 this.nsMagneticLines.rotation.y += delta * 2.0 * (physics.weakForce || 1.0);

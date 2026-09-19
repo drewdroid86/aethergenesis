@@ -19,6 +19,7 @@ import { SpatialBreadcrumbs } from './SpatialBreadcrumbs';
 import { CosmicScaleLadder } from './CosmicScaleLadder';
 import { SpatialLabelsLayer } from './SpatialLabelsLayer';
 import { TargetLockHUD } from './TargetLockHUD';
+import type { HudCoordRefs } from '../../utils/hooks/useSimulation';
 
 export interface NavigationDeckProps {
     camera: THREE.PerspectiveCamera | null;
@@ -26,10 +27,12 @@ export interface NavigationDeckProps {
     selectedStar: HeroStarSystem | null;
     onSelectStar: (star: HeroStarSystem | null) => void;
     onAlignCamera: () => void;
-    uiRefs?: {
-        hudX?: React.RefObject<HTMLSpanElement | null>;
-        hudY?: React.RefObject<HTMLSpanElement | null>;
-        hudZ?: React.RefObject<HTMLSpanElement | null>;
+    // H1 fix: per-consumer coordinate refs. Sharing one ref object across
+    // conditionally-mounted elements (badge drawer, attitude fallback) lets
+    // React null it on unmount, freezing the tick-loop updates for the rest.
+    coordUiRefs?: {
+        badge?: HudCoordRefs;
+        attitude?: HudCoordRefs;
     };
     showRadar?: boolean;
     showBoresight?: boolean;
@@ -47,7 +50,7 @@ export const NavigationDeck: React.FC<NavigationDeckProps> = ({
     selectedStar,
     onSelectStar,
     onAlignCamera,
-    uiRefs,
+    coordUiRefs,
     showRadar = true,
     showBoresight = true,
     showSpatialLabels = true,
@@ -232,7 +235,7 @@ export const NavigationDeck: React.FC<NavigationDeckProps> = ({
                         <YouAreHereBadge 
                             nearestStarName={nearestStarInfo.name}
                             distanceToNearest={nearestStarInfo.distance}
-                            uiRefs={uiRefs}
+                            uiRefs={coordUiRefs?.badge}
                         />
                     </div>
                 </div>
@@ -245,7 +248,7 @@ export const NavigationDeck: React.FC<NavigationDeckProps> = ({
                         camera={camera}
                         selectedStar={selectedStar}
                         telemetry={telemetry}
-                        uiRefs={uiRefs}
+                        uiRefs={coordUiRefs?.attitude}
                     />
                 ) : null,
                 right: visible ? (

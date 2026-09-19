@@ -38,8 +38,11 @@ export function formatAdaptiveDistance(distanceUnits: number): FormattedDistance
         return { value: d, unit: 'AU', formatted: `${d.toFixed(1)} AU` };
     }
 
-    // Interstellar scale: convert AU to light-years (or if large coordinate, directly interpret)
-    const ly = d > 10000 ? d / 1000 : d / LY_TO_AU;
+    // Interstellar scale: convert AU to light-years.
+    // PH3 fix: the old `d > 10000 ? d / 1000 : d / LY_TO_AU` branch inflated
+    // values by ~63x past 10000 units and created a hard discontinuity at the
+    // boundary (9999 -> 0.158 ly vs 10001 -> 10.001 ly).
+    const ly = d / LY_TO_AU;
     if (ly < 1000) {
         return { value: ly, unit: 'ly', formatted: `${ly.toFixed(2)} ly` };
     }

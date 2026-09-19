@@ -23,6 +23,23 @@ This log is updated after every AI session. Each AI signs off with their entry. 
 
 ## RECENT LOGS
 
+### 2026-09-19 — Week 1 & Week 2 Audit Fixes (Gemini)
+- **Week 1 Correctness & Stability Fixes:**
+  - `src/components/AetherGenesis.tsx` & `src/utils/hooks/useSimulation.ts`: Dedicated XYZ coordinate refs per consumer (`badgeCoordRefs`, `attitudeCoordRefs`) preventing React from nulling refs on unmount (H1).
+  - `src/rendering/systems/CometSystem.ts`: RH1 fix: apply `modelMatrix` to comet billboard instance positions so local coordinates correctly map to world space around target stars.
+  - `src/simulation/SimStateSocket.ts`: H2 fix: refuse default placeholder `WS_TOKEN` in production environment.
+  - `src/simulation/SimulationCoordinator.ts`: H3 fix: resolve WebSocket client through dynamic getter on every send to prevent losing 5 Hz state updates upon reconnect.
+  - `src/simulation/nbodyWorker.ts`: PH2 fix: validate inbound orbital bodies against NaN/Infinity corruption and safeguard `physicsTick` with try/catch to maintain the 60Hz loop.
+  - `src/ui/CatalogPanel.tsx`: H4 fix: surface API error JSON responses gracefully instead of storing in array state and crashing render.
+  - `src/utils/navigationMath.ts`: PH3 fix: removed piecewise step function in `formatAdaptiveDistance` to preserve smooth interstellar light-year scaling.
+- **Week 2 Simulation-Correctness Fixes:**
+  - `src/simulation/nbodyWorker.ts`: PH1 fix: expanded `MAX_SUBSTEPS` from 64 to 160, covering full 0.3 yr cosmic mode ticks at 0.002 yr substeps and logging accumulator-cap drops.
+  - `src/simulation/phases/RedGiantPhase.ts`, `src/rendering/systems/HeroStarSystem.ts`, `src/core/constants.ts`: PH4 fix: mapped red-giant visual mesh expansion to authoritative `StellarPhysics` radius (up to 100x) via `WORLD_UNITS_PER_R_SUN` (0.8) and eliminated dead `getCurrentLum`.
+  - `src/simulation/StellarPhysics.ts`: M1 fix: clamped white-dwarf remnant mass to progenitor mass so sub-solar stars do not yield 0.5 M☉ remnants.
+  - `src/simulation/phases/RemnantPhase.ts`: M2 fix: aligned remnant visual branch boundaries with `computeRemnantType` physics (BH >= 15 M☉, Pulsar > 8 M☉).
+  - `src/simulation/SimulationCoordinator.ts`: M3 fix: live WS state payload now reports phase-aware `currentMass` and `currentRadius` derived from authoritative stellar physics.
+- **Verification:** `npm run typecheck` (0 errors), `npm run build` (1.72s), and `npm test` (48/48 E2E test scenarios passing across all 4 suites).
+
 ### 2026-09-07 — Visual Overhaul: Volumetric Supernova Shell, Star Diffraction Spikes & Type II Planet Night Lights (Gemini)
 - **Volumetric Supernova Spherical Shell (`src/simulation/phases/SupernovaPhase.ts`):** Upgraded `snRing` from a flat torus `MeshBasicMaterial` to a 3D spherical shell (`GEOMETRIES.supernovaCore`) with a custom `ShaderMaterial`. Implemented view-space rim falloff combined with 3D procedural fBm noise, dynamic expansion progress `uExp`, cubic end-fade `(1.0 - pow(uExp, 3.0))`, and mobile-compliant GLSL precision qualifiers.
 - **Star Diffraction Spikes (`src/simulation/phases/MainSequencePhase.ts`):** Added a camera-aligned billboard optical diffraction spikes plane mesh and custom shader (`MainSequenceDiffractionMaterial`) to `MainSequencePhase` with dual exponential falloff cross-arms, Planckian locus blackbody dynamic color sync via `colorTempToRGB`, and lifecycle disposal.
