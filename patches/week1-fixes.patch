@@ -1,0 +1,495 @@
+diff --git a/src/components/AetherGenesis.tsx b/src/components/AetherGenesis.tsx
+index 389f318..f5b992c 100644
+--- a/src/components/AetherGenesis.tsx
++++ b/src/components/AetherGenesis.tsx
+@@ -58,6 +58,8 @@ export function AetherGenesis() {
+     fatalError,
+     hudRefs,
+     uiRefs,
++    badgeCoordRefs,
++    attitudeCoordRefs,
+     physics,
+     setPhysics,
+     cosmicAge,
+@@ -129,7 +131,7 @@ export function AetherGenesis() {
+         selectedStar={selectedStar}
+         onSelectStar={(star) => setSelectedStar(star)}
+         onAlignCamera={centerOnStar}
+-        uiRefs={hudRefs}
++        coordUiRefs={{ badge: badgeCoordRefs, attitude: attitudeCoordRefs }}
+         renderBottom={({ left, right }) => (
+           <BottomHud 
+             left={left}
+diff --git a/src/rendering/systems/CometSystem.ts b/src/rendering/systems/CometSystem.ts
+index dd692d7..cd9820d 100644
+--- a/src/rendering/systems/CometSystem.ts
++++ b/src/rendering/systems/CometSystem.ts
+@@ -19,7 +19,9 @@ void main() {
+     vec3 cameraRight = vec3(modelViewMatrix[0][0], modelViewMatrix[1][0], modelViewMatrix[2][0]);
+     vec3 cameraUp = vec3(modelViewMatrix[0][1], modelViewMatrix[1][1], modelViewMatrix[2][1]);
+     
+-    vec3 worldPos = instanceMatrix[3].xyz;
++    // RH1 fix: apply modelMatrix — the group is positioned at the target star
++    // every frame, so instance-local positions must be transformed to world.
++    vec3 worldPos = (modelMatrix * vec4(instanceMatrix[3].xyz, 1.0)).xyz;
+     
+     vec3 vertexPos = worldPos 
+         + cameraRight * position.x * cScale 
+@@ -67,7 +69,9 @@ void main() {
+     vColor = cColor;
+     
+     vec3 cameraRight = vec3(modelViewMatrix[0][0], modelViewMatrix[1][0], modelViewMatrix[2][0]);
+-    vec3 worldPos = instanceMatrix[3].xyz;
++    // RH1 fix: apply modelMatrix — the group is positioned at the target star
++    // every frame, so instance-local positions must be transformed to world.
++    vec3 worldPos = (modelMatrix * vec4(instanceMatrix[3].xyz, 1.0)).xyz;
+     
+     // Stretch along cDir (tail direction), and widen along cameraRight
+     vec3 vertexPos = worldPos 
+@@ -114,7 +118,9 @@ void main() {
+     vec3 cameraRight = vec3(modelViewMatrix[0][0], modelViewMatrix[1][0], modelViewMatrix[2][0]);
+     vec3 cameraUp = vec3(modelViewMatrix[0][1], modelViewMatrix[1][1], modelViewMatrix[2][1]);
+     
+-    vec3 worldPos = instanceMatrix[3].xyz;
++    // RH1 fix: apply modelMatrix — the group is positioned at the target star
++    // every frame, so instance-local positions must be transformed to world.
++    vec3 worldPos = (modelMatrix * vec4(instanceMatrix[3].xyz, 1.0)).xyz;
+     
+     vec3 vertexPos = worldPos 
+         + cameraRight * position.x * dScale 
+diff --git a/src/simulation/SimStateSocket.ts b/src/simulation/SimStateSocket.ts
+index aaf55ee..212586b 100644
+--- a/src/simulation/SimStateSocket.ts
++++ b/src/simulation/SimStateSocket.ts
+@@ -113,6 +113,11 @@ export function initWebSocketServer(server: http.Server, allowedOrigins: string[
+     if (!expectedToken) {
+         throw new Error('FATAL: WS_TOKEN environment variable is not set. WebSocket server refused to start without handshake key.');
+     }
++    // H2 fix — enforce the guarantee documented in .env.example: the default
++    // placeholder token must never be accepted in production.
++    if (process.env.NODE_ENV === 'production' && expectedToken === 'default_secret') {
++        throw new Error('FATAL: refusing to start with default WS_TOKEN in production. Set a unique WS_TOKEN.');
++    }
+ 
+     wss = new WebSocketServer({
+         server,
+diff --git a/src/simulation/SimulationCoordinator.ts b/src/simulation/SimulationCoordinator.ts
+index e66b32a..4ce4510 100644
+--- a/src/simulation/SimulationCoordinator.ts
++++ b/src/simulation/SimulationCoordinator.ts
+@@ -52,12 +52,24 @@ export class SimulationCoordinator {
+     onAstrobiologyUpdate: ((data: AstrobiologyStateData[]) => void) | null = null;
+     onTick: ((cosmicAge: number, delta: number) => void) | null = null;
+ 
+-    wsClient: WebSocket | null = null;
++    // H3 fix: the socket is resolved through this getter on every send.
++    // useWebSocket replaces wsRef.current on reconnect — capturing the socket
++    // by value in the constructor silently killed the 5 Hz state feed after
++    // the first reconnect. Pass () => wsRef.current (or a socket) instead.
++    private getWsClient: () => WebSocket | null = () => null;
++
++    /** Live view of the current socket (resolves the getter each access). */
++    get wsClient(): WebSocket | null {
++        return this.getWsClient();
++    }
++    set wsClient(socket: WebSocket | null) {
++        this.getWsClient = () => socket;
++    }
+ 
+-    constructor(engine: Engine, wsClient: WebSocket | null = null) {
++    constructor(engine: Engine, wsClient: WebSocket | null | (() => WebSocket | null) = null) {
+         this.engine = engine;
+         this.astrobiologyEngine = new AstrobiologyEngine();
+-        this.wsClient = wsClient;
++        this.getWsClient = typeof wsClient === 'function' ? wsClient : () => wsClient;
+ 
+         // Register to the engine's tick loop
+         this.engine.onTick = (delta, appTime) => {
+@@ -207,8 +219,9 @@ export class SimulationCoordinator {
+             star.planetarySystem.updateAstrobiology(astrobiologyStates);
+         }
+ 
+-        // Send to websocket if open
+-        if (this.wsClient && this.wsClient.readyState === WebSocket.OPEN) {
++        // Send to websocket if open (socket resolved fresh each send — see H3)
++        const ws = this.getWsClient();
++        if (ws && ws.readyState === WebSocket.OPEN) {
+             const outPayload = {
+                 timestamp_ms: Date.now(),
+                 stellar: perStarState,
+@@ -216,7 +229,7 @@ export class SimulationCoordinator {
+                 astrobiology: astrobiologyStates
+             };
+             try {
+-                this.wsClient.send(JSON.stringify({ type: 'state', data: outPayload }));
++                ws.send(JSON.stringify({ type: 'state', data: outPayload }));
+             } catch {
+                 // Suppress socket send failure
+             }
+@@ -230,7 +243,7 @@ export class SimulationCoordinator {
+     public dispose(): void {
+         this.onAstrobiologyUpdate = null;
+         this.onTick = null;
+-        this.wsClient = null;
++        this.wsClient = null; // setter swaps the getter to () => null
+         this.astrobiologyEngine.clearHistory();
+     }
+ }
+diff --git a/src/simulation/nbodyWorker.ts b/src/simulation/nbodyWorker.ts
+index f152753..0d9d777 100644
+--- a/src/simulation/nbodyWorker.ts
++++ b/src/simulation/nbodyWorker.ts
+@@ -20,6 +20,21 @@ let useA = true;
+ 
+ const G_mu = 4.0 * Math.PI * Math.PI;
+ 
++// PH2 fix: validate inbound bodies — a malformed payload (NaN/Infinity fields)
++// would poison the integration and freeze the worker's tick loop.
++function isFiniteVec3(v: any): boolean {
++    return !!v && Number.isFinite(v.x) && Number.isFinite(v.y) && Number.isFinite(v.z);
++}
++
++function isValidBody(body: any): body is OrbitalBody {
++    return !!body
++        && typeof body.id === 'string'
++        && Number.isFinite(body.mass_solar) && body.mass_solar >= 0
++        && Number.isFinite(body.radius_km)
++        && isFiniteVec3(body.position_au)
++        && isFiniteVec3(body.velocity_au_yr);
++}
++
+ self.onmessage = (e) => {
+     const { type, payload } = e.data;
+     if (type === 'INIT') {
+@@ -37,8 +52,14 @@ self.onmessage = (e) => {
+             tickTimeout = null;
+         }
+     } else if (type === 'ADD_BODY') {
+-        bodies.push(payload.body);
+-        accelsValid = false; // BOLT: Invalidate cache when body added
++        // PH2 fix: reject malformed bodies instead of letting them poison the
++        // integration (a single NaN field used to freeze the loop forever).
++        if (isValidBody(payload.body)) {
++            bodies.push(payload.body);
++            accelsValid = false; // BOLT: Invalidate cache when body added
++        } else {
++            console.warn('[nbody] ADD_BODY rejected: malformed body payload', payload.body);
++        }
+     } else if (type === 'SET_RUNNING') {
+         const nextRunning = payload.isRunning !== undefined ? payload.isRunning : payload.running;
+         isRunning = Boolean(nextRunning);
+@@ -50,7 +71,13 @@ self.onmessage = (e) => {
+             physicsTick();
+         }
+     } else if (type === 'UPDATE_TIMESTEP') {
+-        dt_yr = payload.dt_yr;
++        // Reject non-finite / non-positive timesteps — they would silently
++        // freeze or corrupt the integration (accumulator has no lower clamp).
++        if (Number.isFinite(payload.dt_yr) && payload.dt_yr > 0) {
++            dt_yr = payload.dt_yr;
++        } else {
++            console.warn('[nbody] UPDATE_TIMESTEP rejected: invalid dt_yr', payload.dt_yr);
++        }
+     } else if (type === 'UPDATE_CENTRAL_MASS') {
+         if (payload && typeof payload.centralMass_solar === 'number' && payload.centralMass_solar > 0) {
+             centralMass_solar = payload.centralMass_solar;
+@@ -211,6 +238,20 @@ export function physicsTick() {
+         return;
+     }
+ 
++    // PH2 fix: an uncaught exception here used to abort the setTimeout chain
++    // forever, silently freezing every planet with no user-visible error.
++    // Log it and always reschedule.
++    try {
++        physicsTickInner();
++    } catch (err) {
++        console.error('[nbody] physicsTick failed; rescheduling tick loop:', err);
++    }
++
++    // Schedule next tick (60Hz targeting)
++    tickTimeout = setTimeout(physicsTick, 16);
++}
++
++function physicsTickInner() {
+     const n = bodies.length;
+     if (accelBuffer.length !== n * 3) {
+         accelBuffer = new Float32Array(n * 3);
+@@ -265,7 +306,4 @@ export function physicsTick() {
+         bufferB = new Float32Array(size);
+     }
+     useA = !useA;
+-
+-    // Schedule next tick (60Hz targeting)
+-    tickTimeout = setTimeout(physicsTick, 16);
+ }
+diff --git a/src/ui/CatalogPanel.tsx b/src/ui/CatalogPanel.tsx
+index 3f25dca..8d09326 100644
+--- a/src/ui/CatalogPanel.tsx
++++ b/src/ui/CatalogPanel.tsx
+@@ -30,6 +30,9 @@ export const CatalogPanel: React.FC<CatalogPanelProps> = ({
+     const [sbType, setSbType] = useState<'comet' | 'asteroid'>('comet');
+     const [smallBodies, setSmallBodies] = useState<any[]>([]);
+     const [loadingHorizons, setLoadingHorizons] = useState(false);
++    // H4 fix: surfaces API failures (e.g. 429/502 error-JSON) instead of
++    // storing them as arrays and crashing render.
++    const [fetchError, setFetchError] = useState<string | null>(null);
+ 
+     // Fetch presets on load with AbortController
+     useEffect(() => {
+@@ -37,10 +40,21 @@ export const CatalogPanel: React.FC<CatalogPanelProps> = ({
+         const controller = new AbortController();
+ 
+         fetch('/api/catalog/presets', { signal: controller.signal })
+-            .then(res => res.json())
+-            .then(data => setPresets(data))
++            .then(async res => {
++                const data = await res.json();
++                // H4 fix: on 429/502 the server returns { error } JSON, not an
++                // array — storing it would crash render (.map on a non-array).
++                if (!res.ok || !Array.isArray(data)) {
++                    throw new Error(data?.error || `Presets request failed (${res.status})`);
++                }
++                return data;
++            })
++            .then(data => { setPresets(data); setFetchError(null); })
+             .catch(err => {
+-                if (err.name !== 'AbortError') console.error("Error loading presets:", err);
++                if (err.name !== 'AbortError') {
++                    console.error("Error loading presets:", err);
++                    setFetchError(err?.message || "Failed to load presets.");
++                }
+             });
+ 
+         return () => controller.abort();
+@@ -50,6 +64,7 @@ export const CatalogPanel: React.FC<CatalogPanelProps> = ({
+     const handleSearch = async (e: React.FormEvent) => {
+         e.preventDefault();
+         setSearching(true);
++        setFetchError(null);
+         try {
+             const params = new URLSearchParams();
+             if (spectralClass) params.append('spectral_class', spectralClass);
+@@ -59,9 +74,14 @@ export const CatalogPanel: React.FC<CatalogPanelProps> = ({
+             
+             const res = await fetch(`/api/catalog/search?${params.toString()}`);
+             const data = await res.json();
++            // H4 fix: guard against error-JSON responses (429/502 upstream).
++            if (!res.ok || !Array.isArray(data)) {
++                throw new Error(data?.error || `Search failed (${res.status})`);
++            }
+             setSearchResults(data);
+         } catch (err) {
+             console.error("Error searching stars:", err);
++            setFetchError(err instanceof Error ? err.message : "Search failed.");
+         } finally {
+             setSearching(false);
+         }
+@@ -70,12 +90,20 @@ export const CatalogPanel: React.FC<CatalogPanelProps> = ({
+     // Handle horizons fetch
+     const handleLoadHorizons = useCallback(async (signal?: AbortSignal) => {
+         setLoadingHorizons(true);
++        setFetchError(null);
+         try {
+             const res = await fetch(`/api/horizons/search?type=${sbType}&limit=15`, { signal });
+             const data = await res.json();
++            // H4 fix: guard against error-JSON responses (429/502 upstream).
++            if (!res.ok || !Array.isArray(data)) {
++                throw new Error(data?.error || `Horizons query failed (${res.status})`);
++            }
+             setSmallBodies(data);
+         } catch (err: any) {
+-            if (err?.name !== 'AbortError') console.error("Error querying JPL Horizons:", err);
++            if (err?.name !== 'AbortError') {
++                console.error("Error querying JPL Horizons:", err);
++                setFetchError(err?.message || "Horizons query failed.");
++            }
+         } finally {
+             setLoadingHorizons(false);
+         }
+@@ -112,7 +140,7 @@ export const CatalogPanel: React.FC<CatalogPanelProps> = ({
+                 {(['presets', 'search', 'horizons'] as const).map(tab => (
+                     <button
+                         key={tab}
+-                        onClick={() => setActiveTab(tab)}
++                        onClick={() => { setActiveTab(tab); setFetchError(null); }}
+                         className={`flex-1 text-center py-1.5 rounded-md text-xs font-mono capitalize transition-all ${
+                             activeTab === tab ? 'bg-purple-600/30 text-white font-bold' : 'text-gray-400 hover:text-white'
+                         }`}
+@@ -124,6 +152,11 @@ export const CatalogPanel: React.FC<CatalogPanelProps> = ({
+ 
+             {/* Tab Panels */}
+             <div className="max-h-[50vh] overflow-y-auto pr-1 font-mono text-xs custom-scrollbar">
++                {fetchError && (
++                    <div role="alert" className="mb-3 px-3 py-2 rounded-lg bg-red-500/10 border border-red-500/30 text-red-300">
++                        {fetchError}
++                    </div>
++                )}
+                 {activeTab === 'presets' && (
+                     <div className="space-y-3">
+                         {presets.map(p => (
+diff --git a/src/ui/navigation/NavigationDeck.tsx b/src/ui/navigation/NavigationDeck.tsx
+index 1dbf121..efa0dd9 100644
+--- a/src/ui/navigation/NavigationDeck.tsx
++++ b/src/ui/navigation/NavigationDeck.tsx
+@@ -19,6 +19,7 @@ import { SpatialBreadcrumbs } from './SpatialBreadcrumbs';
+ import { CosmicScaleLadder } from './CosmicScaleLadder';
+ import { SpatialLabelsLayer } from './SpatialLabelsLayer';
+ import { TargetLockHUD } from './TargetLockHUD';
++import type { HudCoordRefs } from '../../utils/hooks/useSimulation';
+ 
+ export interface NavigationDeckProps {
+     camera: THREE.PerspectiveCamera | null;
+@@ -26,10 +27,12 @@ export interface NavigationDeckProps {
+     selectedStar: HeroStarSystem | null;
+     onSelectStar: (star: HeroStarSystem | null) => void;
+     onAlignCamera: () => void;
+-    uiRefs?: {
+-        hudX?: React.RefObject<HTMLSpanElement | null>;
+-        hudY?: React.RefObject<HTMLSpanElement | null>;
+-        hudZ?: React.RefObject<HTMLSpanElement | null>;
++    // H1 fix: per-consumer coordinate refs. Sharing one ref object across
++    // conditionally-mounted elements (badge drawer, attitude fallback) lets
++    // React null it on unmount, freezing the tick-loop updates for the rest.
++    coordUiRefs?: {
++        badge?: HudCoordRefs;
++        attitude?: HudCoordRefs;
+     };
+     showRadar?: boolean;
+     showBoresight?: boolean;
+@@ -47,7 +50,7 @@ export const NavigationDeck: React.FC<NavigationDeckProps> = ({
+     selectedStar,
+     onSelectStar,
+     onAlignCamera,
+-    uiRefs,
++    coordUiRefs,
+     showRadar = true,
+     showBoresight = true,
+     showSpatialLabels = true,
+@@ -232,7 +235,7 @@ export const NavigationDeck: React.FC<NavigationDeckProps> = ({
+                         <YouAreHereBadge 
+                             nearestStarName={nearestStarInfo.name}
+                             distanceToNearest={nearestStarInfo.distance}
+-                            uiRefs={uiRefs}
++                            uiRefs={coordUiRefs?.badge}
+                         />
+                     </div>
+                 </div>
+@@ -245,7 +248,7 @@ export const NavigationDeck: React.FC<NavigationDeckProps> = ({
+                         camera={camera}
+                         selectedStar={selectedStar}
+                         telemetry={telemetry}
+-                        uiRefs={uiRefs}
++                        uiRefs={coordUiRefs?.attitude}
+                     />
+                 ) : null,
+                 right: visible ? (
+diff --git a/src/utils/hooks/useSimulation.ts b/src/utils/hooks/useSimulation.ts
+index c4349e4..862855e 100644
+--- a/src/utils/hooks/useSimulation.ts
++++ b/src/utils/hooks/useSimulation.ts
+@@ -1,4 +1,4 @@
+-import { useEffect, useRef, useState, useCallback } from 'react';
++import { useEffect, useRef, useState, useCallback, type RefObject } from 'react';
+ import * as THREE from 'three';
+ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+ import { Engine } from '../../core/engine';
+@@ -17,6 +17,16 @@ import { usePerformanceAutoTuning } from './usePerformanceAutoTuning';
+ import { useStarSelection } from './useStarSelection';
+ import { useKeyboardShortcuts } from './useKeyboardShortcuts';
+ 
++/**
++ * Dedicated XYZ coordinate refs for one HUD consumer.
++ * See the H1 fix note at the ref declarations inside useSimulation.
++ */
++export interface HudCoordRefs {
++    hudX: RefObject<HTMLSpanElement | null>;
++    hudY: RefObject<HTMLSpanElement | null>;
++    hudZ: RefObject<HTMLSpanElement | null>;
++}
++
+ export function useSimulation(containerRef: React.RefObject<HTMLDivElement | null>) {
+     const engineRef = useRef<Engine | null>(null);
+     const nebulaSystemRef = useRef<NebulaSystem | null>(null);
+@@ -88,6 +98,23 @@ export function useSimulation(containerRef: React.RefObject<HTMLDivElement | nul
+         tierDownIndicator: useRef<HTMLDivElement>(null),
+     };
+ 
++    // H1 fix — dedicated coordinate refs per consumer. Attaching the same ref
++    // object to elements in Hud, YouAreHereBadge, and AttitudeIndicator meant
++    // React nulled the shared ref whenever any one of them unmounted (e.g.
++    // closing the coordinates drawer), permanently freezing the tick-loop
++    // updates for the still-mounted consumers. Each consumer now gets its own
++    // set, and the tick loop updates all of them.
++    const badgeCoordRefs: HudCoordRefs = {
++        hudX: useRef<HTMLSpanElement>(null),
++        hudY: useRef<HTMLSpanElement>(null),
++        hudZ: useRef<HTMLSpanElement>(null),
++    };
++    const attitudeCoordRefs: HudCoordRefs = {
++        hudX: useRef<HTMLSpanElement>(null),
++        hudY: useRef<HTMLSpanElement>(null),
++        hudZ: useRef<HTMLSpanElement>(null),
++    };
++
+     const uiRefs = {
+         phase: useRef<HTMLSpanElement>(null),
+         temp: useRef<HTMLSpanElement>(null),
+@@ -420,7 +447,10 @@ export function useSimulation(containerRef: React.RefObject<HTMLDivElement | nul
+             window.addEventListener('pointerup', onPointerUp);
+ 
+             // Instantiate Simulation Coordinator
+-            const coordinator = new SimulationCoordinator(engine, wsRef.current);
++            // H3 fix: pass a getter, not a snapshot — useWebSocket replaces
++            // wsRef.current on reconnect, and a captured socket would silently
++            // stop the 5 Hz sim-state feed after the first reconnect.
++            const coordinator = new SimulationCoordinator(engine, () => wsRef.current);
+             coordinatorRef.current = coordinator;
+             coordinator.onAstrobiologyUpdate = (data) => {
+                 setAstrobiologyData(data);
+@@ -450,9 +480,16 @@ export function useSimulation(containerRef: React.RefObject<HTMLDivElement | nul
+ 
+                     controls.update();
+ 
+-                    if (hudRefs.hudX.current) hudRefs.hudX.current.innerText = engine.camera.position.x.toFixed(4);
+-                    if (hudRefs.hudY.current) hudRefs.hudY.current.innerText = engine.camera.position.y.toFixed(4);
+-                    if (hudRefs.hudZ.current) hudRefs.hudZ.current.innerText = engine.camera.position.z.toFixed(4);
++                    // H1 fix: update every consumer's dedicated coordinate refs.
++                    // Sharing one ref object across conditionally-mounted
++                    // elements lets React null it on unmount, permanently
++                    // freezing these readouts for still-mounted consumers.
++                    const coordRefSets: HudCoordRefs[] = [hudRefs, badgeCoordRefs, attitudeCoordRefs];
++                    for (const coordRefs of coordRefSets) {
++                        if (coordRefs.hudX.current) coordRefs.hudX.current.innerText = engine.camera.position.x.toFixed(4);
++                        if (coordRefs.hudY.current) coordRefs.hudY.current.innerText = engine.camera.position.y.toFixed(4);
++                        if (coordRefs.hudZ.current) coordRefs.hudZ.current.innerText = engine.camera.position.z.toFixed(4);
++                    }
+                     if (hudRefs.hudAge.current) hudRefs.hudAge.current.innerText = cosmicAgeVal.toFixed(2);
+ 
+                     if (selectedStarRef.current) {
+@@ -596,6 +633,8 @@ export function useSimulation(containerRef: React.RefObject<HTMLDivElement | nul
+         setFatalError,
+         hudRefs,
+         uiRefs,
++        badgeCoordRefs,
++        attitudeCoordRefs,
+         physics,
+         setPhysics,
+         cosmicAge,
+diff --git a/src/utils/navigationMath.ts b/src/utils/navigationMath.ts
+index 61d6b50..684b6b4 100644
+--- a/src/utils/navigationMath.ts
++++ b/src/utils/navigationMath.ts
+@@ -38,8 +38,11 @@ export function formatAdaptiveDistance(distanceUnits: number): FormattedDistance
+         return { value: d, unit: 'AU', formatted: `${d.toFixed(1)} AU` };
+     }
+ 
+-    // Interstellar scale: convert AU to light-years (or if large coordinate, directly interpret)
+-    const ly = d > 10000 ? d / 1000 : d / LY_TO_AU;
++    // Interstellar scale: convert AU to light-years.
++    // PH3 fix: the old `d > 10000 ? d / 1000 : d / LY_TO_AU` branch inflated
++    // values by ~63x past 10000 units and created a hard discontinuity at the
++    // boundary (9999 -> 0.158 ly vs 10001 -> 10.001 ly).
++    const ly = d / LY_TO_AU;
+     if (ly < 1000) {
+         return { value: ly, unit: 'ly', formatted: `${ly.toFixed(2)} ly` };
+     }

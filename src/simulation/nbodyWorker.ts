@@ -20,6 +20,21 @@ let useA = true;
 
 const G_mu = 4.0 * Math.PI * Math.PI;
 
+// PH2 fix: validate inbound bodies — a malformed payload (NaN/Infinity fields)
+// would poison the integration and freeze the worker's tick loop.
+function isFiniteVec3(v: any): boolean {
+    return !!v && Number.isFinite(v.x) && Number.isFinite(v.y) && Number.isFinite(v.z);
+}
+
+function isValidBody(body: any): body is OrbitalBody {
+    return !!body
+        && typeof body.id === 'string'
+        && Number.isFinite(body.mass_solar) && body.mass_solar >= 0
+        && Number.isFinite(body.radius_km)
+        && isFiniteVec3(body.position_au)
+        && isFiniteVec3(body.velocity_au_yr);
+}
+
 self.onmessage = (e) => {
     const { type, payload } = e.data;
     if (type === 'INIT') {
@@ -37,8 +52,14 @@ self.onmessage = (e) => {
             tickTimeout = null;
         }
     } else if (type === 'ADD_BODY') {
-        bodies.push(payload.body);
-        accelsValid = false; // BOLT: Invalidate cache when body added
+        // PH2 fix: reject malformed bodies instead of letting them poison the
+        // integration (a single NaN field used to freeze the loop forever).
+        if (isValidBody(payload.body)) {
+            bodies.push(payload.body);
+            accelsValid = false; // BOLT: Invalidate cache when body added
+        } else {
+            console.warn('[nbody] ADD_BODY rejected: malformed body payload', payload.body);
+        }
     } else if (type === 'SET_RUNNING') {
         const nextRunning = payload.isRunning !== undefined ? payload.isRunning : payload.running;
         isRunning = Boolean(nextRunning);
@@ -50,7 +71,13 @@ self.onmessage = (e) => {
             physicsTick();
         }
     } else if (type === 'UPDATE_TIMESTEP') {
-        dt_yr = payload.dt_yr;
+        // Reject non-finite / non-positive timesteps — they would silently
+        // freeze or corrupt the integration (accumulator has no lower clamp).
+        if (Number.isFinite(payload.dt_yr) && payload.dt_yr > 0) {
+            dt_yr = payload.dt_yr;
+        } else {
+            console.warn('[nbody] UPDATE_TIMESTEP rejected: invalid dt_yr', payload.dt_yr);
+        }
     } else if (type === 'UPDATE_CENTRAL_MASS') {
         if (payload && typeof payload.centralMass_solar === 'number' && payload.centralMass_solar > 0) {
             centralMass_solar = payload.centralMass_solar;
@@ -129,7 +156,17 @@ function calculateAccelerations(targetBuffer: Float32Array): void {
 }
 
 const MAX_PHYSICS_DT = 0.002; // Max physics timestep in years (~17.5 hrs) to maintain Verlet stability
-const MAX_SUBSTEPS = 64;      // Cap steps to prevent freeze on tab-switch stall
+// PH1 fix: the substep budget must cover a full cosmic-mode tick (dt_yr = 0.3 yr
+// → 0.3 / 0.002 = 150 substeps). The old budget of 64 consumed only 0.128 yr per
+// tick, so ~57% of requested cosmic time hit the accumulator cap and was
+// silently discarded every tick — planets orbited at less than half the speed
+// of the stellar/astrobiology clocks. 160 steps × O(n²) for a handful of bodies
+// is still far below the 16 ms tick budget.
+const MAX_SUBSTEPS = 160;      // Cap steps to prevent freeze on tab-switch stall
+// PH1: diagnostic for time dropped by the accumulator cap (stall protection).
+// Steady-state drops should now be zero; any drop is logged, not silent.
+let discardedTime_yr = 0;
+let lastDiscardWarn_yr = 0;
 
 /**
  * Perform a single Velocity-Verlet integration step of size subDt
@@ -211,6 +248,20 @@ export function physicsTick() {
         return;
     }
 
+    // PH2 fix: an uncaught exception here used to abort the setTimeout chain
+    // forever, silently freezing every planet with no user-visible error.
+    // Log it and always reschedule.
+    try {
+        physicsTickInner();
+    } catch (err) {
+        console.error('[nbody] physicsTick failed; rescheduling tick loop:', err);
+    }
+
+    // Schedule next tick (60Hz targeting)
+    tickTimeout = setTimeout(physicsTick, 16);
+}
+
+function physicsTickInner() {
     const n = bodies.length;
     if (accelBuffer.length !== n * 3) {
         accelBuffer = new Float32Array(n * 3);
@@ -218,9 +269,20 @@ export function physicsTick() {
     }
 
     // Accumulate requested timestep and consume in fixed MAX_PHYSICS_DT chunks.
-    // Cap accumulator at 5x max batch size (0.64 yr) to prevent unbounded accumulation on long tab stalls.
+    // Cap accumulator at 5x max batch size to prevent unbounded accumulation on
+    // long tab stalls. PH1: drops are now logged instead of silent.
     dtAccumulator += dt_yr;
-    dtAccumulator = Math.min(dtAccumulator, MAX_PHYSICS_DT * MAX_SUBSTEPS * 5);
+    const accumulatorCap = MAX_PHYSICS_DT * MAX_SUBSTEPS * 5;
+    if (dtAccumulator > accumulatorCap) {
+        discardedTime_yr += dtAccumulator - accumulatorCap;
+        // Throttle the warning: at most one per simulated year of dropped time.
+        if (discardedTime_yr - lastDiscardWarn_yr >= 1.0) {
+            console.warn(`[nbody] accumulator cap discarded ${(dtAccumulator - accumulatorCap).toFixed(3)} yr ` +
+                `(total ${discardedTime_yr.toFixed(2)} yr) — tab stall or dt_yr exceeds the substep budget`);
+            lastDiscardWarn_yr = discardedTime_yr;
+        }
+        dtAccumulator = accumulatorCap;
+    }
 
     let steps = 0;
     while (dtAccumulator >= MAX_PHYSICS_DT && steps < MAX_SUBSTEPS) {
@@ -265,7 +327,4 @@ export function physicsTick() {
         bufferB = new Float32Array(size);
     }
     useA = !useA;
-
-    // Schedule next tick (60Hz targeting)
-    tickTimeout = setTimeout(physicsTick, 16);
 }

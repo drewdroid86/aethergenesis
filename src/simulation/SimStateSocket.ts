@@ -113,6 +113,11 @@ export function initWebSocketServer(server: http.Server, allowedOrigins: string[
     if (!expectedToken) {
         throw new Error('FATAL: WS_TOKEN environment variable is not set. WebSocket server refused to start without handshake key.');
     }
+    // H2 fix — enforce the guarantee documented in .env.example: the default
+    // placeholder token must never be accepted in production.
+    if (process.env.NODE_ENV === 'production' && expectedToken === 'default_secret') {
+        throw new Error('FATAL: refusing to start with default WS_TOKEN in production. Set a unique WS_TOKEN.');
+    }
 
     wss = new WebSocketServer({
         server,

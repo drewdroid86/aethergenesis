@@ -71,6 +71,10 @@ export const STELLAR_CONSTANTS = {
     },
     VISUALS: {
         HALO_SCALE_FACTOR: 1.4,
+        // PH4: world units per solar radius. HeroStarSystem.baseRadius has always
+        // been mass^0.8 * 0.8, i.e. the main-sequence mesh scale for 1 R☉ — the
+        // red-giant visuals now reuse it to map authoritative physics radii.
+        WORLD_UNITS_PER_R_SUN: 0.8,
         HZ_RADIUS_BASE: 4,
         HZ_LUM_FACTOR: 2.5,
         PLANET_HZ_DIST_FACTOR: 1.2,

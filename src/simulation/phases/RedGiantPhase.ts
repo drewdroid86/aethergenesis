@@ -6,7 +6,6 @@ import { GEOMETRIES } from './geometries';
 import { STELLAR_CONSTANTS } from '../../core/constants';
 import { phaseCounters } from '../../utils/performance';
 import { colorTempToRGB } from '../../physics/math';
-import { computeLuminosity } from '../StellarPhysics';
 
 export class RedGiantPhase implements PhaseComponent {
     public redGiantGroup!: THREE.Group;
@@ -119,8 +118,8 @@ export class RedGiantPhase implements PhaseComponent {
         this.hide();
     }
 
-    update(delta: number, appTime: number, cameraPos: THREE.Vector3, physics: PhysicsConstants, t: number, lowDetail?: boolean, currentTemp?: number): void {
-        const giantScale = this.getCurrentScale(t, appTime);
+    update(delta: number, appTime: number, cameraPos: THREE.Vector3, physics: PhysicsConstants, t: number, lowDetail?: boolean, currentTemp?: number, currentRadiusSolar?: number): void {
+        const giantScale = this.getCurrentScale(t, appTime, currentRadiusSolar);
         this.redGiantMesh.scale.setScalar(giantScale);
         if (this._haloMesh) {
             this._haloMesh.scale.setScalar(giantScale * 1.35);
@@ -153,11 +152,22 @@ export class RedGiantPhase implements PhaseComponent {
      * Returns the current world-space radius of the red giant mesh.
      * Extracted from update() so HeroStarSystem can pass it to
      * PlanetarySystem.updateFromBuffer() without duplicating the formula.
+     *
+     * PH4 fix: when the authoritative StellarPhysics radius (in R☉) is provided,
+     * it is used directly — mapped to world units with the same
+     * WORLD_UNITS_PER_R_SUN factor as the main-sequence mesh — instead of the
+     * old rederived linear approximation (baseRadius × (1 + 6·t)), which topped
+     * out at ~5.6× r_ms while physics expands up to 100× r_ms. The legacy
+     * formula remains only as a fallback when no physics radius is supplied.
      */
-    getCurrentScale(t: number, appTime: number): number {
+    getCurrentScale(t: number, appTime: number, radiusSolar?: number): number {
+        const pulsation = Math.sin(appTime * STELLAR_CONSTANTS.VISUALS.RED_GIANT_PULSATION_SPEED) * STELLAR_CONSTANTS.VISUALS.RED_GIANT_PULSATION_AMP;
+        if (radiusSolar !== undefined && Number.isFinite(radiusSolar) && radiusSolar > 0) {
+            return radiusSolar * STELLAR_CONSTANTS.VISUALS.WORLD_UNITS_PER_R_SUN + pulsation;
+        }
         const normT = (t - STELLAR_CONSTANTS.PHASE_BOUNDARIES.RED_GIANT_START) / STELLAR_CONSTANTS.PHASE_BOUNDARIES.RED_GIANT_DURATION;
         return this.baseRadius * (1.0 + normT * STELLAR_CONSTANTS.VISUALS.RED_GIANT_MAX_SCALE_FACTOR)
-            + Math.sin(appTime * STELLAR_CONSTANTS.VISUALS.RED_GIANT_PULSATION_SPEED) * STELLAR_CONSTANTS.VISUALS.RED_GIANT_PULSATION_AMP;
+            + pulsation;
     }
 
     getCurrentTemp(t: number): number {
@@ -165,10 +175,11 @@ export class RedGiantPhase implements PhaseComponent {
         return this.tHeat - normT * (this.tHeat - STELLAR_CONSTANTS.TEMPERATURES.RED_GIANT_TARGET);
     }
 
-    getCurrentLum(t: number, mass: number): number {
-        const normT = (t - STELLAR_CONSTANTS.PHASE_BOUNDARIES.RED_GIANT_START) / STELLAR_CONSTANTS.PHASE_BOUNDARIES.RED_GIANT_DURATION;
-        return computeLuminosity(mass) * (1.0 + normT * 5.0);
-    }
+    // PH4: getCurrentLum removed — it had zero callers and rederived luminosity as
+    // computeLuminosity(mass) × (1 + 5·t) (max 6×), far from the authoritative
+    // StellarPhysics red-giant curve (10× → 100×). HeroStarSystem already carries
+    // the authoritative value as currentLum from createStellarState; any future
+    // visual needing luminosity must use that, not a local rederivation.
 
     setOpacity(opacity: number): void {
         this.redGiantMat.uniforms.uOpacity.value = opacity;
