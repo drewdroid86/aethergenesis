@@ -145,6 +145,7 @@ export class RemnantPhase implements PhaseComponent {
             transparent: true,
             blending: THREE.AdditiveBlending,
             side: THREE.DoubleSide,
+            depthWrite: false,
             vertexShader: `
                 varying vec3 vLocalPos;
                 varying vec3 vWorldPos;

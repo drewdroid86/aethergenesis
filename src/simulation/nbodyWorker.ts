@@ -38,9 +38,24 @@ function isValidBody(body: any): body is OrbitalBody {
 self.onmessage = (e) => {
     const { type, payload } = e.data;
     if (type === 'INIT') {
-        bodies = payload.bodies || [];
-        centralMass_solar = payload.centralMass_solar || 1.0;
-        dt_yr = payload.dt_yr || (1.0 / 365.25);
+        // Validate inbound bodies — same poison guard as ADD_BODY (a single
+        // NaN field used to freeze the integration loop forever).
+        const inbound = Array.isArray(payload.bodies) ? payload.bodies : [];
+        const rejectedInit = inbound.filter((b: any) => !isValidBody(b)).length;
+        if (rejectedInit > 0) {
+            console.warn(`[nbody] INIT rejected ${rejectedInit} malformed bodie(s)`);
+        }
+        bodies = inbound.filter(isValidBody);
+        if (Number.isFinite(payload.centralMass_solar) && payload.centralMass_solar > 0) {
+            centralMass_solar = payload.centralMass_solar;
+        } else {
+            centralMass_solar = 1.0;
+        }
+        if (Number.isFinite(payload.dt_yr) && payload.dt_yr > 0) {
+            dt_yr = payload.dt_yr;
+        } else {
+            dt_yr = 1.0 / 365.25;
+        }
         accelsValid = false; // BOLT: Reset cache on re-init
         dtAccumulator = 0;
         const shouldRun = payload.isRunning !== undefined ? payload.isRunning : true;
@@ -84,7 +99,12 @@ self.onmessage = (e) => {
             accelsValid = false;
         }
     } else if (type === 'RESET_BODIES') {
-        bodies = payload.bodies || [];
+        const inboundReset = Array.isArray(payload.bodies) ? payload.bodies : [];
+        const rejectedReset = inboundReset.filter((b: any) => !isValidBody(b)).length;
+        if (rejectedReset > 0) {
+            console.warn(`[nbody] RESET_BODIES rejected ${rejectedReset} malformed bodie(s)`);
+        }
+        bodies = inboundReset.filter(isValidBody);
         if (payload.centralMass_solar && payload.centralMass_solar > 0) {
             centralMass_solar = payload.centralMass_solar;
         }
@@ -186,8 +206,10 @@ function integrate(subDt: number): void {
     for (let i = 0; i < n; i++) {
         const b = bodies[i];
 
-        // NaN guard: reset if calculation exploded
-        if (isNaN(b.position_au.x) || isNaN(b.velocity_au_yr.x)) {
+        // NaN guard: reset if calculation exploded (all components —
+        // a poisoned y/z used to slip through the x-only check and re-poison
+        // the accelerations on the next substep).
+        if (!isFiniteVec3(b.position_au) || !isFiniteVec3(b.velocity_au_yr)) {
             b.position_au.x = (i + 1) * 2.0;
             b.position_au.y = 0.0;
             b.position_au.z = 0.0;

@@ -37,14 +37,23 @@ export interface KeplerianElements {
  * @returns Eccentric Anomaly (E) in radians
  */
 export function solveKepler(M: number, e: number, tolerance: number = 1e-6, maxIter: number = 30): number {
+    if (!Number.isFinite(M) || !Number.isFinite(e) || !Number.isFinite(tolerance) || tolerance <= 0) return NaN;
+    const ecc = Math.max(0, Math.min(0.9999, e));
+    // Normalize M to [-PI, PI] so large accumulated anomalies converge
+    // instead of silently exiting at maxIter with a stale estimate.
+    let Mn = M % (2.0 * Math.PI);
+    if (Mn > Math.PI) Mn -= 2.0 * Math.PI;
+    if (Mn < -Math.PI) Mn += 2.0 * Math.PI;
     // Initial guess for E
-    let E = e < 0.8 ? M : Math.PI;
-    let F = E - e * Math.sin(E) - M;
+    let E = ecc < 0.8 ? Mn : Math.PI;
+    let F = E - ecc * Math.sin(E) - Mn;
     let i = 0;
 
     while (Math.abs(F) > tolerance && i < maxIter) {
-        E = E - F / (1.0 - e * Math.cos(E));
-        F = E - e * Math.sin(E) - M;
+        const denom = 1.0 - ecc * Math.cos(E);
+        if (Math.abs(denom) < 1e-12) break;
+        E = E - F / denom;
+        F = E - ecc * Math.sin(E) - Mn;
         i++;
     }
 

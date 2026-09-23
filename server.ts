@@ -699,7 +699,9 @@ app.get('/api/horizons/search', async (req, res) => {
           const inclination_deg = parseFloat(row[4]);
           const period_yr = row[5] ? (parseFloat(row[5]) / 365.25) : null;
 
-          const isComet = type === 'comet' || name.includes('/') || name.includes('P');
+          // NOTE: a bare 'P' check misclassifies asteroids (e.g. "2 Pallas").
+          // Cometary designations carry a '/' ("1P/Halley", "C/1995 O1 ...").
+          const isComet = type === 'comet' || name.includes('/');
           const coma_onset_au = isComet ? 3.0 : null;
           const tail_onset_au = isComet ? 2.5 : null;
 
@@ -881,6 +883,11 @@ app.post('/api/analyze', async (req, res) => {
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+// Unknown /api/* routes return JSON 404 instead of falling through to the
+// SPA index.html fallback (which used to answer API typos with HTTP 200 HTML).
+app.use('/api', (_req, res) => {
+  res.status(404).json({ error: 'Not found' });
+});
 if (process.env.NODE_ENV === 'production') {
   const distPath = path.join(__dirname, 'dist');
   app.use(express.static(distPath));

@@ -171,7 +171,9 @@ export class SimulationCoordinator {
                     velocity_au_yr: { x: vx, y: vy, z: vz },
                     semi_major_axis_au: a,
                     coma_active: bodyType === 'comet' && r < 3.0,
-                    tail_vector: bodyType === 'comet' ? { x: x/r, y: y/r, z: z/r } : null
+                    // Guard r == 0 (body at the star center) — x/0 is NaN and
+                    // would poison every downstream consumer of the vector.
+                    tail_vector: bodyType === 'comet' && r > 1e-9 ? { x: x/r, y: y/r, z: z/r } : null
                 });
 
                 let mass = MASS_EARTH;

@@ -191,7 +191,10 @@ export class Engine {
                 vColor = color;
                 vTwinkle = sin(uTime * 2.5 + aPhase) * 0.35 + 0.65;
                 vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
-                gl_PointSize = aSize * (300.0 / -mvPosition.z);
+                // Clamp the maximum: if the camera ever nears the shell,
+                // -mvPosition.z approaches 0 and points blow up to
+                // fullscreen blobs. Normal far-field sizes are unaffected.
+                gl_PointSize = min(aSize * (300.0 / max(-mvPosition.z, 1.0)), 9.0);
                 gl_Position = projectionMatrix * mvPosition;
             }
         `;
@@ -430,6 +433,7 @@ export class Engine {
         if (!this.isPaused && !isScrubbing) {
             const deltaTime_yr = timeScale === 'cosmic' ? delta * 200000000 : delta * 1000;
             try {
+                // Intentional: comet/belt/dyson systems are singletons showcasing the focus star's system.
                 const targetStar = this.selectedStar || this.heroStars[0];
                 const targetStarPos = targetStar?.position;
                 const targetStarMass = targetStar?.mass || 1.0;

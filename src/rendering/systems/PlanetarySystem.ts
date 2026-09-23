@@ -162,9 +162,11 @@ void main() {
         float earlyScorch = smoothstep(0.0, 0.5, vScorch);
         float lateScorch  = smoothstep(0.5, 1.0, vScorch);
         vec3 scorchedColor = mix(vec3(0.55, 0.18, 0.05), vec3(0.08, 0.03, 0.02), earlyScorch);
-        // Glowing magma cracks appear at late scorch
+        // Glowing magma cracks appear at late scorch (mix factor clamped:
+        // lateScorch * crack * 2.0 reaches 2.0 and mix() extrapolates past
+        // the hot color into HDR blowout without the clamp).
         float crack = smoothstep(0.55, 0.75, lava);
-        scorchedColor = mix(scorchedColor, mix(vec3(1.0, 0.4, 0.0), vec3(1.0, 0.9, 0.3), crack), lateScorch * crack * 2.0);
+        scorchedColor = mix(scorchedColor, mix(vec3(1.0, 0.4, 0.0), vec3(1.0, 0.9, 0.3), crack), min(lateScorch * crack * 2.0, 1.0));
         color = mix(color, scorchedColor, vScorch);
     }
 

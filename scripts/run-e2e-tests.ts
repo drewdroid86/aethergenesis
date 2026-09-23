@@ -100,6 +100,7 @@ async function main() {
     'scripts/e2e/f3_galaxy.test.ts',
     'scripts/e2e/f4_comet.test.ts',
     'scripts/e2e/f5_nbody_rekey.test.ts',
+    'scripts/e2e/f6_audit_fixes.test.ts',
   ];
 
   let allPassed = true;
