@@ -1,0 +1,32 @@
+diff --git a/src/rendering/systems/PlanetarySystem.ts b/src/rendering/systems/PlanetarySystem.ts
+index f73eae3..6a017c6 100644
+--- a/src/rendering/systems/PlanetarySystem.ts
++++ b/src/rendering/systems/PlanetarySystem.ts
+@@ -419,9 +419,12 @@ export class PlanetarySystem {
+                 const orbitScale = 12.0;
+                 let radius: number;
+                 if (isBufferDriven) {
++                    // Worker bodies orbit in the ecliptic X-Y plane (keplerianToCartesian
++                    // with inclination 0 yields z = 0); the renderer draws orbit rings in
++                    // the X-Z plane, so measure the radius in the worker's X-Y plane.
+                     const bx = buffer![i * 7 + 0] * orbitScale;
+-                    const bz = buffer![i * 7 + 2] * orbitScale;
+-                    radius = Math.sqrt(bx * bx + bz * bz);
++                    const by = buffer![i * 7 + 1] * orbitScale;
++                    radius = Math.sqrt(bx * bx + by * by);
+                 } else {
+                     radius = this.proceduralOrbits[i].semiMajorAxis_au * orbitScale;
+                 }
+@@ -450,9 +453,10 @@ export class PlanetarySystem {
+                 bScale = b.scale;
+                 bSeed = b.seed;
+                 const orbitScale = 12.0;
++                // Remap worker ecliptic coords (X-Y plane) to the renderer's X-Z plane.
+                 x = buffer![i * 7 + 0] * orbitScale;
+-                y = buffer![i * 7 + 1] * orbitScale;
+-                z = buffer![i * 7 + 2] * orbitScale;
++                y = buffer![i * 7 + 2] * orbitScale;
++                z = buffer![i * 7 + 1] * orbitScale;
+             } else {
+                 const po = this.proceduralOrbits[i];
+                 bScale = po.scale;
