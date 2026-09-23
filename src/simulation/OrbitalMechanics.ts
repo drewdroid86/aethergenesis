@@ -122,6 +122,50 @@ export function keplerianToCartesian(elements: KeplerianElements, centralMass_so
 }
 
 /**
+ * Minimal structural view of a procedurally generated planet orbit, as produced
+ * by PlanetarySystem.proceduralOrbits. Kept structural (not imported) so this
+ * pure module stays free of rendering dependencies.
+ */
+export interface GeneratedPlanetOrbit {
+    semiMajorAxis_au: number;
+    phaseOffset: number;
+    type: number;
+}
+
+/**
+ * Rebuilds n-body worker bodies from a star's generated planets, with
+ * velocities computed under the given central mass. Whenever the central mass
+ * changes, bodies MUST be rebuilt through here (or equivalent) — keeping old
+ * velocities under a new mass leaves every orbit at the wrong energy
+ * (stale-velocity bug). Callers must pass the phase-aware currentMass
+ * (post-mass-loss), not the birth mass.
+ * @param orbits Generated planet orbits to convert
+ * @param centralMass_solar Mass of the central body in solar masses
+ * @returns Worker-ready bodies with circular-orbit state vectors
+ */
+export function buildWorkerBodiesFromOrbits(orbits: GeneratedPlanetOrbit[], centralMass_solar: number): OrbitalBody[] {
+    return orbits.map((orbit, i) => {
+        const cartesian = keplerianToCartesian({
+            semiMajorAxis_au: orbit.semiMajorAxis_au,
+            eccentricity: 0,
+            inclination_deg: 0,
+            longitudeOfAscendingNode_deg: 0,
+            argumentOfPeriapsis_deg: 0,
+            meanAnomaly_deg: (orbit.phaseOffset * 180 / Math.PI) % 360
+        }, centralMass_solar);
+        const isGasGiant = orbit.type === 1;
+        return {
+            id: `preset_body_${i}`,
+            type: 'planet' as const,
+            mass_solar: isGasGiant ? 0.00095 : 0.000003,
+            radius_km: isGasGiant ? 71492 : 6371,
+            position_au: cartesian.position,
+            velocity_au_yr: cartesian.velocity
+        };
+    });
+}
+
+/**
  * Computes Habitable Zone boundaries based on Kopparapu et al. 2013 (simplified).
  * @param luminositySolar Luminosity of the star in solar units
  * @returns Inner and Outer boundaries in AU
