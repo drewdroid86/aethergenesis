@@ -4,10 +4,11 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { Engine } from '../../core/engine';
 import { HeroStarSystem } from '../../rendering/systems/HeroStarSystem';
 import { NebulaSystem } from '../../rendering/systems/NebulaSystem';
-import { PHASE_NAMES } from '../../core/constants';
+import { PHASE_NAMES, PHASES } from '../../core/constants';
 import { PhysicsConstants, DEFAULT_CONSTANTS } from '../../types/physics';
 import { getNumStarsForTier, PerformanceTier } from '../../utils/performance';
-import { OrbitalBody, keplerianToCartesian } from '../../simulation/OrbitalMechanics';
+import { OrbitalBody, buildWorkerBodiesFromOrbits, keplerianToCartesian } from '../../simulation/OrbitalMechanics';
+import { PlanetarySystem, PlanetarySystemQueue } from '../../rendering/systems/PlanetarySystem';
 import { SimulationCoordinator } from '../../simulation/SimulationCoordinator';
 
 // Sub-hooks
@@ -166,10 +167,39 @@ export function useSimulation(containerRef: React.RefObject<HTMLDivElement | nul
                 coordinatorRef.current.clearHistory(star.physicsId);
             }
             if (nbodyWorkerRef.current) {
-                nbodyWorkerRef.current.postMessage({
-                    type: 'UPDATE_CENTRAL_MASS',
-                    payload: { centralMass_solar: star.mass }
-                });
+                // Authoritative phase-aware mass, not the birth mass: remnants
+                // and giants must integrate under currentMass (post-mass-loss).
+                const rawMass = star.currentMass ?? star.mass;
+                const centralMass = Number.isFinite(rawMass) && rawMass > 0 ? rawMass : 1.0;
+                // applyPreset() disposes the old PlanetarySystem and only
+                // queue-creates its replacement asynchronously, so the fresh
+                // proceduralOrbits are not attached yet at this point. Without
+                // this step the re-key below always falls through to the
+                // mass-only update, keeping stale velocities under the new
+                // gravity. Materialize the generated planets synchronously
+                // (cancelling the queued duplicate) so the rebuild runs.
+                if (!star.planetarySystem && star.phase === PHASES.MAIN_SEQUENCE) {
+                    PlanetarySystemQueue.cancelCreation(star);
+                    star.planetarySystem = new PlanetarySystem(star, engineRef.current?.renderer);
+                }
+                // Re-key bodies so velocities match the new gravity. Keeping
+                // old velocities under a new central mass leaves every orbit
+                // at the wrong energy (stale-velocity bug).
+                const orbits = star.planetarySystem?.proceduralOrbits;
+                if (orbits && orbits.length > 0) {
+                    const bodies: OrbitalBody[] = buildWorkerBodiesFromOrbits(orbits, centralMass);
+                    nbodyWorkerRef.current.postMessage({
+                        type: 'RESET_BODIES',
+                        payload: { bodies, centralMass_solar: centralMass }
+                    });
+                } else {
+                    // No generated planets for this phase (e.g. remnant);
+                    // at least integrate existing bodies under the new mass.
+                    nbodyWorkerRef.current.postMessage({
+                        type: 'UPDATE_CENTRAL_MASS',
+                        payload: { centralMass_solar: centralMass }
+                    });
+                }
             }
         }
     }, [selectedStarRef]);

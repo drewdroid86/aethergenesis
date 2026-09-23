@@ -419,9 +419,10 @@ export class PlanetarySystem {
                 const orbitScale = 12.0;
                 let radius: number;
                 if (isBufferDriven) {
+                    // Worker emits ecliptic X-Y plane; renderer draws orbit rings in X-Z plane.
                     const bx = buffer![i * 7 + 0] * orbitScale;
-                    const bz = buffer![i * 7 + 2] * orbitScale;
-                    radius = Math.sqrt(bx * bx + bz * bz);
+                    const by = buffer![i * 7 + 1] * orbitScale;
+                    radius = Math.sqrt(bx * bx + by * by);
                 } else {
                     radius = this.proceduralOrbits[i].semiMajorAxis_au * orbitScale;
                 }
@@ -450,9 +451,10 @@ export class PlanetarySystem {
                 bScale = b.scale;
                 bSeed = b.seed;
                 const orbitScale = 12.0;
+                // Remap worker ecliptic X-Y plane to renderer X-Z plane (y=0).
                 x = buffer![i * 7 + 0] * orbitScale;
-                y = buffer![i * 7 + 1] * orbitScale;
-                z = buffer![i * 7 + 2] * orbitScale;
+                y = buffer![i * 7 + 2] * orbitScale;
+                z = buffer![i * 7 + 1] * orbitScale;
             } else {
                 const po = this.proceduralOrbits[i];
                 bScale = po.scale;
