@@ -51,6 +51,18 @@ test('F1-T1-5: Search Horizons for Small Body NAIF ID', async () => {
   assert.ok(body, 'Horizons search should return body data');
   assert.strictEqual(body.naif_id, '1P');
   assert.ok(body.semi_major_axis_au > 0, 'Should return semi-major axis');
+  // Wrong-body regression guard: a '1P' query must resolve to Halley — never
+  // to an unrelated body such as Kerberos. naif_id is echoed from the request,
+  // so the identity check must use body_name, not naif_id.
+  assert.match(String(body.body_name ?? ''), /1P|Halley/i, 'body_name must identify 1P/Halley');
+  assert.ok(!/kerberos/i.test(String(body.body_name ?? '')), 'body_name must never be Kerberos for body_id=1P');
+  // When JPL is unreachable the cached fallback serves the response; that
+  // entry must be Halley-correct too (a≈17.8 AU, e≈0.967).
+  if (String(body.source ?? '').toLowerCase().includes('fallback')) {
+    assert.match(String(body.body_name ?? ''), /Halley/i, 'Cached fallback for 1P must be Halley');
+    assert.ok(Math.abs(body.eccentricity - 0.967) < 0.05, 'Cached fallback eccentricity must match Halley');
+    assert.ok(body.semi_major_axis_au > 10 && body.semi_major_axis_au < 25, 'Cached fallback semi-major axis must match Halley');
+  }
 });
 
 // ==========================================
