@@ -227,6 +227,68 @@ function parseOrbitalElements(text: string) {
   };
 }
 
+/**
+ * Wrong-body guard for JPL Horizons lookups.
+ *
+ * Horizons resolves COMMAND fuzzily, so a designation like '1P' can come back
+ * as a multi-record disambiguation list (or even a directly-resolved unrelated
+ * body). A returned record only corresponds to the request when its
+ * designation/name matches the requested body_id case-insensitively, allowing
+ * Horizons naming variants such as '1P/Halley' for a '1P' query.
+ */
+function horizonsRecordMatchesRequest(targetName: string, requestedBodyId: string): boolean {
+  const record = targetName.toLowerCase();
+  const requested = requestedBodyId.trim().toLowerCase();
+  if (!requested) return false;
+  const escapeRegExp = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  // Boundary-aware containment in either direction: '1p' matches '1p/halley'
+  // but not '21p/...' (preceded by an alphanumeric) nor 'kerberos (904)'.
+  const boundaryContains = (haystack: string, needle: string) =>
+    new RegExp(`(^|[^a-z0-9])${escapeRegExp(needle)}([^a-z0-9]|$)`).test(haystack);
+  if (boundaryContains(record, requested)) return true;
+  if (boundaryContains(requested, record)) return true;
+  // Token overlap for multi-word names: any significant shared token, e.g.
+  // request 'halley' vs record '1p/halley'.
+  const tokens = (s: string) => s.split(/[^a-z0-9]+/).filter((t) => t.length >= 2);
+  const recordTokens = new Set(tokens(record));
+  if (recordTokens.size === 0) return false;
+  return tokens(requested).some((t) => recordTokens.has(t));
+}
+
+interface HorizonsIndexCandidate {
+  record: string;
+  label: string;
+  // Normalized "match-desig | primary-desig | name" key grouping apparition
+  // records of one body (e.g. every Halley apparition shares one key).
+  desigKey: string;
+  // Solution epoch year from the index row, when parseable.
+  epochYear: number | null;
+}
+
+/**
+ * Parse DASTCOM small-body index rows ("<record> <epoch-yr> <match-desig> ...")
+ * from a Horizons disambiguation listing.
+ */
+function parseHorizonsIndexCandidates(resultText: string): HorizonsIndexCandidate[] {
+  const candidates: HorizonsIndexCandidate[] = [];
+  for (const line of resultText.split('\n')) {
+    const trimmed = line.trim();
+    if (!/^(\d+)\s+(-?\d+)\s+/.test(trimmed)) continue;
+    const tokens = trimmed.split(/\s+/);
+    const epochYear = tokens.length > 1 ? parseInt(tokens[1], 10) : NaN;
+    const desigKey = tokens.length > 4
+      ? `${tokens[2]}|${tokens[3]}|${tokens.slice(4).join(' ')}`.toLowerCase()
+      : trimmed.toLowerCase();
+    candidates.push({
+      record: tokens[0],
+      label: trimmed,
+      desigKey,
+      epochYear: Number.isNaN(epochYear) ? null : epochYear,
+    });
+  }
+  return candidates;
+}
+
 app.get('/api/catalog/presets', (_req, res) => {
   res.json(PRESETS);
 });
@@ -614,19 +676,31 @@ app.get('/api/horizons/search', async (req, res) => {
       
       // Check if result is ambiguous/search list
       let resultText = data.result;
+      let candidateLabels: string[] = [];
       if (!resultText.includes('$$SOE')) {
         // Resolve ambiguous or fallback to error
-        const lines = resultText.split('\n');
-        const recordNumbers = [];
-        for (const line of lines) {
-          const match = line.trim().match(/^(\d+)\s+(-?\d+)\s+/);
-          if (match) {
-            recordNumbers.push(match[1]);
+        const candidates = parseHorizonsIndexCandidates(resultText);
+        if (candidates.length > 0) {
+          candidateLabels = candidates.map((c) => c.label);
+          // Wrong-body guard: the previous code retried the LAST record number,
+          // so a fuzzy designation like '1P' resolved to an unrelated body
+          // (Kerberos / record 904). Prefer the unique candidate whose
+          // designation/name matches the request; otherwise retry the first
+          // candidate and let the post-fetch validation below reject a wrong
+          // record instead of silently returning it.
+          const matchingRecords = Array.from(new Set(
+            candidates
+              .filter((c) => horizonsRecordMatchesRequest(c.label, bodyId))
+              .map((c) => c.record)
+          ));
+          if (matchingRecords.length > 1) {
+            return res.status(404).json({
+              error: `Ambiguous body '${bodyId}': multiple Horizons records match the request`,
+              candidates: candidateLabels.slice(0, 25),
+            });
           }
-        }
-        if (recordNumbers.length > 0) {
-          const bestRecord = recordNumbers[recordNumbers.length - 1];
-          const retryUrl = `https://ssd.jpl.nasa.gov/api/horizons.api?format=json&EPHEM_TYPE=ELEMENTS&COMMAND=${encodeURIComponent("'" + bestRecord + ";'")}&MAKE_EPHEM=YES&CENTER=500@10&START_TIME=${epoch}&STOP_TIME=${stopStr}&STEP_SIZE=1d&OBJ_DATA=YES`;
+          const bestRecord = matchingRecords.length === 1 ? matchingRecords[0] : candidates[0].record;
+          const retryUrl = `https://ssd.jpl.nasa.gov/api/horizons.api?format=json&EPHEM_TYPE=ELEMENTS&COMMAND='${encodeURIComponent(bestRecord + ';')}'&MAKE_EPHEM=YES&CENTER=500@10&START_TIME=${epoch}&STOP_TIME=${stopStr}&STEP_SIZE=1d&OBJ_DATA=YES`;
           const retryRes = await fetchWithTimeout(retryUrl);
           if (retryRes.status !== 200) {
             if (fallback) {
@@ -642,6 +716,12 @@ app.get('/api/horizons/search', async (req, res) => {
             return res.status(502).json({ error: retryData.error || 'Failed on retry' });
           }
           resultText = retryData.result;
+          if (!resultText.includes('$$SOE')) {
+            return res.status(404).json({
+              error: `Ambiguous body or no records found for '${bodyId}'`,
+              candidates: candidateLabels.slice(0, 25),
+            });
+          }
         } else {
           if (fallback) {
             return res.json({ ...fallback, naif_id: bodyId, source: 'NASA JPL Horizons (Cached Fallback)' });
@@ -650,10 +730,79 @@ app.get('/api/horizons/search', async (req, res) => {
         }
       }
       
-      const parsed = parseOrbitalElements(resultText);
       const nameMatch = resultText.match(/Target body name:\s*([^\n\r{]*)/i);
-      const bodyName = nameMatch ? nameMatch[1].trim() : bodyId;
-      
+      let bodyName = nameMatch ? nameMatch[1].trim() : bodyId;
+
+      // Wrong-body guard: never silently return a record that does not
+      // correspond to the requested body (e.g. 'Kerberos (904)' for a '1P'
+      // query). A 4xx lets the UI show "no unambiguous match" instead of
+      // simulating the wrong object.
+      if (!horizonsRecordMatchesRequest(bodyName, bodyId)) {
+        // The direct COMMAND lookup resolved to an unrelated body (observed:
+        // COMMAND='1P' resolves directly to Kerberos). Retry via the
+        // small-body index search form (trailing ';'), which returns a
+        // disambiguation list, and select the unambiguous designation match.
+        const indexUrl = `https://ssd.jpl.nasa.gov/api/horizons.api?format=json&EPHEM_TYPE=ELEMENTS&COMMAND='${encodeURIComponent(bodyId + ';')}'&MAKE_EPHEM=YES&CENTER=500@10&START_TIME=${epoch}&STOP_TIME=${stopStr}&STEP_SIZE=1d&OBJ_DATA=YES`;
+        const indexRes = await fetchWithTimeout(indexUrl);
+        if (indexRes.status !== 200) {
+          return res.status(404).json({
+            error: `Horizons returned '${bodyName}' which does not match requested body '${bodyId}'`,
+          });
+        }
+        const indexData = await indexRes.json();
+        const indexCandidates = indexData && !indexData.error && indexData.result
+          ? parseHorizonsIndexCandidates(indexData.result)
+          : [];
+        const matching = indexCandidates.filter((c) => horizonsRecordMatchesRequest(c.label, bodyId));
+        const distinctDesigs = Array.from(new Set(matching.map((c) => c.desigKey)));
+        if (matching.length === 0 || distinctDesigs.length !== 1) {
+          const labels = indexCandidates.length > 0
+            ? indexCandidates.map((c) => c.label)
+            : candidateLabels;
+          return res.status(404).json({
+            error: matching.length === 0
+              ? `Horizons returned '${bodyName}' which does not match requested body '${bodyId}', and index search found no match`
+              : `Ambiguous body '${bodyId}': multiple Horizons designations match the request`,
+            candidates: labels.slice(0, 25),
+          });
+        }
+        candidateLabels = indexCandidates.map((c) => c.label);
+        // One designation may span many apparition records (e.g. Halley):
+        // prefer the solution epoch closest to the requested elements epoch.
+        const queryYear = parseInt(epoch.substring(0, 4), 10);
+        const epochCloseness = (c: HorizonsIndexCandidate) =>
+          c.epochYear === null || Number.isNaN(queryYear) ? Number.MAX_SAFE_INTEGER : Math.abs(c.epochYear - queryYear);
+        const ordered = [...matching].sort((a, b) => epochCloseness(a) - epochCloseness(b));
+        const recordUrl = `https://ssd.jpl.nasa.gov/api/horizons.api?format=json&EPHEM_TYPE=ELEMENTS&COMMAND='${encodeURIComponent(ordered[0].record + ';')}'&MAKE_EPHEM=YES&CENTER=500@10&START_TIME=${epoch}&STOP_TIME=${stopStr}&STEP_SIZE=1d&OBJ_DATA=YES`;
+        const recordRes = await fetchWithTimeout(recordUrl);
+        if (recordRes.status !== 200) {
+          if (fallback) {
+            return res.json({ ...fallback, naif_id: bodyId, source: 'NASA JPL Horizons (Cached Fallback)' });
+          }
+          return res.status(502).json({ error: `Horizons retry returned HTTP ${recordRes.status}` });
+        }
+        const recordData = await recordRes.json();
+        if (recordData.error || !recordData.result || !recordData.result.includes('$$SOE')) {
+          if (fallback) {
+            return res.json({ ...fallback, naif_id: bodyId, source: 'NASA JPL Horizons (Cached Fallback)' });
+          }
+          return res.status(404).json({
+            error: `Ambiguous body or no records found for '${bodyId}'`,
+            candidates: candidateLabels.slice(0, 25),
+          });
+        }
+        resultText = recordData.result;
+        const retryNameMatch = resultText.match(/Target body name:\s*([^\n\r{]*)/i);
+        bodyName = retryNameMatch ? retryNameMatch[1].trim() : bodyId;
+        if (!horizonsRecordMatchesRequest(bodyName, bodyId)) {
+          return res.status(404).json({
+            error: `Horizons returned '${bodyName}' which does not match requested body '${bodyId}'`,
+            candidates: candidateLabels.slice(0, 25),
+          });
+        }
+      }
+
+      const parsed = parseOrbitalElements(resultText);
       return res.json({
         body_name: bodyName,
         naif_id: bodyId,
