@@ -23,6 +23,19 @@ This log is updated after every AI session. Each AI signs off with their entry. 
 
 ## RECENT LOGS
 
+### 2026-09-23 — Agent Audit Fix Batches 1–2 (Muse Code)
+- **Simulation correctness:**
+  - `src/simulation/nbodyWorker.ts`: INIT/RESET_BODIES now validate bodies (same poison guard as ADD_BODY); explicit finite>0 checks replace `||` defaults; NaN guard covers all xyz components.
+  - `src/simulation/StellarPhysics.ts`: `computeMainSequenceLifetime` returns NaN for mass <= 0 instead of Infinity.
+  - `src/simulation/OrbitalMechanics.ts`: `solveKepler` guards non-finite input, normalizes M to [-PI, PI], clamps e, avoids near-zero divide.
+  - `src/simulation/SimulationCoordinator.ts`: tail_vector guarded against r=0 NaN.
+  - `src/simulation/AstrobiologyEngine.ts`: T floored at 1e-6 K so the Jeans ratio can't yield Infinity.
+- **Server (`server.ts`):** comet check uses `/` only (was flagging "2 Pallas"); unknown `/api/*` returns JSON 404 instead of SPA HTML.
+- **Visuals:** `PlanetarySystem.ts` scorch crack mix clamped to 1.0; `CometSystem.ts` tails deactivated in 2.5–3.0 AU band + Roche 0.85 → 0.05 AU; `RemnantPhase.ts` BH disk `depthWrite: false`; `engine.ts` background points clamped to 9px max.
+- **Checked and skipped as stale/invalid:** CORS, cosmic timescale, citylight-x-biomass (civ requires biomass >= 1), corona inversion, Dyson radius, lensing guard, vite `__dirname`, useSimulation Date.now claims.
+- **Tests:** new `scripts/e2e/f6_audit_fixes.test.ts` (pure guards: lifetime, Kepler, Earth perihelion, frozen-rock finite scores), registered in `run-e2e-tests.ts`.
+- **Verification:** NOT run — shell sandbox down (`bwrap` missing temp dir), so no typecheck/build/tests. Pre-existing: `npm test` runner lists f1–f4 but only f5 exists on disk.
+
 ### 2026-09-19 — Week 1 & Week 2 Audit Fixes (Gemini)
 - **Week 1 Correctness & Stability Fixes:**
   - `src/components/AetherGenesis.tsx` & `src/utils/hooks/useSimulation.ts`: Dedicated XYZ coordinate refs per consumer (`badgeCoordRefs`, `attitudeCoordRefs`) preventing React from nulling refs on unmount (H1).

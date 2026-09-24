@@ -201,8 +201,13 @@ export function useSimulation(containerRef: React.RefObject<HTMLDivElement | nul
                     });
                 }
             }
+            // Mirror Tactical Radar contact + Focus [F]: select the preset
+            // star so its panels open, then fly the camera to it. Tap and
+            // click share this path, so phone and desktop behave the same.
+            setSelectedStar(star);
+            centerOnStar();
         }
-    }, [selectedStarRef]);
+    }, [selectedStarRef, setSelectedStar, centerOnStar]);
 
     const addBodyToSimulation = useCallback((elements: any) => {
         setIsCatalogOpen(false);

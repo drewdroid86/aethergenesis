@@ -19,7 +19,7 @@ export const SpatialBreadcrumbs: React.FC<SpatialBreadcrumbsProps> = ({
 }) => {
     return (
         <nav 
-            className="flex items-center gap-1.5 bg-[rgba(8,8,20,0.65)] backdrop-blur-md border border-[rgba(126,184,255,0.2)] px-3 py-1.5 rounded-full font-mono text-[9px] text-[#7EB8FF]/70 select-none pointer-events-auto shadow-[0_0_15px_rgba(8,8,20,0.6)]"
+            className="flex items-center gap-1.5 bg-[rgba(8,8,20,0.65)] backdrop-blur-md border border-[rgba(126,184,255,0.2)] px-3 py-1.5 rounded-full font-mono text-[9px] text-[#7EB8FF]/70 select-none pointer-events-auto shadow-[0_0_15px_rgba(8,8,20,0.6)] max-[480px]:flex-wrap max-[480px]:rounded-2xl"
             aria-label="Spatial Breadcrumb Hierarchy"
         >
             {/* Level 1: Universe */}

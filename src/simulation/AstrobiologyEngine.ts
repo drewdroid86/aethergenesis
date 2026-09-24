@@ -94,7 +94,10 @@ export class AstrobiologyEngine {
     // 2. Thermal
     const T_eq = 278.5 * Math.sqrt(Math.sqrt(S_eff * (1 - planetAlbedo)));
     const greenhouse = planetMass_kg > 1e23 ? (cfg.greenhouseByType[bodyType] ?? cfg.greenhouseByType.rocky) : 0;
-    const T_actual = T_eq + greenhouse;
+    // Floor at a small epsilon: at T=0 the Jeans-escape ratio below divides by
+    // zero and yields Infinity, which poisons the composite habitability score.
+    const T_raw = T_eq + greenhouse;
+    const T_actual = Number.isFinite(T_raw) ? Math.max(T_raw, 1e-6) : 1e-6;
     const { minK, maxK, falloffK } = cfg.water;
     const thermalScore = T_actual >= minK && T_actual <= maxK
       ? 1.0

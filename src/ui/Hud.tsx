@@ -1,5 +1,5 @@
 import React, { useRef, useState, useEffect } from 'react';
-import { Check, Copy, Crosshair, Navigation, Pause, Play, Search, Volume2, VolumeX } from 'lucide-react';
+import { Activity, Check, Copy, Crosshair, Navigation, Pause, Play, Search, Volume2, VolumeX } from 'lucide-react';
 import { audioEngine } from '../audio/AudioEngine';
 
 export interface HudProps {
@@ -69,6 +69,9 @@ export const Hud: React.FC<HudProps> = ({
 }) => {
     const isDebugMode = typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('debug') === '1';
     const [idCopied, setIdCopied] = useState(false);
+    // Phone (<=480px): the Background Mass / Universe ID / Engine Tier /
+    // Performance stats collapse behind a toggle so the header fits 390px.
+    const [statsOpen, setStatsOpen] = useState(false);
     const [announcement, setAnnouncement] = useState('');
     const isFirstRenderRef = useRef(true);
 
@@ -97,20 +100,32 @@ export const Hud: React.FC<HudProps> = ({
     return (
         <>
             {/* Top HUD */}
-            <nav className="absolute top-0 w-full p-4 md:p-8 flex justify-between items-start z-20 pointer-events-none">
+            <nav className="absolute top-0 w-full p-4 md:p-8 flex justify-between items-start z-20 pointer-events-none max-[480px]:static max-[480px]:order-first max-[480px]:flex-col max-[480px]:items-stretch max-[480px]:gap-2">
                 <div className="flex flex-col gap-1">
                 <div className="flex items-center gap-3">
                     <div className="w-3 h-3 bg-indigo-500 rounded-full animate-pulse shadow-[0_0_8px_#C084FC]"></div>
                     <h1 className="text-xl font-bold tracking-[0.3em] uppercase drop-shadow-[0_0_10px_rgba(255,255,255,0.3)]">
                     ÆTHERGENESIS
                     </h1>
+                    <button
+                        onClick={() => {
+                            audioEngine.playUiClick();
+                            setStatsOpen(v => !v);
+                        }}
+                        className="min-[481px]:hidden ml-auto flex min-h-[44px] min-w-[44px] items-center justify-center rounded-full border border-[rgba(126,184,255,0.2)] bg-[rgba(8,8,20,0.6)] text-[#7EB8FF] pointer-events-auto"
+                        aria-expanded={statsOpen}
+                        aria-label={statsOpen ? 'Hide performance stats' : 'Show performance stats'}
+                        title="Performance stats"
+                    >
+                        <Activity size={18} />
+                    </button>
                 </div>
                 <span className="text-[10px] text-[#7EB8FF]/70 uppercase tracking-[0.2em] ml-6">
                     Simulation Phase 03: Stellar & Planetary Evolution
                 </span>
                 </div>
                 
-                <div className="flex items-center gap-8 bg-[rgba(8,8,20,0.6)] backdrop-blur-md border border-[rgba(126,184,255,0.2)] rounded-full px-6 py-3">
+                <div className={`${statsOpen ? 'flex' : 'hidden'} min-[481px]:flex items-center gap-8 max-[480px]:gap-x-5 max-[480px]:gap-y-3 max-[480px]:flex-wrap max-[480px]:justify-center max-[480px]:rounded-2xl max-[480px]:px-4 bg-[rgba(8,8,20,0.6)] backdrop-blur-md border border-[rgba(126,184,255,0.2)] rounded-full px-6 py-3`}>
                 <div className="flex flex-col items-center">
                     <span className="text-[9px] uppercase tracking-widest text-[#7EB8FF]">Background Mass</span>
                     <span className="font-mono text-sm">{performance.numStars.toLocaleString()} <span className="text-[#C084FC]">★</span></span>
@@ -178,7 +193,7 @@ export const Hud: React.FC<HudProps> = ({
             {/* Performance Telemetry Overlay */}
             {performance.diagnosticsEnabled && performance.diagnostics && (
                 <div 
-                    className="absolute top-24 right-4 bg-[rgba(8,8,20,0.85)] backdrop-blur-xl border border-[rgba(126,184,255,0.25)] rounded-2xl p-6 w-80 text-[#7EB8FF] font-mono text-[11px] space-y-4 shadow-[0_0_30px_rgba(8,8,20,0.8)] z-30 pointer-events-auto"
+                    className="absolute top-24 right-4 bg-[rgba(8,8,20,0.85)] backdrop-blur-xl border border-[rgba(126,184,255,0.25)] rounded-2xl p-6 w-80 text-[#7EB8FF] font-mono text-[11px] space-y-4 shadow-[0_0_30px_rgba(8,8,20,0.8)] z-30 pointer-events-auto max-[480px]:static max-[480px]:order-3 max-[480px]:w-auto max-[480px]:mx-4"
                     role="region"
                     aria-label="Performance Telemetry"
                 >

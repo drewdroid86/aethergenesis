@@ -340,8 +340,12 @@ export class CometSystem {
             }
             prev.set(x, y, z);
 
-            // Stellar Roche limit for volatile small bodies: d_roche ~ 0.85 AU * (M_star)^(1/3)
-            const rocheLimitAU = 0.85 * Math.cbrt(Math.max(0.1, stellarState.mass_solar || 1.0));
+            // Stellar Roche limit for a low-density volatile body:
+            // d ~ 2.44 R_star (rho_star/rho_comet)^(1/3) ≈ 0.015 AU for the
+            // Sun. 0.05 keeps margin for sungrazers; the old 0.85 shredded
+            // Halley (q=0.586) and Encke (q=0.336) on every perihelion even
+            // though both real comets survive it.
+            const rocheLimitAU = 0.05 * Math.cbrt(Math.max(0.1, stellarState.mass_solar || 1.0));
             const isTidallyDisrupted = dist < rocheLimitAU;
             const tidalShear = isTidallyDisrupted ? Math.min(1.0, (rocheLimitAU - dist) / (rocheLimitAU * 0.7)) : 0.0;
 
@@ -398,8 +402,12 @@ export class CometSystem {
                     dustColors[i * 3 + 1] = 0.9;
                     dustColors[i * 3 + 2] = 0.6;
                 } else {
+                    // 2.5–3.0 AU band: coma is active but tails are below
+                    // their onset distance — deactivate so no zero-size
+                    // instances are submitted for the tails.
                     ionWidths[i]  = 0;  dustWidths[i]  = 0;
                     ionLengths[i] = 0;  dustLengths[i] = 0;
+                    ionActives[i] = 0;  dustActives[i] = 0;
                     ionDirs[i*3] = ionDirs[i*3+1] = ionDirs[i*3+2] = 0;
                     dustDirs[i*3] = dustDirs[i*3+1] = dustDirs[i*3+2] = 0;
                 }

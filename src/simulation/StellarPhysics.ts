@@ -66,6 +66,10 @@ export interface PhaseTransitionEvent {
  * @returns Main sequence lifetime in years
  */
 export function computeMainSequenceLifetime(mass_solar: number): number {
+  // Non-positive / non-finite masses are unphysical — returning NaN surfaces
+  // the bad input instead of an Infinity/negative "lifetime" that silently
+  // corrupts phase boundaries downstream.
+  if (!Number.isFinite(mass_solar) || mass_solar <= 0) return NaN;
   // BOLT: Algebraic expansion of Math.pow(x, -2.5) as 1 / (x^2 * sqrt(x))
   return 1e10 / (mass_solar * mass_solar * Math.sqrt(mass_solar));
 }
