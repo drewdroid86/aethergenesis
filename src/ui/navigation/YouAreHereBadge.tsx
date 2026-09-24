@@ -37,8 +37,8 @@ export const YouAreHereBadge: React.FC<YouAreHereBadgeProps> = ({
     };
 
     return (
-        <div 
-            className="flex flex-col bg-[rgba(8,8,20,0.75)] backdrop-blur-xl border border-[rgba(126,184,255,0.25)] rounded-2xl p-2.5 shadow-[0_0_25px_rgba(8,8,20,0.8)] pointer-events-auto select-none font-mono text-[9px] group/location"
+        <div
+            className="flex flex-col bg-[rgba(8,8,20,0.75)] backdrop-blur-xl border border-[rgba(126,184,255,0.25)] rounded-2xl p-2.5 shadow-[0_0_25px_rgba(8,8,20,0.8)] pointer-events-auto select-none font-mono text-[9px] group/location max-[480px]:max-w-full"
             role="region"
             aria-label="Current Location and You Are Here status"
         >
@@ -55,10 +55,10 @@ export const YouAreHereBadge: React.FC<YouAreHereBadgeProps> = ({
                     </div>
                 </div>
 
-                <div className="flex items-center gap-2 pl-2 border-l border-[rgba(126,184,255,0.15)]">
-                    <div className="flex flex-col text-right">
+                <div className={`flex items-center gap-2 pl-2 border-l border-[rgba(126,184,255,0.15)] ${isTechnicalOpen ? '' : 'max-[480px]:hidden'}`}>
+                    <div className="flex flex-col text-right min-w-0">
                         <span className="text-[8px] uppercase tracking-wider text-[#7EB8FF]/60">Nearest Star</span>
-                        <span className="text-[#C084FC] font-semibold">
+                        <span className="text-[#C084FC] font-semibold truncate">
                             {nearestStarName} <span className="text-white/60">({distanceToNearest})</span>
                         </span>
                     </div>

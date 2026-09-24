@@ -101,6 +101,8 @@ async function main() {
     'scripts/e2e/f4_comet.test.ts',
     'scripts/e2e/f5_nbody_rekey.test.ts',
     'scripts/e2e/f6_audit_fixes.test.ts',
+    'scripts/e2e/f7_mobile_nav.test.ts',
+    'scripts/e2e/f8_mobile_topcluster.test.ts',
   ];
 
   let allPassed = true;

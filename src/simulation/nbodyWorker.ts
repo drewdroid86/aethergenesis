@@ -27,10 +27,13 @@ function isFiniteVec3(v: any): boolean {
 }
 
 function isValidBody(body: any): body is OrbitalBody {
+    // Only physics-relevant fields are required: mass, position, velocity.
+    // id / radius_km are render metadata unused by the integrator, so a body
+    // missing them is still integrable and must not be rejected.
     return !!body
-        && typeof body.id === 'string'
+        && (body.id === undefined || typeof body.id === 'string')
         && Number.isFinite(body.mass_solar) && body.mass_solar >= 0
-        && Number.isFinite(body.radius_km)
+        && (body.radius_km === undefined || Number.isFinite(body.radius_km))
         && isFiniteVec3(body.position_au)
         && isFiniteVec3(body.velocity_au_yr);
 }

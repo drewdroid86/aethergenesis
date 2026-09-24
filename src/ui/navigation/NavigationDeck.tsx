@@ -19,6 +19,7 @@ import { SpatialBreadcrumbs } from './SpatialBreadcrumbs';
 import { CosmicScaleLadder } from './CosmicScaleLadder';
 import { SpatialLabelsLayer } from './SpatialLabelsLayer';
 import { TargetLockHUD } from './TargetLockHUD';
+import { ChevronDown, ChevronUp } from 'lucide-react';
 import type { HudCoordRefs } from '../../utils/hooks/useSimulation';
 
 export interface NavigationDeckProps {
@@ -218,7 +219,7 @@ export const NavigationDeck: React.FC<NavigationDeckProps> = ({
 
             {/* TOP INSTRUMENTATION BAR: Breadcrumbs + Scale Ladder + You Are Here */}
             {visible && (
-                <div className="absolute top-20 left-8 right-8 flex justify-between items-start z-20 pointer-events-none gap-4">
+                <div className="absolute top-20 left-8 right-8 flex justify-between items-start z-20 pointer-events-none gap-4 max-[480px]:static max-[480px]:order-2 max-[480px]:flex-col max-[480px]:items-stretch max-[480px]:gap-2 max-[480px]:px-4">
                     <div className="flex flex-col gap-2">
                         <SpatialBreadcrumbs 
                             starName={selectedStar?.physicsId ? `Star ${selectedStar.physicsId.substring(0, 6)}` : undefined}
@@ -231,7 +232,7 @@ export const NavigationDeck: React.FC<NavigationDeckProps> = ({
                         />
                     </div>
 
-                    <div className="flex flex-col items-end gap-2">
+                    <div className="flex flex-col items-end gap-2 max-[480px]:items-stretch">
                         <YouAreHereBadge 
                             nearestStarName={nearestStarInfo.name}
                             distanceToNearest={nearestStarInfo.distance}
@@ -307,6 +308,10 @@ export const FlightDeckTelemetry: React.FC<FlightDeckTelemetryProps> = ({
     });
 
     const activeTelemetry = telemetryProp ?? internalTelemetry;
+    // Phone (<=480px): the compass + attitude stack collapses behind a
+    // toggle so the bottom deck stays short and never reaches the top
+    // cluster. Desktop renders the full stack unconditionally.
+    const [telemetryOpen, setTelemetryOpen] = useState(false);
 
     useEffect(() => {
         // Skip fallback RAF loop if telemetry is supplied externally (e.g. from NavigationDeck)
@@ -331,15 +336,27 @@ export const FlightDeckTelemetry: React.FC<FlightDeckTelemetryProps> = ({
 
     return (
         <div className={`pointer-events-none flex flex-col items-center md:items-start gap-2.5 ${className}`.trim()}>
-            <GalacticCompassGimbal 
-                camera={camera}
-                headingDeg={activeTelemetry.headingDeg}
-                pitchDeg={activeTelemetry.pitchDeg}
-            />
-            <AttitudeIndicator 
-                telemetry={activeTelemetry} 
-                uiRefs={uiRefs} 
-            />
+            <button
+                onClick={() => setTelemetryOpen(v => !v)}
+                className="min-[481px]:hidden pointer-events-auto flex min-h-[44px] w-full max-w-[190px] items-center justify-center gap-1.5 rounded-full border border-[rgba(126,184,255,0.2)] bg-[rgba(8,8,20,0.65)] px-4 font-mono text-[9px] uppercase tracking-widest text-[#7EB8FF]"
+                aria-expanded={telemetryOpen}
+                aria-label={telemetryOpen ? 'Hide flight telemetry' : 'Show flight telemetry'}
+                title="Flight telemetry"
+            >
+                {telemetryOpen ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
+                <span>Telemetry</span>
+            </button>
+            <div className={`flex flex-col items-center md:items-start gap-2.5 min-[481px]:contents ${telemetryOpen ? '' : 'max-[480px]:hidden'}`}>
+                <GalacticCompassGimbal
+                    camera={camera}
+                    headingDeg={activeTelemetry.headingDeg}
+                    pitchDeg={activeTelemetry.pitchDeg}
+                />
+                <AttitudeIndicator
+                    telemetry={activeTelemetry}
+                    uiRefs={uiRefs}
+                />
+            </div>
         </div>
     );
 };

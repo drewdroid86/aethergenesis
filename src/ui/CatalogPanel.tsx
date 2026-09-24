@@ -123,7 +123,7 @@ export const CatalogPanel: React.FC<CatalogPanelProps> = ({
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0, scale: 0.95 }}
-            className="absolute left-8 top-52 w-[350px] bg-black/40 backdrop-blur-md border border-white/10 rounded-2xl p-5 z-30 shadow-2xl text-white pointer-events-auto"
+            className="absolute left-4 top-24 w-[calc(100vw-2rem)] md:left-8 md:top-52 md:w-[350px] bg-black/40 backdrop-blur-md border border-white/10 rounded-2xl p-5 z-30 shadow-2xl text-white pointer-events-auto"
         >
             <div className="flex items-center justify-between mb-4 pb-3 border-b border-white/10">
                 <h2 className="text-sm font-bold uppercase tracking-wider flex items-center gap-2">
@@ -151,7 +151,7 @@ export const CatalogPanel: React.FC<CatalogPanelProps> = ({
             </div>
 
             {/* Tab Panels */}
-            <div className="max-h-[50vh] overflow-y-auto pr-1 font-mono text-xs custom-scrollbar">
+            <div className="max-h-[32vh] md:max-h-[50vh] overflow-y-auto pr-1 font-mono text-xs custom-scrollbar">
                 {fetchError && (
                     <div role="alert" className="mb-3 px-3 py-2 rounded-lg bg-red-500/10 border border-red-500/30 text-red-300">
                         {fetchError}
