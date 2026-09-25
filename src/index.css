@@ -24,3 +24,12 @@
     scrollbar-color: rgba(126, 184, 255, 0.3) rgba(255, 255, 255, 0.05);
   }
 }
+
+/* Clear-screen mode: hiding the HUD is purely presentational. Every panel
+   stays mounted (so per-panel collapse/open state survives a hide/restore
+   cycle) and only the 3D canvas (.hud-canvas) plus the toggle itself
+   (.hud-toggle) remain on screen. Unlayered + !important so this beats the
+   Tailwind display utilities on the HUD containers. */
+.hud-hidden > :not(.hud-canvas):not(.hud-toggle) {
+  display: none !important;
+}
