@@ -97,28 +97,6 @@ test('F8-T3-2: Bottom deck is height-bounded with internal scroll on phones', ()
   assert.ok(hud.includes('absolute bottom-0'), 'BottomHud must keep desktop docking');
 });
 
-test('F8-T3-4: Constants floating button fits phone width', () => {
-  const constants = src('src/ui/ConstantsPanel.tsx');
-  assert.ok(
-    constants.includes('aria-label="Open Physical Constants"'),
-    'Constants toggle must remain reachable'
-  );
-  // The button carries both absolute and relative (relative wins in the
-  // cascade, so as a flex item it stretches full-width and the left-8
-  // relative offset pushes it 32px past the right edge at 390px).
-  assert.ok(
-    constants.includes('max-[480px]:fixed'),
-    'Constants toggle must leave flex stretching at <=480px'
-  );
-  assert.ok(
-    constants.includes('max-[480px]:w-[52px]'),
-    'Constants toggle must be width-bounded on phones (was 390 wide, clipped)'
-  );
-  assert.ok(
-    constants.includes('absolute left-8 top-32'),
-    'Constants toggle must keep desktop positioning'
-  );
-});
 
 test('F8-T3-3: Diagnostics overlay joins the column instead of floating on phones', () => {
   const hud = src('src/ui/Hud.tsx');

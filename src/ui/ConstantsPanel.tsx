@@ -27,10 +27,11 @@ export const ConstantsPanel: React.FC<ConstantsPanelProps> = ({
         return (
             <button 
                 onClick={() => setIsOpen(true)} 
-                className="absolute left-8 top-32 bg-[rgba(14,14,28,0.7)] backdrop-blur-xl border border-[rgba(126,184,255,0.3)] rounded-full p-4 z-30 shadow-[0_0_30px_rgba(0,0,0,0.5)] transform transition-all pointer-events-auto text-[#7EB8FF]/70 hover:text-white group focus-visible:ring-2 focus-visible:ring-[#C084FC] outline-none relative"
+                className="relative min-[481px]:left-8 min-[481px]:top-32 bg-[rgba(14,14,28,0.7)] backdrop-blur-xl border border-[rgba(126,184,255,0.3)] rounded-full p-4 z-30 shadow-[0_0_30px_rgba(0,0,0,0.5)] transform transition-all pointer-events-auto text-[#7EB8FF]/70 hover:text-white group focus-visible:ring-2 focus-visible:ring-[#C084FC] outline-none max-[480px]:static max-[480px]:order-4 max-[480px]:self-start max-[480px]:h-[52px] max-[480px]:w-[52px] max-[480px]:p-0 max-[480px]:flex max-[480px]:items-center max-[480px]:justify-center"
                 title="Open Physical Constants"
                 aria-label="Open Physical Constants"
                 aria-keyshortcuts="c"
+                data-testid="constants-toggle"
             >
                 <span className="absolute -top-6 left-1/2 -translate-x-1/2 text-[10px] text-[#C084FC] opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100 transition-opacity whitespace-nowrap">
                     [C] Open
@@ -41,7 +42,7 @@ export const ConstantsPanel: React.FC<ConstantsPanelProps> = ({
     }
 
     return (
-        <div className="absolute left-8 top-32 w-[min(320px,85vw)] bg-[rgba(14,14,28,0.7)] backdrop-blur-xl border border-[rgba(126,184,255,0.3)] rounded-2xl p-6 z-30 shadow-[0_0_30px_rgba(0,0,0,0.5)] transform transition-all pointer-events-auto">
+        <div data-testid="constants-panel" className="min-[481px]:absolute min-[481px]:left-8 min-[481px]:top-32 w-[min(320px,85vw)] bg-[rgba(14,14,28,0.7)] backdrop-blur-xl border border-[rgba(126,184,255,0.3)] rounded-2xl p-6 z-30 shadow-[0_0_30px_rgba(0,0,0,0.5)] transform transition-all pointer-events-auto max-[480px]:static max-[480px]:order-4 max-[480px]:w-auto max-[480px]:max-w-full max-[480px]:mx-4">
             <div className="flex items-center justify-between mb-6 pb-4 border-b border-[rgba(126,184,255,0.1)]">
                 <h2 className="text-sm font-bold tracking-widest uppercase text-white flex items-center gap-3">
                     <Settings2 size={20} className="text-[#C084FC]" />
@@ -50,7 +51,7 @@ export const ConstantsPanel: React.FC<ConstantsPanelProps> = ({
                 <div className="flex items-center gap-2">
                     <button
                         onClick={handleReset}
-                        className="text-[#7EB8FF]/50 hover:text-[#C084FC] transition-all focus-visible:ring-2 focus-visible:ring-[#C084FC] outline-none rounded p-1 relative group/reset"
+                        className="text-[#7EB8FF]/50 hover:text-[#C084FC] transition-all focus-visible:ring-2 focus-visible:ring-[#C084FC] outline-none rounded p-1 relative group/reset max-[480px]:min-h-[44px] max-[480px]:min-w-[44px] max-[480px]:inline-flex max-[480px]:items-center max-[480px]:justify-center"
                         aria-label="Reset to Defaults"
                         title="Reset to Defaults"
                         aria-keyshortcuts="Alt+r"
@@ -62,7 +63,7 @@ export const ConstantsPanel: React.FC<ConstantsPanelProps> = ({
                     </button>
                     <button
                         onClick={() => setIsOpen(false)}
-                        className="text-[#7EB8FF]/70 hover:text-white transition-colors focus-visible:ring-2 focus-visible:ring-[#C084FC] outline-none rounded p-1 relative group/close"
+                        className="text-[#7EB8FF]/70 hover:text-white transition-colors focus-visible:ring-2 focus-visible:ring-[#C084FC] outline-none rounded p-1 relative group/close max-[480px]:min-h-[44px] max-[480px]:min-w-[44px] max-[480px]:inline-flex max-[480px]:items-center max-[480px]:justify-center"
                         aria-label="Close Physical Constants"
                         aria-keyshortcuts="c"
                     >

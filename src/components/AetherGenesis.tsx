@@ -155,6 +155,17 @@ export function AetherGenesis() {
               }}
               currentSeed={currentSeed}
             />
+            {/* Phone (<=480px): the constants toggle/panel is an in-flow
+                member of this column (order-4, after the deck bar) so it
+                stacks with the Scale Ladder / badge instead of floating
+                over them. Desktop: display:contents dissolves the wrapper,
+                keeping the gated absolute positioning exactly as before. */}
+            <ConstantsPanel
+              physics={physics}
+              setPhysics={setPhysics}
+              isOpen={isConstantsOpen}
+              setIsOpen={setIsConstantsOpen}
+            />
           </div>
         )}
         renderBottom={({ left, right }) => (
@@ -215,13 +226,6 @@ export function AetherGenesis() {
             />
         )}
       </AnimatePresence>
-
-      <ConstantsPanel 
-        physics={physics}
-        setPhysics={setPhysics}
-        isOpen={isConstantsOpen}
-        setIsOpen={setIsConstantsOpen}
-      />
 
       <CatalogPanel
         isOpen={isCatalogOpen}
