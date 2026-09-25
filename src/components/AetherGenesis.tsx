@@ -124,7 +124,7 @@ export function AetherGenesis() {
       <div ref={mountRef} className="absolute inset-0 cursor-crosshair z-0" />
       
       {/* Spatial Navigation & Flight Deck Layer with Responsive Bottom HUD Slots */}
-      <NavigationDeck 
+      <NavigationDeck
         visible={showNavDeck}
         camera={engineRef.current?.camera ?? null}
         stars={engineRef.current?.heroStars ?? []}
@@ -132,6 +132,42 @@ export function AetherGenesis() {
         onSelectStar={(star) => setSelectedStar(star)}
         onAlignCamera={centerOnStar}
         coordUiRefs={{ badge: badgeCoordRefs, attitude: attitudeCoordRefs }}
+        renderTop={(topBar) => (
+          // Phone (<=480px): the floating top cluster (header HUD + deck
+          // instrumentation bar) stacks in a single height-bounded scrollable
+          // column so panels can never overlap each other or reach the bottom
+          // deck; the canvas stays visible in the gap between them. Desktop:
+          // display:contents dissolves the wrapper, keeping every absolute
+          // position and paint order exactly as before.
+          <div className="contents max-[480px]:flex max-[480px]:flex-col max-[480px]:w-full max-[480px]:min-h-0 max-[480px]:max-h-[40vh] max-[480px]:overflow-y-auto max-[480px]:gap-2 max-[480px]:pointer-events-none custom-scrollbar">
+            {topBar}
+            <Hud
+              uiRefs={hudRefs}
+              performance={{
+                  tier: currentTier,
+                  numStars: numHeroStars,
+                  fps: fps,
+                  showIndicator: showTierDownIndicator,
+                  diagnosticsEnabled,
+                  setDiagnosticsEnabled,
+                  diagnostics,
+                  resetDiagnostics
+              }}
+              currentSeed={currentSeed}
+            />
+            {/* Phone (<=480px): the constants toggle/panel is an in-flow
+                member of this column (order-4, after the deck bar) so it
+                stacks with the Scale Ladder / badge instead of floating
+                over them. Desktop: display:contents dissolves the wrapper,
+                keeping the gated absolute positioning exactly as before. */}
+            <ConstantsPanel
+              physics={physics}
+              setPhysics={setPhysics}
+              isOpen={isConstantsOpen}
+              setIsOpen={setIsConstantsOpen}
+            />
+          </div>
+        )}
         renderBottom={({ left, right }) => (
           <BottomHud 
             left={left}
@@ -164,21 +200,6 @@ export function AetherGenesis() {
         )}
       />
 
-      <Hud 
-        uiRefs={hudRefs}
-        performance={{
-            tier: currentTier,
-            numStars: numHeroStars,
-            fps: fps,
-            showIndicator: showTierDownIndicator,
-            diagnosticsEnabled,
-            setDiagnosticsEnabled,
-            diagnostics,
-            resetDiagnostics
-        }}
-        currentSeed={currentSeed}
-      />
-
       <AnimatePresence>
         {selectedStar && (
           <InspectPanel
@@ -205,13 +226,6 @@ export function AetherGenesis() {
             />
         )}
       </AnimatePresence>
-
-      <ConstantsPanel 
-        physics={physics}
-        setPhysics={setPhysics}
-        isOpen={isConstantsOpen}
-        setIsOpen={setIsConstantsOpen}
-      />
 
       <CatalogPanel
         isOpen={isCatalogOpen}

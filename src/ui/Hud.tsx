@@ -175,15 +175,17 @@ export const Hud: React.FC<HudProps> = ({
                 </div>
             </nav>
 
-            {/* Tier Down Indicator */}
+            {/* Tier Down Indicator: floating toast on desktop, in-flow column
+                item between the header and the deck bar on phones so it can
+                never cover stacked panels, and wrapping so it fits 390px. */}
             {performance.showIndicator && (
                 <div
-                    className="absolute top-24 left-1/2 -translate-x-1/2 z-30 animate-bounce"
+                    className="absolute top-24 left-1/2 -translate-x-1/2 z-30 animate-bounce max-[480px]:static max-[480px]:translate-x-0 max-[480px]:order-1 max-[480px]:flex max-[480px]:justify-center max-[480px]:px-4"
                     role="alert"
                     aria-live="polite"
                 >
-                    <div className="bg-orange-500/20 backdrop-blur-xl border border-orange-500/50 px-6 py-2 rounded-full shadow-[0_0_20px_rgba(249,115,22,0.3)]">
-                        <span className="text-orange-400 text-xs font-bold uppercase tracking-[0.2em]">
+                    <div className="bg-orange-500/20 backdrop-blur-xl border border-orange-500/50 px-6 py-2 rounded-full shadow-[0_0_20px_rgba(249,115,22,0.3)] max-[480px]:rounded-2xl max-[480px]:max-w-full">
+                        <span className="text-orange-400 text-xs font-bold uppercase tracking-[0.2em] max-[480px]:whitespace-normal max-[480px]:text-center max-[480px]:text-[10px]">
                             Performance Warning: Optimizing Simulation Tier
                         </span>
                     </div>

@@ -43,6 +43,11 @@ export interface NavigationDeckProps {
         left: React.ReactNode;
         right: React.ReactNode;
     }) => React.ReactNode;
+    // Optional top-cluster composition slot. When provided, the top
+    // instrumentation bar node is passed out for the caller to place (e.g.
+    // inside a phone-width scrollable column next to the header HUD) instead
+    // of rendering in place. Desktop rendering is unchanged either way.
+    renderTop?: (topBar: React.ReactNode) => React.ReactNode;
 }
 
 export const NavigationDeck: React.FC<NavigationDeckProps> = ({
@@ -57,6 +62,7 @@ export const NavigationDeck: React.FC<NavigationDeckProps> = ({
     showSpatialLabels = true,
     visible = true,
     renderBottom,
+    renderTop,
 }) => {
     const [waypoint, setWaypoint] = useState<TargetWaypoint | null>(null);
     const [contacts, setContacts] = useState<RadarContact[]>([]);
@@ -188,6 +194,34 @@ export const NavigationDeck: React.FC<NavigationDeckProps> = ({
         }
     };
 
+    // TOP INSTRUMENTATION BAR: Breadcrumbs + Scale Ladder + You Are Here.
+    // Rendered in place by default; when renderTop is provided the node is
+    // passed out so the caller can stack it with the header HUD in a single
+    // phone-width column. Same node either way, so desktop is untouched.
+    const topBar = visible ? (
+        <div className="absolute top-20 left-8 right-8 flex justify-between items-start z-20 pointer-events-none gap-4 max-[480px]:static max-[480px]:order-2 max-[480px]:flex-col max-[480px]:items-stretch max-[480px]:gap-2 max-[480px]:px-4">
+            <div className="flex flex-col gap-2">
+                <SpatialBreadcrumbs 
+                    starName={selectedStar?.physicsId ? `Star ${selectedStar.physicsId.substring(0, 6)}` : undefined}
+                    onResetUniverse={onAlignCamera}
+                    onFocusStar={onAlignCamera}
+                />
+                <CosmicScaleLadder 
+                    currentDistanceUnits={cameraDistanceUnits}
+                    formattedScale={telemetry.scaleRulerFormatted}
+                />
+            </div>
+
+            <div className="flex flex-col items-end gap-2 max-[480px]:items-stretch">
+                <YouAreHereBadge 
+                    nearestStarName={nearestStarInfo.name}
+                    distanceToNearest={nearestStarInfo.distance}
+                    uiRefs={coordUiRefs?.badge}
+                />
+            </div>
+        </div>
+    ) : null;
+
     return (
         <>
             {/* 3-Tier Distance LOD In-World Spatial Labels */}
@@ -217,30 +251,8 @@ export const NavigationDeck: React.FC<NavigationDeckProps> = ({
                 />
             )}
 
-            {/* TOP INSTRUMENTATION BAR: Breadcrumbs + Scale Ladder + You Are Here */}
-            {visible && (
-                <div className="absolute top-20 left-8 right-8 flex justify-between items-start z-20 pointer-events-none gap-4 max-[480px]:static max-[480px]:order-2 max-[480px]:flex-col max-[480px]:items-stretch max-[480px]:gap-2 max-[480px]:px-4">
-                    <div className="flex flex-col gap-2">
-                        <SpatialBreadcrumbs 
-                            starName={selectedStar?.physicsId ? `Star ${selectedStar.physicsId.substring(0, 6)}` : undefined}
-                            onResetUniverse={onAlignCamera}
-                            onFocusStar={onAlignCamera}
-                        />
-                        <CosmicScaleLadder 
-                            currentDistanceUnits={cameraDistanceUnits}
-                            formattedScale={telemetry.scaleRulerFormatted}
-                        />
-                    </div>
-
-                    <div className="flex flex-col items-end gap-2 max-[480px]:items-stretch">
-                        <YouAreHereBadge 
-                            nearestStarName={nearestStarInfo.name}
-                            distanceToNearest={nearestStarInfo.distance}
-                            uiRefs={coordUiRefs?.badge}
-                        />
-                    </div>
-                </div>
-            )}
+            {/* Default placement when the caller does not compose the top cluster */}
+            {!renderTop && topBar}
 
             {/* Optional bottom slot delegation if renderBottom is provided */}
             {renderBottom?.({
@@ -269,6 +281,12 @@ export const NavigationDeck: React.FC<NavigationDeckProps> = ({
                     />
                 ) : null
             })}
+
+            {/* Optional top-cluster composition slot. Rendered after the bottom
+                slot so desktop paint order is unchanged (the bar never overlaps
+                the bottom deck on desktop); on phones the caller stacks it with
+                the header HUD in one scrollable column. */}
+            {renderTop?.(topBar)}
         </>
     );
 };

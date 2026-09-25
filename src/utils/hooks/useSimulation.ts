@@ -19,6 +19,51 @@ import { useStarSelection } from './useStarSelection';
 import { useKeyboardShortcuts } from './useKeyboardShortcuts';
 
 /**
+ * H-N1 fix — shared n-body re-key for every star-selection path.
+ * Rebuilds the worker's bodies with velocities computed under the star's
+ * CURRENT phase-aware mass (currentMass ?? mass), materializing a
+ * MAIN_SEQUENCE PlanetarySystem synchronously when the creation queue
+ * budget left it undefined (e.g. fast cosmic-age scrubs). Extracted
+ * verbatim from loadStarPreset so click-select and preset-select share
+ * one path and cannot drift apart.
+ */
+export function rekeyNBodyForStar(star: HeroStarSystem, renderer: THREE.WebGLRenderer | undefined, nbodyWorker: Worker): void {
+    // Authoritative phase-aware mass, not the birth mass: remnants
+    // and giants must integrate under currentMass (post-mass-loss).
+    const rawMass = star.currentMass ?? star.mass;
+    const centralMass = Number.isFinite(rawMass) && rawMass > 0 ? rawMass : 1.0;
+    // applyPreset() disposes the old PlanetarySystem and only
+    // queue-creates its replacement asynchronously, so the fresh
+    // proceduralOrbits are not attached yet at this point. Without
+    // this step the re-key below always falls through to the
+    // mass-only update, keeping stale velocities under the new
+    // gravity. Materialize the generated planets synchronously
+    // (cancelling the queued duplicate) so the rebuild runs.
+    if (!star.planetarySystem && star.phase === PHASES.MAIN_SEQUENCE) {
+        PlanetarySystemQueue.cancelCreation(star);
+        star.planetarySystem = new PlanetarySystem(star, renderer);
+    }
+    // Re-key bodies so velocities match the new gravity. Keeping
+    // old velocities under a new central mass leaves every orbit
+    // at the wrong energy (stale-velocity bug).
+    const orbits = star.planetarySystem?.proceduralOrbits;
+    if (orbits && orbits.length > 0) {
+        const bodies: OrbitalBody[] = buildWorkerBodiesFromOrbits(orbits, centralMass);
+        nbodyWorker.postMessage({
+            type: 'RESET_BODIES',
+            payload: { bodies, centralMass_solar: centralMass }
+        });
+    } else {
+        // No generated planets for this phase (e.g. remnant);
+        // at least integrate existing bodies under the new mass.
+        nbodyWorker.postMessage({
+            type: 'UPDATE_CENTRAL_MASS',
+            payload: { centralMass_solar: centralMass }
+        });
+    }
+}
+
+/**
  * Dedicated XYZ coordinate refs for one HUD consumer.
  * See the H1 fix note at the ref declarations inside useSimulation.
  */
@@ -166,41 +211,7 @@ export function useSimulation(containerRef: React.RefObject<HTMLDivElement | nul
             if (coordinatorRef.current) {
                 coordinatorRef.current.clearHistory(star.physicsId);
             }
-            if (nbodyWorkerRef.current) {
-                // Authoritative phase-aware mass, not the birth mass: remnants
-                // and giants must integrate under currentMass (post-mass-loss).
-                const rawMass = star.currentMass ?? star.mass;
-                const centralMass = Number.isFinite(rawMass) && rawMass > 0 ? rawMass : 1.0;
-                // applyPreset() disposes the old PlanetarySystem and only
-                // queue-creates its replacement asynchronously, so the fresh
-                // proceduralOrbits are not attached yet at this point. Without
-                // this step the re-key below always falls through to the
-                // mass-only update, keeping stale velocities under the new
-                // gravity. Materialize the generated planets synchronously
-                // (cancelling the queued duplicate) so the rebuild runs.
-                if (!star.planetarySystem && star.phase === PHASES.MAIN_SEQUENCE) {
-                    PlanetarySystemQueue.cancelCreation(star);
-                    star.planetarySystem = new PlanetarySystem(star, engineRef.current?.renderer);
-                }
-                // Re-key bodies so velocities match the new gravity. Keeping
-                // old velocities under a new central mass leaves every orbit
-                // at the wrong energy (stale-velocity bug).
-                const orbits = star.planetarySystem?.proceduralOrbits;
-                if (orbits && orbits.length > 0) {
-                    const bodies: OrbitalBody[] = buildWorkerBodiesFromOrbits(orbits, centralMass);
-                    nbodyWorkerRef.current.postMessage({
-                        type: 'RESET_BODIES',
-                        payload: { bodies, centralMass_solar: centralMass }
-                    });
-                } else {
-                    // No generated planets for this phase (e.g. remnant);
-                    // at least integrate existing bodies under the new mass.
-                    nbodyWorkerRef.current.postMessage({
-                        type: 'UPDATE_CENTRAL_MASS',
-                        payload: { centralMass_solar: centralMass }
-                    });
-                }
-            }
+            if (nbodyWorkerRef.current) rekeyNBodyForStar(star, engineRef.current?.renderer, nbodyWorkerRef.current);
             // Mirror Tactical Radar contact + Focus [F]: select the preset
             // star so its panels open, then fly the camera to it. Tap and
             // click share this path, so phone and desktop behave the same.
@@ -462,6 +473,7 @@ export function useSimulation(containerRef: React.RefObject<HTMLDivElement | nul
                 if (intersects.length > 0) {
                     const hit = intersects[0].object;
                     const system = hit.parent as HeroStarSystem;
+                    if (nbodyWorkerRef.current) rekeyNBodyForStar(system, engine.renderer, nbodyWorkerRef.current);
                     selectedStarRef.current = system;
                     setSelectedStar(system);
                     engine.selectedStar = system;
@@ -612,12 +624,6 @@ export function useSimulation(containerRef: React.RefObject<HTMLDivElement | nul
         if (engineRef.current) {
             engineRef.current.selectedStar = selectedStar;
         }
-        if (selectedStar && nbodyWorkerRef.current) {
-            nbodyWorkerRef.current.postMessage({
-                type: 'UPDATE_CENTRAL_MASS',
-                payload: { centralMass_solar: selectedStar.mass }
-            });
-        }
     }, [selectedStar]);
 
     // Sync play/pause cosmic to engine
@@ -729,3 +735,7 @@ export function useSimulation(containerRef: React.RefObject<HTMLDivElement | nul
         heroStars: engineRef.current?.heroStars ?? []
     };
 }
+
+// Default export mirrors the named H-N1 helper so the e2e contract test can
+// default-import it directly without mounting the hook.
+export default rekeyNBodyForStar;

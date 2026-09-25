@@ -55,8 +55,8 @@ export const YouAreHereBadge: React.FC<YouAreHereBadgeProps> = ({
                     </div>
                 </div>
 
-                <div className={`flex items-center gap-2 pl-2 border-l border-[rgba(126,184,255,0.15)] ${isTechnicalOpen ? '' : 'max-[480px]:hidden'}`}>
-                    <div className="flex flex-col text-right min-w-0">
+                <div className="flex items-center gap-2 pl-2 border-l border-[rgba(126,184,255,0.15)]">
+                    <div className={`flex flex-col text-right min-w-0 ${isTechnicalOpen ? '' : 'max-[480px]:hidden'}`}>
                         <span className="text-[8px] uppercase tracking-wider text-[#7EB8FF]/60">Nearest Star</span>
                         <span className="text-[#C084FC] font-semibold truncate">
                             {nearestStarName} <span className="text-white/60">({distanceToNearest})</span>
@@ -68,7 +68,7 @@ export const YouAreHereBadge: React.FC<YouAreHereBadgeProps> = ({
                             audioEngine.playUiClick();
                             setIsTechnicalOpen(!isTechnicalOpen);
                         }}
-                        className="p-1 rounded hover:bg-white/10 text-[#7EB8FF]/60 hover:text-white transition-colors"
+                        className="p-1 rounded hover:bg-white/10 text-[#7EB8FF]/60 hover:text-white transition-colors max-[480px]:min-h-[44px] max-[480px]:min-w-[44px] max-[480px]:flex max-[480px]:items-center max-[480px]:justify-center"
                         title="Toggle Technical Cartesian Coordinates"
                         aria-label="Toggle Technical Coordinates"
                     >

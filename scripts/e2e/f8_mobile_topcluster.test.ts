@@ -61,6 +61,25 @@ test('F8-T2-3: Nearest-star block collapses behind a toggle on phones', () => {
   assert.ok(badge.includes('truncate'), 'Nearest-star text must truncate instead of clipping');
 });
 
+test('F8-T2-4: Nearest-star toggle stays tappable on phones', () => {
+  const badge = src('src/ui/navigation/YouAreHereBadge.tsx');
+  assert.ok(
+    badge.includes('aria-label="Toggle Technical Coordinates"'),
+    'Badge must keep a toggle control for the collapsed nearest-star block'
+  );
+  // The collapse class must sit on the text block only, not on the wrapper
+  // that also contains the toggle button — otherwise phones can never
+  // expand the nearest-star info back open.
+  assert.ok(
+    badge.includes("flex flex-col text-right min-w-0 ${isTechnicalOpen ? '' : 'max-[480px]:hidden'}"),
+    'Collapse must hide only the nearest-star text, leaving the toggle visible'
+  );
+  assert.ok(
+    badge.includes('max-[480px]:min-h-[44px]'),
+    'Toggle must meet a 44px touch target on phones'
+  );
+});
+
 test('F8-T3-1: Compass/telemetry cluster collapses behind a toggle on phones', () => {
   const deck = src('src/ui/navigation/NavigationDeck.tsx');
   assert.ok(deck.includes('telemetryOpen'), 'FlightDeckTelemetry must gate content on toggle state');
@@ -77,6 +96,7 @@ test('F8-T3-2: Bottom deck is height-bounded with internal scroll on phones', ()
   assert.ok(hud.includes('max-[480px]:overflow-y-auto'), 'BottomHud must scroll internally on phones');
   assert.ok(hud.includes('absolute bottom-0'), 'BottomHud must keep desktop docking');
 });
+
 
 test('F8-T3-3: Diagnostics overlay joins the column instead of floating on phones', () => {
   const hud = src('src/ui/Hud.tsx');
