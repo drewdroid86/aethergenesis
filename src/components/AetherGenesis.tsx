@@ -1,6 +1,8 @@
 import { useRef, useState, useEffect } from 'react';
 import { AnimatePresence } from 'motion/react';
+import { Eye, EyeOff } from 'lucide-react';
 import { useSimulation } from '../utils/hooks/useSimulation';
+import { readHudVisible, persistHudVisible } from '../utils/hudVisibility';
 import { Hud, CosmicAgeCard, HudActionButtons } from '../ui/Hud';
 import { InspectPanel } from '../ui/InspectPanel';
 import { ConstantsPanel } from '../ui/ConstantsPanel';
@@ -14,6 +16,13 @@ import { useViewportHeight } from '../utils/hooks/useViewportHeight';
 export function AetherGenesis() {
   const mountRef = useRef<HTMLDivElement>(null);
   const [showNavDeck, setShowNavDeck] = useState(true);
+  // Clear-screen mode: single boolean owning ONLY HUD visibility. Panels
+  // stay mounted and keep their own collapse/open state, so hiding never
+  // resets per-panel state. Persisted under `aethergenesis.hudVisible`.
+  const [hudVisible, setHudVisible] = useState<boolean>(() => readHudVisible());
+  useEffect(() => {
+    persistHudVisible(hudVisible);
+  }, [hudVisible]);
   const viewportHeight = useViewportHeight();
 
   // Initialize Web Audio API on first user gesture anywhere in the app
@@ -45,6 +54,9 @@ export function AetherGenesis() {
       }
       if (e.key === 'n' || e.key === 'N') {
         setShowNavDeck(prev => !prev);
+      }
+      if (e.key === 'Escape') {
+        setHudVisible(prev => !prev);
       }
     };
     window.addEventListener('keydown', handleKeyDown);
@@ -117,11 +129,34 @@ export function AetherGenesis() {
   }
 
   return (
-    <div 
+    <div
       style={{ height: viewportHeight || '100dvh' }}
-      className="relative w-full bg-[#020205] overflow-hidden flex flex-col font-sans text-white select-none"
+      className={`relative w-full bg-[#020205] overflow-hidden flex flex-col font-sans text-white select-none${hudVisible ? '' : ' hud-hidden'}`}
     >
-      <div ref={mountRef} className="absolute inset-0 cursor-crosshair z-0" />
+      <div ref={mountRef} className="hud-canvas absolute inset-0 cursor-crosshair z-0" />
+
+      {/* Clear-screen toggle: always mounted above every HUD layer (it must
+          never hide itself). Fixed bottom-right above the safe area, offset
+          above the bottom-right action-button cluster; semi-transparent
+          while the HUD is hidden. */}
+      <button
+        type="button"
+        onClick={() => {
+          audioEngine.playUiClick();
+          setHudVisible(prev => !prev);
+        }}
+        className={`hud-toggle fixed z-50 right-4 md:right-8 bottom-[calc(max(1rem,env(safe-area-inset-bottom))+5.5rem)] md:bottom-[calc(max(2rem,env(safe-area-inset-bottom))+5.75rem)] w-12 h-12 flex items-center justify-center bg-[rgba(8,8,20,0.6)] border border-[rgba(126,184,255,0.2)] rounded-md backdrop-blur-md transition-all hover:bg-[rgba(126,184,255,0.1)] cursor-pointer focus-visible:ring-2 focus-visible:ring-[#C084FC] outline-none group/hudtoggle${hudVisible ? '' : ' opacity-50 hover:opacity-100 focus-visible:opacity-100'}`}
+        aria-label={hudVisible ? 'Hide HUD (clear-screen mode)' : 'Show HUD'}
+        aria-pressed={hudVisible}
+        aria-keyshortcuts="Escape"
+        title={hudVisible ? 'Hide HUD [Esc]' : 'Show HUD [Esc]'}
+        data-testid="hud-toggle"
+      >
+        <span className="absolute -top-6 left-1/2 -translate-x-1/2 text-[10px] text-[#C084FC] opacity-0 group-hover/hudtoggle:opacity-100 group-focus-visible/hudtoggle:opacity-100 transition-opacity whitespace-nowrap">
+          [Esc] {hudVisible ? 'Hide' : 'Show'}
+        </span>
+        {hudVisible ? <Eye size={16} className="text-[#7EB8FF]" /> : <EyeOff size={16} className="text-[#C084FC]" />}
+      </button>
       
       {/* Spatial Navigation & Flight Deck Layer with Responsive Bottom HUD Slots */}
       <NavigationDeck
