@@ -27,7 +27,7 @@ export const ConstantsPanel: React.FC<ConstantsPanelProps> = ({
         return (
             <button 
                 onClick={() => setIsOpen(true)} 
-                className="relative min-[481px]:left-8 min-[481px]:top-32 bg-[rgba(14,14,28,0.7)] backdrop-blur-xl border border-[rgba(126,184,255,0.3)] rounded-full p-4 z-30 shadow-[0_0_30px_rgba(0,0,0,0.5)] transform transition-all pointer-events-auto text-[#7EB8FF]/70 hover:text-white group focus-visible:ring-2 focus-visible:ring-[#C084FC] outline-none max-[480px]:static max-[480px]:order-4 max-[480px]:self-start max-[480px]:h-[52px] max-[480px]:w-[52px] max-[480px]:p-0 max-[480px]:flex max-[480px]:items-center max-[480px]:justify-center"
+                className="min-[481px]:absolute min-[481px]:left-8 min-[481px]:top-32 shrink-0 bg-[rgba(14,14,28,0.7)] backdrop-blur-xl border border-[rgba(126,184,255,0.3)] rounded-full p-4 z-30 shadow-[0_0_30px_rgba(0,0,0,0.5)] transform transition-all pointer-events-auto text-[#7EB8FF]/70 hover:text-white group focus-visible:ring-2 focus-visible:ring-[#C084FC] outline-none max-[480px]:static max-[480px]:order-4 max-[480px]:self-start max-[480px]:h-[52px] max-[480px]:w-[52px] max-[480px]:p-0 max-[480px]:flex max-[480px]:items-center max-[480px]:justify-center"
                 title="Open Physical Constants"
                 aria-label="Open Physical Constants"
                 aria-keyshortcuts="c"
