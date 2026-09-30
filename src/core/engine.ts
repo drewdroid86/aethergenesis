@@ -266,13 +266,19 @@ export class Engine {
     }
 
     createHeroStars(count: number, physicsConstants: PhysicsConstants) {
+        const MAX_WORLD_RADIUS = 800;
         for (let i = 0; i < count; i++) {
             const star = new HeroStarSystem(this.cosmicAge, physicsConstants);
-            const _u1 = Math.max(1e-9, Math.random());
+            let _u1 = Math.max(1e-9, Math.random());
             const _u2 = Math.random();
             const _u3 = Math.max(1e-9, Math.random());
             const _u4 = Math.random();
-            const _mag1 = Math.sqrt(-2.0 * Math.log(_u1)) * 700;
+            let _mag1 = Math.sqrt(-2.0 * Math.log(_u1)) * 700;
+            // Rejection sample so no star spawns outside the world radius.
+            for (let _attempt = 0; _attempt < 10 && _mag1 > MAX_WORLD_RADIUS; _attempt++) {
+                _u1 = Math.max(1e-9, Math.random());
+                _mag1 = Math.sqrt(-2.0 * Math.log(_u1)) * 700;
+            }
             const _mag2 = Math.sqrt(-2.0 * Math.log(_u3)) * 700;
             star.position.set(
                 _mag1 * Math.cos(2 * Math.PI * _u2),
@@ -398,9 +404,8 @@ export class Engine {
                 const lSq = star.position.lengthSq();
                 if (lSq > MAX_WORLD_RADIUS_SQ) {
                     // BOLT: Avoid normalize() which does redundant sqrt. Use pre-calc lSq.
+                    // Keep velocity intact so a clamped star can drift back inward.
                     star.position.multiplyScalar(MAX_WORLD_RADIUS / Math.sqrt(lSq));
-                    // Also zero out velocity to prevent bounce oscillation:
-                    if (star.velocity) { star.velocity.set(0, 0, 0); }
                 }
 
                 star.velocity.multiplyScalar(0.97); // Damping

@@ -32,7 +32,7 @@ void main() {
     float diff = abs(dist - waveRadius);
     if (diff < waveWidth) {
       float amp = (1.0 - diff / waveWidth) * (1.0 - uShockwave) * 0.04;
-      uv += normalize(toCenter) * amp;
+      uv += toCenter / max(dist, 1e-5) * amp;
     }
   }
 

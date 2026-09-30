@@ -59,6 +59,7 @@ self.onmessage = (e) => {
         } else {
             dt_yr = 1.0 / 365.25;
         }
+        recomputeTMin();
         accelsValid = false; // BOLT: Reset cache on re-init
         dtAccumulator = 0;
         const shouldRun = payload.isRunning !== undefined ? payload.isRunning : true;
@@ -74,6 +75,7 @@ self.onmessage = (e) => {
         // integration (a single NaN field used to freeze the loop forever).
         if (isValidBody(payload.body)) {
             bodies.push(payload.body);
+            recomputeTMin();
             accelsValid = false; // BOLT: Invalidate cache when body added
         } else {
             console.warn('[nbody] ADD_BODY rejected: malformed body payload', payload.body);
@@ -99,6 +101,7 @@ self.onmessage = (e) => {
     } else if (type === 'UPDATE_CENTRAL_MASS') {
         if (payload && typeof payload.centralMass_solar === 'number' && payload.centralMass_solar > 0) {
             centralMass_solar = payload.centralMass_solar;
+            recomputeTMin();
             accelsValid = false;
         }
     } else if (type === 'RESET_BODIES') {
@@ -111,6 +114,7 @@ self.onmessage = (e) => {
         if (payload.centralMass_solar && payload.centralMass_solar > 0) {
             centralMass_solar = payload.centralMass_solar;
         }
+        recomputeTMin();
         accelsValid = false;
         dtAccumulator = 0;
     }
@@ -179,17 +183,51 @@ function calculateAccelerations(targetBuffer: Float32Array): void {
 }
 
 const MAX_PHYSICS_DT = 0.002; // Max physics timestep in years (~17.5 hrs) to maintain Verlet stability
-// PH1 fix: the substep budget must cover a full cosmic-mode tick (dt_yr = 0.3 yr
-// → 0.3 / 0.002 = 150 substeps). The old budget of 64 consumed only 0.128 yr per
-// tick, so ~57% of requested cosmic time hit the accumulator cap and was
-// silently discarded every tick — planets orbited at less than half the speed
-// of the stellar/astrobiology clocks. 160 steps × O(n²) for a handful of bodies
-// is still far below the 16 ms tick budget.
-const MAX_SUBSTEPS = 160;      // Cap steps to prevent freeze on tab-switch stall
+// FIX-06: the substep budget must also resolve the innermost orbit (see
+// tMin_yr): a close-in planet (e.g. 0.05 AU, T ~ 0.011 yr) advances ~T/5.6 per
+// fixed 0.002-yr step and goes unstable — strobing/teleporting. 2000 steps ×
+// O(n²) over a handful of bodies is still far below the 16 ms tick budget,
+// and the hard cap below keeps a pathological system from freezing the loop.
+const MAX_SUBSTEPS = 2000;      // Hard cap on substeps per tick (freeze protection)
 // PH1: diagnostic for time dropped by the accumulator cap (stall protection).
 // Steady-state drops should now be zero; any drop is logged, not silent.
 let discardedTime_yr = 0;
 let lastDiscardWarn_yr = 0;
+
+// FIX-06: smallest orbital period (yr) among the worker's planets, derived
+// from the bodies already in the INIT/RESET payloads (vis-viva osculating
+// semi-major axis + Kepler's third law, T = 2π√(a³/GM)). Infinity when
+// unknown (no planets) → substep falls back to MAX_PHYSICS_DT as before.
+let tMin_yr = Number.POSITIVE_INFINITY;
+let lastSubstepCapWarn_ms = 0;
+
+function recomputeTMin(): void {
+    const mu = G_mu * centralMass_solar;
+    if (!(mu > 0)) {
+        tMin_yr = Number.POSITIVE_INFINITY;
+        return;
+    }
+    let tMin = Number.POSITIVE_INFINITY;
+    for (const b of bodies) {
+        if (b.type !== 'planet') continue;
+        const px = b.position_au.x;
+        const py = b.position_au.y;
+        const pz = b.position_au.z;
+        const rSq = px * px + py * py + pz * pz;
+        if (!(rSq > 0)) continue;
+        const r = Math.sqrt(rSq);
+        const vx = b.velocity_au_yr.x;
+        const vy = b.velocity_au_yr.y;
+        const vz = b.velocity_au_yr.z;
+        const vSq = vx * vx + vy * vy + vz * vz;
+        const invA = 2.0 / r - vSq / mu; // vis-viva: 1/a
+        if (!(invA > 0)) continue; // unbound/parabolic: no period to resolve
+        const a = 1.0 / invA;
+        const T = 2.0 * Math.PI * Math.sqrt(a * a * a / mu);
+        if (T < tMin) tMin = T;
+    }
+    tMin_yr = tMin;
+}
 
 /**
  * Perform a single Velocity-Verlet integration step of size subDt
@@ -286,7 +324,7 @@ export function physicsTick() {
     tickTimeout = setTimeout(physicsTick, 16);
 }
 
-function physicsTickInner() {
+export function physicsTickInner() {
     const n = bodies.length;
     if (accelBuffer.length !== n * 3) {
         accelBuffer = new Float32Array(n * 3);
@@ -309,18 +347,42 @@ function physicsTickInner() {
         dtAccumulator = accumulatorCap;
     }
 
+    // FIX-06: adaptive substep — at most 1/20th of the innermost planet period
+    // (substep count = ceil(dt_yr / (T_min/20))), never above the Verlet
+    // stability cap. The total simulated time per tick is unchanged: the
+    // accumulator still consumes the full dt_yr, only the resolution changes.
+    let subDt = MAX_PHYSICS_DT;
+    if (Number.isFinite(tMin_yr) && tMin_yr > 0) {
+        subDt = Math.min(MAX_PHYSICS_DT, tMin_yr / 20);
+    }
+    if (!(subDt > 0)) subDt = MAX_PHYSICS_DT;
+
     let steps = 0;
-    while (dtAccumulator >= MAX_PHYSICS_DT && steps < MAX_SUBSTEPS) {
-        integrate(MAX_PHYSICS_DT);
-        dtAccumulator -= MAX_PHYSICS_DT;
+    while (dtAccumulator >= subDt && steps < MAX_SUBSTEPS) {
+        integrate(subDt);
+        dtAccumulator -= subDt;
         steps++;
     }
 
-    // If accumulator has a non-zero residual smaller than MAX_PHYSICS_DT and no full step ran,
-    // execute a single micro-step for low-framerate responsiveness when dt_yr < MAX_PHYSICS_DT
+    // If accumulator has a non-zero residual smaller than subDt and no full step ran,
+    // execute a single micro-step for low-framerate responsiveness when dt_yr < subDt
     if (steps === 0 && dtAccumulator > 0) {
         integrate(dtAccumulator);
         dtAccumulator = 0;
+    }
+
+    // FIX-06: substep-cap guard — a pathological innermost orbit needing more
+    // than MAX_SUBSTEPS gets slight undersampling instead of freezing the tick
+    // loop (the residual drains through later ticks or the accumulator cap
+    // above). Throttled log, not per-tick spam.
+    if (steps >= MAX_SUBSTEPS && dtAccumulator >= subDt) {
+        const now_ms = Date.now();
+        if (now_ms - lastSubstepCapWarn_ms >= 5000) {
+            lastSubstepCapWarn_ms = now_ms;
+            console.warn(`[nbody] substep cap hit: ${steps} steps of ${subDt.toExponential(2)} yr ` +
+                `could not consume the full tick (tMin_yr=${tMin_yr.toExponential(2)} yr) — ` +
+                `undersampling this system until its innermost orbit widens`);
+        }
     }
 
     // Pack state for rendering main thread
