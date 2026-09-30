@@ -258,6 +258,7 @@ export function AetherGenesis() {
                 data={astrobiologyData}
                 selectedStar={selectedStar}
                 onClose={() => setSelectedStar(null)}
+                constantsOpen={isConstantsOpen}
             />
         )}
       </AnimatePresence>

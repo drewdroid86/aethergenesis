@@ -7,9 +7,10 @@ interface AstrobiologyPanelProps {
     data: HabitabilityState[];
     selectedStar: any;
     onClose?: () => void;
+    constantsOpen?: boolean;
 }
 
-export const AstrobiologyPanel: React.FC<AstrobiologyPanelProps> = ({ data, selectedStar, onClose }) => {
+export const AstrobiologyPanel: React.FC<AstrobiologyPanelProps> = ({ data, selectedStar, onClose, constantsOpen = false }) => {
     const [copied, setCopied] = useState(false);
     const [announcement, setAnnouncement] = useState('');
 
@@ -56,7 +57,7 @@ ${planet.civilizationTier > 0 ? `- Civilization: Type ${planet.civilizationTier}
             exit={{ opacity: 0, x: -20, filter: 'blur(10px)' }}
             role="region"
             aria-label="Astrobiology Report"
-            className="absolute left-4 top-24 w-[calc(100vw-2rem)] max-w-80 max-h-[34vh] md:left-6 md:w-80 md:max-h-[calc(100vh-8rem)] overflow-y-auto pointer-events-auto custom-scrollbar z-10"
+            className={`absolute left-4 top-24 w-[calc(100vw-2rem)] max-w-80 max-h-[34vh] md:left-6 md:w-80 md:max-h-[calc(100vh-8rem)] overflow-y-auto pointer-events-auto custom-scrollbar z-10${constantsOpen ? ' min-[481px]:top-[calc(60vh_+_17rem)] max-[480px]:top-[calc(40vh_+_0.75rem)]' : ''}`}
         >
             <div className="bg-black/40 backdrop-blur-md border border-white/10 rounded-2xl p-5 shadow-2xl">
                 <div className="flex items-center justify-between mb-4 pb-4 border-b border-white/10 group/header">
