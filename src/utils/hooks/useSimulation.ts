@@ -461,6 +461,7 @@ export function useSimulation(containerRef: React.RefObject<HTMLDivElement | nul
             };
 
             const onPointerUp = (e: PointerEvent) => {
+                if (e.target !== engine.renderer.domElement) return;
                 if (isDragging || e.button !== 0) return;
 
                 mouse.x = (e.clientX / window.innerWidth) * 2 - 1;

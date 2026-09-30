@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { FormattedDistance, RadarContact, TargetWaypoint, AttitudeTelemetry } from '../types/navigation';
-import { HeroStarSystem } from '../rendering/systems/HeroStarSystem';
+import type { HeroStarSystem } from '../rendering/systems/HeroStarSystem';
 import { computeSpectralClass } from '../simulation/StellarPhysics';
 
 // Astronomical Conversion Constants
@@ -185,12 +185,13 @@ export function calculateRadarContacts(
     const contacts: RadarContact[] = [];
     const camPos = camera.position;
 
-    // Get camera yaw on horizontal plane
+    // Camera forward on the horizontal plane, normalized
     camera.getWorldDirection(_camForward);
-    const camYaw = Math.atan2(_camForward.x, _camForward.z);
-
-    const cosYaw = Math.cos(-camYaw);
-    const sinYaw = Math.sin(-camYaw);
+    const fx = _camForward.x;
+    const fz = _camForward.z;
+    const hLen = Math.hypot(fx, fz);
+    let nfx = 0, nfz = -1; // default heading: looking -Z
+    if (hLen >= 1e-6) { nfx = fx / hLen; nfz = fz / hLen; }
 
     for (let i = 0; i < stars.length; i++) {
         const star = stars[i];
@@ -201,9 +202,9 @@ export function calculateRadarContacts(
         const distance = Math.sqrt(dx * dx + dy * dy + dz * dz);
         if (distance > maxRadarRangeAU && star !== selectedStar) continue;
 
-        // Rotate into camera-relative orientation (forward is +Y on 2D radar, right is +X)
-        const relX = (dx * cosYaw - dz * sinYaw) / maxRadarRangeAU;
-        const relY = -(dx * sinYaw + dz * cosYaw) / maxRadarRangeAU;
+        // relX > 0 = camera-right, relY < 0 = ahead (screen y is down)
+        const relX = (-dx * nfz + dz * nfx) / maxRadarRangeAU;
+        const relY = (-(dx * nfx + dz * nfz)) / maxRadarRangeAU;
 
         // Clamp to radar circle boundary
         const distFromCenter = Math.sqrt(relX * relX + relY * relY);
