@@ -63,8 +63,8 @@ export class Pipeline {
                 const fovRad = (camera.fov * Math.PI) / 180;
                 
                 // Event horizon lensing radius in world units
-                const worldRadius = 0.65;
-                screenRadius = worldRadius / (dist * Math.tan(fovRad * 0.5));
+                const worldRadius = 0.5;
+                screenRadius = worldRadius / (2 * dist * Math.tan(fovRad * 0.5));
             }
         }
 
