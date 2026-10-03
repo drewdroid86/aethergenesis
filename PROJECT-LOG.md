@@ -23,6 +23,12 @@ This log is updated after every AI session. Each AI signs off with their entry. 
 
 ## RECENT LOGS
 
+### 2026-10-03 — Repository File Hygiene & Stale Branch Cleanup (Antigravity)
+- **Repo Hygiene:**
+  - Relocated `plane-fix.patch` from root into `patches/plane-fix.patch` alongside other patch archives.
+  - Cleaned untracked historical multi-agent scratch directories in `.agents/` while preserving tracked plugins.
+  - Pruned and deleted stale merged feature branches on `origin` (`origin/feat/hud-toggle-clear-screen`, `origin/fix/hn1-rekey-mobile-pileup`, `origin/fix/mobile-pileup`).
+
 ### 2026-10-03 — Black Hole Pipeline & Lifecycle Scrubber Fixes (Antigravity)
 - **Black Hole Pipeline & Scrubber Unclamping:**
   - `src/core/constants.ts`: Added `LIFECYCLE_MAX: 1.65` to `PHASE_BOUNDARIES` to represent full lifecycle reach including Remnant.
