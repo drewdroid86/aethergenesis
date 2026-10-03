@@ -243,7 +243,6 @@ test(
         await cdp.send('Runtime.enable');
 
         for (const width of VIEWPORTS) {
-          // eslint-disable-next-line no-await-in-loop
           await t.test(`viewport ${width}x${VIEWPORT_H}`, async () => {
             await cdp.send('Emulation.setDeviceMetricsOverride', {
               width,
