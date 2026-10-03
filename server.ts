@@ -151,6 +151,7 @@ interface StarPreset {
   chandrasekhar_relevant: boolean;
   literature_reference: string;
   planets?: PlanetPreset[];
+  phase?: number;
 }
 
 // @ts-expect-error missing types

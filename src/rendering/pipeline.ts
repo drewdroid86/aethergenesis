@@ -46,7 +46,7 @@ export class Pipeline {
         this._screenPos.set(0.5, 0.5);
         let screenRadius = 0.0;
 
-        if (selectedStar && selectedStar.phase === 5 && selectedStar.mass > STELLAR_CONSTANTS.PHYSICS.MASS_THRESHOLD_BLACK_HOLE) { // REMNANT = 5
+        if (selectedStar && selectedStar.phase === 5 && selectedStar.mass >= STELLAR_CONSTANTS.PHYSICS.MASS_THRESHOLD_BLACK_HOLE) { // REMNANT = 5
             targetLensing = 1.0;
             
             // Project black hole position to screen space without heap allocation
@@ -62,8 +62,8 @@ export class Pipeline {
                 const dist = camera.position.distanceTo(selectedStar.position);
                 const fovRad = (camera.fov * Math.PI) / 180;
                 
-                // Event horizon lensing radius in world units
-                const worldRadius = 0.5;
+                // Event horizon & photon sphere lensing radius in world units
+                const worldRadius = 1.4;
                 screenRadius = worldRadius / (2 * dist * Math.tan(fovRad * 0.5));
             }
         }

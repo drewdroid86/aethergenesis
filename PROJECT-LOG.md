@@ -23,6 +23,19 @@ This log is updated after every AI session. Each AI signs off with their entry. 
 
 ## RECENT LOGS
 
+### 2026-10-03 — Black Hole Pipeline & Lifecycle Scrubber Fixes (Antigravity)
+- **Black Hole Pipeline & Scrubber Unclamping:**
+  - `src/core/constants.ts`: Added `LIFECYCLE_MAX: 1.65` to `PHASE_BOUNDARIES` to represent full lifecycle reach including Remnant.
+  - `src/utils/hooks/useStarSelection.ts`: Unclamped `handleScrub` timeline scrubber from `[0, 1.0]` to `percentage * LIFECYCLE_MAX` (`[0, 1.65]`), enabling scrubbing into Red Giant, Supernova, and Black Hole Remnant.
+  - `src/utils/hooks/useSimulation.ts`: Normalized timeline fill percentage and keyboard navigation (`onKeyDown`) against `LIFECYCLE_MAX`.
+  - `src/rendering/systems/HeroStarSystem.ts`:
+    - `applyPreset` allows presets with `phase: 5` or `age_gyr` in remnant phase to scrub up to `LIFECYCLE_MAX` instead of being clamped to 1.0.
+    - Added pacing governor for high-mass stars in Supernova and Remnant phases so they remain observable for several seconds rather than skipping in <1 frame before recycling.
+  - `src/rendering/pipeline.ts`: Changed `selectedStar.mass > 15` to `>= 15` matching `RemnantPhase.ts`; scaled `worldRadius` to 1.4 to match 3D photon sphere / Einstein deflection boundary.
+  - `src/shaders/cinematic.frag.glsl`: Clamped deflection angle `theta = max(0.001, dist - min(dist * 0.95, deflection))` to prevent negative coordinate inversion inside event horizon.
+  - `server/shared/stellarCatalog.mjs` & `server.ts`: Added `Cygnus X-1` black hole preset ($21.2\,\mathrm{M}_\odot$, phase 5).
+- **Verification:** `npm run typecheck`, `npm run build`, `npm test` (all 8 test suites pass: f3, f4, f5, f6, f7, f8, f11, f12, f13), and `npm run lint` (0 errors) all pass cleanly.
+
 ### 2026-09-23 — Agent Audit Fix Batches 1–2 (Muse Code)
 - **Simulation correctness:**
   - `src/simulation/nbodyWorker.ts`: INIT/RESET_BODIES now validate bodies (same poison guard as ADD_BODY); explicit finite>0 checks replace `||` defaults; NaN guard covers all xyz components.

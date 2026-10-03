@@ -2,7 +2,7 @@ import { useState, useRef, useCallback } from 'react';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { Engine } from '../../core/engine';
 import { HeroStarSystem } from '../../rendering/systems/HeroStarSystem';
-import { PHASE_NAMES } from '../../core/constants';
+import { PHASE_NAMES, STELLAR_CONSTANTS } from '../../core/constants';
 
 interface UseStarSelectionProps {
     engineRef: React.MutableRefObject<Engine | null>;
@@ -38,7 +38,8 @@ export function useStarSelection({ engineRef, controlsRef }: UseStarSelectionPro
         const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
         const x = Math.max(0, Math.min(e.clientX - rect.left, rect.width));
         const percentage = x / rect.width;
-        selectedStarRef.current.t = percentage;
+        const maxT = STELLAR_CONSTANTS.PHASE_BOUNDARIES.LIFECYCLE_MAX;
+        selectedStarRef.current.t = percentage * maxT;
         const perc = Math.round(percentage * 100);
         e.currentTarget.setAttribute('aria-valuenow', perc.toString());
         e.currentTarget.setAttribute('aria-valuetext', `${perc}% of Stellar Lifecycle (${PHASE_NAMES[selectedStarRef.current.phase]})`);

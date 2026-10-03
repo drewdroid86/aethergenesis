@@ -482,7 +482,18 @@ export class HeroStarSystem extends THREE.Group {
         // Reset real age / progress
         if (typeof preset.age_gyr === 'number' && Number.isFinite(preset.age_gyr)) {
             const presetAgeMyr = Math.max(0, preset.age_gyr * 1000);
-            this.t = Math.max(0.0, Math.min(1.0, presetAgeMyr / this.lifespanReal));
+            const maxT = STELLAR_CONSTANTS.PHASE_BOUNDARIES.LIFECYCLE_MAX;
+            this.t = Math.max(0.0, Math.min(maxT, presetAgeMyr / this.lifespanReal));
+        } else if (preset.phase !== undefined) {
+            if (preset.phase === 5 || preset.phase === 'remnant') {
+                this.t = 1.55;
+            } else if (preset.phase === 4 || preset.phase === 'supernova') {
+                this.t = 1.25;
+            } else if (preset.phase === 3 || preset.phase === 'red_giant') {
+                this.t = 1.05;
+            } else {
+                this.t = 0.0;
+            }
         } else {
             this.t = 0.0;
         }
@@ -532,13 +543,26 @@ export class HeroStarSystem extends THREE.Group {
         } else if (cosmicAge !== undefined) {
              const ageMyr = (cosmicAge - this.birthAge) * 1000;
              if (ageMyr < 0) this.t = -0.1;
-             else this.t = ageMyr / (this.lifespanReal / effG);
+             else {
+                 const rawT = ageMyr / (this.lifespanReal / effG);
+                 // Pacing governor for short-lived high-mass supernovas and remnants:
+                 // In cosmic mode (200 Myr/s), massive stars (tau_ms ~ 10 Myr) cross
+                 // Supernova (t=1.2..1.5) and Remnant (t=1.5..1.65) in under 0.02s (<1 frame).
+                 // We pace advance so dramatic post-MS phases remain observable for at least several seconds.
+                 if (rawT >= STELLAR_CONSTANTS.PHASE_BOUNDARIES.SUPERNOVA_START && this.t >= STELLAR_CONSTANTS.PHASE_BOUNDARIES.SUPERNOVA_START) {
+                     const maxRatePerSec = 0.04; // ~7.5s for supernova, ~3.75s for remnant
+                     this.t = Math.min(rawT, this.t + delta * maxRatePerSec);
+                     this.syncBirthAge(cosmicAge, effG);
+                 } else {
+                     this.t = rawT;
+                 }
+             }
         } else {
              this.t += (delta * 200) / (this.lifespanReal / effG);
         }
 
         // Generational matter recycling when remnant phase completes
-        if (overrideT === undefined && this.t >= 1.65) {
+        if (overrideT === undefined && this.t >= STELLAR_CONSTANTS.PHASE_BOUNDARIES.LIFECYCLE_MAX) {
             this.recycleToNewGeneration(cosmicAge ?? 5.0, renderer);
         }
 

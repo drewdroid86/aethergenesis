@@ -81,6 +81,23 @@ const PRESETS = [
     literature_reference: "Joyce et al. 2020"
   },
   {
+    name: "Cygnus X-1",
+    spectral_class: "BH",
+    mass_solar: 21.2,
+    luminosity_solar: 0.0,
+    temperature_K: 0,
+    radius_solar: 0.00009,
+    metallicity_Z: 0.02,
+    distance_ly: 7300.0,
+    age_gyr: 0.006,
+    known_planets: 0,
+    habitable_zone_inner_au: 0.0,
+    habitable_zone_outer_au: 0.0,
+    chandrasekhar_relevant: true,
+    literature_reference: "Miller-Jones et al. 2021",
+    phase: 5
+  },
+  {
     name: "Kepler-442",
     spectral_class: "K5V",
     mass_solar: 0.61,

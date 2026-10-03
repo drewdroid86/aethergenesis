@@ -38,6 +38,7 @@ export const STELLAR_CONSTANTS = {
         SUPERNOVA_LIMIT: 1.5,
         SUPERNOVA_DURATION: 0.3,
         REMNANT_START: 1.5,
+        LIFECYCLE_MAX: 1.65,
         NEBULA_SECONDARY_LIMIT: 0.8,
     },
     PHYSICS: {

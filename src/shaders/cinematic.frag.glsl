@@ -51,8 +51,9 @@ void main() {
     if (dist < rE) {
       horizonMask = 0.0;
     } else {
-      // Higher-order Schwarzschild gravitational deflection
-      float theta = dist - (rE * rE / dist + 0.35 * rE * rE * rE / (dist * dist)) * uLensingStrength;
+      // Higher-order Schwarzschild gravitational deflection with non-negative clamping
+      float deflection = (rE * rE / dist + 0.35 * rE * rE * rE / (dist * dist)) * uLensingStrength;
+      float theta = max(0.001, dist - min(dist * 0.95, deflection));
       
       // Convert back to UV space (de-adjusting aspect ratio)
       vec2 normalDir = normalize(delta);

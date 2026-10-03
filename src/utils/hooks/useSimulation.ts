@@ -4,7 +4,7 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { Engine } from '../../core/engine';
 import { HeroStarSystem } from '../../rendering/systems/HeroStarSystem';
 import { NebulaSystem } from '../../rendering/systems/NebulaSystem';
-import { PHASE_NAMES, PHASES } from '../../core/constants';
+import { PHASE_NAMES, PHASES, STELLAR_CONSTANTS } from '../../core/constants';
 import { PhysicsConstants, DEFAULT_CONSTANTS } from '../../types/physics';
 import { getNumStarsForTier, PerformanceTier } from '../../utils/performance';
 import { OrbitalBody, buildWorkerBodiesFromOrbits, keplerianToCartesian } from '../../simulation/OrbitalMechanics';
@@ -558,7 +558,8 @@ export function useSimulation(containerRef: React.RefObject<HTMLDivElement | nul
                         if (uiRefs.age.current) uiRefs.age.current.innerText = s.currentRealAge.toFixed(1);
                         if (uiRefs.lum.current) uiRefs.lum.current.innerText = s.currentLum.toFixed(3);
                         
-                        const perc = Math.round(s.t * 100);
+                        const maxT = STELLAR_CONSTANTS.PHASE_BOUNDARIES.LIFECYCLE_MAX;
+                        const perc = Math.min(100, Math.max(0, Math.round((s.t / maxT) * 100)));
                         if (uiRefs.timelineFill.current) uiRefs.timelineFill.current.style.width = `${perc}%`;
                         if (uiRefs.stellarSlider.current) {
                             uiRefs.stellarSlider.current.setAttribute('aria-valuenow', perc.toString());
@@ -714,9 +715,10 @@ export function useSimulation(containerRef: React.RefObject<HTMLDivElement | nul
                 e.currentTarget.setAttribute('aria-valuenow', formattedAge);
                 e.currentTarget.setAttribute('aria-valuetext', `${formattedAge} Billion Years`);
             } else if (selectedStarRef.current) {
-                const t = k==='Home'?0 : k==='End'?1 : selectedStarRef.current.t+(k==='ArrowLeft'?-0.01:0.01);
-                selectedStarRef.current.t = Math.max(0, Math.min(1, t));
-                const perc = Math.round(selectedStarRef.current.t * 100);
+                const maxT = STELLAR_CONSTANTS.PHASE_BOUNDARIES.LIFECYCLE_MAX;
+                const t = k==='Home'?0 : k==='End'?maxT : selectedStarRef.current.t+(k==='ArrowLeft'?-0.015:0.015);
+                selectedStarRef.current.t = Math.max(0, Math.min(maxT, t));
+                const perc = Math.min(100, Math.max(0, Math.round((selectedStarRef.current.t / maxT) * 100)));
                 e.currentTarget.setAttribute('aria-valuenow', perc.toString());
                 e.currentTarget.setAttribute('aria-valuetext', `${perc}% of Stellar Lifecycle (${PHASE_NAMES[selectedStarRef.current.phase]})`);
             }
