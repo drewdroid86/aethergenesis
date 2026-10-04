@@ -7,6 +7,11 @@ import noiseGLSL from '../../shaders/utils/noise.glsl?raw';
  * It is separate from the hero star specific nebula phases.
  */
 
+const SIZE_REF = 2000.0;
+const SIZE_MIN = 320;
+const SIZE_RANGE = 640;
+const NOISE_SCALE = 0.002;
+
 const vertexShader = `
     attribute float pSize;
     attribute vec3 pColor;
@@ -20,7 +25,7 @@ const vertexShader = `
         vec4 mvPosition = viewMatrix * worldPosition;
         
         // Size attenuation: scale point size by distance to camera
-        gl_PointSize = pSize * (2000.0 / -mvPosition.z);
+        gl_PointSize = max(pSize * (${SIZE_REF.toFixed(1)} / -mvPosition.z), 0.0);
         gl_Position = projectionMatrix * mvPosition;
     }
 `;
@@ -43,9 +48,9 @@ const fragmentShader = `
         
         // Volumetric billowing effect using 3D noise
         // Combining world position with point-local UVs for texture variation across large points
-        vec3 noisePos = vWorldPosition * 0.002 + vec3(uv * 0.15, uTime * 0.01) + uTime * 0.03;
-        float n1 = fbm(noisePos);
-        float n2 = fbm(noisePos * 2.0 - uTime * 0.02);
+        vec3 noisePos = vWorldPosition * ${NOISE_SCALE} + vec3(uv * 0.15, uTime * 0.01) + uTime * 0.03;
+        float n1 = fbm_3(noisePos);
+        float n2 = fbm_3(noisePos * 2.0 - uTime * 0.02);
         
         float density = n1 * 0.6 + n2 * 0.4;
         
@@ -139,7 +144,7 @@ export class NebulaSystem {
                 pColors[index * 3 + 1] = formation.color.g;
                 pColors[index * 3 + 2] = formation.color.b;
                 
-                pSizes[index] = 320 + Math.random() * 640;
+                pSizes[index] = SIZE_MIN + Math.random() * SIZE_RANGE;
                 
                 index++;
             }

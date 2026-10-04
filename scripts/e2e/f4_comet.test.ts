@@ -1,10 +1,14 @@
 import test from 'node:test';
 import assert from 'node:assert';
+import fs from 'node:fs';
+import path from 'node:path';
 import * as THREE from 'three';
 import { AstrobiologyEngine, HabitabilityState, HABITABILITY_CONFIG } from '../../src/simulation/AstrobiologyEngine';
 import { createStellarState } from '../../src/simulation/StellarPhysics';
 import { CometSystem } from '../../src/rendering/systems/CometSystem';
 import { PlanetarySystem } from '../../src/rendering/systems/PlanetarySystem';
+import { AsteroidBeltSystem } from '../../src/rendering/systems/AsteroidBeltSystem';
+import { DysonSwarmSystem } from '../../src/rendering/systems/DysonSwarmSystem';
 import { PHASES } from '../../src/core/constants';
 
 // Proximity detection function used by the engine
@@ -469,4 +473,77 @@ test('F4-T4-52: CometSystem and PlanetarySystem Time-Scale and Rate Configuratio
 
   planetSystem.dispose();
 });
+
+test('F4-T4-53: P2 AsteroidBeltSystem concentric rings, DysonSwarmSystem precession, and NebulaSystem', () => {
+  // 1. AsteroidBeltSystem
+  const scene = new THREE.Scene();
+  const belt = new AsteroidBeltSystem(scene, 9000);
+  const rings = (belt as any).rings;
+  assert.strictEqual(rings.length, 3, 'Must create 3 concentric rings');
+  assert.strictEqual(rings[0].mid, 2.25);
+  assert.strictEqual(rings[1].mid, 2.75);
+  assert.strictEqual(rings[2].mid, 3.25);
+
+  // Verify shared geometry and material
+  assert.strictEqual(rings[0].mesh.geometry, rings[1].mesh.geometry);
+  assert.strictEqual(rings[1].mesh.geometry, rings[2].mesh.geometry);
+  assert.strictEqual(rings[0].mesh.material, rings[1].mesh.material);
+  assert.strictEqual(rings[1].mesh.material, rings[2].mesh.material);
+  assert.strictEqual(rings[0].mesh.count, 3000);
+  assert.strictEqual(rings[1].mesh.count, 3000);
+  assert.strictEqual(rings[2].mesh.count, 3000);
+
+  // Test differential rotation
+  const starPos = new THREE.Vector3(10, 20, 30);
+  belt.update(10.0, starPos, 1.0);
+  assert.ok(rings[0].mesh.rotation.y > rings[1].mesh.rotation.y, 'Inner ring must rotate faster than middle');
+  assert.ok(rings[1].mesh.rotation.y > rings[2].mesh.rotation.y, 'Middle ring must rotate faster than outer');
+  assert.strictEqual(rings[0].mesh.position.x, 10);
+  assert.strictEqual(rings[1].mesh.position.y, 20);
+  assert.strictEqual(rings[2].mesh.position.z, 30);
+
+  belt.dispose();
+  assert.strictEqual((belt as any).rings.length, 0);
+  assert.strictEqual(scene.children.length, 0, 'Disposed belt meshes must be removed from scene');
+
+  // 2. DysonSwarmSystem
+  const dyson = new DysonSwarmSystem(scene, { count: 60, minRadius: 1.5, maxRadius: 3.5, baseSpeed: 0.02 });
+  const swarmMesh = (dyson as any).swarm as THREE.InstancedMesh;
+  const mat = swarmMesh.material as THREE.MeshBasicMaterial;
+  assert.strictEqual(mat.depthWrite, false, 'Dyson swarm material must have depthWrite: false');
+  assert.strictEqual(swarmMesh.visible, false, 'Swarm must start invisible');
+  assert.strictEqual(mat.opacity, 0.0, 'Swarm opacity must start at 0.0');
+
+  // Fade in at Kardashev Tier 2
+  dyson.update(2, 5.0, starPos, 0.5);
+  assert.ok(mat.opacity > 0.0, 'Opacity must increase towards target 0.6 when tier >= 2');
+  assert.strictEqual(swarmMesh.visible, true, 'Swarm must become visible');
+  assert.strictEqual(swarmMesh.position.x, 10);
+
+  // Verify differential precession: per-instance matrices differ
+  const m0 = new THREE.Matrix4();
+  const m1 = new THREE.Matrix4();
+  swarmMesh.getMatrixAt(0, m0);
+  swarmMesh.getMatrixAt(1, m1);
+  assert.notDeepStrictEqual(m0.elements, m1.elements, 'Instances must have distinct matrices');
+
+  // Fade out below Tier 2
+  dyson.update(1, 5.0, starPos, 2.0);
+  assert.strictEqual(mat.opacity, 0.0, 'Opacity must fade back to 0 when tier < 2');
+  assert.strictEqual(swarmMesh.visible, false, 'Swarm must become invisible when opacity <= 0.01');
+
+  dyson.dispose();
+  assert.strictEqual(scene.children.length, 0, 'Disposed swarm mesh must be removed from scene');
+
+  // 3. NebulaSystem static verification
+  const nebulaCode = fs.readFileSync(path.resolve(process.cwd(), 'src/rendering/systems/NebulaSystem.ts'), 'utf-8');
+  assert.ok(nebulaCode.includes('gl_PointSize = max(pSize * (${SIZE_REF.toFixed(1)} / -mvPosition.z), 0.0);'), 'Vertex shader must guard behind-camera point sizes');
+  assert.ok(nebulaCode.includes('fbm_3('), 'Fragment shader must use 3-octave fbm_3');
+  assert.ok(!nebulaCode.includes('fbm(noisePos'), 'Fragment shader must not call 5-octave fbm');
+  assert.ok(nebulaCode.includes('SIZE_REF = 2000.0'), 'Must define SIZE_REF = 2000.0');
+  assert.ok(nebulaCode.includes('SIZE_MIN = 320'), 'Must define SIZE_MIN = 320');
+  assert.ok(nebulaCode.includes('SIZE_RANGE = 640'), 'Must define SIZE_RANGE = 640');
+  assert.ok(nebulaCode.includes('NOISE_SCALE = 0.002'), 'Must define NOISE_SCALE = 0.002');
+});
+
 

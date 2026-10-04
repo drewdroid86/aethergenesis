@@ -442,7 +442,7 @@ export class Engine {
             // Comet phase visibility updates continuously during scrubber drags into non-MS phases
             this.cometSystem.update(this.getStellarState(), this.appTime, targetStarPos);
             if (!this.isPaused && !isScrubbing) {
-                this.dysonSwarmSystem.update(this.highestKardashevTier, this.appTime, targetStarPos);
+                this.dysonSwarmSystem.update(this.highestKardashevTier, this.appTime, targetStarPos, delta);
                 this.asteroidBeltSystem.update(this.appTime, targetStarPos, targetStarMass);
             }
         } catch (error) {

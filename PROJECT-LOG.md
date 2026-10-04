@@ -23,6 +23,28 @@ This log is updated after every AI session. Each AI signs off with their entry. 
 
 ## RECENT LOGS
 
+### 2026-10-04 — P2: Belt Rings, Dyson Swarm Precession & Nebula Shader Polish (Gemini 3.8 Flash)
+- **AsteroidBeltSystem (`src/rendering/systems/AsteroidBeltSystem.ts`):**
+  - Replaced single rigid `InstancedMesh` with 3 concentric ring meshes across BANDS table (`[2.0, 2.5]`, `[2.5, 3.0]`, `[3.0, 3.5]`) with differential Keplerian rotation rates (`0.0676`, `0.0500`, `0.0389` rad/s).
+  - Shared a single `IcosahedronGeometry` and `MeshStandardMaterial` across all 3 rings, splitting total count into thirds with last band absorbing the remainder.
+  - Removed dead `orbitalPeriods` array; eliminated per-frame instance buffer uploads.
+  - Updated `dispose()` to dispose shared resources once and remove all three meshes from the scene.
+- **DysonSwarmSystem (`src/rendering/systems/DysonSwarmSystem.ts`, `src/core/engine.ts`):**
+  - Added options interface `DysonSwarmOptions` (`count: 200`, `minRadius: 1.5`, `maxRadius: 3.5`, `baseSpeed: 0.01`).
+  - Implemented differential precession around `UP_Y` via per-instance base quaternions, omegas, and scales with hoisted temp objects (`_q`, `_m`, `_s`) avoiding per-frame allocations.
+  - Set `depthWrite: false` on material to eliminate self-occlusion punch-through artifacts.
+  - Added smooth opacity fade (`Math.min(1, delta * 2.0)`) towards target (0.6 when `kardashevTier >= 2`, else 0.0), toggling visibility when `_opacity > 0.01`.
+  - Updated `Engine.update()` call site to pass `delta` to `dysonSwarmSystem.update()`.
+- **NebulaSystem (`src/rendering/systems/NebulaSystem.ts`):**
+  - Added behind-camera guard in vertex shader: `gl_PointSize = max(pSize * (${SIZE_REF.toFixed(1)} / -mvPosition.z), 0.0);`.
+  - Switched fragment shader billowing noise from 5-octave `fbm` to 3-octave `fbm_3` for fill-rate optimization.
+  - Extracted magic numbers into file-scope consts: `SIZE_REF = 2000.0`, `SIZE_MIN = 320`, `SIZE_RANGE = 640`, `NOISE_SCALE = 0.002`.
+- **Test Suite (`scripts/e2e/f4_comet.test.ts`):**
+  - Added comprehensive `F4-T4-53` test covering AsteroidBeltSystem ring count, shared geometry/material, differential rotation, scene cleanup, DysonSwarmSystem options, depthWrite, opacity fading, differential matrices, and NebulaSystem shader contracts.
+- **Verification:**
+  - `npm run lint` (0 errors, 0 warnings), `npm run typecheck` (0 errors), `npm run build` (0.96s, 0 errors).
+  - `npm test` (all 11 e2e suites passing, 100% green).
+
 ### 2026-10-04 — Review Remediation: PlanetarySystem baseOmega & Timescale Polish (Antigravity)
 - **PlanetarySystem (`src/rendering/systems/PlanetarySystem.ts`):**
   - Renamed `po.orbitalSpeed` to `po.baseOmega`, storing the unscaled Keplerian angular frequency ($\sqrt{4\pi^2 M_* / a^3}$) at construction.
