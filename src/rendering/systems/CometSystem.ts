@@ -178,6 +178,10 @@ export class CometSystem {
     private group: THREE.Group;
     private prevPositions: THREE.Vector3[];
     private precalcData: PrecalcComet[] = [];
+    private tailPhases: Float32Array;
+
+    /** Sim-years advanced per real second. 0.15 → fastest comet orbits in ~37 s. */
+    public yearsPerSecond: number = 0.15;
 
     private _matrix = new THREE.Matrix4();
     private _posV = new THREE.Vector3();
@@ -186,12 +190,16 @@ export class CometSystem {
     private _crossVec = new THREE.Vector3();
     private _dustDir = new THREE.Vector3();
 
-    constructor(scene: THREE.Scene, _camera: THREE.Camera) {
+    constructor(scene: THREE.Scene) {
         this.group = new THREE.Group();
         scene.add(this.group);
 
-        const numComets = 5;
+        const numComets = COMETS_DATA.length;
         this.prevPositions = Array.from({ length: numComets }, () => new THREE.Vector3());
+        this.tailPhases = new Float32Array(numComets);
+        for (let i = 0; i < numComets; i++) {
+            this.tailPhases[i] = Math.random() * Math.PI * 2;
+        }
 
         // BOLT: Initialize pre-calculated constants
         for (let i = 0; i < numComets; i++) {
@@ -231,8 +239,7 @@ export class CometSystem {
             fragmentShader: TAIL_FS,
             transparent: true,
             blending: THREE.AdditiveBlending,
-            depthWrite: false,
-            uniforms: { uTime: { value: 0 } }
+            depthWrite: false
         });
         this.tailMat.name = 'CometTailMaterial';
         this.tailMat.customProgramCacheKey = () => 'comet_tail_material';
@@ -268,13 +275,27 @@ export class CometSystem {
         this.tidalDebrisMesh.geometry.setAttribute('dActive', new THREE.InstancedBufferAttribute(new Float32Array(totalFragments), 1));
         this.tidalDebrisMesh.frustumCulled = false;
 
+        // Coma color: blue-white (set once)
+        const comaColors = this.comaMesh.geometry.attributes.cColor.array as Float32Array;
+        for (let i = 0; i < numComets; i++) {
+            comaColors[i * 3 + 0] = 0.8;
+            comaColors[i * 3 + 1] = 0.9;
+            comaColors[i * 3 + 2] = 1.0;
+        }
+        this.comaMesh.geometry.attributes.cColor.needsUpdate = true;
+
+        this.comaMesh.count        = numComets;
+        this.ionTailMesh.count     = numComets;
+        this.dustTailMesh.count    = numComets;
+        this.tidalDebrisMesh.count = totalFragments;
+
         this.group.add(this.comaMesh);
         this.group.add(this.ionTailMesh);
         this.group.add(this.dustTailMesh);
         this.group.add(this.tidalDebrisMesh);
     }
 
-    update(delta: number, stellarState: StellarState, appTime: number, starPosition?: THREE.Vector3): void {
+    update(stellarState: StellarState, appTime: number, starPosition?: THREE.Vector3): void {
         if (stellarState.phase !== 'main_sequence') {
             this.group.visible = false;
             return;
@@ -284,7 +305,6 @@ export class CometSystem {
             this.group.position.copy(starPosition);
         }
         const comaScales   = this.comaMesh.geometry.attributes.cScale.array  as Float32Array;
-        const comaColors   = this.comaMesh.geometry.attributes.cColor.array  as Float32Array;
         const comaActives  = this.comaMesh.geometry.attributes.cActive.array as Float32Array;
         const ionDirs      = this.ionTailMesh.geometry.attributes.cDir.array    as Float32Array;
         const ionWidths    = this.ionTailMesh.geometry.attributes.cWidth.array  as Float32Array;
@@ -301,12 +321,13 @@ export class CometSystem {
         const debrisColors   = this.tidalDebrisMesh.geometry.attributes.dColor.array  as Float32Array;
         const debrisActives  = this.tidalDebrisMesh.geometry.attributes.dActive.array as Float32Array;
 
-        for (let i = 0; i < 5; i++) {
+        const simYears = appTime * this.yearsPerSecond;
+
+        for (let i = 0; i < this.precalcData.length; i++) {
             const data = this.precalcData[i];
             // Kepler's equation — solved via standard OrbitalMechanics Kepler solver
-            const visualYear = appTime * 100.0;
             const massFactor = Math.sqrt(Math.max(0.01, stellarState.mass_solar || 1.0));
-            const M = (visualYear * data.twoPiOverP * massFactor) % (2 * Math.PI);
+            const M = (simYears * data.twoPiOverP * massFactor) % (2 * Math.PI);
             const E = solveKepler(M, data.e);
             const theta = 2 * Math.atan2(
                 data.sqrt1pe * Math.sin(E / 2),
@@ -323,11 +344,6 @@ export class CometSystem {
             this.comaMesh.setMatrixAt(i, this._matrix);
             this.ionTailMesh.setMatrixAt(i, this._matrix);
             this.dustTailMesh.setMatrixAt(i, this._matrix);
-
-            // Coma color: blue-white
-            comaColors[i * 3 + 0] = 0.8;
-            comaColors[i * 3 + 1] = 0.9;
-            comaColors[i * 3 + 2] = 1.0;
 
             const dist = this._posV.length();
 
@@ -401,13 +417,17 @@ export class CometSystem {
                     dustColors[i * 3 + 0] = 1.0;
                     dustColors[i * 3 + 1] = 0.9;
                     dustColors[i * 3 + 2] = 0.6;
+
+                    const pulse = 0.85 + 0.15 * Math.sin(appTime * 6.0 + this.tailPhases[i]);
+                    ionColors[i * 3] *= pulse; ionColors[i * 3 + 1] *= pulse; ionColors[i * 3 + 2] *= pulse;
+                    dustColors[i * 3] *= pulse; dustColors[i * 3 + 1] *= pulse; dustColors[i * 3 + 2] *= pulse;
                 } else {
                     // 2.5–3.0 AU band: coma is active but tails are below
                     // their onset distance — deactivate so no zero-size
                     // instances are submitted for the tails.
                     ionWidths[i]  = 0;  dustWidths[i]  = 0;
                     ionLengths[i] = 0;  dustLengths[i] = 0;
-                    ionActives[i] = 0;  dustActives[i] = 0;
+                    ionActives[i] = 0.0; dustActives[i] = 0.0;
                     ionDirs[i*3] = ionDirs[i*3+1] = ionDirs[i*3+2] = 0;
                     dustDirs[i*3] = dustDirs[i*3+1] = dustDirs[i*3+2] = 0;
                 }
@@ -443,11 +463,6 @@ export class CometSystem {
         this.tidalDebrisMesh.geometry.attributes.dScale.needsUpdate  = true;
         this.tidalDebrisMesh.geometry.attributes.dColor.needsUpdate  = true;
         this.tidalDebrisMesh.geometry.attributes.dActive.needsUpdate = true;
-
-        this.comaMesh.count        = 5;
-        this.ionTailMesh.count     = 5;
-        this.dustTailMesh.count    = 5;
-        this.tidalDebrisMesh.count = 30;
     }
 
     dispose(): void {

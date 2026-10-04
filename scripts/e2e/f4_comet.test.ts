@@ -1,7 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert';
+import * as THREE from 'three';
 import { AstrobiologyEngine, HabitabilityState, HABITABILITY_CONFIG } from '../../src/simulation/AstrobiologyEngine';
 import { createStellarState } from '../../src/simulation/StellarPhysics';
+import { CometSystem } from '../../src/rendering/systems/CometSystem';
+import { PlanetarySystem } from '../../src/rendering/systems/PlanetarySystem';
 
 // Proximity detection function used by the engine
 function checkProximity(posA: { x: number; y: number; z: number }, posB: { x: number; y: number; z: number }): number {
@@ -409,5 +412,32 @@ test('F4-T4-51: AstrobiologyEngine Climate Hysteresis & HABITABILITY_CONFIG Tuna
   state = engine.evaluatePlanet(planetId, 0.8, 5.97e24, 6.37e6, 0.3, sun, 1e6, 'rocky');
   assert.ok(state.surfaceTemperature_K <= 328);
   assert.strictEqual(state.climateState, 'habitable', 'Planet must collapse out of runaway greenhouse when below greenhouseExitK');
+});
+
+test('F4-T4-52: CometSystem and PlanetarySystem Time-Scale and Rate Configuration', () => {
+  const scene = new THREE.Scene();
+  const cometSystem = new CometSystem(scene);
+  assert.strictEqual(cometSystem.yearsPerSecond, 0.15, 'CometSystem yearsPerSecond must default to 0.15');
+
+  const sun = createStellarState('hero_star', 1.0, 0.02, 4.6e9);
+  // Verify update works cleanly with stellarState, appTime, and optional position
+  assert.doesNotThrow(() => {
+    cometSystem.update(sun, 1.0, new THREE.Vector3(0, 0, 0));
+  }, 'CometSystem.update should execute without throwing');
+  cometSystem.dispose();
+
+  const starObj = new THREE.Object3D();
+  (starObj as any).mass = 1.0;
+  const planetSystem = new PlanetarySystem(starObj);
+  assert.strictEqual(planetSystem.orbitSpeedScale, 0.005, 'PlanetarySystem orbitSpeedScale must default to 0.005');
+  assert.ok(planetSystem.proceduralOrbits.length > 0, 'PlanetarySystem must generate procedural orbits');
+
+  // Verify procedural orbits speeds are scaled by orbitSpeedScale
+  for (const po of planetSystem.proceduralOrbits) {
+    const rawOmega = Math.sqrt((4.0 * Math.PI * Math.PI * 1.0) / Math.max(0.001, po.semiMajorAxis_au ** 3));
+    const expectedOmega = rawOmega * planetSystem.orbitSpeedScale;
+    assert.ok(Math.abs(po.orbitalSpeed - expectedOmega) < 1e-6, 'Procedural orbital speed must scale with orbitSpeedScale');
+  }
+  planetSystem.dispose();
 });
 

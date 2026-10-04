@@ -38,6 +38,8 @@ void main() {
     vec4 worldPos = instanceMatrix * vec4(position, 1.0);
     vWorldPosition = (modelMatrix * worldPos).xyz;
     vNormal = normalize(mat3(modelMatrix) * mat3(instanceMatrix) * normal);
+    // Local-space light dir; consistent with world-space vNormal only because
+    // no ancestor rotates (uniform scale + translation preserve directions).
     vLightDir = normalize(-worldPos.xyz); // Light comes from star at local (0,0,0)
     
     gl_Position = projectionMatrix * viewMatrix * vec4(vWorldPosition, 1.0);
@@ -239,6 +241,9 @@ export class PlanetarySystem {
         seed: number;
     }[] = [];
     public proceduralOrbits: ProceduralOrbit[] = [];
+
+    /** Keplerian rate scale. omega = sqrt(4π²M/a³) is rad/YEAR; appTime is seconds. */
+    public orbitSpeedScale: number = 0.005;
     
     private group: THREE.Group;
     public parent: THREE.Object3D;
@@ -308,7 +313,7 @@ export class PlanetarySystem {
                 const a = currentA;
                 currentA = currentA * (1.35 + nextRand() * 0.35);
 
-                const omega = Math.sqrt((4.0 * Math.PI * Math.PI * starMass) / Math.max(0.001, a * a * a)) * 0.15;
+                const omega = Math.sqrt((4.0 * Math.PI * Math.PI * starMass) / Math.max(0.001, a * a * a)) * this.orbitSpeedScale;
                 const phase = nextRand() * Math.PI * 2;
                 const pSeed = nextRand() * 1000.0;
 
@@ -484,6 +489,7 @@ export class PlanetarySystem {
                 scorchDirty = true;
             }
 
+            // T * Ry * S, column-major, allocation-free — do NOT "simplify" to compose().
             // Column-major matrix construction (Translation * RotationY * Scale)
             const rotTheta = (x + y) * 0.01 + bSeed;
             const cos = Math.cos(rotTheta);

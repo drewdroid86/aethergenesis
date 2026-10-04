@@ -23,6 +23,21 @@ This log is updated after every AI session. Each AI signs off with their entry. 
 
 ## RECENT LOGS
 
+### 2026-10-04 — Orbital Time-Scale Fixes: CometSystem & PlanetarySystem (Antigravity)
+- **CometSystem (`src/rendering/systems/CometSystem.ts`, `src/core/engine.ts`):**
+  - Added public `yearsPerSecond: number = 0.15`, scaling mean anomaly `M` via hoisted `simYears = appTime * this.yearsPerSecond` (~37s orbit for fastest comet, eliminating high-frequency strobing).
+  - Derived comet count dynamically from `COMETS_DATA.length` and updated loop to `this.precalcData.length`.
+  - Moved static `comaColors` buffer writes (0.8/0.9/1.0) and mesh `.count` assignments into the constructor.
+  - Closed tail deactivation gap in 2.5–3.0 AU band by explicitly zeroing `ionActives[i] = 0.0` and `dustActives[i] = 0.0` for clean GPU discard.
+  - Added randomized CPU-side tail flicker pulse (`0.85 + 0.15 * sin(appTime * 6.0 + tailPhases[i])`) and purged dead `uTime` uniform.
+  - Dropped unused `_camera` parameter from constructor and unused `delta` parameter from `update()`. Updated call sites in `src/core/engine.ts` and cleaned unused local `deltaTime_yr` and `timeScale`.
+- **PlanetarySystem (`src/rendering/systems/PlanetarySystem.ts`):**
+  - Added public `orbitSpeedScale: number = 0.005` to Keplerian rate solver `omega` (~3.3 min/orbit for Earth-analog, smooth and trackable Keplerian ratios).
+  - Added architectural documentation comments above manual matrix construction (`T * Ry * S`) and `PLANET_VS` local-space light direction invariant.
+- **Verification & Test Coverage (`scripts/e2e/f4_comet.test.ts`):**
+  - Added test scenario `F4-T4-52` validating default rate parameters, update execution, and Keplerian orbital speed scaling.
+  - `npm run lint` (0 errors, 0 warnings), `npm run typecheck` (0 errors), `npm run build` (1.00s), and `scripts/e2e/f4_comet.test.ts` (15/15 passed).
+
 ### 2026-10-03 — Repository File Hygiene & Stale Branch Cleanup (Antigravity)
 - **Repo Hygiene:**
   - Relocated `plane-fix.patch` from root into `patches/plane-fix.patch` alongside other patch archives.

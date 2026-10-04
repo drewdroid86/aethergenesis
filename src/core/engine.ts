@@ -257,7 +257,7 @@ export class Engine {
         this.scene.add(new THREE.Points(this._backgroundStarGeo, this._backgroundStarMat));
 
         this.pipeline = new Pipeline(this.renderer, this.scene, this.camera);
-        this.cometSystem = new CometSystem(this.scene, this.camera);
+        this.cometSystem = new CometSystem(this.scene);
         this.dysonSwarmSystem = new DysonSwarmSystem(this.scene);
         this.asteroidBeltSystem = new AsteroidBeltSystem(this.scene);
         
@@ -312,7 +312,6 @@ export class Engine {
         const selectedStar = this.selectedStar;
         const isScrubbing = this.isScrubbing;
         const cosmicAge = this.cosmicAge;
-        const timeScale = this.timeScale;
         const nbodyBuffer = this.nbodyBuffer;
 
         const activeCount = Math.min(this.activeHeroStarCount, this.heroStars.length);
@@ -436,13 +435,12 @@ export class Engine {
         this._cullStarLights();
 
         if (!this.isPaused && !isScrubbing) {
-            const deltaTime_yr = timeScale === 'cosmic' ? delta * 200000000 : delta * 1000;
             try {
                 // Intentional: comet/belt/dyson systems are singletons showcasing the focus star's system.
                 const targetStar = this.selectedStar || this.heroStars[0];
                 const targetStarPos = targetStar?.position;
                 const targetStarMass = targetStar?.mass || 1.0;
-                this.cometSystem.update(deltaTime_yr, this.getStellarState(), this.appTime, targetStarPos);
+                this.cometSystem.update(this.getStellarState(), this.appTime, targetStarPos);
                 this.dysonSwarmSystem.update(this.highestKardashevTier, this.appTime, targetStarPos);
                 this.asteroidBeltSystem.update(this.appTime, targetStarPos, targetStarMass);
             } catch (error) {
