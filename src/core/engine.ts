@@ -434,19 +434,20 @@ export class Engine {
         // Cull PointLights to top-N nearest to prevent uniform overflow
         this._cullStarLights();
 
-        if (!this.isPaused && !isScrubbing) {
-            try {
-                // Intentional: comet/belt/dyson systems are singletons showcasing the focus star's system.
-                const targetStar = this.selectedStar || this.heroStars[0];
-                const targetStarPos = targetStar?.position;
-                const targetStarMass = targetStar?.mass || 1.0;
-                this.cometSystem.update(this.getStellarState(), this.appTime, targetStarPos);
+        try {
+            // Intentional: comet/belt/dyson systems are singletons showcasing the focus star's system.
+            const targetStar = this.selectedStar || this.heroStars[0];
+            const targetStarPos = targetStar?.position;
+            const targetStarMass = targetStar?.mass || 1.0;
+            // Comet phase visibility updates continuously during scrubber drags into non-MS phases
+            this.cometSystem.update(this.getStellarState(), this.appTime, targetStarPos);
+            if (!this.isPaused && !isScrubbing) {
                 this.dysonSwarmSystem.update(this.highestKardashevTier, this.appTime, targetStarPos);
                 this.asteroidBeltSystem.update(this.appTime, targetStarPos, targetStarMass);
-            } catch (error) {
-                if (typeof (window as any).emitErrorOverlay === 'function') {
-                    (window as any).emitErrorOverlay(error);
-                }
+            }
+        } catch (error) {
+            if (typeof (window as any).emitErrorOverlay === 'function') {
+                (window as any).emitErrorOverlay(error);
             }
         }
         // Process queued planetary systems creation/disposal to prevent stutters

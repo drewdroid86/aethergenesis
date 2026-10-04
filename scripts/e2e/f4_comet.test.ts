@@ -5,6 +5,7 @@ import { AstrobiologyEngine, HabitabilityState, HABITABILITY_CONFIG } from '../.
 import { createStellarState } from '../../src/simulation/StellarPhysics';
 import { CometSystem } from '../../src/rendering/systems/CometSystem';
 import { PlanetarySystem } from '../../src/rendering/systems/PlanetarySystem';
+import { PHASES } from '../../src/core/constants';
 
 // Proximity detection function used by the engine
 function checkProximity(posA: { x: number; y: number; z: number }, posB: { x: number; y: number; z: number }): number {
@@ -428,16 +429,44 @@ test('F4-T4-52: CometSystem and PlanetarySystem Time-Scale and Rate Configuratio
 
   const starObj = new THREE.Object3D();
   (starObj as any).mass = 1.0;
+  (starObj as any).phase = PHASES.MAIN_SEQUENCE;
   const planetSystem = new PlanetarySystem(starObj);
   assert.strictEqual(planetSystem.orbitSpeedScale, 0.005, 'PlanetarySystem orbitSpeedScale must default to 0.005');
   assert.ok(planetSystem.proceduralOrbits.length > 0, 'PlanetarySystem must generate procedural orbits');
 
-  // Verify procedural orbits speeds are scaled by orbitSpeedScale
+  // Verify procedural orbital speeds match unscaled Keplerian angular frequency
   for (const po of planetSystem.proceduralOrbits) {
     const rawOmega = Math.sqrt((4.0 * Math.PI * Math.PI * 1.0) / Math.max(0.001, po.semiMajorAxis_au ** 3));
-    const expectedOmega = rawOmega * planetSystem.orbitSpeedScale;
-    assert.ok(Math.abs(po.orbitalSpeed - expectedOmega) < 1e-6, 'Procedural orbital speed must scale with orbitSpeedScale');
+    assert.ok(Math.abs(po.baseOmega - rawOmega) < 1e-6, 'po.baseOmega must store unscaled Keplerian rate');
   }
+
+  // Verify runtime mutation of orbitSpeedScale dynamically affects evaluated angle
+  const p0 = planetSystem.proceduralOrbits[0];
+  const appTime = 50.0;
+  const m4 = new THREE.Matrix4();
+
+  // Baseline at default 0.005
+  planetSystem.update(0.016, appTime);
+  (planetSystem as any).instancedMesh.getMatrixAt(0, m4);
+  const angleDefault = Math.atan2(m4.elements[14], m4.elements[12]);
+  const expectedDefault = Math.atan2(
+    Math.sin(p0.phaseOffset + appTime * p0.baseOmega * 0.005),
+    Math.cos(p0.phaseOffset + appTime * p0.baseOmega * 0.005)
+  );
+  assert.ok(Math.abs(angleDefault - expectedDefault) < 1e-5, 'Planet position at default scale must match expected angle');
+
+  // Mutate post-construction to 0.01 (2x speed)
+  planetSystem.orbitSpeedScale = 0.01;
+  planetSystem.update(0.016, appTime);
+  (planetSystem as any).instancedMesh.getMatrixAt(0, m4);
+  const angleDoubled = Math.atan2(m4.elements[14], m4.elements[12]);
+  const expectedDoubled = Math.atan2(
+    Math.sin(p0.phaseOffset + appTime * p0.baseOmega * 0.01),
+    Math.cos(p0.phaseOffset + appTime * p0.baseOmega * 0.01)
+  );
+  assert.ok(Math.abs(angleDoubled - expectedDoubled) < 1e-5, 'Planet position at mutated scale must match dynamic rate');
+  assert.notStrictEqual(angleDoubled.toFixed(3), angleDefault.toFixed(3), 'Mutated scale must change planet position');
+
   planetSystem.dispose();
 });
 

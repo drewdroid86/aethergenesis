@@ -217,7 +217,7 @@ void main() {
 
 interface ProceduralOrbit {
     semiMajorAxis_au: number;
-    orbitalSpeed: number;
+    baseOmega: number;
     phaseOffset: number;
     scale: number;
     type: number;
@@ -242,7 +242,11 @@ export class PlanetarySystem {
     }[] = [];
     public proceduralOrbits: ProceduralOrbit[] = [];
 
-    /** Keplerian rate scale. omega = sqrt(4π²M/a³) is rad/YEAR; appTime is seconds. */
+    /**
+     * Keplerian rate scale (sim-years advanced per real second). Default 0.005 → ~3.3 min/orbit for Earth-analog.
+     * Note: 30× slower than CometSystem (0.15 yr/s) — intentional visual design so planetary orbits
+     * remain smooth and trackable, while showcase comets sweep at an accelerated rate.
+     */
     public orbitSpeedScale: number = 0.005;
     
     private group: THREE.Group;
@@ -313,7 +317,7 @@ export class PlanetarySystem {
                 const a = currentA;
                 currentA = currentA * (1.35 + nextRand() * 0.35);
 
-                const omega = Math.sqrt((4.0 * Math.PI * Math.PI * starMass) / Math.max(0.001, a * a * a)) * this.orbitSpeedScale;
+                const baseOmega = Math.sqrt((4.0 * Math.PI * Math.PI * starMass) / Math.max(0.001, a * a * a));
                 const phase = nextRand() * Math.PI * 2;
                 const pSeed = nextRand() * 1000.0;
 
@@ -335,7 +339,7 @@ export class PlanetarySystem {
 
                 this.proceduralOrbits.push({
                     semiMajorAxis_au: a,
-                    orbitalSpeed: omega,
+                    baseOmega,
                     phaseOffset: phase,
                     scale: pScale,
                     type: pType,
@@ -466,7 +470,7 @@ export class PlanetarySystem {
                 const po = this.proceduralOrbits[i];
                 bScale = po.scale;
                 bSeed = po.seed;
-                const theta = po.phaseOffset + appTime * po.orbitalSpeed;
+                const theta = po.phaseOffset + appTime * po.baseOmega * this.orbitSpeedScale;
                 const r = po.semiMajorAxis_au * 12.0;
                 x = Math.cos(theta) * r;
                 y = 0.0;

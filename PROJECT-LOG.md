@@ -23,6 +23,23 @@ This log is updated after every AI session. Each AI signs off with their entry. 
 
 ## RECENT LOGS
 
+### 2026-10-04 — Review Remediation: PlanetarySystem baseOmega & Timescale Polish (Antigravity)
+- **PlanetarySystem (`src/rendering/systems/PlanetarySystem.ts`):**
+  - Renamed `po.orbitalSpeed` to `po.baseOmega`, storing the unscaled Keplerian angular frequency ($\sqrt{4\pi^2 M_* / a^3}$) at construction.
+  - In `update()`, applied `this.orbitSpeedScale` live (`theta = po.phaseOffset + appTime * po.baseOmega * this.orbitSpeedScale`) so post-construction mutations dynamically scale orbital velocity.
+  - Documented intentional $30\times$ timescale divergence from `CometSystem` ($0.005\text{ yr/s}$ vs $0.15\text{ yr/s}$).
+- **CometSystem (`src/rendering/systems/CometSystem.ts`):**
+  - Documented intentional $30\times$ timescale divergence on `yearsPerSecond`.
+  - Removed redundant per-frame `cColor.needsUpdate = true` on the static coma color attribute.
+- **Engine Scrubber Phase Visibility (`src/core/engine.ts`):**
+  - Hoisted `cometSystem.update(...)` out of `!this.isPaused && !isScrubbing` so comet visibility updates continuously during scrubber drags into non-MS phases (Red Giant, Supernova, Remnant), keeping dyson and asteroid belt systems gated.
+- **Test Suite (`scripts/e2e/f4_comet.test.ts`):**
+  - Updated `F4-T4-52` asserting `po.baseOmega` stores unscaled rate, and added dynamic post-construction mutation verification for `orbitSpeedScale`.
+- **Verification:**
+  - `npm run typecheck` (0 errors), `npm run build` (0.86s, 0 errors).
+  - `scripts/e2e/f4_comet.test.ts` (15/15 passed).
+  - Full E2E suite 96/97 passing with `F1-T1-5` failing on an unrelated external JPL Horizons disambiguation listing.
+
 ### 2026-10-04 — Orbital Time-Scale Fixes: CometSystem & PlanetarySystem (Antigravity)
 - **CometSystem (`src/rendering/systems/CometSystem.ts`, `src/core/engine.ts`):**
   - Added public `yearsPerSecond: number = 0.15`, scaling mean anomaly `M` via hoisted `simYears = appTime * this.yearsPerSecond` (~37s orbit for fastest comet, eliminating high-frequency strobing).

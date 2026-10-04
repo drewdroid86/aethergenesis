@@ -180,7 +180,11 @@ export class CometSystem {
     private precalcData: PrecalcComet[] = [];
     private tailPhases: Float32Array;
 
-    /** Sim-years advanced per real second. 0.15 → fastest comet orbits in ~37 s. */
+    /**
+     * Sim-years advanced per real second. Default 0.15 → fastest comet orbits in ~37 s.
+     * Note: 30× faster than PlanetarySystem (0.005 yr/s) — intentional visual design so showcase
+     * comets actively sweep and develop tails within an observable session length.
+     */
     public yearsPerSecond: number = 0.15;
 
     private _matrix = new THREE.Matrix4();
@@ -445,7 +449,6 @@ export class CometSystem {
         this.tidalDebrisMesh.instanceMatrix.needsUpdate = true;
 
         this.comaMesh.geometry.attributes.cScale.needsUpdate  = true;
-        this.comaMesh.geometry.attributes.cColor.needsUpdate  = true;
         this.comaMesh.geometry.attributes.cActive.needsUpdate = true;
 
         this.ionTailMesh.geometry.attributes.cDir.needsUpdate    = true;
