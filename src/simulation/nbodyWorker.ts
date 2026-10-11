@@ -135,11 +135,14 @@ function calculateAccelerations(targetBuffer: Float32Array): void {
         const py = b.position_au.y;
         const pz = b.position_au.z;
 
+        if (!Number.isFinite(px) || !Number.isFinite(py) || !Number.isFinite(pz)) continue;
+
         const rSoftSq = px * px + py * py + pz * pz + softeningSq;
         const r = Math.sqrt(rSoftSq);
         
         // aMag = -G * M / r^3. Use r * rSoftSq to save one multiplication.
         const aMag = -(G_mu * centralMass_solar) / (r * rSoftSq);
+        if (!Number.isFinite(aMag)) continue;
 
         targetBuffer[i * 3 + 0] += aMag * px;
         targetBuffer[i * 3 + 1] += aMag * py;
@@ -159,17 +162,21 @@ function calculateAccelerations(targetBuffer: Float32Array): void {
             const dx = bj.position_au.x - pix;
             const dy = bj.position_au.y - piy;
             const dz = bj.position_au.z - piz;
+
+            if (!Number.isFinite(dx) || !Number.isFinite(dy) || !Number.isFinite(dz)) continue;
             
             const distSoftSq = dx*dx + dy*dy + dz*dz + softeningSq;
             const dist = Math.sqrt(distSoftSq);
             const dist3 = dist * distSoftSq;
 
-            if (dist3 < 1e-6) continue;
+            if (dist3 < 1e-6 || !Number.isFinite(dist3)) continue;
 
             // Acceleration on i due to j: a_i = G * m_j * dir / dist^3
             const aMag_i = (G_mu * bj.mass_solar) / dist3;
             // Acceleration on j due to i: a_j = -G * m_i * dir / dist^3
             const aMag_j = (G_mu * mi) / dist3;
+
+            if (!Number.isFinite(aMag_i) || !Number.isFinite(aMag_j)) continue;
 
             targetBuffer[i * 3 + 0] += aMag_i * dx;
             targetBuffer[i * 3 + 1] += aMag_i * dy;
@@ -234,6 +241,10 @@ function recomputeTMin(): void {
  */
 function integrate(subDt: number): void {
     const n = bodies.length;
+    if (accelBuffer.length !== n * 3) {
+        accelBuffer = new Float32Array(n * 3);
+        accelsValid = false;
+    }
     const dt_half = subDt * 0.5;
 
     // 1. If we don't have valid accelerations from last step/tick, calculate them now
@@ -258,6 +269,7 @@ function integrate(subDt: number): void {
             b.velocity_au_yr.y = (2.0 * Math.PI) / Math.sqrt((i + 1) * 2.0);
             b.velocity_au_yr.z = 0.0;
             accelsValid = false;
+            continue;
         }
 
         const ax = accelBuffer[i * 3 + 0];
@@ -299,9 +311,9 @@ function integrate(subDt: number): void {
         const ay = accelBuffer[i * 3 + 1];
         const az = accelBuffer[i * 3 + 2];
 
-        b.velocity_au_yr.x += ax * dt_half;
-        b.velocity_au_yr.y += ay * dt_half;
-        b.velocity_au_yr.z += az * dt_half;
+        if (Number.isFinite(ax)) b.velocity_au_yr.x += ax * dt_half;
+        if (Number.isFinite(ay)) b.velocity_au_yr.y += ay * dt_half;
+        if (Number.isFinite(az)) b.velocity_au_yr.z += az * dt_half;
     }
 }
 

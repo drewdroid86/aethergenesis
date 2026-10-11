@@ -665,6 +665,7 @@ export class HeroStarSystem extends THREE.Group {
             }
         } else {
             this.remnantPhase.update(delta, appTime, cameraPos, physics, this.t, lowDetail, globalFade);
+            // Sub-BH remnants (< 15 Msun): targetNs drives remnant sphere opacity (reused for both WD <= 8 and NS > 8)
             if (this.mass < STELLAR_CONSTANTS.PHYSICS.MASS_THRESHOLD_BLACK_HOLE) {
                 targetNs = 1;
             }

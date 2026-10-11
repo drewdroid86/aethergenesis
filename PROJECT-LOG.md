@@ -23,6 +23,24 @@ This log is updated after every AI session. Each AI signs off with their entry. 
 
 ## RECENT LOGS
 
+### 2026-10-11 — Qwen Round-1 HIGHs: n-body NaN Guard & White Dwarf Remnant (Gemini 3.8 Flash)
+- **FIX 1 — nbodyWorker NaN Recovery (`src/simulation/nbodyWorker.ts`):**
+  - Added control-flow `continue;` skipping acceleration and position update on the same substep when a poisoned body is reset, allowing `accelsValid = false` to recalculate from clean positions on the subsequent step.
+  - Hardened pairwise N-body loop and central star acceleration calculations with `Number.isFinite` guards to prevent cross-contamination across bodies.
+  - Sized `accelBuffer` defensively if body count changes.
+- **FIX 2 — White Dwarf Remnant Visuals (`src/simulation/phases/RemnantPhase.ts`, `src/rendering/systems/HeroStarSystem.ts`):**
+  - Defined named constants `WHITE_DWARF_SCALE = 3.0`, `WHITE_DWARF_COLOR = 0xfff6e0`, and `NEUTRON_STAR_COLOR = 0xaaccff`.
+  - In `RemnantPhase.update()` (and `init()`), differentiated `<= 8 Msun` white dwarf progenitors with `WHITE_DWARF_SCALE` and warm-white color while hiding pulsar beams and magnetic lines.
+  - For `> 8 Msun` neutron stars, explicitly restored scale `1.0`, `NEUTRON_STAR_COLOR`, and enabled pulsar beams and magnetic lines to prevent appearance leakage across recycled mass regimes.
+  - Documented sub-BH remnant `targetNs = 1` usage in `HeroStarSystem.ts`.
+- **Test Suite (`scripts/e2e/f13_nbody_substeps.test.ts`, `scripts/e2e/f6_audit_fixes.test.ts`):**
+  - Added test `F13-4` asserting safe recovery and zero cross-contamination when NaN coordinates are injected into `nbodyWorker`.
+  - Added test `F6-8` asserting White Dwarf vs Neutron Star scale, color, beam visibility, and leak-free recycling between mass regimes.
+- **Verification:**
+  - `npm run lint` & `npm run typecheck` (0 errors, 0 warnings).
+  - `npm run build` (1.90s, clean bundle).
+  - `npm test` (all 11 E2E test suites green).
+
 ### 2026-10-04 — P2: Belt Rings, Dyson Swarm Precession & Nebula Shader Polish (Gemini 3.8 Flash)
 - **AsteroidBeltSystem (`src/rendering/systems/AsteroidBeltSystem.ts`):**
   - Replaced single rigid `InstancedMesh` with 3 concentric ring meshes across BANDS table (`[2.0, 2.5]`, `[2.5, 3.0]`, `[3.0, 3.5]`) with differential Keplerian rotation rates (`0.0676`, `0.0500`, `0.0389` rad/s).

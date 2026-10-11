@@ -12,6 +12,10 @@ const stepOp = (current: number, target: number, speed: number) => {
     return current;
 };
 
+export const WHITE_DWARF_SCALE = 3.0;
+export const WHITE_DWARF_COLOR = 0xfff6e0;
+export const NEUTRON_STAR_COLOR = 0xaaccff;
+
 export class RemnantPhase implements PhaseComponent {
     public neutronStarGroup!: THREE.Group;
     public nsMagneticLines!: THREE.Group;
@@ -32,7 +36,7 @@ export class RemnantPhase implements PhaseComponent {
     private _lensMesh?: THREE.Mesh;
 
     // BOLT: Shared materials cached to eliminate per-frame O(N) loops and lookups
-    private nsMat!: THREE.MeshBasicMaterial;
+    public nsMat!: THREE.MeshBasicMaterial;
     private tubeMat!: THREE.MeshBasicMaterial;
     private beamMat!: THREE.ShaderMaterial;
 
@@ -41,6 +45,10 @@ export class RemnantPhase implements PhaseComponent {
     constructor(mass: number) {
         this.mass = mass;
         phaseCounters.inits++;
+    }
+
+    setMass(mass: number): void {
+        this.mass = mass;
     }
 
     init(parent: THREE.Group): void {
@@ -52,9 +60,12 @@ export class RemnantPhase implements PhaseComponent {
         this.initialized = true;
         this.parent = parent;
 
-        // Neutron Star
+        // Neutron Star / White Dwarf
         this.neutronStarGroup = new THREE.Group();
-        this.nsMat = new THREE.MeshBasicMaterial({color: 0xaaccff, transparent: true, opacity: 0});
+        const initialColor = this.mass > STELLAR_CONSTANTS.PHYSICS.MASS_THRESHOLD_SUPERNOVA
+            ? NEUTRON_STAR_COLOR
+            : WHITE_DWARF_COLOR;
+        this.nsMat = new THREE.MeshBasicMaterial({color: initialColor, transparent: true, opacity: 0});
         this.nsMat.name = 'RemnantNeutronStarMaterial';
         this.pulsarGroup = new THREE.Group();
         this.beamMat = new THREE.ShaderMaterial({
@@ -122,6 +133,15 @@ export class RemnantPhase implements PhaseComponent {
         
         this.nsMagneticLines = nsMagGroup;
         this.neutronStarGroup.add(this.nsMagneticLines);
+        if (this.mass <= STELLAR_CONSTANTS.PHYSICS.MASS_THRESHOLD_SUPERNOVA) {
+            this.neutronStarGroup.scale.setScalar(WHITE_DWARF_SCALE);
+            this.pulsarGroup.visible = false;
+            this.nsMagneticLines.visible = false;
+        } else {
+            this.neutronStarGroup.scale.setScalar(1.0);
+            this.pulsarGroup.visible = true;
+            this.nsMagneticLines.visible = true;
+        }
         this.parent.add(this.neutronStarGroup);
 
         // Black Hole
@@ -414,6 +434,11 @@ export class RemnantPhase implements PhaseComponent {
                 this._lensMat.uniforms.uOpacity.value = globalFade;
             }
         } else if (this.mass > STELLAR_CONSTANTS.PHYSICS.MASS_THRESHOLD_SUPERNOVA) {
+            // Neutron Star branch (> 8 Msun): scale 1.0, blue-white color, active beams & magnetic lines
+            this.neutronStarGroup.scale.setScalar(1.0);
+            this.nsMat.color.setHex(NEUTRON_STAR_COLOR);
+            this.pulsarGroup.visible = true;
+            this.nsMagneticLines.visible = true;
             if (!lowDetail) {
                 this.pulsarGroup.rotation.y += delta * 5.0 * (physics.weakForce || 1.0);
                 this.nsMagneticLines.rotation.y += delta * 2.0 * (physics.weakForce || 1.0);
@@ -422,6 +447,9 @@ export class RemnantPhase implements PhaseComponent {
                 this.beamMat.uniforms.uTime.value = appTime;
             }
         } else {
+            // White Dwarf branch (<= 8 Msun): larger Earth-sized warm-white sphere, no pulsar beams or magnetic lines
+            this.neutronStarGroup.scale.setScalar(WHITE_DWARF_SCALE);
+            this.nsMat.color.setHex(WHITE_DWARF_COLOR);
             this.pulsarGroup.visible = false;
             this.nsMagneticLines.visible = false;
         }

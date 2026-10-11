@@ -94,3 +94,27 @@ test('F13-3: pathological innermost orbit hits the substep cap without freezing 
         `expected a substep-cap log, got: ${JSON.stringify(warnings)}`
     );
 });
+
+test('F13-4: bodies with NaN coordinates or exploding positions reset safely without poisoning other bodies', () => {
+    init(0.3, 1.0);
+    const validBody = circularPlanet('earth', 1.0);
+    const corruptedBody = {
+        id: 'poison', type: 'planet', mass_solar: 3e-6, radius_km: 6371,
+        position_au: { x: NaN, y: 0, z: 0 },
+        velocity_au_yr: { x: 0, y: NaN, z: 0 },
+    };
+    // Send bodies including a poisoned one
+    dispatch('RESET_BODIES', {
+        bodies: [validBody, corruptedBody],
+        centralMass_solar: 1.0,
+    });
+    // Run several ticks
+    for (let t = 0; t < 10; t++) worker.physicsTickInner();
+    assert.equal(updates.length, 10, `tick loop executed all 10 ticks, got ${updates.length}`);
+    const lastUpdate = updates[updates.length - 1].buffer as Float32Array;
+    // Check that both bodies have finite positions and velocities
+    for (let i = 0; i < lastUpdate.length; i++) {
+        assert.ok(Number.isFinite(lastUpdate[i]), `buffer index ${i} must be finite, got ${lastUpdate[i]}`);
+    }
+});
+

@@ -1,8 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert';
+import * as THREE from 'three';
 import { computeMainSequenceLifetime } from '../../src/simulation/StellarPhysics.ts';
 import { solveKepler, keplerianToCartesian } from '../../src/simulation/OrbitalMechanics.ts';
 import { AstrobiologyEngine } from '../../src/simulation/AstrobiologyEngine.ts';
+import { RemnantPhase, WHITE_DWARF_SCALE, WHITE_DWARF_COLOR, NEUTRON_STAR_COLOR } from '../../src/simulation/phases/RemnantPhase.ts';
 
 // ==========================================
 // Batch-1 audit fixes: guards that stop NaN/Infinity from poisoning
@@ -88,3 +90,48 @@ test('F6-7: Frozen dark rock (T=0 edge) keeps every score finite', () => {
     assert.ok(Number.isFinite(state[k]), `${k} should be finite, got ${state[k]}`);
   }
 });
+
+test('F6-8: RemnantPhase differentiates White Dwarf (<= 8 Msun) and Neutron Star (> 8 Msun) without scale/color leakage', () => {
+  const dummyParent = new THREE.Group();
+  const cameraPos = new THREE.Vector3(0, 0, 10);
+  const physics = { G: 1, c: 1, h: 1, k_B: 1, weakForce: 1, strongForce: 1, darkEnergy: 1 };
+
+  // 1. White Dwarf (<= 8 Msun, e.g. 1.0 Msun progenitor)
+  const wdPhase = new RemnantPhase(1.0);
+  wdPhase.init(dummyParent);
+  wdPhase.update(0.016, 1.0, cameraPos, physics, 0.5, false, 1.0);
+
+  assert.strictEqual(wdPhase.neutronStarGroup.scale.x, WHITE_DWARF_SCALE, 'WD scale must equal WHITE_DWARF_SCALE');
+  assert.strictEqual(wdPhase.nsMat.color.getHex(), WHITE_DWARF_COLOR, 'WD color must equal WHITE_DWARF_COLOR (warm white)');
+  assert.strictEqual(wdPhase.pulsarGroup.visible, false, 'WD must hide pulsar beams');
+  assert.strictEqual(wdPhase.nsMagneticLines.visible, false, 'WD must hide magnetic lines');
+
+  // 2. Neutron Star (> 8 Msun, e.g. 12.0 Msun progenitor)
+  const nsPhase = new RemnantPhase(12.0);
+  nsPhase.init(dummyParent);
+  nsPhase.update(0.016, 1.0, cameraPos, physics, 0.5, false, 1.0);
+
+  assert.strictEqual(nsPhase.neutronStarGroup.scale.x, 1.0, 'NS scale must equal 1.0');
+  assert.strictEqual(nsPhase.nsMat.color.getHex(), NEUTRON_STAR_COLOR, 'NS color must equal NEUTRON_STAR_COLOR (blue-white)');
+  assert.strictEqual(nsPhase.pulsarGroup.visible, true, 'NS must show pulsar beams');
+  assert.strictEqual(nsPhase.nsMagneticLines.visible, true, 'NS must show magnetic lines');
+
+  // 3. Recycling / mutation between mass regimes: ensure no appearance leakage
+  wdPhase.setMass(14.0);
+  wdPhase.update(0.016, 1.0, cameraPos, physics, 0.5, false, 1.0);
+  assert.strictEqual(wdPhase.neutronStarGroup.scale.x, 1.0, 'Recycled to NS: scale must reset to 1.0');
+  assert.strictEqual(wdPhase.nsMat.color.getHex(), NEUTRON_STAR_COLOR, 'Recycled to NS: color must reset to NS blue-white');
+  assert.strictEqual(wdPhase.pulsarGroup.visible, true, 'Recycled to NS: pulsar beams visible');
+  assert.strictEqual(wdPhase.nsMagneticLines.visible, true, 'Recycled to NS: magnetic lines visible');
+
+  wdPhase.setMass(0.8);
+  wdPhase.update(0.016, 1.0, cameraPos, physics, 0.5, false, 1.0);
+  assert.strictEqual(wdPhase.neutronStarGroup.scale.x, WHITE_DWARF_SCALE, 'Recycled back to WD: scale must be WHITE_DWARF_SCALE');
+  assert.strictEqual(wdPhase.nsMat.color.getHex(), WHITE_DWARF_COLOR, 'Recycled back to WD: color must be warm white');
+  assert.strictEqual(wdPhase.pulsarGroup.visible, false, 'Recycled back to WD: pulsar beams hidden');
+  assert.strictEqual(wdPhase.nsMagneticLines.visible, false, 'Recycled back to WD: magnetic lines hidden');
+
+  wdPhase.dispose();
+  nsPhase.dispose();
+});
+
