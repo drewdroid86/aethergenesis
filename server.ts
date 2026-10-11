@@ -963,6 +963,10 @@ app.post('/api/analyze', async (req, res) => {
     return res.status(400).json({ error: 'Invalid input parameters.' });
   }
 
+  if (phase === 'Nebula' || phase === 'Protostar') {
+    return res.status(400).json({ error: 'No planets exist in this phase — analysis requires Main Sequence or later.' });
+  }
+
   const GEN_AI_TIMEOUT = 10000;
   let timeoutHandle: NodeJS.Timeout;
 
@@ -1052,7 +1056,7 @@ app.use((err: any, _req: express.Request, res: express.Response, _next: express.
   res.status(500).json({ error: 'Internal Server Error' });
 });
 
-import { initWebSocketServer } from './src/simulation/SimStateSocket';
+import { initWebSocketServer, closeWebSocketServer } from './src/simulation/SimStateSocket';
 
 const server = app.listen(port, () => {
   console.log(`Server listening at http://localhost:${port} in ${process.env.NODE_ENV || 'development'} mode`);
@@ -1060,9 +1064,25 @@ const server = app.listen(port, () => {
 
 initWebSocketServer(server, allowedOrigins);
 
+let isShuttingDown = false;
+
 // Graceful shutdown handler to allow active connections to drain
-function handleShutdown(signal: string) {
+async function handleShutdown(signal: string) {
+  if (isShuttingDown) return;
+  isShuttingDown = true;
   console.log(`Received ${signal}. Shutting down server gracefully...`);
+
+  try {
+    await closeWebSocketServer();
+  } catch (err) {
+    console.error('Error closing WebSocket server:', err);
+  }
+
+  // Drain idle HTTP keep-alive connections so server.close() does not wait indefinitely
+  if (typeof (server as any).closeIdleConnections === 'function') {
+    (server as any).closeIdleConnections();
+  }
+
   server.close(() => {
     console.log('HTTP and WebSocket server closed.');
     process.exit(0);
@@ -1071,6 +1091,9 @@ function handleShutdown(signal: string) {
   // Force close after 10 seconds if connections are keeping server alive
   setTimeout(() => {
     console.error('Forceful shutdown: active connections did not close within timeout.');
+    if (typeof (server as any).closeAllConnections === 'function') {
+      (server as any).closeAllConnections();
+    }
     process.exit(1);
   }, 10000);
 }

@@ -5,7 +5,10 @@ import { subtleDisplacementVS, starSurfaceFS } from '../../rendering/shaders/ste
 import { GEOMETRIES } from './geometries';
 import { STELLAR_CONSTANTS } from '../../core/constants';
 import { phaseCounters } from '../../utils/performance';
-import { colorTempToRGB } from '../../physics/math';
+import { colorTempToRGB, mulberry32 } from '../../physics/math';
+
+// TODO: Expand seeded determinism across all visual phases when star/universe seeds are propagated to phase inits.
+export const DEFAULT_RED_GIANT_SEED = 1337;
 
 export class RedGiantPhase implements PhaseComponent {
     public redGiantGroup!: THREE.Group;
@@ -18,13 +21,19 @@ export class RedGiantPhase implements PhaseComponent {
     private parent!: THREE.Group;
     private baseRadius: number;
     private tHeat: number;
+    private seed: number;
 
     private initialized = false;
 
-    constructor(baseRadius: number, tHeat: number) {
+    constructor(baseRadius: number, tHeat: number, seed: number = DEFAULT_RED_GIANT_SEED) {
         this.baseRadius = baseRadius;
         this.tHeat = tHeat;
+        this.seed = seed;
         phaseCounters.inits++;
+    }
+
+    setSeed(seed: number): void {
+        this.seed = seed;
     }
 
     init(parent: THREE.Group): void {
@@ -100,14 +109,15 @@ export class RedGiantPhase implements PhaseComponent {
         this.flareMat.customProgramCacheKey = () => 'red_giant_flare_material';
         
         this.flareMesh = new THREE.InstancedMesh(flareGeo, this.flareMat, 4);
+        const rng = mulberry32(this.seed);
         for(let i=0; i<4; i++) {
             const matrix = new THREE.Matrix4();
             matrix.makeRotationFromEuler(new THREE.Euler(
-                Math.random() * Math.PI * 2,
-                Math.random() * Math.PI * 2,
-                Math.random() * Math.PI * 2
+                rng() * Math.PI * 2,
+                rng() * Math.PI * 2,
+                rng() * Math.PI * 2
             ));
-            const s = 0.5 + Math.random() * 0.5;
+            const s = 0.5 + rng() * 0.5;
             matrix.scale(new THREE.Vector3(s * this.baseRadius, s * this.baseRadius, s * this.baseRadius));
             this.flareMesh.setMatrixAt(i, matrix);
         }

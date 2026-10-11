@@ -13,7 +13,8 @@ let dtAccumulator = 0;
 let accelBuffer = new Float32Array(0);
 let accelsValid = false;
 
-// BOLT: Double buffering for zero-allocation thread transfers
+// Double buffering with per-tick reallocation for thread transfers (one-way
+// transfer detaches the buffer; true zero-alloc would require SharedArrayBuffer or return-transfer)
 let bufferA = new Float32Array(0);
 let bufferB = new Float32Array(0);
 let useA = true;
@@ -416,7 +417,8 @@ export function physicsTickInner() {
         buffer[offset + 6] = b.type === 'planet' ? 0 : 1;
     }
 
-    // Pass buffer via transferable interface for zero-alloc
+    // Pass buffer via transferable interface (one-way transfer detaches the buffer,
+    // requiring per-tick reallocation below; true zero-alloc would require SharedArrayBuffer or return-transfer)
     (self as any).postMessage({ type: 'UPDATE', buffer }, [buffer.buffer]);
 
     // Reallocate the transferred buffer since it was detached/neutered

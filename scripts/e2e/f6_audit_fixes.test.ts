@@ -3,8 +3,10 @@ import assert from 'node:assert';
 import * as THREE from 'three';
 import { computeMainSequenceLifetime } from '../../src/simulation/StellarPhysics.ts';
 import { solveKepler, keplerianToCartesian } from '../../src/simulation/OrbitalMechanics.ts';
+import fs from 'node:fs';
 import { AstrobiologyEngine } from '../../src/simulation/AstrobiologyEngine.ts';
 import { RemnantPhase, WHITE_DWARF_SCALE, WHITE_DWARF_COLOR, NEUTRON_STAR_COLOR } from '../../src/simulation/phases/RemnantPhase.ts';
+import { mulberry32 } from '../../src/physics/math.ts';
 
 // ==========================================
 // Batch-1 audit fixes: guards that stop NaN/Infinity from poisoning
@@ -134,4 +136,107 @@ test('F6-8: RemnantPhase differentiates White Dwarf (<= 8 Msun) and Neutron Star
   wdPhase.dispose();
   nsPhase.dispose();
 });
+
+test('F6-9: mulberry32 generates deterministic sequences and RedGiantPhase uses seeded RNG', () => {
+  const rng1 = mulberry32(42);
+  const rng2 = mulberry32(42);
+  const rng3 = mulberry32(99);
+
+  for (let i = 0; i < 20; i++) {
+    const val1 = rng1();
+    const val2 = rng2();
+    assert.strictEqual(val1, val2, 'Identical seed must produce identical numbers');
+    assert.ok(val1 >= 0 && val1 < 1, 'Value must be in [0, 1)');
+  }
+  assert.notStrictEqual(rng1(), rng3(), 'Different seed must produce different numbers');
+
+  const rgSrc = fs.readFileSync('src/simulation/phases/RedGiantPhase.ts', 'utf8');
+  assert.ok(rgSrc.includes("import { colorTempToRGB, mulberry32 } from '../../physics/math';"), 'RedGiantPhase must import mulberry32');
+  assert.ok(rgSrc.includes('DEFAULT_RED_GIANT_SEED'), 'RedGiantPhase must export/define DEFAULT_RED_GIANT_SEED');
+  assert.ok(rgSrc.includes('const rng = mulberry32(this.seed);'), 'RedGiantPhase.init must instantiate mulberry32 with this.seed');
+  assert.ok(rgSrc.includes('rng() * Math.PI * 2'), 'RedGiantPhase must use rng() for Euler rotation');
+  assert.ok(rgSrc.includes('0.5 + rng() * 0.5'), 'RedGiantPhase must use rng() for scale');
+});
+
+test('F6-10: SupernovaPhase isFlashing reset hygiene, ejecta uOpacity uniform, setOpacity fading, and deterministic ejecta velocities', () => {
+  const snSrc = fs.readFileSync('src/simulation/phases/SupernovaPhase.ts', 'utf8');
+  const fragSrc = fs.readFileSync('src/shaders/ejecta.frag.glsl', 'utf8');
+  const vertSrc = fs.readFileSync('src/shaders/ejecta.vert.glsl', 'utf8');
+
+  // Verify isFlashing hygiene
+  const isFlashingIdx = snSrc.indexOf('this.isFlashing = false;');
+  const guardIdx = snSrc.indexOf('if (!this.ejectaMat?.uniforms?.uColor) return;');
+  assert.ok(isFlashingIdx !== -1 && guardIdx !== -1, 'Both isFlashing and guard must exist');
+  assert.ok(isFlashingIdx < guardIdx, 'this.isFlashing = false must be placed BEFORE early-return guard');
+
+  // Verify ejecta shader uOpacity uniform
+  assert.ok(fragSrc.includes('uniform float uOpacity;'), 'ejecta.frag.glsl must declare uniform float uOpacity');
+  assert.ok(fragSrc.includes('* uOpacity'), 'ejecta.frag.glsl must multiply output alpha by uOpacity');
+
+  // Verify ejecta vertex shader point-size depth guard
+  assert.ok(vertSrc.includes('max(-mvPos.z, 0.001)'), 'ejecta.vert.glsl must guard against non-positive depth in point size division');
+  assert.ok(vertSrc.includes('max(0.0,'), 'ejecta.vert.glsl must clamp point size to non-negative');
+
+  // Verify SupernovaPhase sets ejectaMat uOpacity in init, update, and setOpacity
+  assert.ok(snSrc.includes('uOpacity: { value: 1.0 }'), 'ejectaMat uniforms must initialize uOpacity to 1.0');
+  assert.ok(snSrc.includes('this.ejectaMat.uniforms.uOpacity.value = opacity;'), 'setOpacity must update ejectaMat uOpacity');
+
+  // Verify SupernovaPhase deterministic ejecta velocities using mulberry32
+  assert.ok(snSrc.includes("import { mulberry32 } from '../../physics/math';"), 'SupernovaPhase must import mulberry32');
+  assert.ok(snSrc.includes('DEFAULT_SUPERNOVA_SEED'), 'SupernovaPhase must define DEFAULT_SUPERNOVA_SEED');
+  assert.ok(snSrc.includes('const rng = mulberry32(this.seed);'), 'SupernovaPhase must seed PRNG for ejecta velocities');
+});
+
+test('F6-11: POST /api/analyze rejects planet-less phases (Nebula, Protostar) with HTTP 400', async () => {
+  const serverSrc = fs.readFileSync('server.ts', 'utf8');
+  assert.ok(serverSrc.includes("phase === 'Nebula' || phase === 'Protostar'"), 'server.ts must gate Nebula and Protostar');
+  assert.ok(serverSrc.includes('No planets exist in this phase'), 'server.ts must return clear gating message');
+
+  const port = process.env.PORT || '3001';
+  try {
+    const health = await fetch(`http://localhost:${port}/health`);
+    if (health.status !== 200) return;
+    const healthData = await health.json();
+    if (!healthData.aiEnabled) return;
+  } catch {
+    return; // Skip if server is not running in this test environment
+  }
+
+  for (const phase of ['Nebula', 'Protostar']) {
+    const res = await fetch(`http://localhost:${port}/api/analyze`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        temp: 5778,
+        mass: 1.0,
+        lum: 1.0,
+        age: 4600,
+        phase,
+        G: 1.0,
+        alpha: 1.0
+      })
+    });
+    assert.strictEqual(res.status, 400, `Expected 400 for phase ${phase}`);
+    const data = await res.json();
+    assert.ok(data.error.includes('No planets exist in this phase'), `Error message expected for ${phase}, got: ${data.error}`);
+  }
+});
+
+test('F6-12: closeWebSocketServer closes wss gracefully, and server.ts drains WS and HTTP keep-alives', async () => {
+  const wsSrc = fs.readFileSync('src/simulation/SimStateSocket.ts', 'utf8');
+  const serverSrc = fs.readFileSync('server.ts', 'utf8');
+
+  assert.ok(wsSrc.includes('export function closeWebSocketServer'), 'SimStateSocket must export closeWebSocketServer');
+  assert.ok(serverSrc.includes('closeWebSocketServer'), 'server.ts must import closeWebSocketServer');
+  assert.ok(serverSrc.includes('await closeWebSocketServer()'), 'server.ts must await closeWebSocketServer() in handleShutdown');
+  assert.ok(serverSrc.includes('closeIdleConnections'), 'server.ts must drain idle HTTP keep-alive connections');
+
+  // Verify RemnantPhase dead else branch was removed
+  const remSrc = fs.readFileSync('src/simulation/phases/RemnantPhase.ts', 'utf8');
+  assert.ok(!remSrc.includes('this.beamMat.opacity = opacityVal;'), 'RemnantPhase dead else setting beamMat.opacity must be removed');
+
+  const { closeWebSocketServer } = await import('../../src/simulation/SimStateSocket.ts');
+  await assert.doesNotReject(closeWebSocketServer());
+});
+
 

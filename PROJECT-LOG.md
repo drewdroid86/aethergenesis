@@ -23,6 +23,35 @@ This log is updated after every AI session. Each AI signs off with their entry. 
 
 ## RECENT LOGS
 
+### 2026-10-11 — Qwen Round-1 MEDIUMs + LOWs: Phase Gating, WS Shutdown, Seeded PRNG & Hygiene (Gemini 3.8 Flash)
+- **FIX 1 — /api/analyze Phase Gating (`server.ts`):**
+  - Gated `/api/analyze` to reject planet-less phases ("Nebula", "Protostar") with HTTP 400 and clear error message `No planets exist in this phase — analysis requires Main Sequence or later`.
+  - Flagged future client+server follow-up: ground prompt in simulated planet parameters (proceduralOrbits, biomass, civilizationTier).
+- **FIX 2 — WebSocket Server Graceful Shutdown & HTTP Keep-Alive Drain (`src/simulation/SimStateSocket.ts`, `server.ts`):**
+  - Implemented and exported `closeWebSocketServer()` closing all active client connections with status 1000 and closing the server listener.
+  - Wired `closeWebSocketServer()` into `handleShutdown()` in `server.ts` before `server.close()`, and called `server.closeIdleConnections()` so open keep-alive HTTP sockets do not stall graceful termination.
+  - Added `server.closeAllConnections()` to the 10s force-kill fallback.
+- **FIX 3 — Buffer Transfer Documentation Accuracy (`src/simulation/nbodyWorker.ts`):**
+  - Updated misleading comments regarding "zero-allocation" thread transfers to accurately describe double-buffered transfers with per-tick reallocation necessitated by transferable buffer detachment.
+- **FIX 4 — Seeded Determinism for RedGiant Flares & Supernova Ejecta (`src/physics/math.ts`, `src/simulation/phases/RedGiantPhase.ts`, `src/simulation/phases/SupernovaPhase.ts`):**
+  - Introduced lightweight 32-bit seeded pseudo-random number generator `mulberry32` in `src/physics/math.ts`.
+  - Replaced `Math.random()` in `RedGiantPhase.init()` flare rotation and scale generation with `mulberry32(this.seed)` using `DEFAULT_RED_GIANT_SEED = 1337` and optional `seed` constructor parameter.
+  - Replaced `Math.random()` in `SupernovaPhase.init()` ejecta velocity generation with `mulberry32(this.seed)` using `DEFAULT_SUPERNOVA_SEED = 4242` and optional `seed` constructor parameter.
+- **FIX 5 — Dead Code Elimination in Remnant Opacity (`src/simulation/phases/RemnantPhase.ts`):**
+  - Removed unreachable `else { this.beamMat.opacity = opacityVal; }` branch in `updateRemnantOpacity()`.
+- **FIX 6 — Supernova Flashing Reset Ordering (`src/simulation/phases/SupernovaPhase.ts`):**
+  - Reordered `this.isFlashing = false;` to execute before the `!this.ejectaMat?.uniforms?.uColor` early-return guard to prevent stale shockwave flashing state across frames.
+- **FIX 7 — Supernova Ejecta Opacity Control & Point-Size Guard (`src/shaders/ejecta.frag.glsl`, `src/shaders/ejecta.vert.glsl`, `src/simulation/phases/SupernovaPhase.ts`):**
+  - Added `uniform float uOpacity;` to `ejecta.frag.glsl` and multiplied fragColor alpha output by `uOpacity`.
+  - Initialized `uOpacity: { value: 1.0 }` on `ejectaMat`, updated `uOpacity` in `update()`, and wired ejecta opacity fading into `setOpacity()`.
+  - Guarded `ejecta.vert.glsl` against zero/negative depth division with `max(-mvPos.z, 0.001)` and clamped `gl_PointSize` to non-negative with `max(0.0, ...)`.
+- **Test Suite (`scripts/e2e/f6_audit_fixes.test.ts`):**
+  - Added tests `F6-9` (mulberry32 determinism & RedGiantPhase seeded PRNG), `F6-10` (Supernova isFlashing hygiene, ejecta uOpacity fading, deterministic velocities, and vertex shader guard), `F6-11` (/api/analyze phase gating), and `F6-12` (closeWebSocketServer shutdown and HTTP keep-alive drain).
+- **Verification:**
+  - `npm run lint` & `npm run typecheck` (0 errors, 0 warnings).
+  - `npm run build` (clean bundle).
+  - `npm test` (all 11 E2E test suites green).
+
 ### 2026-10-11 — Qwen Round-1 HIGHs: n-body NaN Guard & White Dwarf Remnant (Gemini 3.8 Flash)
 - **FIX 1 — nbodyWorker NaN Recovery (`src/simulation/nbodyWorker.ts`):**
   - Added control-flow `continue;` skipping acceleration and position update on the same substep when a poisoned body is reset, allowing `accelsValid = false` to recalculate from clean positions on the subsequent step.

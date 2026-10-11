@@ -5,6 +5,10 @@ import { GEOMETRIES } from './geometries';
 import { ejectaVS, ejectaFS } from '../../rendering/shaders/stellar';
 import { STELLAR_CONSTANTS } from '../../core/constants';
 import { phaseCounters } from '../../utils/performance';
+import { mulberry32 } from '../../physics/math';
+
+// TODO: Expand seeded determinism across all visual phases when star/universe seeds are propagated to phase inits.
+export const DEFAULT_SUPERNOVA_SEED = 4242;
 
 export class SupernovaPhase implements PhaseComponent {
     public supernovaGroup!: THREE.Group;
@@ -16,14 +20,20 @@ export class SupernovaPhase implements PhaseComponent {
     private parent!: THREE.Group;
     private mass: number;
     private baseRadius: number;
+    private seed: number;
     public isFlashing: boolean = false;
 
     private initialized = false;
 
-    constructor(mass: number, baseRadius: number) {
+    constructor(mass: number, baseRadius: number, seed: number = DEFAULT_SUPERNOVA_SEED) {
         this.mass = mass;
         this.baseRadius = baseRadius;
+        this.seed = seed;
         phaseCounters.inits++;
+    }
+
+    setSeed(seed: number): void {
+        this.seed = seed;
     }
 
     init(parent: THREE.Group): void {
@@ -131,9 +141,10 @@ export class SupernovaPhase implements PhaseComponent {
         const ejectaGeo = new THREE.BufferGeometry();
         const ejectaPos = new Float32Array(1500 * 3);
         const ejectaVel = new Float32Array(1500 * 3);
+        const rng = mulberry32(this.seed);
         for(let i=0; i<1500; i++) {
-            const v = new THREE.Vector3(Math.random()-0.5, Math.random()-0.5, Math.random()-0.5).normalize();
-            const speed = 1.0 + Math.random() * 2.0;
+            const v = new THREE.Vector3(rng()-0.5, rng()-0.5, rng()-0.5).normalize();
+            const speed = 1.0 + rng() * 2.0;
             ejectaVel[i*3] = v.x * speed;
             ejectaVel[i*3+1] = v.y * speed;
             ejectaVel[i*3+2] = v.z * speed;
@@ -141,7 +152,11 @@ export class SupernovaPhase implements PhaseComponent {
         ejectaGeo.setAttribute('position', new THREE.BufferAttribute(ejectaPos, 3));
         ejectaGeo.setAttribute('velocity', new THREE.BufferAttribute(ejectaVel, 3));
         this.ejectaMat = new THREE.ShaderMaterial({
-            uniforms: { uExp: { value: 0 }, uColor: { value: new THREE.Color(0xff4411) } },
+            uniforms: {
+                uExp: { value: 0 },
+                uColor: { value: new THREE.Color(0xff4411) },
+                uOpacity: { value: 1.0 }
+            },
             vertexShader: ejectaVS,
             fragmentShader: ejectaFS,
             transparent: true, depthWrite: false, blending: THREE.AdditiveBlending
@@ -155,9 +170,9 @@ export class SupernovaPhase implements PhaseComponent {
     }
 
     update(delta: number, appTime: number, cameraPos: THREE.Vector3, physics: PhysicsConstants, t: number, _lowDetail?: boolean, globalFade: number = 1.0): void {
-        const normT = (t - STELLAR_CONSTANTS.PHASE_BOUNDARIES.SUPERNOVA_START) / STELLAR_CONSTANTS.PHASE_BOUNDARIES.SUPERNOVA_DURATION;
-        if (!this.ejectaMat?.uniforms?.uColor) return;
         this.isFlashing = false;
+        if (!this.ejectaMat?.uniforms?.uColor) return;
+        const normT = (t - STELLAR_CONSTANTS.PHASE_BOUNDARIES.SUPERNOVA_START) / STELLAR_CONSTANTS.PHASE_BOUNDARIES.SUPERNOVA_DURATION;
         const fade = typeof globalFade === 'number' ? globalFade : 1.0;
         
         if (this.mass >= STELLAR_CONSTANTS.PHYSICS.MASS_THRESHOLD_SUPERNOVA) {
@@ -173,6 +188,7 @@ export class SupernovaPhase implements PhaseComponent {
             this.ejectaMesh.visible = true;
             this.ejectaMat.uniforms.uExp.value = normT * (physics.strongForce || 1.0);
             this.ejectaMat.uniforms.uColor.value.setHex(normT < 0.2 ? 0xffffff : 0xff4411);
+            if (this.ejectaMat.uniforms.uOpacity) this.ejectaMat.uniforms.uOpacity.value = fade;
 
             this.coreFlashMesh.scale.setScalar(this.baseRadius * 7.0 * (1.0 - normT));
         } else {
@@ -186,6 +202,7 @@ export class SupernovaPhase implements PhaseComponent {
             this.ejectaMesh.visible = true;
             this.ejectaMat.uniforms.uExp.value = normT * STELLAR_CONSTANTS.VISUALS.SUPERNOVA_EJECTA_EXP_SPEED * (physics.strongForce || 1.0);
             this.ejectaMat.uniforms.uColor.value.setHex(0x00ffaa);
+            if (this.ejectaMat.uniforms.uOpacity) this.ejectaMat.uniforms.uOpacity.value = 0.5 * fade;
 
             this.coreFlashMesh.scale.setScalar(this.baseRadius * (1.0 - normT * 0.8));
         }
@@ -198,6 +215,9 @@ export class SupernovaPhase implements PhaseComponent {
             if (shellMat.uniforms?.uOpacity) {
                 shellMat.uniforms.uOpacity.value = opacity;
             }
+        }
+        if (this.ejectaMat?.uniforms?.uOpacity) {
+            this.ejectaMat.uniforms.uOpacity.value = opacity;
         }
     }
 

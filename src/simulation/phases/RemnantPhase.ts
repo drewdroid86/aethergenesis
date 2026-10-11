@@ -482,8 +482,6 @@ export class RemnantPhase implements PhaseComponent {
         const opacityVal = targetBeam * globalFade;
         if (this.beamMat && this.beamMat.uniforms) {
             this.beamMat.uniforms.uOpacity.value = opacityVal;
-        } else {
-            this.beamMat.opacity = opacityVal;
         }
         
         const isVisible = (this._opNs > STELLAR_CONSTANTS.TRANSITIONS.VISIBILITY_THRESHOLD || this._opNsLines > STELLAR_CONSTANTS.TRANSITIONS.VISIBILITY_THRESHOLD) && globalFade > 0.01;

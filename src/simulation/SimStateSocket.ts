@@ -326,3 +326,35 @@ export function initWebSocketServer(server: http.Server, allowedOrigins: string[
         });
     });
 }
+
+/**
+ * Gracefully shuts down the WebSocket server by closing all connected client
+ * sockets with status 1000 and closing the server listener.
+ */
+export function closeWebSocketServer(): Promise<void> {
+    return new Promise((resolve) => {
+        if (!wss) {
+            resolve();
+            return;
+        }
+
+        // Gracefully close any active client connections
+        for (const client of clients) {
+            if (client.readyState === WebSocket.OPEN || client.readyState === WebSocket.CONNECTING) {
+                try {
+                    client.close(1000, 'Server shutting down');
+                } catch {
+                    // Suppressed per rules
+                }
+            }
+        }
+        clients.clear();
+        clientMetadataMap.clear();
+
+        const currentWss = wss;
+        wss = null;
+        currentWss.close(() => {
+            resolve();
+        });
+    });
+}
