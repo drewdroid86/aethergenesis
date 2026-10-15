@@ -30,6 +30,33 @@ const STELLAR_PHASE_TO_NUM: Record<StellarPhase, number> = {
 
 const _frustumSphere = new THREE.Sphere();
 
+/**
+ * Catalog star preset (mirrors the server catalog shape in server.ts).
+ * All fields optional here: applyPreset falls back to derived values for
+ * anything the preset omits, and keeps procedural planets when `planets`
+ * is absent or empty.
+ */
+export interface StarPreset {
+    name?: string;
+    spectral_class?: string;
+    mass_solar?: number;
+    mass?: number;
+    luminosity_solar?: number;
+    temperature_K?: number;
+    temperature?: number;
+    radius_solar?: number;
+    metallicity_Z?: number;
+    distance_ly?: number | null;
+    age_gyr?: number | null;
+    known_planets?: number;
+    habitable_zone_inner_au?: number;
+    habitable_zone_outer_au?: number;
+    chandrasekhar_relevant?: boolean;
+    literature_reference?: string;
+    planets?: { name: string; distance_au: number; mass_earth: number; radius_earth: number; type: string }[];
+    phase?: number | string;
+}
+
 export class HeroStarSystem extends THREE.Group {
     physicsId: string;
     velocity: THREE.Vector3 = new THREE.Vector3();
@@ -126,6 +153,7 @@ export class HeroStarSystem extends THREE.Group {
         super();
         this.physicsId = THREE.MathUtils.generateUUID();
         this.mass = sampleKroupaMass();
+        // 10000 Myr is approximately the Sun's ~10 Gyr main-sequence lifetime (mass^-2.5 scaling).
         this.lifespanReal = 10000 * Math.pow(this.mass, -2.5);
         this.loopDuration = 40 + Math.random() * 20; 
         
@@ -296,6 +324,7 @@ export class HeroStarSystem extends THREE.Group {
 
     public recycleToNewGeneration(cosmicAge: number, renderer?: THREE.WebGLRenderer): void {
         this.mass = sampleKroupaMass();
+        // 10000 Myr is approximately the Sun's ~10 Gyr main-sequence lifetime (mass^-2.5 scaling).
         this.lifespanReal = 10000 * Math.pow(this.mass, -2.5);
         const baryonFactor = (DEFAULT_CONSTANTS.baryon || 0.05) / 0.05;
         this.tHeat = 5778 * Math.pow(this.mass, 0.5) * baryonFactor;
@@ -357,6 +386,7 @@ export class HeroStarSystem extends THREE.Group {
 
     respawn(renderer?: THREE.WebGLRenderer, cosmicAge: number = 0.0, physics: PhysicsConstants = DEFAULT_CONSTANTS): void {
         this.mass = sampleKroupaMass();
+        // 10000 Myr is approximately the Sun's ~10 Gyr main-sequence lifetime (mass^-2.5 scaling).
         this.lifespanReal = 10000 * Math.pow(this.mass, -2.5);
         const baryonFactor = (DEFAULT_CONSTANTS.baryon || 0.05) / 0.05;
         this.tHeat = 5778 * Math.pow(this.mass, 0.5) * baryonFactor;
@@ -383,6 +413,7 @@ export class HeroStarSystem extends THREE.Group {
         this._lastVisP = false;
         this._lastVisM = false;
         this._lastVisR = false;
+        this._lastVisS = false;
         this.isSupernovaFlashing = false;
         this._wasSupernovaFlashing = false;
 
@@ -420,7 +451,7 @@ export class HeroStarSystem extends THREE.Group {
         this.applyInitialCosmicAge(cosmicAge, physics, renderer);
     }
 
-    applyPreset(preset: any, renderer?: THREE.WebGLRenderer, cosmicAge: number = 5.0, physics: PhysicsConstants = DEFAULT_CONSTANTS): void {
+    applyPreset(preset: StarPreset, renderer?: THREE.WebGLRenderer, cosmicAge: number = 5.0, physics: PhysicsConstants = DEFAULT_CONSTANTS): void {
         const massVal = preset.mass_solar ?? preset.mass;
         if (typeof massVal === 'number' && Number.isFinite(massVal) && massVal > 0) {
             this.mass = massVal;
@@ -435,6 +466,7 @@ export class HeroStarSystem extends THREE.Group {
         }
         this.currentTemp = this.tHeat;
 
+        // 10000 Myr is approximately the Sun's ~10 Gyr main-sequence lifetime (mass^-2.5 scaling).
         this.lifespanReal = 10000 * Math.pow(this.mass, -2.5);
         this.baseRadius = Math.pow(this.mass, 0.8) * STELLAR_CONSTANTS.VISUALS.WORLD_UNITS_PER_R_SUN;
         this._msLuminosity = preset.luminosity_solar ?? computeLuminosity(this.mass);
@@ -525,6 +557,21 @@ export class HeroStarSystem extends THREE.Group {
         this.currentMass = initState.mass_solar;
         this.currentRadius = initState.radius_solar;
         this.transitionToPhase(initialPhase, renderer);
+
+        // H-N2 fix — seed orbits from catalog literature distances when the
+        // preset ships them (e.g. Proxima b/c/d). Materialized synchronously
+        // so the re-key in loadStarPreset consumes the seeded orbits instead
+        // of RNG planets; the queued async creation is cancelled so it cannot
+        // overwrite them with a procedural system. Presets without planets
+        // keep procedural generation (untouched path). Planets only exist for
+        // MAIN_SEQUENCE, mirroring the re-key materialization guard.
+        const literatureDistances = (preset.planets ?? [])
+            .map((p) => p?.distance_au)
+            .filter((d): d is number => typeof d === 'number' && Number.isFinite(d) && d > 0);
+        if (literatureDistances.length > 0 && this.phase === PHASES.MAIN_SEQUENCE) {
+            PlanetarySystemQueue.cancelCreation(this);
+            this.planetarySystem = new PlanetarySystem(this, renderer, literatureDistances);
+        }
     }
 
 

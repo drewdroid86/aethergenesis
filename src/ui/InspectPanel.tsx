@@ -96,6 +96,9 @@ Planet: ${geminiData.planet_name}
 Biome: ${geminiData.biome}
 Species: ${geminiData.dominant_species} (Stage ${geminiData.life_stage})
 Civilization: ${geminiData.civilization}`;
+            if (geminiData.isFallback) {
+                text += `\n[Predictive fallback — AI scan unavailable: values above are generated, not observed]`;
+            }
         }
 
         navigator.clipboard.writeText(text).then(() => {
@@ -358,8 +361,8 @@ Civilization: ${geminiData.civilization}`;
                                 <div className="text-white"><span className="text-[#7EB8FF]/70">Biome:</span> {geminiData.biome}</div>
                                 <div className="text-white"><span className="text-[#7EB8FF]/70">Species:</span> {geminiData.dominant_species} (Stage {geminiData.life_stage})</div>
                                 <div className="text-white"><span className="text-[#7EB8FF]/70">Civilization:</span> {geminiData.civilization}</div>
-                                {analysisFailed && (
-                                <p className="text-[9px] text-yellow-400/70 mt-3 italic">
+                                {geminiData.isFallback && (
+                                <p role="status" className="mt-3 inline-flex items-center gap-1 rounded-full border border-amber-400/60 bg-amber-400/15 px-2 py-0.5 text-[10px] font-bold uppercase tracking-widest text-amber-300">
                                     ⚠ Predictive fallback — AI scan unavailable
                                 </p>
                                 )}

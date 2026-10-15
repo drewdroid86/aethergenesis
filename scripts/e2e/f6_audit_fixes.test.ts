@@ -239,4 +239,39 @@ test('F6-12: closeWebSocketServer closes wss gracefully, and server.ts drains WS
   await assert.doesNotReject(closeWebSocketServer());
 });
 
+// ==========================================
+// P3 HeroStarSystem one-liners (non-shader items): respawn visibility-guard
+// reset, lifespanReal provenance, typed preset param. Static
+// source-contract checks — HeroStarSystem pulls the THREE render chain.
+// ==========================================
+
+test('F6-13: respawn resets _lastVisS like the other full-reset paths', () => {
+  const heroSrc = fs.readFileSync('src/rendering/systems/HeroStarSystem.ts', 'utf8');
+  const start = heroSrc.indexOf('respawn(renderer?');
+  assert.ok(start !== -1, 'respawn must exist');
+  const window = heroSrc.slice(start, start + 1500);
+  assert.ok(window.includes('this._lastVisS = false'), 'respawn must reset _lastVisS');
+  assert.ok(window.includes('this._lastVisP = false'), 'respawn must keep the P reset');
+  assert.ok(window.includes('this._lastVisM = false'), 'respawn must keep the M reset');
+  assert.ok(window.includes('this._lastVisR = false'), 'respawn must keep the R reset');
+});
+
+test('F6-14: every lifespanReal mass^-2.5 site documents the 10 Gyr anchor', () => {
+  const heroSrc = fs.readFileSync('src/rendering/systems/HeroStarSystem.ts', 'utf8');
+  const sites = heroSrc.split('\n').filter((l) => l.includes('this.lifespanReal = 10000 * Math.pow(this.mass, -2.5)'));
+  assert.strictEqual(sites.length, 4, `expected 4 lifespanReal sites, found ${sites.length}`);
+  const notes = heroSrc.split('\n').filter((l) => l.includes("Sun's ~10 Gyr main-sequence lifetime"));
+  assert.strictEqual(notes.length, 4, `each lifespanReal site must carry the provenance comment, found ${notes.length}`);
+});
+
+test('F6-15: applyPreset takes a typed StarPreset, not any', () => {
+  const heroSrc = fs.readFileSync('src/rendering/systems/HeroStarSystem.ts', 'utf8');
+  assert.ok(heroSrc.includes('interface StarPreset'), 'StarPreset interface must exist');
+  assert.ok(
+    heroSrc.includes('applyPreset(preset: StarPreset'),
+    'applyPreset preset param must be typed StarPreset'
+  );
+  assert.ok(!heroSrc.includes('applyPreset(preset: any'), 'applyPreset must not take any');
+});
+
 

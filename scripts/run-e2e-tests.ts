@@ -103,6 +103,8 @@ async function main() {
     'scripts/e2e/f6_audit_fixes.test.ts',
     'scripts/e2e/f7_mobile_nav.test.ts',
     'scripts/e2e/f8_mobile_topcluster.test.ts',
+    'scripts/e2e/f9_rekey_paths.test.ts',
+    'scripts/e2e/f10_mobile_layout.test.ts',
     'scripts/e2e/f11_hud_toggle.test.ts',
     'scripts/e2e/f12_radar_math.test.ts',
     'scripts/e2e/f13_nbody_substeps.test.ts',

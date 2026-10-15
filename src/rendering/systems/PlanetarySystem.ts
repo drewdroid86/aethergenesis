@@ -354,7 +354,13 @@ export class PlanetarySystem {
         this.orbitLinesBuilt = false;
     }
 
-    constructor(star: THREE.Object3D, renderer?: THREE.WebGLRenderer) {
+    /**
+     * H-N2: optional literature semi-major axes (AU). When present and
+     * non-empty, planet slots use these real distances instead of the RNG
+     * progression — every other orbital element (period, phase, type, scale)
+     * is built exactly the way the procedural path builds it.
+     */
+    constructor(star: THREE.Object3D, renderer?: THREE.WebGLRenderer, literatureDistances_au?: number[]) {
         this.parent = star;
         this.renderer = renderer;
         this.group = new THREE.Group();
@@ -394,9 +400,18 @@ export class PlanetarySystem {
             return rngState / 4294967296;
         };
 
+        // H-N2: literature distances replace the RNG progression (and the
+        // RNG planet-count roll) when the caller supplies real catalog data.
+        const literatureA = (literatureDistances_au ?? [])
+            .filter((d) => typeof d === 'number' && Number.isFinite(d) && d > 0)
+            .slice(0, numBodies);
+        const useLiterature = literatureA.length > 0;
+
         const countRoll = nextRand();
         let planetCount: number;
-        if (starMass < 0.3) {
+        if (useLiterature) {
+            planetCount = literatureA.length;
+        } else if (starMass < 0.3) {
             planetCount = 2 + Math.floor(countRoll * 3);
         } else if (starMass > 8.0) {
             planetCount = 2 + Math.floor(countRoll * 3);
@@ -411,7 +426,8 @@ export class PlanetarySystem {
         let currentA = Math.max(0.15, 0.35 * Math.sqrt(starMass)) * (0.85 + nextRand() * 0.3);
         for (let i = 0; i < numBodies; i++) {
             if (i < planetCount) {
-                const a = currentA;
+                // H-N2: real catalog distance; RNG progression untouched otherwise.
+                const a = useLiterature ? literatureA[i] : currentA;
                 currentA = currentA * (1.35 + nextRand() * 0.35);
 
                 const baseOmega = Math.sqrt((4.0 * Math.PI * Math.PI * starMass) / Math.max(0.001, a * a * a));

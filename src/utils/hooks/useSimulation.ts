@@ -56,13 +56,27 @@ export function rekeyNBodyForStar(star: HeroStarSystem, renderer: THREE.WebGLRen
             payload: { bodies, centralMass_solar: centralMass }
         });
     } else {
-        // No generated planets for this phase (e.g. remnant);
-        // at least integrate existing bodies under the new mass.
-        nbodyWorker.postMessage({
-            type: 'UPDATE_CENTRAL_MASS',
-            payload: { centralMass_solar: centralMass }
-        });
+        // M4 fix — the target star has no generated planets (e.g. remnant):
+        // RESET with an EMPTY body list so the previous star's bodies cannot
+        // persist as phantom planets. Central mass still updates via the
+        // RESET payload, so integration continues under the new gravity.
+        clearNBodyWorker(nbodyWorker, centralMass);
     }
+}
+
+/**
+ * Shared clear-worker helper (Fix A #13 deselect path + Fix D M4 planet-less
+ * re-key). Posts RESET_BODIES with an EMPTY body list so the worker roster
+ * empties instead of retaining the previous star's bodies. The worker applies
+ * centralMass_solar when it is positive and emits the (empty) roster, which
+ * the feed renders as no planets. Exactly one helper — both paths use this.
+ */
+export function clearNBodyWorker(nbodyWorker: Worker, centralMass_solar: number = 1.0): void {
+    const centralMass = Number.isFinite(centralMass_solar) && centralMass_solar > 0 ? centralMass_solar : 1.0;
+    nbodyWorker.postMessage({
+        type: 'RESET_BODIES',
+        payload: { bodies: [], centralMass_solar: centralMass }
+    });
 }
 
 /**
@@ -739,11 +753,35 @@ export function useSimulation(containerRef: React.RefObject<HTMLDivElement | nul
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
-    // Sync selectedStar central mass to worker and engine
+    // #13 fix — deselect re-keys the worker to the coordinator's
+    // no-selection fallback (heroStars[0]) so the previously selected
+    // star's bodies cannot persist as stale state. Every deselect
+    // affordance (Escape in useKeyboardShortcuts, the InspectPanel and
+    // AstrobiologyPanel close buttons) funnels through
+    // setSelectedStar(null), so this star->null transition is the single
+    // deselect path. Select transitions are untouched: click-select and
+    // preset-select already re-key with currentMass (H-N1) before this runs.
+    const prevSelectedStarRef = useRef<HeroStarSystem | null>(null);
     useEffect(() => {
         if (engineRef.current) {
             engineRef.current.selectedStar = selectedStar;
         }
+        if (prevSelectedStarRef.current !== null && selectedStar === null) {
+            const engine = engineRef.current;
+            const worker = nbodyWorkerRef.current;
+            if (engine && worker) {
+                // Same shared re-key the selection path uses, targeting the
+                // coordinator's fallback (SimulationCoordinator falls back to
+                // engine.selectedStar || engine.heroStars[0]).
+                const fallback = engine.heroStars[0];
+                if (fallback) {
+                    rekeyNBodyForStar(fallback, engine.renderer, worker);
+                } else {
+                    clearNBodyWorker(worker);
+                }
+            }
+        }
+        prevSelectedStarRef.current = selectedStar;
     }, [selectedStar]);
 
     // Sync play/pause cosmic to engine

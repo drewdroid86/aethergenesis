@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert';
+import { readFileSync } from 'node:fs';
 import { getNumStarsForTier } from '../../src/utils/performance';
 // ==========================================
 // TIER 1: Feature Coverage
@@ -177,4 +178,45 @@ test('F2-T4-25: UI State Tuning Scenario', () => {
   // albedo = 0.4 - waterLevel * 0.3 => waterLevel = (0.4 - albedo) / 0.3
   sliders.waterLevel = parseFloat(((0.4 - physics.albedo) / 0.3).toFixed(2));
   assert.strictEqual(sliders.waterLevel, 0.8, 'Sliders must stay synchronized with physics settings');
+});
+
+// ==========================================
+// #15: the isFallback flag must be READ — visible badge + honest telemetry
+// Static source-contract checks (InspectPanel pulls motion/lucide/THREE,
+// which node/tsx cannot import, so assert on the source like f7/f8/f10).
+// ==========================================
+
+const inspectSrc = (): string => readFileSync('src/ui/InspectPanel.tsx', 'utf8');
+
+test('F2-15a: fallback scan renders a clearly visible badge, not a footnote', () => {
+  const s = inspectSrc();
+  assert.ok(s.includes('isFallback: true'), 'fallback scan object must still set the flag');
+  assert.ok(
+    s.includes('geminiData.isFallback'),
+    'the fallback render path must READ isFallback'
+  );
+  assert.ok(
+    s.includes('Predictive fallback — AI scan unavailable'),
+    'honest wording must be kept'
+  );
+  assert.ok(s.includes('role="status"'), 'fallback indicator must be an announced status badge');
+  assert.ok(
+    s.includes('rounded-full') && s.includes('border-amber-400'),
+    'fallback indicator must be a clearly visible badge'
+  );
+});
+
+test('F2-15b: copied telemetry marks fallback values as generated, not observed', () => {
+  const s = inspectSrc();
+  const start = s.indexOf('const copyTelemetry');
+  assert.ok(start !== -1, 'copyTelemetry must exist');
+  const window = s.slice(start, start + 1200);
+  assert.ok(
+    window.includes('geminiData.isFallback'),
+    'copyTelemetry must check isFallback'
+  );
+  assert.ok(
+    window.includes('generated, not observed'),
+    'fallback telemetry must carry a marker line so pasted values are never presented as real observations'
+  );
 });
