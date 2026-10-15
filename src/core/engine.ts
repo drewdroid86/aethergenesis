@@ -68,6 +68,13 @@ export class Engine {
     // Tick callback for decoupled integrations
     onTick: ((delta: number, appTime: number) => void) | null = null;
 
+    /**
+     * M2: forwarded from each HeroStarSystem's onRecycle (wired in
+     * createHeroStars, so late-created stars are covered). The hook sets this
+     * to the focus-gated worker re-key; the engine itself never posts.
+     */
+    onStarRecycled: ((star: HeroStarSystem) => void) | null = null;
+
     start() {
         if (this._frameId !== null) return;
         this._lastFrameTime = performance.now();
@@ -307,6 +314,11 @@ export class Engine {
                     wallTimestamp: Date.now(),
                     note: `${fromName} -> ${toName}`,
                 });
+            };
+            // M2 bridge: forward per-star recycle/respawn into the hook's
+            // worker re-key (same pattern as onPhaseTransition above).
+            star.onRecycle = (s) => {
+                this.onStarRecycled?.(s);
             };
             let _u1 = Math.max(1e-9, Math.random());
             const _u2 = Math.random();

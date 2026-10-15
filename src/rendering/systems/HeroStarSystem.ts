@@ -145,6 +145,17 @@ export class HeroStarSystem extends THREE.Group {
      */
     public onPhaseTransition: ((from: number, to: number) => void) | null = null;
 
+    /**
+     * M2: invoked at the end of recycleToNewGeneration / respawn, after the
+     * mass resample and phase reset. Wired by the Engine to the hook's worker
+     * re-key — the star itself never posts to the worker. Same bridge pattern
+     * as onPhaseTransition, so late-created stars are covered too. The hook
+     * re-keys only when this star is the focused one (the worker holds exactly
+     * one roster); background-star recycles must not clobber the focus star's
+     * simulation.
+     */
+    public onRecycle: ((star: HeroStarSystem) => void) | null = null;
+
     public baseRadius: number;
     private tHeat: number;
     public birthAge: number;
@@ -291,6 +302,12 @@ export class HeroStarSystem extends THREE.Group {
             this._nebulaPhase?.hide();
         } else if (exitingPhase === PHASES.PROTOSTAR) {
             this._protostarPhase?.hide();
+            // M1: the nebula lingers as a secondary visual through the first
+            // 80% of PROTOSTAR (updateAsSecondary sets both meshes visible
+            // every frame) and neither update path runs again after the exit,
+            // so hide it here or the sphere + dust cloud stay rendered,
+            // visibly static, for the rest of the lifecycle.
+            this._nebulaPhase?.hide();
         } else if (exitingPhase === PHASES.MAIN_SEQUENCE) {
             this._mainSequencePhase?.hide();
             if (!keepPlanetsForRedGiant) {
@@ -324,6 +341,11 @@ export class HeroStarSystem extends THREE.Group {
 
     public recycleToNewGeneration(cosmicAge: number, renderer?: THREE.WebGLRenderer): void {
         this.mass = sampleKroupaMass();
+        // M2: the re-key must integrate under the post-resample mass, never
+        // the stale pre-recycle value — a newborn star has no mass loss yet.
+        // (The next update frame recomputes this from StellarPhysics anyway;
+        // this keeps the synchronous onRecycle re-key honest in between.)
+        this.currentMass = this.mass;
         // 10000 Myr is approximately the Sun's ~10 Gyr main-sequence lifetime (mass^-2.5 scaling).
         this.lifespanReal = 10000 * Math.pow(this.mass, -2.5);
         const baryonFactor = (DEFAULT_CONSTANTS.baryon || 0.05) / 0.05;
@@ -382,10 +404,17 @@ export class HeroStarSystem extends THREE.Group {
 
         this._activePhase = -1;
         this.transitionToPhase(PHASES.NEBULA, renderer);
+        // M2: mass + roster were resampled out from under the worker —
+        // hand the (possibly focus-gated) re-key to the hook.
+        this.onRecycle?.(this);
     }
 
     respawn(renderer?: THREE.WebGLRenderer, cosmicAge: number = 0.0, physics: PhysicsConstants = DEFAULT_CONSTANTS): void {
         this.mass = sampleKroupaMass();
+        // M2: same post-resample sync as recycleToNewGeneration — respawn can
+        // leave t < 0, in which case no StellarPhysics refresh runs before the
+        // synchronous onRecycle re-key below.
+        this.currentMass = this.mass;
         // 10000 Myr is approximately the Sun's ~10 Gyr main-sequence lifetime (mass^-2.5 scaling).
         this.lifespanReal = 10000 * Math.pow(this.mass, -2.5);
         const baryonFactor = (DEFAULT_CONSTANTS.baryon || 0.05) / 0.05;
@@ -449,6 +478,8 @@ export class HeroStarSystem extends THREE.Group {
         this._remnantPhase.init(this);
 
         this.applyInitialCosmicAge(cosmicAge, physics, renderer);
+        // M2: same worker re-key handoff as recycleToNewGeneration.
+        this.onRecycle?.(this);
     }
 
     applyPreset(preset: StarPreset, renderer?: THREE.WebGLRenderer, cosmicAge: number = 5.0, physics: PhysicsConstants = DEFAULT_CONSTANTS): void {
@@ -705,7 +736,11 @@ export class HeroStarSystem extends THREE.Group {
         } else if (this.phase === PHASES.PROTOSTAR) {
             targetProto = 1;
             if (this.t < STELLAR_CONSTANTS.PHASE_BOUNDARIES.PROTOSTAR_START + STELLAR_CONSTANTS.PHASE_BOUNDARIES.PROTOSTAR_DURATION * STELLAR_CONSTANTS.PHASE_BOUNDARIES.NEBULA_SECONDARY_LIMIT) {
-                this.nebulaPhase.updateAsSecondary(delta, appTime, cameraPos, this.t, globalFade);
+                // M1: updateAsSecondary's 4th parameter is normalized (0 → 1
+                // across PROTOSTAR) — raw this.t spans only a tiny range
+                // here, which pinned the dust fade-out at ~full opacity.
+                const protostarNormT = (this.t - STELLAR_CONSTANTS.PHASE_BOUNDARIES.PROTOSTAR_START) / STELLAR_CONSTANTS.PHASE_BOUNDARIES.PROTOSTAR_DURATION;
+                this.nebulaPhase.updateAsSecondary(delta, appTime, cameraPos, protostarNormT, globalFade);
             }
             this.protostarPhase.update(delta, appTime, cameraPos, physics, this.t, lowDetail, this.currentTemp);
         } else if (this.phase === PHASES.MAIN_SEQUENCE) {

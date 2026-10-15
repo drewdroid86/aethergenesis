@@ -109,6 +109,7 @@ async function main() {
     'scripts/e2e/f12_radar_math.test.ts',
     'scripts/e2e/f13_nbody_substeps.test.ts',
     'scripts/e2e/f14_spawn_actionlog.test.ts',
+    'scripts/e2e/f15_audit_med_m1_m3.test.ts',
   ];
 
   let allPassed = true;

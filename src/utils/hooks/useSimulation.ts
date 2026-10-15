@@ -493,47 +493,52 @@ export function useSimulation(containerRef: React.RefObject<HTMLDivElement | nul
                     console.error('[NBodyWorker] Uncaught error:', err);
                 };
 
-                const centralMass = 1.0;
+                // M3: INIT with an EMPTY roster (bodies: [] below). The old
+                // hardcoded demo bodies (earth/jupiter/halley) matched no star:
+                // until the first click the focus star drew its own planets at
+                // the demo positions and the orbit rings baked once from the
+                // demo radii. The coordinator tolerates empty buffers
+                // (zero-iteration loops) and PlanetarySystem falls back to
+                // procedural orbits, so the focus star renders its OWN orbits
+                // until the first re-key. Gravity seed: the no-selection
+                // fallback star's current mass (irrelevant with zero bodies,
+                // but correct for any pre-click spawn).
+                const hero0Mass = engine.heroStars[0]?.currentMass ?? engine.heroStars[0]?.mass;
+                const centralMass = typeof hero0Mass === 'number' && Number.isFinite(hero0Mass) && hero0Mass > 0 ? hero0Mass : 1.0;
                 
-                const earthInit = keplerianToCartesian({
-                    semiMajorAxis_au: 1.0, eccentricity: 0.0167, inclination_deg: 0, 
-                    longitudeOfAscendingNode_deg: 0, argumentOfPeriapsis_deg: 102.9, meanAnomaly_deg: 0
-                }, centralMass);
-                
-                const earth: OrbitalBody = {
-                    id: 'earth', type: 'planet', mass_solar: 0.000003, radius_km: 6371, color: '#0055ff',
-                    position_au: earthInit.position, velocity_au_yr: earthInit.velocity
-                };
-
-                const jupiterInit = keplerianToCartesian({
-                    semiMajorAxis_au: 5.2, eccentricity: 0.0489, inclination_deg: 1.3, 
-                    longitudeOfAscendingNode_deg: 100.5, argumentOfPeriapsis_deg: 273.8, meanAnomaly_deg: 20
-                }, centralMass);
-
-                const jupiter: OrbitalBody = {
-                    id: 'jupiter', type: 'planet', mass_solar: 0.00095, radius_km: 71492, color: '#ffaa00',
-                    position_au: jupiterInit.position, velocity_au_yr: jupiterInit.velocity
-                };
-
-                const halleyInit = keplerianToCartesian({
-                    semiMajorAxis_au: 17.8, eccentricity: 0.967, inclination_deg: 162.2, 
-                    longitudeOfAscendingNode_deg: 58.4, argumentOfPeriapsis_deg: 111.3, meanAnomaly_deg: 38.3
-                }, centralMass);
-
-                const halley: OrbitalBody = {
-                    id: '1P_Halley', type: 'comet', mass_solar: 1e-12, radius_km: 5.5, color: '#ffffff',
-                    position_au: halleyInit.position, velocity_au_yr: halleyInit.velocity
-                };
-
                 worker.postMessage({
                     type: 'INIT',
                     payload: {
-                        bodies: [earth, jupiter, halley],
+                        bodies: [],
                         centralMass_solar: centralMass,
                         dt_yr: 0.05,
                         isRunning: !isPausedRef.current
                     }
                 });
+
+                // M2: recycle/respawn re-key. A star that exhausts its lifecycle
+                // resamples mass and rebuilds its roster out from under the
+                // worker, which otherwise keeps integrating the PRE-recycle
+                // roster under the old mass. Re-key through the SAME shared
+                // helper as every selection path (RESET_BODIES with the exact
+                // selection-path payload shape — no new message types), and
+                // ONLY when the recycled star is the focused one: the worker
+                // holds exactly one roster (the focus star's body set), so a
+                // background star's recycle must not clobber the live
+                // simulation. After a recycle the star is a NEBULA newborn with
+                // no planets, so the helper takes its planet-less branch and
+                // clears the worker to an empty roster under the post-resample
+                // currentMass (synced in recycleToNewGeneration / respawn —
+                // never the stale pre-recycle or birth mass, per the H1 fix).
+                engine.onStarRecycled = (star) => {
+                    const workerNow = nbodyWorkerRef.current;
+                    const eng = engineRef.current;
+                    if (!workerNow || !eng) return;
+                    const focused = eng.selectedStar ?? eng.heroStars[0];
+                    if (star === focused) {
+                        rekeyNBodyForStar(star, eng.renderer, workerNow);
+                    }
+                };
             }
 
             const raycaster = new THREE.Raycaster();

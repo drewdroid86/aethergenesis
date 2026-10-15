@@ -352,6 +352,7 @@ export class PlanetarySystem {
         }
         this.orbitLinesGroup.clear();
         this.orbitLinesBuilt = false;
+        this.orbitBuiltBodyCount = -1;
     }
 
     /**
@@ -506,6 +507,13 @@ export class PlanetarySystem {
     
     public orbitLinesGroup: THREE.Group = new THREE.Group();
     private orbitLinesBuilt = false;
+    /**
+     * M3: body count the rings were last baked for. The worker roster is
+     * re-keyed per star (and INITs empty), so the live body count changes
+     * across selections — rings rebuild whenever it does, not just once.
+     * (Roster swaps additionally reset via applyRoster → clearOrbitLines.)
+     */
+    private orbitBuiltBodyCount: number = -1;
     private orbitLineMat: THREE.LineBasicMaterial = new THREE.LineBasicMaterial({
         color: 0x3399ff,
         transparent: true,
@@ -543,9 +551,13 @@ export class PlanetarySystem {
             ? Math.min(this.bodies.length, Math.floor(buffer!.length / 7))
             : this.proceduralOrbits.length;
 
-        // Construct orbit trajectory path lines once
-        if (!this.orbitLinesBuilt && numBodies > 0) {
+        // Construct orbit trajectory path lines once per body generation —
+        // rebuild whenever the live body count changes (INIT empty roster,
+        // per-star re-key), so the rings always reflect the current roster.
+        if ((!this.orbitLinesBuilt || numBodies !== this.orbitBuiltBodyCount) && numBodies > 0) {
+            this.clearOrbitLines();
             this.orbitLinesBuilt = true;
+            this.orbitBuiltBodyCount = numBodies;
             for (let i = 0; i < numBodies; i++) {
                 const orbitScale = 12.0;
                 let radius: number;
