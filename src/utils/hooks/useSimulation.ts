@@ -10,6 +10,8 @@ import { getNumStarsForTier, PerformanceTier } from '../../utils/performance';
 import { OrbitalBody, buildWorkerBodiesFromOrbits, keplerianToCartesian } from '../../simulation/OrbitalMechanics';
 import { PlanetarySystem, PlanetarySystemQueue } from '../../rendering/systems/PlanetarySystem';
 import { SimulationCoordinator } from '../../simulation/SimulationCoordinator';
+import { actionLog, ingestWorkerEvent } from '../../simulation/ActionLog';
+import { buildSpawnBody, type SpawnMode } from '../../simulation/spawnBody';
 
 // Sub-hooks
 import { useWebSocket } from './useWebSocket';
@@ -260,7 +262,67 @@ export function useSimulation(containerRef: React.RefObject<HTMLDivElement | nul
                 payload: { body: newBody }
             });
         }
+
+        // Phase A producer: every catalog spawn is announced to the action log.
+        actionLog.logEvent('SPAWN', {
+            actorId: newBody.id,
+            cosmicAge: engineRef.current?.cosmicAge ?? 0,
+            wallTimestamp: Date.now(),
+            masses: [newBody.mass_solar],
+            positions: [{ ...newBody.position_au }],
+            note: `catalog:${newBody.type}`,
+        });
     }, [selectedStarRef]);
+
+    /**
+     * Phase B producer: spawn a live, gravitating body at a worker-frame AU
+     * position (tap-to-spawn path). Defaults to circular-orbit velocity intent;
+     * pass mode 'drop' for the Solar Smash straight-in fall (toolbar hookup
+     * comes in a later build — no UI for the choice yet). Planet-type spawns
+     * render fully; star/black-hole types participate in worker gravity with
+     * a default visual (see the TODO in PlanetarySystem.applyRoster).
+     * Every spawn emits a SPAWN event with actorId, position, mass, cosmicAge.
+     */
+    const spawnBodyAt = useCallback((position_au: { x: number; y: number; z: number }, opts?: {
+        mode?: SpawnMode;
+        bodyType?: OrbitalBody['type'];
+        mass_solar?: number;
+        radius_km?: number;
+    }) => {
+        const star = selectedStarRef.current ?? engineRef.current?.heroStars[0];
+        if (!star || !nbodyWorkerRef.current) return null;
+        // Authoritative phase-aware mass, not the birth mass (stale-velocity bug).
+        const rawMass = star.currentMass ?? star.mass;
+        const centralMass = Number.isFinite(rawMass) && (rawMass as number) > 0 ? (rawMass as number) : 1.0;
+        const body = buildSpawnBody({
+            position_au,
+            centralMass_solar: centralMass,
+            mode: opts?.mode ?? 'orbit',
+            bodyType: opts?.bodyType ?? 'planet',
+            mass_solar: opts?.mass_solar,
+            radius_km: opts?.radius_km,
+        });
+        nbodyWorkerRef.current.postMessage({
+            type: 'ADD_BODY',
+            payload: { body }
+        });
+        actionLog.logEvent('SPAWN', {
+            actorId: body.id,
+            cosmicAge: engineRef.current?.cosmicAge ?? 0,
+            wallTimestamp: Date.now(),
+            masses: [body.mass_solar],
+            positions: [{ ...body.position_au }],
+            note: `tap:${opts?.mode ?? 'orbit'}:${body.type}`,
+        });
+        return body.id;
+    }, [selectedStarRef]);
+
+    // Ref-stable handle so the mount-once pointer handlers below can spawn
+    // without re-subscribing (same pattern as registerFrameDeltaRef).
+    const spawnBodyAtRef = useRef(spawnBodyAt);
+    useEffect(() => {
+        spawnBodyAtRef.current = spawnBodyAt;
+    }, [spawnBodyAt]);
 
     const adjustStarfieldTier = useCallback((newTier: PerformanceTier) => {
         if (!engineRef.current || !engineRef.current.scene) return;
@@ -394,6 +456,22 @@ export function useSimulation(containerRef: React.RefObject<HTMLDivElement | nul
                         if (engineRef.current) {
                             engineRef.current.nbodyBuffer = e.data.buffer;
                         }
+                    } else if (e.data.type === 'ROSTER') {
+                        // Stable-id roster channel (NOT the UPDATE stream):
+                        // version-bumped so the engine applies it to the
+                        // focused star's system, even a late-created one.
+                        if (engineRef.current && Array.isArray(e.data.bodies)) {
+                            engineRef.current.nbodyRoster = e.data.bodies;
+                            engineRef.current.nbodyRosterVersion++;
+                        }
+                    } else if (e.data.type === 'SIM_EVENT') {
+                        // Physics-event channel: worker arrival order is the
+                        // log order — never dropped, never reordered.
+                        ingestWorkerEvent(
+                            actionLog,
+                            e.data.event,
+                            engineRef.current?.cosmicAge ?? 0
+                        );
                     }
                 };
 
@@ -484,9 +562,49 @@ export function useSimulation(containerRef: React.RefObject<HTMLDivElement | nul
                     engine.camera.position.copy(targetPos).add(camOffset);
                     controls.target.copy(targetPos);
                 } else {
-                    selectedStarRef.current = null;
-                    setSelectedStar(null);
-                    engine.selectedStar = null;
+                    // Empty-space tap → spawn a live n-body body (Phase B).
+                    // Primary: intersect the tap ray with the ecliptic (y=0)
+                    // plane. Fallback (camera edge-on, ray parallel to the
+                    // plane): intersect a camera-facing plane through the
+                    // focus star. Worker frame is AU at 12 world units per AU.
+                    const focus = selectedStarRef.current ?? engine.heroStars[0];
+                    if (focus && nbodyWorkerRef.current) {
+                        const ecliptic = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+                        const hitPoint = new THREE.Vector3();
+                        let world = raycaster.ray.intersectPlane(ecliptic, hitPoint);
+                        if (!world) {
+                            const camDir = engine.camera.getWorldDirection(new THREE.Vector3());
+                            const facing = new THREE.Plane().setFromNormalAndCoplanarPoint(camDir, focus.position);
+                            world = raycaster.ray.intersectPlane(facing, hitPoint);
+                        }
+                        if (world) {
+                            const ORBIT_SCALE = 12.0;
+                            const rel = world.clone().sub(focus.position);
+                            // Renderer maps worker (x, y, z) -> world
+                            // (x, z, y): invert it back to worker frame.
+                            let px = rel.x / ORBIT_SCALE;
+                            let py = rel.z / ORBIT_SCALE;
+                            let pz = rel.y / ORBIT_SCALE;
+                            // Clamp the spawn radius deterministically: past
+                            // 100 AU a tap is a misclick, inside 0.05 AU the
+                            // circular-orbit speed diverges.
+                            const MAX_SPAWN_AU = 100;
+                            const MIN_SPAWN_AU = 0.05;
+                            const r = Math.sqrt(px * px + py * py + pz * pz);
+                            if (r > MAX_SPAWN_AU) {
+                                const s = MAX_SPAWN_AU / r;
+                                px *= s; py *= s; pz *= s;
+                            } else if (r < MIN_SPAWN_AU) {
+                                if (r > 1e-9) {
+                                    const s = MIN_SPAWN_AU / r;
+                                    px *= s; py *= s; pz *= s;
+                                } else {
+                                    px = MIN_SPAWN_AU; py = 0; pz = 0;
+                                }
+                            }
+                            spawnBodyAtRef.current({ x: px, y: py, z: pz });
+                        }
+                    }
                 }
             };
 
@@ -733,6 +851,7 @@ export function useSimulation(containerRef: React.RefObject<HTMLDivElement | nul
         setIsCatalogOpen,
         loadStarPreset,
         addBodyToSimulation,
+        spawnBodyAt,
         engineRef,
         camera: engineRef.current?.camera ?? null,
         heroStars: engineRef.current?.heroStars ?? []

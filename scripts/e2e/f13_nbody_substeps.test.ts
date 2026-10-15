@@ -39,10 +39,22 @@ function circularPlanet(id: string, a_au: number, centralMass_solar = 1.0): any 
 }
 
 function postedRadii(): number[] {
-    return updates.map((u) => {
+    // UPDATE stream only: ROSTER / SIM_EVENT ride dedicated channels and
+    // must not be mistaken for per-frame state.
+    return updates.filter((u) => u.type === 'UPDATE').map((u) => {
         const b = u.buffer as Float32Array;
         return Math.sqrt(b[0] * b[0] + b[1] * b[1] + b[2] * b[2]);
     });
+}
+
+function updateCount(): number {
+    return updates.filter((u) => u.type === 'UPDATE').length;
+}
+
+function lastUpdateBuffer(): Float32Array {
+    const found = [...updates].reverse().find((u) => u.type === 'UPDATE');
+    assert.ok(found, 'expected at least one UPDATE message');
+    return found.buffer as Float32Array;
 }
 
 test('F13-1: close-in planet (0.05 AU) stays bound over 40 cosmic ticks', () => {
@@ -52,7 +64,7 @@ test('F13-1: close-in planet (0.05 AU) stays bound over 40 cosmic ticks', () => 
         centralMass_solar: 1.0,
     });
     for (let t = 0; t < 40; t++) worker.physicsTickInner();
-    assert.equal(updates.length, 40, `one UPDATE per tick, got ${updates.length}`);
+    assert.equal(updateCount(), 40, `one UPDATE per tick, got ${updateCount()}`);
     for (const r of postedRadii()) {
         assert.ok(Number.isFinite(r), `radius must stay finite, got ${r}`);
         assert.ok(r > 0.025 && r < 0.1, `0.05 AU planet must stay bound, got r=${r}`);
@@ -85,7 +97,7 @@ test('F13-3: pathological innermost orbit hits the substep cap without freezing 
     } finally {
         console.warn = origWarn;
     }
-    assert.equal(updates.length, 10, `tick loop must not freeze, got ${updates.length} UPDATEs`);
+    assert.equal(updateCount(), 10, `tick loop must not freeze, got ${updateCount()} UPDATEs`);
     for (const r of postedRadii()) {
         assert.ok(Number.isFinite(r), `radius must stay finite, got ${r}`);
     }
@@ -110,8 +122,8 @@ test('F13-4: bodies with NaN coordinates or exploding positions reset safely wit
     });
     // Run several ticks
     for (let t = 0; t < 10; t++) worker.physicsTickInner();
-    assert.equal(updates.length, 10, `tick loop executed all 10 ticks, got ${updates.length}`);
-    const lastUpdate = updates[updates.length - 1].buffer as Float32Array;
+    assert.equal(updateCount(), 10, `tick loop executed all 10 ticks, got ${updateCount()}`);
+    const lastUpdate = lastUpdateBuffer();
     // Check that both bodies have finite positions and velocities
     for (let i = 0; i < lastUpdate.length; i++) {
         assert.ok(Number.isFinite(lastUpdate[i]), `buffer index ${i} must be finite, got ${lastUpdate[i]}`);

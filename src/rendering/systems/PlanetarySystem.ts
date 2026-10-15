@@ -224,6 +224,16 @@ interface ProceduralOrbit {
     seed: number;
 }
 
+/**
+ * One worker roster row: stable body id + physics type, in worker buffer order.
+ * The worker emits the full roster on every roster change (INIT / ADD_BODY /
+ * RESET_BODIES, and any future remove/merge).
+ */
+export interface BodyRosterEntry {
+    id: string;
+    type: string;
+}
+
 function hashString(str: string): number {
     let hash = 0x811c9dc5;
     for (let i = 0; i < str.length; i++) {
@@ -256,6 +266,93 @@ export class PlanetarySystem {
     private civAttr: THREE.InstancedBufferAttribute;
     private scorchAttr: THREE.InstancedBufferAttribute;
     public renderer?: THREE.WebGLRenderer;
+
+    // ─── Stable-id roster sync (Phase B) ────────────────────────────────────
+    // UPDATE buffer rows are resolved through the worker's roster, never by
+    // bare array index: each body id owns a stable instance slot, so
+    // add/remove/merge roster changes cannot shift visuals onto the wrong
+    // body. Visuals bind to ids (visualsById) — a first-seen id keeps its
+    // look across reorders and resets.
+    private rosterIds: string[] = [];
+    private slotById = new Map<string, number>();
+    private visualsById = new Map<string, { scale: number; type: number; seed: number }>();
+    /** Last roster version applied; the engine re-applies when its version moves. */
+    public rosterVersion = -1;
+    private typeAttr!: THREE.InstancedBufferAttribute;
+    private seedAttr!: THREE.InstancedBufferAttribute;
+
+    /**
+     * Reconcile instance slots with a fresh worker roster. Add-only today;
+     * designed for retire+introduce — a future MERGE retires ids here (their
+     * slots are freed) and introduces the merged body's id as a new slot.
+     */
+    public applyRoster(roster: BodyRosterEntry[], version: number): void {
+        this.rosterVersion = version;
+        this.rosterIds = roster.map((r) => r.id);
+        // Compact slots in roster order: every per-instance attribute stays
+        // aligned with the buffer/astrobiology row order, while VISUALS bind
+        // to ids — a first-seen id keeps its look across reorders and resets.
+        this.slotById.clear();
+        const seen = new Set<string>();
+        let slot = 0;
+        for (let i = 0; i < roster.length; i++) {
+            const entry = roster[i];
+            if (seen.has(entry.id)) continue; // first wins on duplicate ids
+            seen.add(entry.id);
+            if (slot >= this.bodies.length) break; // instanced capacity guard
+            let visuals = this.visualsById.get(entry.id);
+            if (!visuals) {
+                // First-seen id inherits the legacy index visual when one
+                // exists (pixel-identical continuity with the old
+                // index-mapped rendering); otherwise deterministic
+                // hash-derived defaults — no Math.random (determinism pass).
+                const legacy = this.bodies[i];
+                if (legacy) {
+                    visuals = { scale: legacy.scale, type: legacy.type, seed: legacy.seed };
+                } else {
+                    const h = hashString(entry.id);
+                    visuals = {
+                        scale: 0.08 + (((h >>> 8) % 1000) / 1000) * 0.12,
+                        type: 0,
+                        seed: (h % 100000) / 100,
+                    };
+                }
+                // TODO(spawn-phase): roster entries with type 'star' /
+                // 'black_hole' participate in worker gravity today but
+                // render with the default planet visual above. The rich
+                // hookup (HeroStarSystem / RemnantPhase bridging) lands
+                // in a later build — do not half-build it here.
+                this.visualsById.set(entry.id, visuals);
+                // Bound the cache: retired ids stay restorable, but a
+                // spawn-spam session must not grow it without limit.
+                if (this.visualsById.size > 512) {
+                    const oldest = this.visualsById.keys().next();
+                    if (!oldest.done) this.visualsById.delete(oldest.value);
+                }
+            }
+            this.slotById.set(entry.id, slot);
+            slot++;
+        }
+        // Retired ids vanish from slotById via the clear() above and their
+        // slots compact away; their cached visuals restore the look if an id
+        // ever returns. Orbit rings depend on the roster rows — rebuild them.
+        this.clearOrbitLines();
+    }
+
+    /** Resolve a roster id to its stable instance slot (undefined if unknown). */
+    public slotForBodyId(id: string): number | undefined {
+        return this.slotById.get(id);
+    }
+
+    private clearOrbitLines(): void {
+        for (const child of this.orbitLinesGroup.children) {
+            if (child instanceof THREE.LineLoop && child.geometry) {
+                child.geometry.dispose();
+            }
+        }
+        this.orbitLinesGroup.clear();
+        this.orbitLinesBuilt = false;
+    }
 
     constructor(star: THREE.Object3D, renderer?: THREE.WebGLRenderer) {
         this.parent = star;
@@ -377,8 +474,12 @@ export class PlanetarySystem {
         this.civAttr = new THREE.InstancedBufferAttribute(civArray, 1);
         this.scorchAttr = new THREE.InstancedBufferAttribute(scorchArray, 1);
 
-        geometry.setAttribute('planetType', new THREE.InstancedBufferAttribute(types, 1));
-        geometry.setAttribute('planetSeed', new THREE.InstancedBufferAttribute(seeds, 1));
+        // Stored as fields: buffer-driven (roster) frames rewrite the slots
+        // they use every frame so id-bound visuals survive reorders.
+        this.typeAttr = new THREE.InstancedBufferAttribute(types, 1);
+        this.seedAttr = new THREE.InstancedBufferAttribute(seeds, 1);
+        geometry.setAttribute('planetType', this.typeAttr);
+        geometry.setAttribute('planetSeed', this.seedAttr);
         geometry.setAttribute('biomass', this.biomassAttr);
         geometry.setAttribute('civilizationTier', this.civAttr);
         geometry.setAttribute('scorch', this.scorchAttr);
@@ -416,11 +517,14 @@ export class PlanetarySystem {
         
         const matrixArray = this.instancedMesh.instanceMatrix.array;
         const scorchArray = this.scorchAttr.array as Float32Array;
+        const typeArray = this.typeAttr.array as Float32Array;
+        const seedArray = this.seedAttr.array as Float32Array;
         let scorchDirty = false;
+        let visualsDirty = false;
 
         const isBufferDriven = buffer && buffer.length >= 7;
-        const numBodies = isBufferDriven 
-            ? Math.min(this.bodies.length, buffer!.length / 7) 
+        const numBodies = isBufferDriven
+            ? Math.min(this.bodies.length, Math.floor(buffer!.length / 7))
             : this.proceduralOrbits.length;
 
         // Construct orbit trajectory path lines once
@@ -454,18 +558,48 @@ export class PlanetarySystem {
         this.orbitLineMat.opacity = 0.35 * globalFade;
 
         for (let i = 0; i < numBodies; i++) {
-            const offset = i * 16;
-            let x: number, y: number, z: number, bScale: number, bSeed: number;
+            // Resolve the stable instance slot through the roster: buffer row
+            // i belongs to rosterIds[i]; its visuals live under that id.
+            // Falls back to bare index when no roster has arrived yet.
+            let slot = i;
+            let idVisuals: { scale: number; type: number; seed: number } | undefined;
+            if (isBufferDriven) {
+                const rowId = this.rosterIds[i];
+                if (rowId !== undefined) {
+                    const mapped = this.slotById.get(rowId);
+                    if (mapped !== undefined) slot = mapped;
+                    idVisuals = this.visualsById.get(rowId);
+                }
+            }
+            const offset = slot * 16;
+            let x: number, y: number, z: number, bScale: number, bSeed: number, bType: number;
 
             if (isBufferDriven) {
-                const b = this.bodies[i];
-                bScale = b.scale;
-                bSeed = b.seed;
+                if (idVisuals) {
+                    bScale = idVisuals.scale;
+                    bSeed = idVisuals.seed;
+                    bType = idVisuals.type;
+                } else {
+                    const b = this.bodies[i];
+                    bScale = b.scale;
+                    bSeed = b.seed;
+                    bType = b.type;
+                }
                 const orbitScale = 12.0;
                 // Remap worker ecliptic X-Y plane to renderer X-Z plane (y=0).
                 x = buffer![i * 7 + 0] * orbitScale;
                 y = buffer![i * 7 + 2] * orbitScale;
                 z = buffer![i * 7 + 1] * orbitScale;
+                // Id-bound visuals survive reorders: rewrite this frame's
+                // slot attributes (a reordered roster reuses slots).
+                if (typeArray[slot] !== bType) {
+                    typeArray[slot] = bType;
+                    visualsDirty = true;
+                }
+                if (seedArray[slot] !== bSeed) {
+                    seedArray[slot] = bSeed;
+                    visualsDirty = true;
+                }
             } else {
                 const po = this.proceduralOrbits[i];
                 bScale = po.scale;
@@ -488,8 +622,8 @@ export class PlanetarySystem {
                     : 0.0;
             }
 
-            if (scorchArray[i] !== newScorch) {
-                scorchArray[i] = newScorch;
+            if (scorchArray[slot] !== newScorch) {
+                scorchArray[slot] = newScorch;
                 scorchDirty = true;
             }
 
@@ -531,6 +665,10 @@ export class PlanetarySystem {
         this.instancedMesh.count = numBodies;
         if (scorchDirty) {
             this.scorchAttr.needsUpdate = true;
+        }
+        if (visualsDirty) {
+            this.typeAttr.needsUpdate = true;
+            this.seedAttr.needsUpdate = true;
         }
     }
 

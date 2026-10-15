@@ -164,8 +164,13 @@ export class SimulationCoordinator {
                 const p = star.planetarySystem?.bodies[i];
                 const bodyType = p ? (p.type === 1 ? 'gas_giant' : p.type === 2 ? 'ice' : p.type === 3 ? 'lava' : p.type === 4 ? 'ocean' : p.type === 5 ? 'desert' : p.type === 6 ? 'jungle' : 'rocky') : (bodyTypeVal === 1 ? 'comet' : 'rocky');
 
+                // Stable worker id when the roster has arrived; index fallback before that.
+                // (The astrobiology planetKey below intentionally stays
+                // index-based so evaluation history survives roster changes.)
+                const rosterId = this.engine.nbodyRoster?.[i]?.id;
+
                 orbitalStates.push({
-                    body_id: `body_${i}`,
+                    body_id: rosterId ?? `body_${i}`,
                     body_type: bodyType,
                     position_au: { x, y, z },
                     velocity_au_yr: { x: vx, y: vy, z: vz },

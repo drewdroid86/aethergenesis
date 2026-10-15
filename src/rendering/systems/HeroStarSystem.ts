@@ -109,6 +109,15 @@ export class HeroStarSystem extends THREE.Group {
     public planetarySystem?: PlanetarySystem;
     public starLight?: THREE.PointLight;
 
+    /**
+     * Invoked on every real phase change as (oldPhase, newPhase) with numeric
+     * PHASES values. Wired by the Engine to the action log (PHASE_TRANSITION)
+     * — the single bridge from this transition path into the log, so the
+     * transition logic itself is never duplicated. Guards: same-phase and
+     * unborn (from < 0 / to < 0, e.g. respawn resets) transitions do not fire.
+     */
+    public onPhaseTransition: ((from: number, to: number) => void) | null = null;
+
     public baseRadius: number;
     private tHeat: number;
     public birthAge: number;
@@ -209,6 +218,7 @@ export class HeroStarSystem extends THREE.Group {
 
     public transitionToPhase(newPhase: number, renderer?: THREE.WebGLRenderer): void {
         if (this._activePhase === newPhase) return;
+        const exitingPhase = this._activePhase;
 
         // Hide previous active phase (full-reset path: always dispose planets)
         this._exitPhase(this._activePhase, /* keepPlanetsForRedGiant */ false);
@@ -232,6 +242,9 @@ export class HeroStarSystem extends THREE.Group {
         this._activePhase = newPhase;
         if (newPhase >= 0) {
             this.phase = newPhase;
+        }
+        if (exitingPhase >= 0 && newPhase >= 0) {
+            this.onPhaseTransition?.(exitingPhase, newPhase);
         }
     }
 
@@ -598,8 +611,9 @@ export class HeroStarSystem extends THREE.Group {
         if (this._activePhase !== newPhase) {
             // Keep planets alive specifically for MAIN_SEQUENCE → RED_GIANT so scorch can render.
             // All other exits dispose planets unconditionally.
-            const keepPlanets = this._activePhase === PHASES.MAIN_SEQUENCE && newPhase === PHASES.RED_GIANT;
-            this._exitPhase(this._activePhase, /* keepPlanetsForRedGiant */ keepPlanets);
+            const exitingPhase = this._activePhase;
+            const keepPlanets = exitingPhase === PHASES.MAIN_SEQUENCE && newPhase === PHASES.RED_GIANT;
+            this._exitPhase(exitingPhase, /* keepPlanetsForRedGiant */ keepPlanets);
 
             if (newPhase === PHASES.NEBULA) this.nebulaPhase.show();
             else if (newPhase === PHASES.PROTOSTAR) this.protostarPhase.show();
@@ -617,6 +631,9 @@ export class HeroStarSystem extends THREE.Group {
 
             this._activePhase = newPhase;
             this.phase = newPhase;
+            if (exitingPhase >= 0) {
+                this.onPhaseTransition?.(exitingPhase, newPhase);
+            }
         }
 
         // BOLT: Frustum culling early return with bounding radius padding for expanded phases

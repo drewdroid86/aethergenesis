@@ -9,6 +9,18 @@ import { Pipeline } from '../rendering/pipeline';
 import { createStellarState, StellarState, StellarPhase, PhaseTransitionEvent, computeMainSequenceLifetime } from '../simulation/StellarPhysics';
 import { STELLAR_CONSTANTS } from './constants';
 import { PlanetarySystemQueue } from '../rendering/systems/PlanetarySystem';
+import type { BodyRosterEntry } from '../rendering/systems/PlanetarySystem';
+import { actionLog } from '../simulation/ActionLog';
+
+/** Numeric PHASES value → StellarPhase name for log payloads. */
+const PHASE_NUM_TO_NAME: Record<number, StellarPhase> = {
+    0: 'nebula',
+    1: 'protostar',
+    2: 'main_sequence',
+    3: 'red_giant',
+    4: 'supernova',
+    5: 'remnant',
+};
 
 
 
@@ -39,6 +51,14 @@ export class Engine {
     cosmicAge: number = 5.0;
     timeScale: 'cosmic' | 'realtime' = 'cosmic';
     nbodyBuffer: Float32Array | null = null;
+    /**
+     * Latest stable-id roster from the n-body worker (worker buffer order),
+     * with a version bumped by the hook on every ROSTER message. Applied to
+     * the focused star's PlanetarySystem in update() — the version check
+     * covers systems (re)created after the roster arrived.
+     */
+    nbodyRoster: BodyRosterEntry[] | null = null;
+    nbodyRosterVersion: number = 0;
     isPlayingCosmic: boolean = true;
     isGlobalScrubbing: boolean = false;
 
@@ -269,6 +289,25 @@ export class Engine {
         const MAX_WORLD_RADIUS = 800;
         for (let i = 0; i < count; i++) {
             const star = new HeroStarSystem(this.cosmicAge, physicsConstants);
+            // Phase A bridge: forward this star's phase transitions into the
+            // action log (and fill the previously write-only phaseTransitionLog
+            // behind getPhaseHistory) — no duplicated transition logic.
+            star.onPhaseTransition = (from, to) => {
+                const fromName = PHASE_NUM_TO_NAME[from] ?? `phase_${from}`;
+                const toName = PHASE_NUM_TO_NAME[to] ?? `phase_${to}`;
+                this.phaseTransitionLog.push({
+                    from: fromName as StellarPhase,
+                    to: toName as StellarPhase,
+                    triggered_at_yr: star.currentRealAge * 1e6,
+                    trigger_condition: 'hero_star_update',
+                });
+                actionLog.logEvent('PHASE_TRANSITION', {
+                    actorId: star.physicsId,
+                    cosmicAge: this.cosmicAge,
+                    wallTimestamp: Date.now(),
+                    note: `${fromName} -> ${toName}`,
+                });
+            };
             let _u1 = Math.max(1e-9, Math.random());
             const _u2 = Math.random();
             const _u3 = Math.max(1e-9, Math.random());
@@ -417,6 +456,13 @@ export class Engine {
             }
 
             const isFocused = star === selectedStar || (selectedStar === null && i === 0);
+            // Stable-id roster sync: apply the latest worker roster to the
+            // focused star's system (version-guarded, so late-created systems
+            // pick up rosters that arrived before they existed).
+            if (isFocused && this.nbodyRoster && star.planetarySystem
+                && star.planetarySystem.rosterVersion !== this.nbodyRosterVersion) {
+                star.planetarySystem.applyRoster(this.nbodyRoster, this.nbodyRosterVersion);
+            }
             star.update(
                  this.isPaused ? 0 : delta, 
                  this.appTime,

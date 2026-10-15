@@ -1,4 +1,5 @@
 import { OrbitalBody } from './OrbitalMechanics';
+import type { SimulationEventType } from './ActionLog';
 
 // Web worker state
 let bodies: OrbitalBody[] = [];
@@ -8,6 +9,149 @@ const softeningSq = 0.0001; // small softening for N-body
 let dt_yr = 1.0 / 365.25; // default 1 day step
 let tickTimeout: any = null;
 let dtAccumulator = 0;
+
+// ─── Stable-id roster (Phase B) ─────────────────────────────────────────────
+// Every body carries a stable string id from creation. Bodies that arrive
+// without one (legacy callers) get a worker-side monotonic `spawned_N` id —
+// deterministic: the counter resets on INIT/RESET_BODIES, so replaying the
+// same message sequence yields the same ids. No Math.random (determinism pass).
+let nextWorkerId = 1;
+const knownIds = new Set<string>();
+
+function claimId(id: string): void {
+    knownIds.add(id);
+}
+
+function ensureStableIds(list: OrbitalBody[]): void {
+    knownIds.clear();
+    nextWorkerId = 1;
+    for (const b of list) {
+        if (typeof b.id === 'string' && b.id.length > 0) {
+            claimId(b.id);
+            continue;
+        }
+        let candidate: string;
+        do {
+            candidate = `spawned_${nextWorkerId++}`;
+        } while (knownIds.has(candidate));
+        b.id = candidate;
+        claimId(candidate);
+    }
+}
+
+function assignStableId(body: OrbitalBody): void {
+    if (typeof body.id === 'string' && body.id.length > 0) {
+        claimId(body.id);
+        return;
+    }
+    let candidate: string;
+    do {
+        candidate = `spawned_${nextWorkerId++}`;
+    } while (knownIds.has(candidate));
+    body.id = candidate;
+    claimId(candidate);
+}
+
+export interface RosterEntry {
+    id: string;
+    type: string;
+}
+
+/**
+ * Announce the stable roster (id + type per body, worker order) to the main
+ * thread. Emitted on every roster change (INIT / ADD_BODY / RESET_BODIES) and
+ * on any future remove/merge — the renderer resolves UPDATE buffer rows
+ * through this, never by bare array index. Designed for retire+introduce:
+ * a future MERGE retires ids here and introduces the merged body's id.
+ */
+function emitRoster(): void {
+    const roster: RosterEntry[] = bodies.map((b) => ({ id: b.id, type: b.type }));
+    (self as any).postMessage({ type: 'ROSTER', bodies: roster });
+}
+
+// ─── Worker→main physics events (Phase A) ───────────────────────────────────
+// SIM_EVENT is a dedicated postMessage channel OUTSIDE the per-frame UPDATE
+// stream, so physics events are never dropped or reordered relative to each
+// other (postMessage preserves FIFO order per sender). The main-thread hook
+// feeds them into the action log.
+let workerEventSeq = 1;
+let tickCounter = 0;
+const collisionCooldown = new Map<string, number>(); // pairKey -> tick of last report
+const COLLISION_COOLDOWN_TICKS = 600; // ~10 s of ticks: bounds event rate without dropping first contact
+const AU_KM = 1.495978707e8;
+
+function emitSimEvent(
+    type: SimulationEventType,
+    fields: {
+        actorId?: string;
+        targetIds?: string[];
+        masses?: number[];
+        positions?: { x: number; y: number; z: number }[];
+        note?: string;
+    }
+): void {
+    (self as any).postMessage({
+        type: 'SIM_EVENT',
+        event: { type, seq: workerEventSeq++, wallTimestamp: Date.now(), cosmicAge: 0, ...fields },
+    });
+}
+
+function resetEventState(): void {
+    workerEventSeq = 1;
+    tickCounter = 0;
+    collisionCooldown.clear();
+}
+
+/**
+ * Close-approach detector. Emits COLLISION (event only — no merge physics,
+ * which is a later build) when two bodies come within the sum of their
+ * physical radii. Per-pair cooldown keeps a resting contact from spamming;
+ * first contact is always reported. Reads positions only — the NaN guards
+ * below are untouched.
+ */
+function detectCollisions(): void {
+    tickCounter++;
+    const n = bodies.length;
+    for (let i = 0; i < n; i++) {
+        const a = bodies[i];
+        if (!isFiniteVec3(a.position_au)) continue;
+        for (let j = i + 1; j < n; j++) {
+            const b = bodies[j];
+            if (!isFiniteVec3(b.position_au)) continue;
+            const dx = b.position_au.x - a.position_au.x;
+            const dy = b.position_au.y - a.position_au.y;
+            const dz = b.position_au.z - a.position_au.z;
+            if (!Number.isFinite(dx) || !Number.isFinite(dy) || !Number.isFinite(dz)) continue;
+            const ra_km = Number.isFinite(a.radius_km) && (a.radius_km as number) > 0
+                ? (a.radius_km as number) : 6371;
+            const rb_km = Number.isFinite(b.radius_km) && (b.radius_km as number) > 0
+                ? (b.radius_km as number) : 6371;
+            const thresh_au = Math.max((ra_km + rb_km) / AU_KM, 1e-4);
+            const distSq = dx * dx + dy * dy + dz * dz;
+            if (!(distSq <= thresh_au * thresh_au)) continue;
+            const key = a.id < b.id ? `${a.id}|${b.id}` : `${b.id}|${a.id}`;
+            const last = collisionCooldown.get(key);
+            if (last !== undefined && tickCounter - last < COLLISION_COOLDOWN_TICKS) continue;
+            collisionCooldown.set(key, tickCounter);
+            // Bound the map: prune cooled-down pairs once it grows large.
+            if (collisionCooldown.size > 4096) {
+                for (const [k, t] of collisionCooldown) {
+                    if (tickCounter - t >= COLLISION_COOLDOWN_TICKS) collisionCooldown.delete(k);
+                }
+            }
+            emitSimEvent('COLLISION', {
+                actorId: a.id,
+                targetIds: [a.id, b.id],
+                masses: [a.mass_solar, b.mass_solar],
+                positions: [
+                    { x: a.position_au.x, y: a.position_au.y, z: a.position_au.z },
+                    { x: b.position_au.x, y: b.position_au.y, z: b.position_au.z },
+                ],
+                note: `close approach ${Math.sqrt(distSq).toExponential(2)} AU`,
+            });
+        }
+    }
+}
 
 // BOLT: Persistent buffers for zero-allocation
 let accelBuffer = new Float32Array(0);
@@ -50,6 +194,7 @@ self.onmessage = (e) => {
             console.warn(`[nbody] INIT rejected ${rejectedInit} malformed bodie(s)`);
         }
         bodies = inbound.filter(isValidBody);
+        ensureStableIds(bodies);
         if (Number.isFinite(payload.centralMass_solar) && payload.centralMass_solar > 0) {
             centralMass_solar = payload.centralMass_solar;
         } else {
@@ -61,6 +206,8 @@ self.onmessage = (e) => {
             dt_yr = 1.0 / 365.25;
         }
         recomputeTMin();
+        resetEventState();
+        emitRoster();
         accelsValid = false; // BOLT: Reset cache on re-init
         dtAccumulator = 0;
         const shouldRun = payload.isRunning !== undefined ? payload.isRunning : true;
@@ -75,8 +222,10 @@ self.onmessage = (e) => {
         // PH2 fix: reject malformed bodies instead of letting them poison the
         // integration (a single NaN field used to freeze the loop forever).
         if (isValidBody(payload.body)) {
+            assignStableId(payload.body);
             bodies.push(payload.body);
             recomputeTMin();
+            emitRoster();
             accelsValid = false; // BOLT: Invalidate cache when body added
         } else {
             console.warn('[nbody] ADD_BODY rejected: malformed body payload', payload.body);
@@ -112,10 +261,13 @@ self.onmessage = (e) => {
             console.warn(`[nbody] RESET_BODIES rejected ${rejectedReset} malformed bodie(s)`);
         }
         bodies = inboundReset.filter(isValidBody);
+        ensureStableIds(bodies);
         if (payload.centralMass_solar && payload.centralMass_solar > 0) {
             centralMass_solar = payload.centralMass_solar;
         }
         recomputeTMin();
+        resetEventState();
+        emitRoster();
         accelsValid = false;
         dtAccumulator = 0;
     }
@@ -398,6 +550,10 @@ export function physicsTickInner() {
         }
     }
 
+    // Close-approach physics events (COLLISION) ride the dedicated SIM_EVENT
+    // channel — never the UPDATE buffer. Event-only: no merge physics here.
+    detectCollisions();
+
     // Pack state for rendering main thread
     const size = n * 7;
     if (bufferA.length !== size) {
@@ -414,6 +570,10 @@ export function physicsTickInner() {
         buffer[offset + 3] = b.velocity_au_yr.x;
         buffer[offset + 4] = b.velocity_au_yr.y;
         buffer[offset + 5] = b.velocity_au_yr.z;
+        // TODO(spawn-phase): the type slot is binary (planet ? 0 : 1) — a
+        // spawned STAR or BLACK HOLE participates in worker gravity today but
+        // has no rich renderer hookup (HeroStarSystem / RemnantPhase bridging
+        // lands in a later build — do not half-build it here).
         buffer[offset + 6] = b.type === 'planet' ? 0 : 1;
     }
 

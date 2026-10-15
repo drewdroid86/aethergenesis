@@ -106,6 +106,7 @@ async function main() {
     'scripts/e2e/f11_hud_toggle.test.ts',
     'scripts/e2e/f12_radar_math.test.ts',
     'scripts/e2e/f13_nbody_substeps.test.ts',
+    'scripts/e2e/f14_spawn_actionlog.test.ts',
   ];
 
   let allPassed = true;
