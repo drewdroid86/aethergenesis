@@ -512,7 +512,7 @@ export class Engine {
         PlanetarySystemQueue.process(this.renderer);
 
         // Update post-processing lensing uniforms
-        this.pipeline.updateLensing(this.selectedStar, this.camera, delta);
+        this.pipeline.updateLensing(this.selectedStar || this.heroStars[0], this.camera, delta);
 
         // Use pipeline for rendering with post-processing - still render when paused for camera movement
         this.pipeline.render(this.appTime, delta);

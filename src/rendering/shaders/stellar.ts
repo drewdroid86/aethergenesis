@@ -31,7 +31,9 @@ export const ejectaFS = resolveIncludes(ejectaFrag);
 export const glowVS = /* glsl */`
 varying vec3 vNormal;
 varying vec3 vViewDir;
+varying vec3 vLocalPos;
 void main() {
+    vLocalPos = position;
     vNormal = normalize(normalMatrix * normal);
     vec4 mv = modelViewMatrix * vec4(position, 1.0);
     vViewDir = normalize(-mv.xyz);
@@ -52,12 +54,18 @@ uniform float uFalloff;
 uniform float uTint;
 varying vec3 vNormal;
 varying vec3 vViewDir;
+varying vec3 vLocalPos;
 void main() {
     float rim = 1.0 - abs(dot(vNormal, vViewDir));
     float glow = exp(-rim * uFalloff);          // Gaussian-ish falloff, no hard edge
+    // Coronal helmet-streamer radial structure (K-corona magnetic anisotropy)
+    vec3 dir = normalize(vLocalPos);
+    float theta = atan(dir.z, dir.x);
+    float phi = asin(clamp(dir.y, -1.0, 1.0));
+    float streamers = 0.84 + 0.16 * sin(theta * 6.0 + cos(phi * 4.0) * 2.0) * sin(phi * 5.0);
     // Corona is optically thin and hotter → push slightly toward white
-    vec3 col = mix(uColor, vec3(1.0), uTint * rim);
-    gl_FragColor = vec4(col, glow * uOpacity);
+    vec3 col = mix(uColor, vec3(1.0, 0.98, 0.94), uTint * rim);
+    gl_FragColor = vec4(col * streamers, glow * streamers * uOpacity);
 }
 `;
 

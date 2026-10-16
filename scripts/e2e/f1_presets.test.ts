@@ -65,6 +65,17 @@ test('F1-T1-5: Search Horizons for Small Body NAIF ID', async () => {
   }
 });
 
+test('F1-T1-6: Load Cygnus X-1 Black Hole Preset', async () => {
+  const res = await fetch(`${BASE_URL}/api/catalog/presets`);
+  assert.strictEqual(res.status, 200);
+  const presets = await res.json();
+  const cyg = presets.find((p: any) => p.name.toUpperCase().includes('CYGNUS X-1'));
+  assert.ok(cyg, 'Cygnus X-1 preset should exist');
+  assert.strictEqual(cyg.spectral_class, 'BH');
+  assert.ok(cyg.mass_solar >= 15.0, 'Cygnus X-1 should be a stellar-mass black hole (>=15 M_sun)');
+  assert.strictEqual(cyg.phase, 5, 'Cygnus X-1 should specify phase 5 (REMNANT)');
+});
+
 // ==========================================
 // TIER 2: Boundary & Corner Cases
 // ==========================================

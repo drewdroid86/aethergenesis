@@ -100,29 +100,40 @@ export function computeLuminosity(mass_solar: number): number {
 }
 
 /**
- * Sample stellar birth mass using the empirical Kroupa (2001) Initial Mass Function.
+ * Sample stellar birth mass using the empirical Kroupa (2001) Initial Mass Function
+ * with an OB-association high-mass tail (Schneider et al. 2018).
  *
- * Implements inverse transform sampling on a piecewise power law:
- *   ξ(M) ∝ M^(-1.3) for 0.08 ≤ M < 0.50 M☉ (sub-solar red dwarfs, 76.2% of population)
- *   ξ(M) ∝ M^(-2.3) for 0.50 ≤ M ≤ 20.0 M☉ (intermediate and massive stars, 23.8% of population)
+ * Implements inverse transform sampling on a 3-piece power law:
+ *   ξ(M) ∝ M^(-1.3) for 0.08 ≤ M < 0.50 M☉ (sub-solar red dwarfs, 72.0% of population)
+ *   ξ(M) ∝ M^(-2.3) for 0.50 ≤ M < 8.00 M☉ (solar & intermediate stars, 22.0% of population)
+ *   ξ(M) ∝ M^(-1.9) for 8.00 ≤ M ≤ 45.0 M☉ (OB-association massive stars, 6.0% of population;
+ *     M ≥ 15 M☉ stars evolve into stellar-mass black holes)
  *
  * @citation Kroupa, P. (2001) "On the variation of the initial mass function", MNRAS 322, 231–246
+ * @citation Schneider, F.R.N. et al. (2018) "An excess of massive stars in the local 30 Doradus starburst", Science 359, 69–71
  * @returns Sampled stellar birth mass in solar masses (M☉)
  */
 export function sampleKroupaMass(): number {
   const u = Math.random();
-  // Low-mass branch: [0.08, 0.50] M☉ (76.2% of stellar population)
-  if (u < 0.762) {
-    const uNorm = u / 0.762;
+  // Low-mass branch: [0.08, 0.50] M☉ (72.0% of stellar population)
+  if (u < 0.72) {
+    const uNorm = u / 0.72;
     const mMinPow = 2.1334; // 0.08^(-0.3)
     const mMaxPow = 1.2311; // 0.50^(-0.3)
     return Math.pow(mMinPow - uNorm * (mMinPow - mMaxPow), -1 / 0.3);
   }
-  // Intermediate & massive branch: [0.50, 20.0] M☉ (23.8% of stellar population)
-  const uNorm = (u - 0.762) / 0.238;
-  const mMinPow = 2.4623; // 0.50^(-1.3)
-  const mMaxPow = 0.0204; // 20.0^(-1.3)
-  return Math.pow(mMinPow - uNorm * (mMinPow - mMaxPow), -1 / 1.3);
+  // Solar & intermediate-mass branch: [0.50, 8.0] M☉ (22.0% of stellar population)
+  if (u < 0.94) {
+    const uNorm = (u - 0.72) / 0.22;
+    const mMinPow = 2.4623; // 0.50^(-1.3)
+    const mMaxPow = 0.0670; // 8.00^(-1.3)
+    return Math.pow(mMinPow - uNorm * (mMinPow - mMaxPow), -1 / 1.3);
+  }
+  // Massive OB-association branch: [8.0, 45.0] M☉ (6.0% of stellar population)
+  const uNorm = (u - 0.94) / 0.06;
+  const mMinPow = 0.1539; // 8.00^(-0.9)
+  const mMaxPow = 0.0325; // 45.0^(-0.9)
+  return Math.pow(mMinPow - uNorm * (mMinPow - mMaxPow), -1 / 0.9);
 }
 
 /**

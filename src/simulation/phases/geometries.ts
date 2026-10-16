@@ -22,7 +22,12 @@ export const GEOMETRIES = {
     redGiant: new THREE.SphereGeometry(1, 64, 64),
     supernovaCore: new THREE.SphereGeometry(1, 48, 48),
     habitableZone: new THREE.TorusGeometry(1, 0.05, 8, 64),
-    planet: new THREE.SphereGeometry(1, 16, 16),
+    planet: new THREE.SphereGeometry(1, 48, 48),
+    planetRing: (() => {
+        const geo = new THREE.RingGeometry(1.38, 2.45, 64, 4);
+        geo.rotateX(Math.PI / 2);
+        return geo;
+    })(),
     supernovaRing: new THREE.TorusGeometry(1, 0.1, 16, 64),
     neutronStar: new THREE.SphereGeometry(0.1, 32, 32),
     pulsarBeam1: (() => {
@@ -37,12 +42,12 @@ export const GEOMETRIES = {
     })(),
     blackHoleCore: new THREE.SphereGeometry(0.5, 32, 32),
     blackHoleDisk: (() => {
-        const geo = new THREE.RingGeometry(1.2, 4.0, 64);
+        const geo = new THREE.RingGeometry(1.15, 4.8, 96, 6);
         geo.rotateX(Math.PI / 2);
         return geo;
     })(),
     blackHoleLensedArch: (() => {
-        const geo = new THREE.RingGeometry(1.02, 2.7, 64);
+        const geo = new THREE.RingGeometry(1.0, 3.1, 96, 4);
         return geo;
     })(),
     flare: (() => {
@@ -51,7 +56,7 @@ export const GEOMETRIES = {
             new THREE.Vector3(1.5, 1.5, 0),
             new THREE.Vector3(0, 0, 0.8)
         );
-        return new THREE.TubeGeometry(curve, 16, 0.05, 4, false);
+        return new THREE.TubeGeometry(curve, 32, 0.045, 12, false);
     })(),
     protostarJet: new THREE.CylinderGeometry(0.05, 0.4, 8.0, 12, 1, true),
     hit: new THREE.SphereGeometry(8, 16, 16),

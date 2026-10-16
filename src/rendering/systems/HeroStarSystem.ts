@@ -177,9 +177,19 @@ export class HeroStarSystem extends THREE.Group {
         const effG = Math.max(0.01, physics.G);
         this.birthAge = Math.random() * Math.max(0.1, cosmicAge);
         const ageMyr = Math.max(0, (cosmicAge - this.birthAge) * 1000);
-        this.t = Math.max(0, Math.min(1.65, ageMyr / (this.lifespanReal / effG)));
+        const rawInitT = ageMyr / (this.lifespanReal / effG);
+        if (this.mass >= STELLAR_CONSTANTS.PHYSICS.MASS_THRESHOLD_BLACK_HOLE && rawInitT >= STELLAR_CONSTANTS.PHASE_BOUNDARIES.REMNANT_START) {
+            this.t = 1.55;
+        } else if (rawInitT >= STELLAR_CONSTANTS.PHASE_BOUNDARIES.LIFECYCLE_MAX) {
+            this.t = rawInitT % STELLAR_CONSTANTS.PHASE_BOUNDARIES.LIFECYCLE_MAX;
+        } else {
+            this.t = Math.max(0, rawInitT);
+        }
         const cosmicAgeMyr = Math.max(0.01, cosmicAge) * 1000;
-        this.currentRealAge = Math.min(this.t * this.lifespanReal, cosmicAgeMyr);
+        this.currentRealAge = (this.t >= STELLAR_CONSTANTS.PHASE_BOUNDARIES.REMNANT_START)
+            ? this.t * this.lifespanReal
+            : Math.min(this.t * this.lifespanReal, cosmicAgeMyr);
+        this.birthAge = cosmicAge - (this.currentRealAge / 1000) / effG;
 
         const age_yr = this.currentRealAge * 1e6;
         const metallicity = (physics as any)?.metallicity ?? (DEFAULT_CONSTANTS as any).metallicity ?? 0.02;
@@ -236,9 +246,19 @@ export class HeroStarSystem extends THREE.Group {
 
         this.birthAge = Math.random() * Math.max(0.1, cosmicAge);
         const ageMyr = Math.max(0, (cosmicAge - this.birthAge) * 1000);
-        this.t = Math.max(0, Math.min(1.65, ageMyr / (this.lifespanReal / effG)));
+        const rawInitT = ageMyr / (this.lifespanReal / effG);
+        if (this.mass >= STELLAR_CONSTANTS.PHYSICS.MASS_THRESHOLD_BLACK_HOLE && rawInitT >= STELLAR_CONSTANTS.PHASE_BOUNDARIES.REMNANT_START) {
+            this.t = 1.55;
+        } else if (rawInitT >= STELLAR_CONSTANTS.PHASE_BOUNDARIES.LIFECYCLE_MAX) {
+            this.t = rawInitT % STELLAR_CONSTANTS.PHASE_BOUNDARIES.LIFECYCLE_MAX;
+        } else {
+            this.t = Math.max(0, rawInitT);
+        }
         const cosmicAgeMyr = Math.max(0.01, cosmicAge) * 1000;
-        this.currentRealAge = Math.min(this.t * this.lifespanReal, cosmicAgeMyr);
+        this.currentRealAge = (this.t >= STELLAR_CONSTANTS.PHASE_BOUNDARIES.REMNANT_START)
+            ? this.t * this.lifespanReal
+            : Math.min(this.t * this.lifespanReal, cosmicAgeMyr);
+        this.birthAge = cosmicAge - (this.currentRealAge / 1000) / effG;
         this.visible = globalFade > 0.01;
 
         if (this.t >= 0) {
@@ -249,8 +269,8 @@ export class HeroStarSystem extends THREE.Group {
             this.phase = initialPhase;
             this.currentTemp = initState.temperature_K;
             this.currentLum = initState.luminosity_solar;
-        this.currentMass = initState.mass_solar;
-        this.currentRadius = initState.radius_solar;
+            this.currentMass = initState.mass_solar;
+            this.currentRadius = initState.radius_solar;
             this.transitionToPhase(initialPhase, renderer);
         }
     }
@@ -555,26 +575,35 @@ export class HeroStarSystem extends THREE.Group {
         this.isSupernovaFlashing = false;
         this._wasSupernovaFlashing = false;
 
-        // Reset real age / progress
-        if (typeof preset.age_gyr === 'number' && Number.isFinite(preset.age_gyr)) {
-            const presetAgeMyr = Math.max(0, preset.age_gyr * 1000);
-            const maxT = STELLAR_CONSTANTS.PHASE_BOUNDARIES.LIFECYCLE_MAX;
-            this.t = Math.max(0.0, Math.min(maxT, presetAgeMyr / this.lifespanReal));
-        } else if (preset.phase !== undefined) {
-            if (preset.phase === 5 || preset.phase === 'remnant') {
+        // Reset real age / progress — honor explicit preset.phase / BH class first
+        // so presets like Cygnus X-1 (phase: 5, age_gyr: 0.006) enter REMNANT directly
+        // instead of being overridden into SUPERNOVA by age_gyr / lifespanReal.
+        const hasExplicitPhase = preset.phase !== undefined || preset.spectral_class === 'BH';
+        if (hasExplicitPhase) {
+            if (preset.phase === 5 || preset.phase === 'remnant' || preset.spectral_class === 'BH') {
                 this.t = 1.55;
             } else if (preset.phase === 4 || preset.phase === 'supernova') {
                 this.t = 1.25;
             } else if (preset.phase === 3 || preset.phase === 'red_giant') {
                 this.t = 1.05;
+            } else if (typeof preset.age_gyr === 'number' && Number.isFinite(preset.age_gyr)) {
+                const presetAgeMyr = Math.max(0, preset.age_gyr * 1000);
+                const maxT = STELLAR_CONSTANTS.PHASE_BOUNDARIES.LIFECYCLE_MAX;
+                this.t = Math.max(0.0, Math.min(maxT, presetAgeMyr / this.lifespanReal));
             } else {
                 this.t = 0.0;
             }
+        } else if (typeof preset.age_gyr === 'number' && Number.isFinite(preset.age_gyr)) {
+            const presetAgeMyr = Math.max(0, preset.age_gyr * 1000);
+            const maxT = STELLAR_CONSTANTS.PHASE_BOUNDARIES.LIFECYCLE_MAX;
+            this.t = Math.max(0.0, Math.min(maxT, presetAgeMyr / this.lifespanReal));
         } else {
             this.t = 0.0;
         }
         const cosmicAgeMyr = Math.max(0.01, cosmicAge) * 1000;
-        this.currentRealAge = Math.min(this.t * this.lifespanReal, cosmicAgeMyr);
+        this.currentRealAge = hasExplicitPhase
+            ? this.t * this.lifespanReal
+            : Math.min(this.t * this.lifespanReal, cosmicAgeMyr);
         const effG = Math.max(0.01, physics?.G ?? 1.0);
         this.birthAge = cosmicAge - (this.currentRealAge / 1000) / effG;
 
@@ -637,12 +666,14 @@ export class HeroStarSystem extends THREE.Group {
              else {
                  const rawT = ageMyr / (this.lifespanReal / effG);
                  // Pacing governor for short-lived high-mass supernovas and remnants:
-                 // In cosmic mode (200 Myr/s), massive stars (tau_ms ~ 10 Myr) cross
+                 // In cosmic mode (200 Myr/s), massive stars (tau_ms ~ 5-10 Myr) cross
                  // Supernova (t=1.2..1.5) and Remnant (t=1.5..1.65) in under 0.02s (<1 frame).
-                 // We pace advance so dramatic post-MS phases remain observable for at least several seconds.
-                 if (rawT >= STELLAR_CONSTANTS.PHASE_BOUNDARIES.SUPERNOVA_START && this.t >= STELLAR_CONSTANTS.PHASE_BOUNDARIES.SUPERNOVA_START) {
+                 // Gate on rawT >= SUPERNOVA_START (clamping baseT to SUPERNOVA_START) so a single
+                 // frame cannot jump from t < 1.2 straight past 1.65 and skip both phases.
+                 if (rawT >= STELLAR_CONSTANTS.PHASE_BOUNDARIES.SUPERNOVA_START) {
                      const maxRatePerSec = 0.04; // ~7.5s for supernova, ~3.75s for remnant
-                     this.t = Math.min(rawT, this.t + delta * maxRatePerSec);
+                     const baseT = Math.max(this.t, STELLAR_CONSTANTS.PHASE_BOUNDARIES.SUPERNOVA_START);
+                     this.t = Math.min(rawT, baseT + delta * maxRatePerSec);
                      this.syncBirthAge(cosmicAge, effG);
                  } else {
                      this.t = rawT;
@@ -652,9 +683,18 @@ export class HeroStarSystem extends THREE.Group {
              this.t += (delta * 200) / (this.lifespanReal / effG);
         }
 
-        // Generational matter recycling when remnant phase completes
+        // Generational matter recycling when remnant phase completes.
+        // Black holes (M >= MASS_THRESHOLD_BLACK_HOLE) do not evaporate on cosmic timescales —
+        // they persist in the REMNANT phase rather than recycling into low-mass nebulae.
         if (overrideT === undefined && this.t >= STELLAR_CONSTANTS.PHASE_BOUNDARIES.LIFECYCLE_MAX) {
-            this.recycleToNewGeneration(cosmicAge ?? 5.0, renderer);
+            if (this.mass >= STELLAR_CONSTANTS.PHYSICS.MASS_THRESHOLD_BLACK_HOLE) {
+                this.t = STELLAR_CONSTANTS.PHASE_BOUNDARIES.LIFECYCLE_MAX;
+                if (cosmicAge !== undefined) {
+                    this.syncBirthAge(cosmicAge, effG);
+                }
+            } else {
+                this.recycleToNewGeneration(cosmicAge ?? 5.0, renderer);
+            }
         }
 
         if (this.t < 0) {
@@ -670,10 +710,11 @@ export class HeroStarSystem extends THREE.Group {
             this.isSupernovaFlashing = false;
         }
 
-        // Real age cannot exceed the cosmic age in Myr:
-        // age_yr = min(t * lifespanReal, cosmicAge_Gyr * 1000) * 1e6
+        // Real age cannot exceed the cosmic age in Myr unless explicitly scrubbed or in remnant phase:
         const cosmicAgeMyr = Math.max(0.01, cosmicAge ?? 13.8) * 1000;
-        this.currentRealAge = Math.min(this.t * this.lifespanReal, cosmicAgeMyr);
+        this.currentRealAge = (overrideT !== undefined || this.t >= STELLAR_CONSTANTS.PHASE_BOUNDARIES.REMNANT_START)
+            ? this.t * this.lifespanReal
+            : Math.min(this.t * this.lifespanReal, cosmicAgeMyr);
         const age_yr = this.currentRealAge * 1e6;
 
         const metallicity = (physics as any)?.metallicity ?? 0.02;

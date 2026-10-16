@@ -56,7 +56,7 @@ export class RedGiantPhase implements PhaseComponent {
                 uHbar: { value: 1.0 },
                 uLowDetail: { value: 0.0 }
             },
-            transparent: true, blending: THREE.AdditiveBlending
+            transparent: true, blending: THREE.NormalBlending
         });
         this.redGiantMat.name = 'RedGiantPhaseMaterial';
         this.redGiantMat.customProgramCacheKey = () => 'red_giant_star_material';
@@ -96,9 +96,12 @@ export class RedGiantPhase implements PhaseComponent {
                 uniform float uOpacity;
                 varying vec2 vUv;
                 void main() {
-                    float alpha = (sin(uTime * 2.0 + vUv.x * 10.0) * 0.5 + 0.5) * uOpacity;
-                    alpha *= sin(vUv.x * 3.14159);
-                    gl_FragColor = vec4(uColor, alpha);
+                    float archEnv = sin(vUv.x * 3.14159265);
+                    float tubeCore = pow(max(0.0, sin(vUv.y * 3.14159265)), 1.6);
+                    float plasmaStream = sin(vUv.x * 12.0 - uTime * 2.5) * 0.35 + 0.65;
+                    float intensity = archEnv * tubeCore * plasmaStream;
+                    vec3 hotCol = mix(uColor * 1.25, vec3(1.0, 0.85, 0.55), tubeCore * 0.45);
+                    gl_FragColor = vec4(hotCol, intensity * uOpacity);
                 }
             `,
             transparent: true,

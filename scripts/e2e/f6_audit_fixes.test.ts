@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert';
 import * as THREE from 'three';
-import { computeMainSequenceLifetime } from '../../src/simulation/StellarPhysics.ts';
+import { computeMainSequenceLifetime, sampleKroupaMass } from '../../src/simulation/StellarPhysics.ts';
 import { solveKepler, keplerianToCartesian } from '../../src/simulation/OrbitalMechanics.ts';
 import fs from 'node:fs';
 import { AstrobiologyEngine } from '../../src/simulation/AstrobiologyEngine.ts';
@@ -273,5 +273,25 @@ test('F6-15: applyPreset takes a typed StarPreset, not any', () => {
   );
   assert.ok(!heroSrc.includes('applyPreset(preset: any'), 'applyPreset must not take any');
 });
+
+test('F6-16: sampleKroupaMass samples OB-association high-mass tail (>=15 M_sun Black Hole progenitors)', () => {
+  let massiveCount = 0;
+  const N = 5000;
+  for (let i = 0; i < N; i++) {
+    const m = sampleKroupaMass();
+    assert.ok(m >= 0.08 && m <= 45.0, `Mass out of bounds: ${m}`);
+    if (m >= 15.0) massiveCount++;
+  }
+  // With 6% in 8-45 M_sun tail, ~2.5% of all stars are >= 15 M_sun
+  assert.ok(massiveCount > 25, `Expected high-mass black hole progenitors, got ${massiveCount}/${N}`);
+});
+
+test('F6-17: HeroStarSystem applyPreset and cosmic lifecycle preserve Black Hole phase and persistence', () => {
+  const heroSrc = fs.readFileSync('src/rendering/systems/HeroStarSystem.ts', 'utf8');
+  assert.ok(heroSrc.includes("preset.spectral_class === 'BH'"), 'applyPreset must check for BH spectral class');
+  assert.ok(heroSrc.includes('this.t = 1.55;'), 'BH preset or initial cosmic remnant must set t = 1.55 (REMNANT)');
+  assert.ok(heroSrc.includes('this.mass >= STELLAR_CONSTANTS.PHYSICS.MASS_THRESHOLD_BLACK_HOLE'), 'HeroStarSystem must guard Black Hole persistence');
+});
+
 
 

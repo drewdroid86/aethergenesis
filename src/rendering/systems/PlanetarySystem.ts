@@ -47,6 +47,12 @@ void main() {
 `;
 
 const PLANET_FS = `
+#ifdef GL_FRAGMENT_PRECISION_HIGH
+precision highp float;
+#else
+precision mediump float;
+#endif
+
 uniform float uTime;
 varying vec2 vUv;
 varying vec3 vNormal;
@@ -121,39 +127,137 @@ float snoise(vec3 v){
                                 dot(p2,x2), dot(p3,x3) ) );
 }
 
+// 3-octave FBM for rich planetary continents, mountain chains, and cloud decks
+float pFbm(vec3 p) {
+    return snoise(p) * 0.55 + snoise(p * 2.15 + vec3(17.3, -9.1, 13.7)) * 0.30 + snoise(p * 4.5 + vec3(-11.2, 23.4, -7.8)) * 0.15;
+}
+
 void main() {
     vec3 color = vec3(0.0);
     float type = floor(vType + 0.5);
-    vec3 p = vPosition * 2.5 + vSeed + uTime * 0.1;
-    float n = snoise(p);
+    vec3 p = vPosition * 2.5 + vSeed + uTime * 0.06;
+    float n = pFbm(p);
+    float detailN = snoise(p * 5.5);
 
-    if (type == 0.0) { // Rocky
-        color = mix(vec3(0.4, 0.35, 0.3), vec3(0.6, 0.6, 0.6), n);
-        color *= 1.0 - 0.2 * abs(snoise(p * 6.0)); // Crater-like noise
-    } else if (type == 1.0) { // Gas Giant
-        float bands = snoise(vec3(0.0, vPosition.y * 10.0, 0.0) + vSeed);
-        color = mix(vec3(0.8, 0.5, 0.2), vec3(0.95, 0.9, 0.8), bands * 0.5 + 0.5);
-        color = mix(color, vec3(0.7, 0.5, 0.4), snoise(p * 1.5) * 0.2);
-    } else if (type == 2.0) { // Ice
-        color = mix(vec3(0.75, 0.9, 1.0), vec3(1.0, 1.0, 1.0), n);
-        float cracks = abs(snoise(p * 4.0));
-        if (cracks > 0.75) color = mix(color, vec3(0.5, 0.75, 0.95), (cracks - 0.75) * 2.0);
-    } else if (type == 3.0) { // Lava
-        color = vec3(0.12, 0.08, 0.08);
-        float lava = snoise(p * 2.5 + uTime * 0.2);
-        if (lava > 0.4) color = mix(color, vec3(1.0, 0.35, 0.0), (lava - 0.4) * 4.0);
-    } else if (type == 4.0) { // Ocean
-        color = mix(vec3(0.0, 0.1, 0.5), vec3(0.0, 0.25, 0.65), n);
-        float clouds = snoise(p * 2.0 + uTime * 0.5);
-        color = mix(color, vec3(1.0, 1.0, 1.0), smoothstep(0.45, 0.75, clouds));
-    } else if (type == 5.0) { // Desert
-        color = mix(vec3(0.9, 0.5, 0.2), vec3(0.7, 0.3, 0.1), n);
-        float dunes = snoise(vec3(vPosition.x * 18.0, vPosition.y * 2.0, vPosition.z * 18.0));
-        color *= 0.88 + 0.12 * dunes;
-    } else if (type == 6.0) { // Jungle
-        color = mix(vec3(0.05, 0.35, 0.05), vec3(0.1, 0.55, 0.1), n);
-        float water = snoise(p * 1.5);
-        if (water < -0.2) color = vec3(0.0, 0.25, 0.5);
+    float bumpAmp = 0.12;
+    float specStrength = 0.0;
+    float specPower = 36.0;
+    vec3 atmoColor = vec3(0.35, 0.65, 1.0);
+    float atmoStrength = 0.45;
+    float lavaGlow = 0.0;
+
+    if (type == 0.0) { // Rocky (Lunar / Mercury / Mars-like highland & mare basins)
+        float mare = smoothstep(-0.25, 0.25, n);
+        vec3 highlandCol = mix(vec3(0.48, 0.41, 0.35), vec3(0.68, 0.63, 0.58), smoothstep(0.0, 0.7, n));
+        vec3 mareCol = vec3(0.24, 0.21, 0.19);
+        color = mix(mareCol, highlandCol, mare);
+        // Multi-scale crater rings and ejecta rays
+        float craters = abs(snoise(p * 5.0)) * 0.65 + abs(snoise(p * 11.0)) * 0.35;
+        color *= 0.80 + 0.28 * craters;
+        bumpAmp = 0.22;
+        atmoColor = vec3(0.75, 0.62, 0.48);
+        atmoStrength = 0.22;
+    } else if (type == 1.0) { // Gas Giant (Jovian / Saturnian banded zonal jets & storm ovals)
+        float warp = pFbm(vPosition * 3.2 + vSeed * 0.5 + vec3(uTime * 0.08, 0.0, 0.0));
+        float lat = vPosition.y * 11.0 + warp * 1.65;
+        float jetBands = sin(lat) * 0.5 + 0.5;
+        float fineBelts = sin(lat * 2.7 + warp * 2.2) * 0.5 + 0.5;
+        vec3 zoneCol = vec3(0.96, 0.90, 0.78);
+        vec3 beltCol = vec3(0.76, 0.44, 0.20);
+        vec3 deepBeltCol = vec3(0.52, 0.26, 0.14);
+        color = mix(beltCol, zoneCol, smoothstep(0.2, 0.8, jetBands));
+        color = mix(color, deepBeltCol, smoothstep(0.65, 0.95, fineBelts) * 0.55);
+        // Anticyclonic storm vortex (Great Red Spot analog)
+        vec3 stormCenter = normalize(vec3(cos(vSeed), -0.28, sin(vSeed)));
+        float stormDist = length(normalize(vPosition) - stormCenter);
+        float stormMask = 1.0 - smoothstep(0.10, 0.24, stormDist);
+        float stormSwirl = sin(stormDist * 45.0 - uTime * 1.5 + warp * 4.0) * 0.5 + 0.5;
+        color = mix(color, mix(vec3(0.88, 0.26, 0.10), vec3(1.0, 0.68, 0.45), stormSwirl * 0.5), stormMask * 0.85);
+        bumpAmp = 0.06;
+        atmoColor = vec3(0.95, 0.78, 0.50);
+        atmoStrength = 0.50;
+    } else if (type == 2.0) { // Ice (Europa / Enceladus subsurface ocean & tectonic linea)
+        color = mix(vec3(0.65, 0.85, 0.98), vec3(0.96, 0.99, 1.0), smoothstep(-0.3, 0.5, n));
+        float linea1 = 1.0 - smoothstep(0.0, 0.14, abs(snoise(p * 3.8)));
+        float linea2 = 1.0 - smoothstep(0.0, 0.10, abs(snoise(p * 7.5 + 4.2)));
+        float cracks = clamp(linea1 + linea2 * 0.6, 0.0, 1.0);
+        color = mix(color, vec3(0.28, 0.58, 0.82), cracks * 0.75);
+        bumpAmp = 0.16;
+        specStrength = 0.65;
+        specPower = 56.0;
+        atmoColor = vec3(0.55, 0.88, 1.0);
+        atmoStrength = 0.52;
+    } else if (type == 3.0) { // Lava (Tidal-flexed molten magma world)
+        vec3 crustCol = mix(vec3(0.09, 0.06, 0.06), vec3(0.18, 0.12, 0.10), smoothstep(-0.3, 0.4, detailN));
+        float fissure = pFbm(p * 2.2 + uTime * 0.15);
+        float magmaMask = smoothstep(0.12, 0.48, fissure);
+        float coreHot = smoothstep(0.35, 0.65, fissure);
+        vec3 magmaCol = mix(vec3(0.95, 0.22, 0.0), vec3(1.0, 0.92, 0.35), coreHot);
+        color = mix(crustCol, magmaCol, magmaMask);
+        lavaGlow = magmaMask * (0.65 + 0.35 * coreHot);
+        bumpAmp = 0.18 * (1.0 - magmaMask);
+        atmoColor = vec3(1.0, 0.38, 0.08);
+        atmoStrength = 0.55;
+    } else if (type == 4.0) { // Ocean / Earth-like (Bathymetry, continents, polar caps & clouds)
+        float elev = n + detailN * 0.18;
+        bool isLand = elev > 0.18;
+        if (!isLand) {
+            float shelf = smoothstep(-0.25, 0.18, elev);
+            color = mix(vec3(0.01, 0.08, 0.32), vec3(0.04, 0.36, 0.62), shelf);
+            specStrength = 0.85;
+            specPower = 48.0;
+            bumpAmp = 0.03;
+        } else {
+            float landH = clamp((elev - 0.18) / 0.6, 0.0, 1.0);
+            vec3 lowland = vec3(0.16, 0.42, 0.14);
+            vec3 highland = vec3(0.48, 0.40, 0.28);
+            vec3 snowPeak = vec3(0.95, 0.97, 1.0);
+            color = mix(lowland, highland, smoothstep(0.0, 0.55, landH));
+            color = mix(color, snowPeak, smoothstep(0.60, 0.92, landH));
+            bumpAmp = 0.18;
+        }
+        // Polar ice caps
+        float polar = smoothstep(0.68, 0.86, abs(vPosition.y) + n * 0.12);
+        color = mix(color, vec3(0.94, 0.98, 1.0), polar);
+        // Swirling cyclonic cloud deck
+        vec3 cloudPos = vPosition * 3.0 + vSeed * 0.3 + vec3(uTime * 0.12, uTime * 0.04, 0.0);
+        float clouds = pFbm(cloudPos + vec3(snoise(cloudPos * 1.5) * 0.4));
+        float cloudAlpha = smoothstep(0.15, 0.62, clouds);
+        color = mix(color, vec3(0.98, 0.99, 1.0), cloudAlpha * 0.78);
+        specStrength *= (1.0 - cloudAlpha * 0.85);
+        atmoColor = vec3(0.28, 0.65, 1.0);
+        atmoStrength = 0.68;
+    } else if (type == 5.0) { // Desert (Arid dune seas & iron-oxide canyons)
+        float dunes = sin(vPosition.x * 22.0 + vPosition.z * 18.0 + n * 6.0) * 0.5 + 0.5;
+        vec3 sandLight = vec3(0.92, 0.58, 0.28);
+        vec3 sandDark  = vec3(0.64, 0.28, 0.10);
+        vec3 canyonRock = vec3(0.38, 0.16, 0.07);
+        color = mix(sandDark, sandLight, smoothstep(-0.3, 0.45, n));
+        color = mix(color, canyonRock, smoothstep(0.35, 0.65, abs(detailN)) * 0.5);
+        color *= 0.88 + 0.14 * dunes;
+        bumpAmp = 0.18;
+        atmoColor = vec3(0.95, 0.62, 0.32);
+        atmoStrength = 0.48;
+    } else if (type == 6.0) { // Jungle / Super-Earth (Lush archipelago & emerald canopy)
+        float water = n + detailN * 0.15;
+        if (water < -0.12) {
+            float reef = smoothstep(-0.42, -0.12, water);
+            color = mix(vec3(0.01, 0.14, 0.38), vec3(0.05, 0.52, 0.58), reef);
+            specStrength = 0.80;
+            specPower = 44.0;
+            bumpAmp = 0.03;
+        } else {
+            vec3 deepForest = vec3(0.04, 0.30, 0.08);
+            vec3 brightCanopy = vec3(0.16, 0.58, 0.14);
+            color = mix(deepForest, brightCanopy, smoothstep(-0.12, 0.45, water));
+            bumpAmp = 0.15;
+        }
+        float clouds = pFbm(vPosition * 3.2 + vSeed * 0.4 + uTime * 0.10);
+        float cloudAlpha = smoothstep(0.22, 0.68, clouds);
+        color = mix(color, vec3(0.95, 0.99, 0.97), cloudAlpha * 0.55);
+        specStrength *= (1.0 - cloudAlpha * 0.8);
+        atmoColor = vec3(0.22, 0.82, 0.68);
+        atmoStrength = 0.62;
     }
 
     // Red Giant scorch: progressively override toward molten/incinerated surface
@@ -170,23 +274,53 @@ void main() {
         float crack = smoothstep(0.55, 0.75, lava);
         scorchedColor = mix(scorchedColor, mix(vec3(1.0, 0.4, 0.0), vec3(1.0, 0.9, 0.3), crack), min(lateScorch * crack * 2.0, 1.0));
         color = mix(color, scorchedColor, vScorch);
+        specStrength *= (1.0 - vScorch);
+        atmoColor = mix(atmoColor, vec3(1.0, 0.35, 0.05), vScorch);
     }
 
     // Biomass overlay (suppressed by scorch)
     float biomassAlive = vBiomass * max(0.0, 1.0 - vScorch * 3.0);
     if (biomassAlive > 0.0 && type != 1.0 && type != 3.0) {
-        color = mix(color, vec3(0.1, 0.6, 0.2), biomassAlive * 0.4 * n);
+        color = mix(color, vec3(0.1, 0.6, 0.2), biomassAlive * 0.4 * clamp(n * 0.5 + 0.5, 0.0, 1.0));
     }
 
-    // Lighting
-    float diff = max(dot(normalize(vNormal), vLightDir), 0.1);
-    // During scorch, magma self-illuminates slightly
-    float selfEmit = vScorch * snoise(p * 2.5 + uTime * 0.15) * 0.3;
+    // Procedural 3D relief normal perturbation (finite-difference tangent gradient)
+    vec3 N_smooth = normalize(vNormal);
+    float hx = snoise(p * 3.0 + vec3(0.06, 0.0, 0.0));
+    float hy = snoise(p * 3.0 + vec3(0.0, 0.06, 0.0));
+    float hz = snoise(p * 3.0 + vec3(0.0, 0.0, 0.06));
+    vec3 gradH = vec3(hx - detailN, hy - detailN, hz - detailN);
+    gradH -= N_smooth * dot(gradH, N_smooth);
+    vec3 N = normalize(N_smooth - gradH * bumpAmp);
+
+    // Star direction and view direction for physically-inspired illumination
+    vec3 starDir = normalize(u_starPosition - vWorldPosition);
+    vec3 viewDir = normalize(cameraPosition - vWorldPosition);
+    float dayFactor = dot(N_smooth, starDir);
+    float bumpedDiff = max(dot(N, starDir), 0.0);
+    // Smooth terminator wrap for atmospheric worlds + ambient starlight floor
+    float diff = max(mix(max(dayFactor, 0.0), bumpedDiff, 0.75), 0.06);
+
+    // During scorch or on Lava worlds, incandescent magma self-illuminates on the nightside
+    float selfEmit = max(lavaGlow, vScorch * (snoise(p * 2.5 + uTime * 0.15) * 0.3 + 0.25));
     vec3 finalColor = color * max(diff, selfEmit);
+
+    // Blinn-Phong solar sunglint on liquid oceans and glacial ice sheets
+    if (specStrength > 0.01 && dayFactor > 0.0) {
+        vec3 halfVec = normalize(starDir + viewDir);
+        float spec = pow(max(dot(N, halfVec), 0.0), specPower) * specStrength * smoothstep(0.0, 0.25, dayFactor);
+        finalColor += vec3(1.0, 0.96, 0.88) * spec * 0.65;
+    }
+
+    // Rayleigh atmospheric Fresnel rim scattering + warm sunset terminator twilight
+    float fresnel = pow(1.0 - max(dot(N_smooth, viewDir), 0.0), 2.8);
+    float dayAtmo = smoothstep(-0.28, 0.45, dayFactor);
+    float twilight = smoothstep(-0.24, 0.04, dayFactor) * (1.0 - smoothstep(0.04, 0.32, dayFactor));
+    vec3 twilightCol = vec3(1.0, 0.42, 0.12);
+    vec3 rimLight = mix(atmoColor, twilightCol, twilight * 0.65) * fresnel * dayAtmo * atmoStrength;
+    finalColor += rimLight;
     
     // Night side masking
-    vec3 starDir = normalize(u_starPosition - vWorldPosition);
-    float dayFactor = dot(normalize(vNormal), starDir);
     float nightMask = 1.0 - smoothstep(-0.1, 0.2, dayFactor);
     
     // City lights (Kardashev Type I+) — extinguished by scorch
@@ -212,6 +346,78 @@ void main() {
     }
 
     gl_FragColor = vec4(finalColor, uOpacity);
+}
+`;
+
+const PLANET_RING_VS = `
+attribute float planetSeed;
+attribute float scorch;
+varying vec3 vLocalPos;
+varying vec3 vWorldPosition;
+varying float vSeed;
+varying float vScorch;
+varying vec3 vPlanetCenterWorld;
+varying float vRingScale;
+
+void main() {
+    vLocalPos = position;
+    vSeed = planetSeed;
+    vScorch = scorch;
+    vec4 worldPos = modelMatrix * instanceMatrix * vec4(position, 1.0);
+    vWorldPosition = worldPos.xyz;
+    vPlanetCenterWorld = (modelMatrix * instanceMatrix * vec4(0.0, 0.0, 0.0, 1.0)).xyz;
+    vRingScale = length(vec3(instanceMatrix[0][0], instanceMatrix[0][1], instanceMatrix[0][2]));
+    gl_Position = projectionMatrix * viewMatrix * worldPos;
+}
+`;
+
+const PLANET_RING_FS = `
+#ifdef GL_FRAGMENT_PRECISION_HIGH
+precision highp float;
+#else
+precision mediump float;
+#endif
+
+varying vec3 vLocalPos;
+varying vec3 vWorldPosition;
+varying float vSeed;
+varying float vScorch;
+varying vec3 vPlanetCenterWorld;
+varying float vRingScale;
+uniform vec3 u_starPosition;
+uniform float uOpacity;
+
+void main() {
+    if (vRingScale < 0.001) discard;
+    float dist = length(vLocalPos.xz);
+    // Normalized radial coordinate across ring (1.38 .. 2.45)
+    float r = clamp((dist - 1.38) / (2.45 - 1.38), 0.0, 1.0);
+
+    // Concentric ringlets + Cassini & Encke division gaps
+    float ringlets = sin(r * 68.0 + vSeed) * 0.35 + sin(r * 150.0 - vSeed * 2.0) * 0.20 + 0.55;
+    float cassiniGap = 1.0 - (smoothstep(0.46, 0.50, r) * (1.0 - smoothstep(0.54, 0.58, r)) * 0.88);
+    float enckeGap = 1.0 - (smoothstep(0.80, 0.82, r) * (1.0 - smoothstep(0.83, 0.85, r)) * 0.70);
+    float edgeFade = smoothstep(0.0, 0.08, r) * (1.0 - smoothstep(0.88, 1.0, r));
+
+    vec3 innerRingCol = vec3(0.92, 0.82, 0.66);
+    vec3 outerRingCol = vec3(0.74, 0.82, 0.90);
+    vec3 ringCol = mix(innerRingCol, outerRingCol, smoothstep(0.15, 0.85, r));
+    ringCol = mix(ringCol, vec3(0.45, 0.15, 0.05), vScorch);
+
+    // Cylindrical planetary shadow cast across the back of the ring
+    vec3 toStar = normalize(u_starPosition - vPlanetCenterWorld);
+    vec3 fragOffset = vWorldPosition - vPlanetCenterWorld;
+    float alongStar = dot(fragOffset, toStar);
+    float perpDist = length(fragOffset - toStar * alongStar);
+    float shadow = 1.0;
+    if (alongStar < 0.0) {
+        shadow = smoothstep(vRingScale * 0.88, vRingScale * 1.05, perpDist);
+    }
+
+    float density = clamp(ringlets * cassiniGap * enckeGap * edgeFade, 0.0, 1.0);
+    vec3 finalCol = ringCol * (0.18 + 0.82 * shadow);
+    float alpha = density * 0.68 * (1.0 - vScorch * 0.85) * uOpacity;
+    gl_FragColor = vec4(finalCol, alpha);
 }
 `;
 
@@ -245,6 +451,8 @@ function hashString(str: string): number {
 
 export class PlanetarySystem {
     private instancedMesh: THREE.InstancedMesh;
+    private ringInstancedMesh: THREE.InstancedMesh;
+    private ringMaterial: THREE.ShaderMaterial;
     public bodies: {
         scale: number;
         type: number;
@@ -509,8 +717,28 @@ export class PlanetarySystem {
         geometry.setAttribute('biomass', this.biomassAttr);
         geometry.setAttribute('civilizationTier', this.civAttr);
         geometry.setAttribute('scorch', this.scorchAttr);
+
+        const ringGeometry = GEOMETRIES.planetRing.clone();
+        ringGeometry.setAttribute('planetSeed', this.seedAttr);
+        ringGeometry.setAttribute('scorch', this.scorchAttr);
+        this.ringMaterial = new THREE.ShaderMaterial({
+            uniforms: {
+                u_starPosition: this.material.uniforms.u_starPosition,
+                uOpacity: this.material.uniforms.uOpacity
+            },
+            transparent: true,
+            depthWrite: false,
+            side: THREE.DoubleSide,
+            vertexShader: PLANET_RING_VS,
+            fragmentShader: PLANET_RING_FS
+        });
+        this.ringMaterial.name = 'InstancedPlanetaryRingMaterial';
+        this.ringMaterial.customProgramCacheKey = () => 'planetary_ring_material';
+        this.ringInstancedMesh = new THREE.InstancedMesh(ringGeometry, this.ringMaterial, numBodies);
+        this.ringInstancedMesh.count = 0;
         
         this.group.add(this.instancedMesh);
+        this.group.add(this.ringInstancedMesh);
         this.group.add(this.orbitLinesGroup);
     }
     
@@ -549,6 +777,7 @@ export class PlanetarySystem {
         this.parent.getWorldPosition(this.material.uniforms.u_starPosition.value);
         
         const matrixArray = this.instancedMesh.instanceMatrix.array;
+        const ringMatrixArray = this.ringInstancedMesh.instanceMatrix.array;
         const scorchArray = this.scorchAttr.array as Float32Array;
         const typeArray = this.typeAttr.array as Float32Array;
         const seedArray = this.seedAttr.array as Float32Array;
@@ -641,6 +870,7 @@ export class PlanetarySystem {
                 const po = this.proceduralOrbits[i];
                 bScale = po.scale;
                 bSeed = po.seed;
+                bType = po.type;
                 const theta = po.phaseOffset + appTime * po.baseOmega * this.orbitSpeedScale;
                 const r = po.semiMajorAxis_au * 12.0;
                 x = Math.cos(theta) * r;
@@ -696,10 +926,42 @@ export class PlanetarySystem {
             matrixArray[offset + 13] = y;
             matrixArray[offset + 14] = z;
             matrixArray[offset + 15] = 1;
+
+            // Planetary ring matrix (Gas Giants + ~33% of Ice Worlds)
+            const hasRing = bType === 1 || (bType === 2 && (Math.floor(bSeed * 10.0) % 3 === 0));
+            const rs = hasRing ? s : 0.0;
+            const tiltX = 0.32 + Math.sin(bSeed * 1.7) * 0.18;
+            const tiltZ = Math.cos(bSeed * 2.3) * 0.22;
+            const cx = Math.cos(tiltX);
+            const sx = Math.sin(tiltX);
+            const cz = Math.cos(tiltZ);
+            const sz = Math.sin(tiltZ);
+
+            ringMatrixArray[offset + 0] = rs * cz;
+            ringMatrixArray[offset + 1] = rs * cx * sz;
+            ringMatrixArray[offset + 2] = rs * sx * sz;
+            ringMatrixArray[offset + 3] = 0;
+
+            ringMatrixArray[offset + 4] = -rs * sz;
+            ringMatrixArray[offset + 5] = rs * cx * cz;
+            ringMatrixArray[offset + 6] = rs * sx * cz;
+            ringMatrixArray[offset + 7] = 0;
+
+            ringMatrixArray[offset + 8] = 0;
+            ringMatrixArray[offset + 9] = -rs * sx;
+            ringMatrixArray[offset + 10] = rs * cx;
+            ringMatrixArray[offset + 11] = 0;
+
+            ringMatrixArray[offset + 12] = x;
+            ringMatrixArray[offset + 13] = y;
+            ringMatrixArray[offset + 14] = z;
+            ringMatrixArray[offset + 15] = 1;
         }
 
         this.instancedMesh.instanceMatrix.needsUpdate = true;
         this.instancedMesh.count = numBodies;
+        this.ringInstancedMesh.instanceMatrix.needsUpdate = true;
+        this.ringInstancedMesh.count = numBodies;
         if (scorchDirty) {
             this.scorchAttr.needsUpdate = true;
         }
@@ -723,6 +985,8 @@ export class PlanetarySystem {
         this.material.dispose();
         // BOLT: Cloned geometry must be disposed to avoid memory leaks
         this.instancedMesh.geometry.dispose();
+        this.ringMaterial.dispose();
+        this.ringInstancedMesh.geometry.dispose();
 
         for (const child of this.orbitLinesGroup.children) {
             if (child instanceof THREE.LineLoop && child.geometry) {

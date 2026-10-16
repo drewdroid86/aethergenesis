@@ -78,7 +78,7 @@ export class MainSequencePhase implements PhaseComponent {
                 uHbar: { value: 1.0 },
                 uLowDetail: { value: 0.0 }
             },
-            transparent: true, blending: THREE.AdditiveBlending
+            transparent: true, blending: THREE.NormalBlending
         });
         this.starMat.name = 'MainSequenceStarMaterial';
         this.starMat.customProgramCacheKey = () => 'main_sequence_star_material';
@@ -116,7 +116,7 @@ export class MainSequencePhase implements PhaseComponent {
         this.mainSeqGroup.add(haloMesh);
         this.mainSeqGroup.add(this.coronaMesh);
         
-        // Solar Flares
+        // Solar Flares / Magnetic Prominence Loops
         const flareGeo = GEOMETRIES.flare;
         this.flareMat = new THREE.ShaderMaterial({
             uniforms: {
@@ -137,9 +137,13 @@ export class MainSequencePhase implements PhaseComponent {
                 uniform float uOpacity;
                 varying vec2 vUv;
                 void main() {
-                    float alpha = (sin(uTime * 2.0 + vUv.x * 10.0) * 0.5 + 0.5) * uOpacity;
-                    alpha *= sin(vUv.x * 3.14159);
-                    gl_FragColor = vec4(uColor, alpha);
+                    float archEnv = sin(vUv.x * 3.14159265);
+                    float tubeCore = pow(max(0.0, sin(vUv.y * 3.14159265)), 1.6);
+                    float plasmaStream = sin(vUv.x * 14.0 - uTime * 3.5) * 0.35 + 0.65;
+                    float fineKnots = sin(vUv.x * 28.0 + uTime * 5.0) * 0.2 + 0.8;
+                    float intensity = archEnv * tubeCore * plasmaStream * fineKnots;
+                    vec3 hotCol = mix(uColor * 1.2, vec3(1.0, 0.96, 0.88), tubeCore * 0.55);
+                    gl_FragColor = vec4(hotCol, intensity * uOpacity);
                 }
             `,
             transparent: true,
