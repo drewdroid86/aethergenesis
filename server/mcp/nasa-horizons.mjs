@@ -1,6 +1,11 @@
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js';
+import {
+  parseOrbitalElements,
+  horizonsRecordMatchesRequest,
+  parseHorizonsIndexCandidates,
+} from '../shared/horizonsParser.mjs';
 
 // Initialize the server
 const server = new Server(
@@ -32,7 +37,8 @@ async function fetchWithTimeout(url, timeout = 10000) {
 }
 
 /**
- * Helper to fetch from Horizons, with automatic disambiguation for comets/asteroids index lists.
+ * Helper to fetch from Horizons, with automatic disambiguation for comets/asteroids index lists
+ * and wrong-body validation (e.g. preventing '1P' from resolving to 'Kerberos (904)').
  */
 async function fetchHorizons(url, bodyId) {
   const response = await fetchWithTimeout(url);
@@ -46,118 +52,99 @@ async function fetchHorizons(url, bodyId) {
     throw new Error(data.error || 'No result returned from Horizons API');
   }
 
+  const baseUrlObj = new URL(url);
+  const startTimeParam = baseUrlObj.searchParams.get('START_TIME') || '2000-01-01';
+  const queryYear = parseInt(startTimeParam.substring(0, 4), 10);
+  const epochCloseness = (c) =>
+    c.epochYear === null || Number.isNaN(queryYear) ? Number.MAX_SAFE_INTEGER : Math.abs(c.epochYear - queryYear);
+
+  let resultText = data.result;
+  let finalUrl = url;
+
   // If result is search list (no $$SOE markers)
-  if (!data.result.includes('$$SOE')) {
-    const lines = data.result.split('\n');
-    const recordNumbers = [];
-    for (const line of lines) {
-      const match = line.trim().match(/^(\d+)\s+(-?\d+)\s+/);
-      if (match) {
-        recordNumbers.push(match[1]);
-      }
-    }
-
-    if (recordNumbers.length > 0) {
-      // Pick the last record (usually the most recent apparition or primary solution)
-      const bestRecord = recordNumbers[recordNumbers.length - 1];
-      console.error(`Ambiguous body_id "${bodyId}". Selected record "${bestRecord}" from search results.`);
-      console.error(`Original URL: ${url}`);
-      
-      const urlObj = new URL(url);
-      urlObj.searchParams.set('COMMAND', `'${bestRecord};'`);
-      const newUrl = urlObj.toString();
-      
-      console.error(`Retry URL: ${newUrl}`);
-
-      const retryResponse = await fetchWithTimeout(newUrl);
-      if (retryResponse.status !== 200) {
-        throw new Error(`JPL Horizons returned status ${retryResponse.status} on retry`);
-      }
-      const retryData = await retryResponse.json();
-      if (retryData.error || !retryData.result) {
-        throw new Error(retryData.error || 'No result returned after selecting unique record');
-      }
-      return { resultText: retryData.result, finalUrl: newUrl };
-    } else {
+  if (!resultText.includes('$$SOE')) {
+    const candidates = parseHorizonsIndexCandidates(resultText);
+    if (candidates.length === 0) {
       throw new Error('Ambiguous body_id and could not parse record numbers from search list');
     }
-  }
-
-  return { resultText: data.result, finalUrl: url };
-}
-
-/**
- * Parses plain-text elements block from JPL Horizons response.
- */
-function parseOrbitalElements(text) {
-  const soeIdx = text.indexOf('$$SOE');
-  const eoeIdx = text.indexOf('$$EOE');
-  if (soeIdx === -1 || eoeIdx === -1) {
-    throw new Error('Could not find $$SOE or $$EOE markers in Horizons response');
-  }
-  const dataBlock = text.substring(soeIdx + 5, eoeIdx).trim();
-
-  // Parse elements using word boundaries to prevent suffix collisions (e.g. TA vs A)
-  const ecMatch = dataBlock.match(/\bEC\s*=\s*([0-9E.+-]+)/i);
-  const qrMatch = dataBlock.match(/\bQR\s*=\s*([0-9E.+-]+)/i);
-  const inMatch = dataBlock.match(/\bIN\s*=\s*([0-9E.+-]+)/i);
-  const omMatch = dataBlock.match(/\bOM\s*=\s*([0-9E.+-]+)/i);
-  const wMatch = dataBlock.match(/\bW\s*=\s*([0-9E.+-]+)/i);
-  const maMatch = dataBlock.match(/\bMA\s*=\s*([0-9E.+-]+)/i);
-  const aMatch = dataBlock.match(/\bA\s*=\s*([0-9E.+-]+)/i);
-  const adMatch = dataBlock.match(/\bAD\s*=\s*([0-9E.+-]+)/i);
-  const prMatch = dataBlock.match(/\bPR\s*=\s*([0-9E.+-]+)/i);
-
-  const eccentricity = ecMatch ? parseFloat(ecMatch[1]) : 0;
-  let perihelion_au = qrMatch ? parseFloat(qrMatch[1]) : 0;
-  const inclination_deg = inMatch ? parseFloat(inMatch[1]) : 0;
-  const longitude_ascending_node_deg = omMatch ? parseFloat(omMatch[1]) : 0;
-  const argument_perihelion_deg = wMatch ? parseFloat(wMatch[1]) : 0;
-  const mean_anomaly_deg = maMatch ? parseFloat(maMatch[1]) : 0;
-
-  let semi_major_axis_au = aMatch ? parseFloat(aMatch[1]) : 0;
-  if (!semi_major_axis_au && eccentricity < 1) {
-    semi_major_axis_au = perihelion_au / (1 - eccentricity);
-  }
-
-  let aphelion_au = adMatch ? parseFloat(adMatch[1]) : 0;
-  if (!aphelion_au && eccentricity < 1) {
-    aphelion_au = semi_major_axis_au * (1 + eccentricity);
-  }
-
-  // Detect and convert from kilometers if values are extremely large (common for comets in ELEMENTS mode)
-  if (perihelion_au > 1000) {
-    const kmToAu = 149597870.7;
-    perihelion_au = perihelion_au / kmToAu;
-    semi_major_axis_au = semi_major_axis_au / kmToAu;
-    aphelion_au = aphelion_au / kmToAu;
-  }
-
-  let period_yr = null;
-  if (prMatch) {
-    // PR is usually in days, convert to years. If it's too large (e.g. in seconds), fall back to Kepler's 3rd Law.
-    const rawPr = parseFloat(prMatch[1]);
-    const parsedPrYr = rawPr / 365.25;
-    if (parsedPrYr > 10000 && eccentricity < 1 && semi_major_axis_au > 0) {
-      period_yr = Math.pow(semi_major_axis_au, 1.5);
-    } else {
-      period_yr = parsedPrYr;
+    const matching = candidates.filter((c) => horizonsRecordMatchesRequest(c.label, bodyId));
+    const distinctDesigs = Array.from(new Set(matching.map((c) => c.desigKey)));
+    if (matching.length > 0 && distinctDesigs.length > 1) {
+      throw new Error(`Ambiguous body "${bodyId}": multiple Horizons designations match the request`);
     }
-  } else if (eccentricity < 1 && semi_major_axis_au > 0) {
-    period_yr = Math.pow(semi_major_axis_au, 1.5);
+    const ordered = matching.length > 0
+      ? [...matching].sort((a, b) => epochCloseness(a) - epochCloseness(b))
+      : candidates;
+    const bestRecord = ordered[0].record;
+    console.error(`Ambiguous body_id "${bodyId}". Selected record "${bestRecord}" from search results.`);
+    console.error(`Original URL: ${url}`);
+
+    const urlObj = new URL(url);
+    urlObj.searchParams.set('COMMAND', `'${bestRecord};'`);
+    const newUrl = urlObj.toString();
+    console.error(`Retry URL: ${newUrl}`);
+
+    const retryResponse = await fetchWithTimeout(newUrl);
+    if (retryResponse.status !== 200) {
+      throw new Error(`JPL Horizons returned status ${retryResponse.status} on retry`);
+    }
+    const retryData = await retryResponse.json();
+    if (retryData.error || !retryData.result || !retryData.result.includes('$$SOE')) {
+      throw new Error(retryData.error || 'No result returned after selecting unique record');
+    }
+    resultText = retryData.result;
+    finalUrl = newUrl;
   }
 
-  return {
-    semi_major_axis_au,
-    eccentricity,
-    inclination_deg,
-    longitude_ascending_node_deg,
-    argument_perihelion_deg,
-    mean_anomaly_deg,
-    period_yr,
-    aphelion_au,
-    perihelion_au,
-  };
+  const nameMatch = resultText.match(/Target body name:\s*([^\n\r{]*)/i);
+  const bodyName = nameMatch ? nameMatch[1].trim() : bodyId;
+
+  // Wrong-body guard: COMMAND='1P' can resolve directly to 'Kerberos (904)'.
+  // Retry via the small-body index search form (trailing ';') and pick the
+  // unambiguous designation match closest to the requested epoch.
+  if (!horizonsRecordMatchesRequest(bodyName, bodyId)) {
+    const indexUrlObj = new URL(url);
+    indexUrlObj.searchParams.set('COMMAND', `'${bodyId};'`);
+    const indexUrl = indexUrlObj.toString();
+    const indexRes = await fetchWithTimeout(indexUrl);
+    if (indexRes.status !== 200) {
+      throw new Error(`Horizons returned '${bodyName}' which does not match requested body '${bodyId}'`);
+    }
+    const indexData = await indexRes.json();
+    const indexCandidates = indexData && !indexData.error && indexData.result
+      ? parseHorizonsIndexCandidates(indexData.result)
+      : [];
+    const matching = indexCandidates.filter((c) => horizonsRecordMatchesRequest(c.label, bodyId));
+    const distinctDesigs = Array.from(new Set(matching.map((c) => c.desigKey)));
+    if (matching.length === 0 || distinctDesigs.length !== 1) {
+      throw new Error(
+        matching.length === 0
+          ? `Horizons returned '${bodyName}' which does not match requested body '${bodyId}', and index search found no match`
+          : `Ambiguous body '${bodyId}': multiple Horizons designations match the request`
+      );
+    }
+    const ordered = [...matching].sort((a, b) => epochCloseness(a) - epochCloseness(b));
+    const recordUrlObj = new URL(url);
+    recordUrlObj.searchParams.set('COMMAND', `'${ordered[0].record};'`);
+    const recordUrl = recordUrlObj.toString();
+    const recordRes = await fetchWithTimeout(recordUrl);
+    if (recordRes.status !== 200) {
+      throw new Error(`JPL Horizons returned status ${recordRes.status} on retry`);
+    }
+    const recordData = await recordRes.json();
+    if (recordData.error || !recordData.result || !recordData.result.includes('$$SOE')) {
+      throw new Error(`Ambiguous body or no records found for '${bodyId}'`);
+    }
+    const retryNameMatch = recordData.result.match(/Target body name:\s*([^\n\r{]*)/i);
+    const retryBodyName = retryNameMatch ? retryNameMatch[1].trim() : bodyId;
+    if (!horizonsRecordMatchesRequest(retryBodyName, bodyId)) {
+      throw new Error(`Horizons returned '${retryBodyName}' which does not match requested body '${bodyId}'`);
+    }
+    resultText = recordData.result;
+    finalUrl = recordUrl;
+  }
+
+  return { resultText, finalUrl };
 }
 
 /**

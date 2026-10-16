@@ -42,26 +42,6 @@ export function AetherGenesis() {
     };
   }, []);
 
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      const active = document.activeElement;
-      if (active && (
-        active.tagName === 'INPUT' ||
-        active.tagName === 'TEXTAREA' ||
-        (active as HTMLElement).isContentEditable
-      )) {
-        return;
-      }
-      if (e.key === 'n' || e.key === 'N') {
-        setShowNavDeck(prev => !prev);
-      }
-      if (e.key === 'Escape') {
-        setHudVisible(prev => !prev);
-      }
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, []);
   const {
     selectedStar,
     setSelectedStar,
@@ -106,6 +86,35 @@ export function AetherGenesis() {
     astrobiologyData,
     engineRef
   } = useSimulation(mountRef);
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const active = document.activeElement;
+      if (active && (
+        active.tagName === 'INPUT' ||
+        active.tagName === 'TEXTAREA' ||
+        (active as HTMLElement).isContentEditable ||
+        active.closest('[contenteditable="true"]')
+      )) {
+        return;
+      }
+      if (e.ctrlKey || e.metaKey || e.altKey || e.shiftKey) return;
+      if (e.key === 'n' || e.key === 'N') {
+        setShowNavDeck(prev => !prev);
+      }
+      if (e.key === 'Escape') {
+        if (hudVisible && (isCatalogOpen || selectedStar !== null || isConstantsOpen)) {
+          if (isCatalogOpen) setIsCatalogOpen(false);
+          if (selectedStar !== null) setSelectedStar(null);
+          if (isConstantsOpen) setIsConstantsOpen(false);
+          return;
+        }
+        setHudVisible(prev => !prev);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [hudVisible, isCatalogOpen, selectedStar, isConstantsOpen, setIsCatalogOpen, setSelectedStar, setIsConstantsOpen]);
 
   if (fatalError) {
     return (

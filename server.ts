@@ -156,105 +156,11 @@ interface StarPreset {
 
 // @ts-expect-error missing types
 import { PRESETS as _PRESETS, estimateParams as _estimateParams } from "./server/shared/stellarCatalog.mjs";
+// @ts-expect-error missing types
+import { parseOrbitalElements as _parseOrbitalElements, horizonsRecordMatchesRequest as _horizonsRecordMatchesRequest, parseHorizonsIndexCandidates as _parseHorizonsIndexCandidates } from "./server/shared/horizonsParser.mjs";
 
 const PRESETS = _PRESETS as StarPreset[];
 const estimateParams = _estimateParams as (spType: string) => any;
-
-function parseOrbitalElements(text: string) {
-  const soeIdx = text.indexOf('$$SOE');
-  const eoeIdx = text.indexOf('$$EOE');
-  if (soeIdx === -1 || eoeIdx === -1) {
-    throw new Error('Could not find $$SOE or $$EOE markers in Horizons response');
-  }
-  const dataBlock = text.substring(soeIdx + 5, eoeIdx).trim();
-
-  const ecMatch = dataBlock.match(/\bEC\s*=\s*([0-9E.+-]+)/i);
-  const qrMatch = dataBlock.match(/\bQR\s*=\s*([0-9E.+-]+)/i);
-  const inMatch = dataBlock.match(/\bIN\s*=\s*([0-9E.+-]+)/i);
-  const omMatch = dataBlock.match(/\bOM\s*=\s*([0-9E.+-]+)/i);
-  const wMatch = dataBlock.match(/\bW\s*=\s*([0-9E.+-]+)/i);
-  const maMatch = dataBlock.match(/\bMA\s*=\s*([0-9E.+-]+)/i);
-  const aMatch = dataBlock.match(/\bA\s*=\s*([0-9E.+-]+)/i);
-  const adMatch = dataBlock.match(/\bAD\s*=\s*([0-9E.+-]+)/i);
-  const prMatch = dataBlock.match(/\bPR\s*=\s*([0-9E.+-]+)/i);
-
-  const eccentricity = ecMatch ? parseFloat(ecMatch[1]) : 0;
-  let perihelion_au = qrMatch ? parseFloat(qrMatch[1]) : 0;
-  const inclination_deg = inMatch ? parseFloat(inMatch[1]) : 0;
-  const longitude_ascending_node_deg = omMatch ? parseFloat(omMatch[1]) : 0;
-  const argument_perihelion_deg = wMatch ? parseFloat(wMatch[1]) : 0;
-  const mean_anomaly_deg = maMatch ? parseFloat(maMatch[1]) : 0;
-
-  let semi_major_axis_au = aMatch ? parseFloat(aMatch[1]) : 0;
-  if (!semi_major_axis_au && eccentricity < 1) {
-    semi_major_axis_au = perihelion_au / (1 - eccentricity);
-  }
-
-  let aphelion_au = adMatch ? parseFloat(adMatch[1]) : 0;
-  if (!aphelion_au && eccentricity < 1) {
-    aphelion_au = semi_major_axis_au * (1 + eccentricity);
-  }
-
-  if (perihelion_au > 1000) {
-    const kmToAu = 149597870.7;
-    perihelion_au = perihelion_au / kmToAu;
-    semi_major_axis_au = semi_major_axis_au / kmToAu;
-    aphelion_au = aphelion_au / kmToAu;
-  }
-
-  let period_yr = null;
-  if (prMatch) {
-    const rawPr = parseFloat(prMatch[1]);
-    const parsedPrYr = rawPr / 365.25;
-    if (parsedPrYr > 10000 && eccentricity < 1 && semi_major_axis_au > 0) {
-      period_yr = Math.pow(semi_major_axis_au, 1.5);
-    } else {
-      period_yr = parsedPrYr;
-    }
-  } else if (eccentricity < 1 && semi_major_axis_au > 0) {
-    period_yr = Math.pow(semi_major_axis_au, 1.5);
-  }
-
-  return {
-    semi_major_axis_au,
-    eccentricity,
-    inclination_deg,
-    longitude_ascending_node_deg,
-    argument_perihelion_deg,
-    mean_anomaly_deg,
-    period_yr,
-    aphelion_au,
-    perihelion_au,
-  };
-}
-
-/**
- * Wrong-body guard for JPL Horizons lookups.
- *
- * Horizons resolves COMMAND fuzzily, so a designation like '1P' can come back
- * as a multi-record disambiguation list (or even a directly-resolved unrelated
- * body). A returned record only corresponds to the request when its
- * designation/name matches the requested body_id case-insensitively, allowing
- * Horizons naming variants such as '1P/Halley' for a '1P' query.
- */
-function horizonsRecordMatchesRequest(targetName: string, requestedBodyId: string): boolean {
-  const record = targetName.toLowerCase();
-  const requested = requestedBodyId.trim().toLowerCase();
-  if (!requested) return false;
-  const escapeRegExp = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  // Boundary-aware containment in either direction: '1p' matches '1p/halley'
-  // but not '21p/...' (preceded by an alphanumeric) nor 'kerberos (904)'.
-  const boundaryContains = (haystack: string, needle: string) =>
-    new RegExp(`(^|[^a-z0-9])${escapeRegExp(needle)}([^a-z0-9]|$)`).test(haystack);
-  if (boundaryContains(record, requested)) return true;
-  if (boundaryContains(requested, record)) return true;
-  // Token overlap for multi-word names: any significant shared token, e.g.
-  // request 'halley' vs record '1p/halley'.
-  const tokens = (s: string) => s.split(/[^a-z0-9]+/).filter((t) => t.length >= 2);
-  const recordTokens = new Set(tokens(record));
-  if (recordTokens.size === 0) return false;
-  return tokens(requested).some((t) => recordTokens.has(t));
-}
 
 interface HorizonsIndexCandidate {
   record: string;
@@ -266,29 +172,24 @@ interface HorizonsIndexCandidate {
   epochYear: number | null;
 }
 
-/**
- * Parse DASTCOM small-body index rows ("<record> <epoch-yr> <match-desig> ...")
- * from a Horizons disambiguation listing.
- */
-function parseHorizonsIndexCandidates(resultText: string): HorizonsIndexCandidate[] {
-  const candidates: HorizonsIndexCandidate[] = [];
-  for (const line of resultText.split('\n')) {
-    const trimmed = line.trim();
-    if (!/^(\d+)\s+(-?\d+)\s+/.test(trimmed)) continue;
-    const tokens = trimmed.split(/\s+/);
-    const epochYear = tokens.length > 1 ? parseInt(tokens[1], 10) : NaN;
-    const desigKey = tokens.length > 4
-      ? `${tokens[2]}|${tokens[3]}|${tokens.slice(4).join(' ')}`.toLowerCase()
-      : trimmed.toLowerCase();
-    candidates.push({
-      record: tokens[0],
-      label: trimmed,
-      desigKey,
-      epochYear: Number.isNaN(epochYear) ? null : epochYear,
-    });
-  }
-  return candidates;
-}
+const parseOrbitalElements = _parseOrbitalElements as (text: string) => {
+  semi_major_axis_au: number;
+  eccentricity: number;
+  inclination_deg: number;
+  longitude_ascending_node_deg: number;
+  argument_perihelion_deg: number;
+  mean_anomaly_deg: number;
+  period_yr: number | null;
+  aphelion_au: number;
+  perihelion_au: number;
+};
+const horizonsRecordMatchesRequest = _horizonsRecordMatchesRequest as (
+  targetName: string,
+  requestedBodyId: string
+) => boolean;
+const parseHorizonsIndexCandidates = _parseHorizonsIndexCandidates as (
+  resultText: string
+) => HorizonsIndexCandidate[];
 
 app.get('/api/catalog/presets', (_req, res) => {
   res.json(PRESETS);

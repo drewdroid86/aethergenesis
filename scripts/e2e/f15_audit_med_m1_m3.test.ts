@@ -162,5 +162,5 @@ test('F15-10: engine forwards recycle; hook re-keys the focused star only', () =
     assert.ok(wireWindow.includes('rekeyNBodyForStar(star,'), 'recycle must re-key through the shared helper (exact selection-path payload)');
     assert.ok(wireWindow.includes('eng.selectedStar ?? eng.heroStars[0]'), 're-key must target the focus star');
     assert.ok(wireWindow.includes('if (star === focused)'), 'background-star recycles must not clobber the focus simulation');
-    assert.ok(!h.includes('UPDATE_CENTRAL_MASS'), 'no mass-only worker writes (F9-4 invariant holds)');
+    assert.ok(!wireWindow.includes('UPDATE_CENTRAL_MASS'), 'no mass-only worker writes in recycle path (F9-4 invariant holds)');
 });

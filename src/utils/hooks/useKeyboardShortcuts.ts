@@ -81,11 +81,6 @@ export function useKeyboardShortcuts({
                     e.preventDefault();
                     setTimeScale(prev => prev === 'cosmic' ? 'realtime' : 'cosmic');
                     break;
-                case 'Escape':
-                    selectedStarRef.current = null;
-                    setSelectedStar(null);
-                    setIsConstantsOpen(false);
-                    break;
             }
         };
 

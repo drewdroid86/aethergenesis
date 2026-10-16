@@ -249,10 +249,21 @@ self.onmessage = (e) => {
             console.warn('[nbody] UPDATE_TIMESTEP rejected: invalid dt_yr', payload.dt_yr);
         }
     } else if (type === 'UPDATE_CENTRAL_MASS') {
-        if (payload && typeof payload.centralMass_solar === 'number' && payload.centralMass_solar > 0) {
-            centralMass_solar = payload.centralMass_solar;
+        const nextMass = payload?.centralMass_solar ?? e.data?.centralMass_solar;
+        if (typeof nextMass === 'number' && Number.isFinite(nextMass) && nextMass > 0) {
+            if (centralMass_solar > 0 && Number.isFinite(centralMass_solar)) {
+                const vScale = Math.sqrt(nextMass / centralMass_solar);
+                for (let i = 0; i < bodies.length; i++) {
+                    const b = bodies[i];
+                    b.velocity_au_yr.x *= vScale;
+                    b.velocity_au_yr.y *= vScale;
+                    b.velocity_au_yr.z *= vScale;
+                }
+            }
+            centralMass_solar = nextMass;
             recomputeTMin();
             accelsValid = false;
+            emitBuffer();
         }
     } else if (type === 'RESET_BODIES') {
         const inboundReset = Array.isArray(payload.bodies) ? payload.bodies : [];
@@ -554,6 +565,11 @@ export function physicsTickInner() {
     // channel — never the UPDATE buffer. Event-only: no merge physics here.
     detectCollisions();
 
+    emitBuffer();
+}
+
+function emitBuffer(): void {
+    const n = bodies.length;
     // Pack state for rendering main thread
     const size = n * 7;
     if (bufferA.length !== size) {

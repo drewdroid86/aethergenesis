@@ -302,13 +302,14 @@ export class PlanetarySystem {
             if (slot >= this.bodies.length) break; // instanced capacity guard
             let visuals = this.visualsById.get(entry.id);
             if (!visuals) {
-                // First-seen id inherits the legacy index visual when one
-                // exists (pixel-identical continuity with the old
-                // index-mapped rendering); otherwise deterministic
-                // hash-derived defaults — no Math.random (determinism pass).
-                const legacy = this.bodies[i];
-                if (legacy) {
-                    visuals = { scale: legacy.scale, type: legacy.type, seed: legacy.seed };
+                // Only inherit procedural visuals when entry.id matches the
+                // preset pattern ('preset_body_' + i within proceduralOrbits);
+                // all spawned/catalog bodies use deterministic hash-derived
+                // visuals (never a random gas giant).
+                const isPresetSlot = entry.id === `preset_body_${i}` && i < this.proceduralOrbits.length;
+                const presetOrbit = isPresetSlot ? this.proceduralOrbits[i] : undefined;
+                if (presetOrbit) {
+                    visuals = { scale: presetOrbit.scale, type: presetOrbit.type, seed: presetOrbit.seed };
                 } else {
                     const h = hashString(entry.id);
                     visuals = {
@@ -331,7 +332,15 @@ export class PlanetarySystem {
                 }
             }
             this.slotById.set(entry.id, slot);
+            if (this.typeAttr && this.seedAttr) {
+                (this.typeAttr.array as Float32Array)[slot] = visuals.type;
+                (this.seedAttr.array as Float32Array)[slot] = visuals.seed;
+            }
             slot++;
+        }
+        if (this.typeAttr && this.seedAttr) {
+            this.typeAttr.needsUpdate = true;
+            this.seedAttr.needsUpdate = true;
         }
         // Retired ids vanish from slotById via the clear() above and their
         // slots compact away; their cached visuals restore the look if an id

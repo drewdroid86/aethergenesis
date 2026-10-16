@@ -279,3 +279,93 @@ test('F14-11: spawned ids render; retired ids compact away; star/BH TODO is mark
     const src = fs.readFileSync('src/rendering/systems/PlanetarySystem.ts', 'utf8');
     assert.ok(src.includes('TODO(spawn-phase)'), 'star/BH renderer hookup must stay a marked TODO');
 });
+
+// ─── AUD-01..AUD-04 Acceptance Tests ──────────────────────────────────
+
+test('AUD-01: Escape closes open panels/selection before toggling HUD; clear-screen restores HUD without deselecting', () => {
+    const comp = fs.readFileSync('src/components/AetherGenesis.tsx', 'utf8');
+    const shortcuts = fs.readFileSync('src/utils/hooks/useKeyboardShortcuts.ts', 'utf8');
+    assert.ok(
+        !shortcuts.includes("case 'Escape':"),
+        'competing Escape handler must be removed from useKeyboardShortcuts.ts'
+    );
+    assert.ok(
+        comp.includes('if (hudVisible && (isCatalogOpen || selectedStar !== null || isConstantsOpen))'),
+        'Escape when HUD is visible must close open panels/selection without hiding HUD'
+    );
+    assert.ok(
+        comp.includes('setHudVisible(prev => !prev)'),
+        'Escape with nothing open (or when restoring from clear-screen) must toggle hudVisible'
+    );
+});
+
+test('AUD-02: scrubbing a 10 M_sun star through supernova updates worker central mass with no negative semi-major axes', () => {
+    const hook = fs.readFileSync('src/utils/hooks/useSimulation.ts', 'utf8');
+    assert.ok(hook.includes('lastSyncedWorkerMassRef'), 'useSimulation must track lastSyncedWorkerMassRef');
+    assert.ok(hook.includes("type: 'UPDATE_CENTRAL_MASS'"), 'coordinator.onTick must post UPDATE_CENTRAL_MASS on >1% mass change');
+
+    posted.length = 0;
+    dispatch('INIT', {
+        bodies: [
+            circularBody('preset_body_0', 1.0, 10.0),
+            circularBody('preset_body_1', 2.5, 10.0),
+            circularBody('preset_body_2', 5.2, 10.0),
+        ],
+        centralMass_solar: 10.0,
+        dt_yr: 0.05,
+        isRunning: false,
+    });
+    posted.length = 0;
+    // Scrub 10 M_sun star through supernova -> 1.4 M_sun neutron star remnant
+    dispatch('UPDATE_CENTRAL_MASS', { centralMass_solar: 1.4 });
+    const updates = messagesOf('UPDATE');
+    assert.ok(updates.length >= 1, 'UPDATE_CENTRAL_MASS must emit an updated state buffer');
+    const buf = updates[updates.length - 1].buffer as Float32Array;
+    const G_M = 4 * Math.PI * Math.PI * 1.4;
+    for (let i = 0; i < 3; i++) {
+        const off = i * 7;
+        const r = Math.sqrt(buf[off] ** 2 + buf[off + 1] ** 2 + buf[off + 2] ** 2);
+        const vSq = buf[off + 3] ** 2 + buf[off + 4] ** 2 + buf[off + 5] ** 2;
+        const invA = 2.0 / r - vSq / G_M;
+        assert.ok(invA > 0, `body ${i} must retain a positive semi-major axis after supernova mass loss, got invA=${invA}`);
+    }
+});
+
+test('AUD-03: spawning 10 bodies via tap-to-spawn assigns deterministic hash visuals, never a random gas giant', () => {
+    const sys = makeTestSystem();
+    resetSpawnCounter();
+    const roster = [];
+    for (let i = 0; i < 10; i++) {
+        const spawned = buildSpawnBody({ position_au: { x: 1 + i * 0.5, y: 0, z: 0 }, centralMass_solar: 1.0 });
+        roster.push({ id: spawned.id, type: spawned.type });
+    }
+    sys.applyRoster(roster, 1);
+    for (let i = 0; i < 10; i++) {
+        const slot = sys.slotForBodyId(`spawned_${i + 1}`);
+        assert.strictEqual(slot, i);
+        assert.strictEqual(typeAttrAt(sys, slot!), 0, `spawned_${i + 1} must render with deterministic rocky type 0, never gas giant (1)`);
+    }
+});
+
+test('AUD-04: shared horizonsParser resolves 1P to Halley and rejects Kerberos in both server.ts and MCP server', async () => {
+    const serverSrc = fs.readFileSync('server.ts', 'utf8');
+    const mcpSrc = fs.readFileSync('server/mcp/nasa-horizons.mjs', 'utf8');
+    assert.ok(serverSrc.includes('./server/shared/horizonsParser.mjs'), 'server.ts must import shared horizonsParser.mjs');
+    assert.ok(mcpSrc.includes('../shared/horizonsParser.mjs'), 'nasa-horizons.mjs must import shared horizonsParser.mjs');
+    assert.ok(!mcpSrc.includes('recordNumbers[recordNumbers.length - 1]'), 'legacy last-record disambiguation must be gone from nasa-horizons.mjs');
+
+    // @ts-expect-error .mjs shared helper
+    const { horizonsRecordMatchesRequest, parseHorizonsIndexCandidates } = await import('../../server/shared/horizonsParser.mjs');
+    assert.strictEqual(horizonsRecordMatchesRequest('1P/Halley', '1P'), true);
+    assert.strictEqual(horizonsRecordMatchesRequest('Kerberos (904)', '1P'), false);
+    const listing = [
+        '  90000001  1682  1P               1P/Halley',
+        '  90000030  1986  1P               1P/Halley',
+        '       904  2020  (904)            Kerberos',
+    ].join('\n');
+    const candidates = parseHorizonsIndexCandidates(listing);
+    const matching = candidates.filter((c: any) => horizonsRecordMatchesRequest(c.label, '1P'));
+    assert.strictEqual(matching.length, 2);
+    assert.ok(matching.every((c: any) => c.label.includes('Halley')));
+});
+

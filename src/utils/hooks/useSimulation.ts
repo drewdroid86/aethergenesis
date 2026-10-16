@@ -189,6 +189,7 @@ export function useSimulation(containerRef: React.RefObject<HTMLDivElement | nul
 
     const nbodyBufferRef = useRef<Float32Array | null>(null);
     const nbodyWorkerRef = useRef<Worker | null>(null);
+    const lastSyncedWorkerMassRef = useRef<number>(1.0);
 
     // Initialize sub-hooks (selection first so rebuild can clear it safely)
     const {
@@ -227,7 +228,11 @@ export function useSimulation(containerRef: React.RefObject<HTMLDivElement | nul
             if (coordinatorRef.current) {
                 coordinatorRef.current.clearHistory(star.physicsId);
             }
-            if (nbodyWorkerRef.current) rekeyNBodyForStar(star, engineRef.current?.renderer, nbodyWorkerRef.current);
+            if (nbodyWorkerRef.current) {
+                rekeyNBodyForStar(star, engineRef.current?.renderer, nbodyWorkerRef.current);
+                const rawMass = star.currentMass ?? star.mass;
+                lastSyncedWorkerMassRef.current = Number.isFinite(rawMass) && rawMass > 0 ? rawMass : 1.0;
+            }
             // Mirror Tactical Radar contact + Focus [F]: select the preset
             // star so its panels open, then fly the camera to it. Tap and
             // click share this path, so phone and desktop behave the same.
@@ -505,6 +510,7 @@ export function useSimulation(containerRef: React.RefObject<HTMLDivElement | nul
                 // but correct for any pre-click spawn).
                 const hero0Mass = engine.heroStars[0]?.currentMass ?? engine.heroStars[0]?.mass;
                 const centralMass = typeof hero0Mass === 'number' && Number.isFinite(hero0Mass) && hero0Mass > 0 ? hero0Mass : 1.0;
+                lastSyncedWorkerMassRef.current = centralMass;
                 
                 worker.postMessage({
                     type: 'INIT',
@@ -537,6 +543,8 @@ export function useSimulation(containerRef: React.RefObject<HTMLDivElement | nul
                     const focused = eng.selectedStar ?? eng.heroStars[0];
                     if (star === focused) {
                         rekeyNBodyForStar(star, eng.renderer, workerNow);
+                        const rawMass = star.currentMass ?? star.mass;
+                        lastSyncedWorkerMassRef.current = Number.isFinite(rawMass) && rawMass > 0 ? rawMass : 1.0;
                     }
                 };
             }
@@ -571,7 +579,11 @@ export function useSimulation(containerRef: React.RefObject<HTMLDivElement | nul
                 if (intersects.length > 0) {
                     const hit = intersects[0].object;
                     const system = hit.parent as HeroStarSystem;
-                    if (nbodyWorkerRef.current) rekeyNBodyForStar(system, engine.renderer, nbodyWorkerRef.current);
+                    if (nbodyWorkerRef.current) {
+                        rekeyNBodyForStar(system, engine.renderer, nbodyWorkerRef.current);
+                        const rawMass = system.currentMass ?? system.mass;
+                        lastSyncedWorkerMassRef.current = Number.isFinite(rawMass) && rawMass > 0 ? rawMass : 1.0;
+                    }
                     selectedStarRef.current = system;
                     setSelectedStar(system);
                     engine.selectedStar = system;
@@ -644,6 +656,23 @@ export function useSimulation(containerRef: React.RefObject<HTMLDivElement | nul
             coordinator.onTick = (cosmicAgeVal, delta) => {
                 try {
                     registerFrameDeltaRef.current(delta, performance.now());
+
+                    const focusedStar = selectedStarRef.current ?? engine.heroStars[0];
+                    if (focusedStar && nbodyWorkerRef.current) {
+                        const currentMass = focusedStar.currentMass ?? focusedStar.mass;
+                        const lastSynced = lastSyncedWorkerMassRef.current;
+                        if (
+                            Number.isFinite(currentMass) &&
+                            currentMass > 0 &&
+                            (lastSynced <= 0 || Math.abs(currentMass - lastSynced) / lastSynced > 0.01)
+                        ) {
+                            lastSyncedWorkerMassRef.current = currentMass;
+                            nbodyWorkerRef.current.postMessage({
+                                type: 'UPDATE_CENTRAL_MASS',
+                                payload: { centralMass_solar: currentMass }
+                            });
+                        }
+                    }
 
                     if (isPlayingCosmicRef.current && !isGlobalScrubbingRef.current) {
                         cosmicAgeRef.current = cosmicAgeVal;
@@ -781,8 +810,11 @@ export function useSimulation(containerRef: React.RefObject<HTMLDivElement | nul
                 const fallback = engine.heroStars[0];
                 if (fallback) {
                     rekeyNBodyForStar(fallback, engine.renderer, worker);
+                    const rawMass = fallback.currentMass ?? fallback.mass;
+                    lastSyncedWorkerMassRef.current = Number.isFinite(rawMass) && rawMass > 0 ? rawMass : 1.0;
                 } else {
                     clearNBodyWorker(worker);
+                    lastSyncedWorkerMassRef.current = 1.0;
                 }
             }
         }

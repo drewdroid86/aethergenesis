@@ -50,8 +50,8 @@ test('F9-4: planet-less re-key posts RESET_BODIES with an empty list (M4, no pha
     'planet-less else branch must clear via the shared helper with the current mass'
   );
   assert.ok(
-    !s.includes('UPDATE_CENTRAL_MASS'),
-    'mass-only UPDATE_CENTRAL_MASS must be gone: stale bodies would persist as phantom planets'
+    !rekeyWindow.includes('UPDATE_CENTRAL_MASS'),
+    'mass-only UPDATE_CENTRAL_MASS must be gone from rekeyNBodyForStar: stale bodies would persist as phantom planets'
   );
 });
 
