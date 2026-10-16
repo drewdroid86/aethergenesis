@@ -23,6 +23,36 @@ This log is updated after every AI session. Each AI signs off with their entry. 
 
 ## RECENT LOGS
 
+### 2026-10-16 — Next-Gen Stellar, Planetary, & Relativistic Black Hole Graphics (Gemini 3.8 Flash)
+- **Astrophysical Black Hole Generation & Persistence (`src/simulation/StellarPhysics.ts`, `src/rendering/systems/HeroStarSystem.ts`):**
+  - Upgraded `sampleKroupaMass()` with a 3-piece Kroupa (2001) + Schneider et al. (2018) OB-association Initial Mass Function (72% 0.08–0.5 M☉, 22% 0.5–8.0 M☉, 6% 8.0–45.0 M☉) producing ~2.5% M ≥ 15 M☉ black hole progenitors.
+  - Fixed `HeroStarSystem.applyPreset()`: explicitly prioritized `preset.phase` / `preset.spectral_class === 'BH'` so loading Cygnus X-1 (phase: 5, age_gyr: 0.006, mass_solar: 21.2) enters REMNANT (t = 1.55) directly rather than being overridden into SUPERNOVA by age_gyr.
+  - Fixed initial cosmic age clamping: initial black hole remnants at cosmicAge = 5.0 start at t = 1.55 instead of LIFECYCLE_MAX (1.65), preventing frame-1 instant recycling.
+  - Added pacing governor in `HeroStarSystem.update()`: gated on `rawT >= SUPERNOVA_START` with `baseT = Math.max(this.t, SUPERNOVA_START)` so massive stars advancing at 200 Myr/s do not leapfrog past 1.65 in a single frame.
+  - Implemented Black Hole persistence: stars with M ≥ 15 M☉ clamp at LIFECYCLE_MAX in REMNANT rather than recycling into low-mass molecular clouds.
+- **Relativistic Black Hole & Accretion Shaders (`src/simulation/phases/RemnantPhase.ts`, `src/simulation/phases/geometries.ts`, `src/core/engine.ts`):**
+  - Upgraded accretion disk with logarithmic spiral MHD turbulence, Doppler beaming, gravitational redshift, and ISCO photon ring flare.
+  - Dynamically oriented the gravitationally lensed rear-disk arch (`bhArchMesh`) toward the observer around the spin axis (`Math.atan2(dx, dz)`).
+  - Added relativistic twin Blandford-Znajek polar plasma jets (`bhJetMaterial`) with complete GPU lifecycle cleanup in `dispose()`.
+  - Connected post-processing gravitational lensing in `engine.ts` to the focused star (`selectedStar || heroStars[0]`).
+- **Solar Photosphere & Corona Graphics (`src/shaders/starSurface.frag.glsl`, `src/rendering/shaders/stellar.ts`, `src/simulation/phases/MainSequencePhase.ts`, `src/simulation/phases/RedGiantPhase.ts`):**
+  - Implemented multi-scale Bénard convection granules, dark sunspot umbra/penumbra, magnetic faculae/plage network filaments, wavelength-dependent chromatic limb darkening, and chromospheric spicule rim.
+  - Switched solid photosphere materials to `NormalBlending` to preserve sunspot contrast without additive blowout.
+  - Upgraded coronal helmet streamers and prominence loop filamentary shaders.
+- **Procedural Planetary Systems & Concentric Rings (`src/rendering/systems/PlanetarySystem.ts`):**
+  - Enhanced planetary surface shader with high-res 48x48 sphere geometries, 7 distinct planetary types (Rocky, Gas Giant, Ice, Lava, Earth-analog, Desert, Jungle), continental shelf bathymetry, dynamic cloud decks, nightside city lights, and Rayleigh/Mie atmospheric scattering rims.
+  - Implemented instanced planetary rings (`ringInstancedMesh`, `ringMaterial`) with concentric ringlets, Cassini & Encke division gaps, axial obliquity tilts, and cylindrical planetary shadow casting for Gas Giants and ringed ice worlds.
+  - Zero matrix heap allocations in per-frame update loop; clean geometry and material disposal in `dispose()`.
+- **Test Suite (`scripts/e2e/f1_presets.test.ts`, `scripts/e2e/f6_audit_fixes.test.ts`):**
+  - Added test `F1-T1-6` (Cygnus X-1 black hole preset verification).
+  - Added test `F6-16` (Schneider OB-association high-mass tail sampling of M ≥ 15 M☉ progenitors).
+  - Added test `F6-17` (HeroStarSystem BH preset phase handling and cosmic persistence invariant).
+- **Verification:**
+  - `npx tsc --noEmit` (0 errors).
+  - `npm run build` (clean bundle).
+  - `npm test` (all 15 E2E test suites green).
+  - `architect-review` pre-merge gate passed.
+
 ### 2026-10-11 — Qwen Round-1 MEDIUMs + LOWs: Phase Gating, WS Shutdown, Seeded PRNG & Hygiene (Gemini 3.8 Flash)
 - **FIX 1 — /api/analyze Phase Gating (`server.ts`):**
   - Gated `/api/analyze` to reject planet-less phases ("Nebula", "Protostar") with HTTP 400 and clear error message `No planets exist in this phase — analysis requires Main Sequence or later`.

@@ -69,6 +69,7 @@ uniform vec3 u_starPosition;
 uniform float u_biomass;
 uniform int u_kardashevTier;
 uniform float uOpacity;
+uniform float uLowDetail;
 
 // Hash function for noise
 float hash(vec2 p) {
@@ -284,14 +285,17 @@ void main() {
         color = mix(color, vec3(0.1, 0.6, 0.2), biomassAlive * 0.4 * clamp(n * 0.5 + 0.5, 0.0, 1.0));
     }
 
-    // Procedural 3D relief normal perturbation (finite-difference tangent gradient)
+    // Procedural 3D relief normal perturbation (finite-difference tangent gradient, skipped in low-detail mode)
     vec3 N_smooth = normalize(vNormal);
-    float hx = snoise(p * 3.0 + vec3(0.06, 0.0, 0.0));
-    float hy = snoise(p * 3.0 + vec3(0.0, 0.06, 0.0));
-    float hz = snoise(p * 3.0 + vec3(0.0, 0.0, 0.06));
-    vec3 gradH = vec3(hx - detailN, hy - detailN, hz - detailN);
-    gradH -= N_smooth * dot(gradH, N_smooth);
-    vec3 N = normalize(N_smooth - gradH * bumpAmp);
+    vec3 N = N_smooth;
+    if (uLowDetail < 0.5) {
+        float hx = snoise(p * 3.0 + vec3(0.06, 0.0, 0.0));
+        float hy = snoise(p * 3.0 + vec3(0.0, 0.06, 0.0));
+        float hz = snoise(p * 3.0 + vec3(0.0, 0.0, 0.06));
+        vec3 gradH = vec3(hx - detailN, hy - detailN, hz - detailN);
+        gradH -= N_smooth * dot(gradH, N_smooth);
+        N = normalize(N_smooth - gradH * bumpAmp);
+    }
 
     // Star direction and view direction for physically-inspired illumination
     vec3 starDir = normalize(u_starPosition - vWorldPosition);
@@ -595,7 +599,8 @@ export class PlanetarySystem {
                 u_starPosition: { value: new THREE.Vector3() },
                 u_biomass: { value: 0.0 },
                 u_kardashevTier: { value: 0 },
-                uOpacity: { value: 1.0 }
+                uOpacity: { value: 1.0 },
+                uLowDetail: { value: 0.0 }
             },
             transparent: true,
             vertexShader: PLANET_VS,
@@ -772,6 +777,7 @@ export class PlanetarySystem {
         this.group.visible = true;
         this.material.uniforms.uTime.value += delta;
         this.material.uniforms.uOpacity.value = globalFade;
+        this.material.uniforms.uLowDetail.value = lowDetail ? 1.0 : 0.0;
         this.orbitLinesGroup.visible = !isRedGiant;
         
         this.parent.getWorldPosition(this.material.uniforms.u_starPosition.value);
