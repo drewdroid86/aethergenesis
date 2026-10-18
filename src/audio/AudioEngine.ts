@@ -26,6 +26,9 @@ export class CosmicAudioEngine {
             const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
             if (!AudioCtx) return;
             this.ctx = new AudioCtx();
+            if (this.ctx.state === 'suspended') {
+                this.ctx.resume().catch(() => {});
+            }
             
             this.masterGain = this.ctx.createGain();
             this.masterGain.gain.setValueAtTime(this.volume, this.ctx.currentTime);
@@ -98,7 +101,17 @@ export class CosmicAudioEngine {
 
     public playSupernovaSound(): void {
         if (!this.ctx || this.isMuted) return;
-        this.resume();
+        if (this.ctx.state === 'suspended') {
+            this.ctx.resume().then(() => {
+                this.playSupernovaSoundInternal();
+            }).catch(() => {});
+            return;
+        }
+        this.playSupernovaSoundInternal();
+    }
+
+    private playSupernovaSoundInternal(): void {
+        if (!this.ctx || this.isMuted || this.ctx.state !== 'running') return;
         try {
             const now = this.ctx.currentTime;
             
@@ -114,6 +127,14 @@ export class CosmicAudioEngine {
 
             osc.connect(gain);
             gain.connect(this.masterGain!);
+            osc.onended = () => {
+                try {
+                    osc.disconnect();
+                    gain.disconnect();
+                } catch {
+                    // Suppressed audio disconnect error
+                }
+            };
             osc.start(now);
             osc.stop(now + 1.8);
         } catch {
@@ -123,7 +144,17 @@ export class CosmicAudioEngine {
 
     public playUiClick(): void {
         if (!this.ctx || this.isMuted) return;
-        this.resume();
+        if (this.ctx.state === 'suspended') {
+            this.ctx.resume().then(() => {
+                this.playUiClickInternal();
+            }).catch(() => {});
+            return;
+        }
+        this.playUiClickInternal();
+    }
+
+    private playUiClickInternal(): void {
+        if (!this.ctx || this.isMuted || this.ctx.state !== 'running') return;
         try {
             const now = this.ctx.currentTime;
             const osc = this.ctx.createOscillator();
@@ -137,6 +168,14 @@ export class CosmicAudioEngine {
 
             osc.connect(gain);
             gain.connect(this.masterGain!);
+            osc.onended = () => {
+                try {
+                    osc.disconnect();
+                    gain.disconnect();
+                } catch {
+                    // Suppressed audio disconnect error
+                }
+            };
             osc.start(now);
             osc.stop(now + 0.05);
         } catch {

@@ -343,6 +343,37 @@ export function useSimulation(containerRef: React.RefObject<HTMLDivElement | nul
         spawnBodyAtRef.current = spawnBodyAt;
     }, [spawnBodyAt]);
 
+    /**
+     * UI spawn trigger: spawn a gravitating body at a default location
+     * (1 AU in worker frame relative to the currently selected star, or the
+     * first hero star if none selected). Uses the exact same clamping logic
+     * (0.05–100 AU) and worker flow as the tap handler.
+     */
+    const spawnDefaultBody = useCallback((position_au?: { x: number; y: number; z: number }) => {
+        const star = selectedStarRef.current ?? engineRef.current?.heroStars[0];
+        if (!star || !nbodyWorkerRef.current) return null;
+
+        let px = position_au?.x ?? 1.0;
+        let py = position_au?.y ?? 0.0;
+        let pz = position_au?.z ?? 0.0;
+
+        const MAX_SPAWN_AU = 100;
+        const MIN_SPAWN_AU = 0.05;
+        const r = Math.sqrt(px * px + py * py + pz * pz);
+        if (r > MAX_SPAWN_AU) {
+            const s = MAX_SPAWN_AU / r;
+            px *= s; py *= s; pz *= s;
+        } else if (r < MIN_SPAWN_AU) {
+            if (r > 1e-9) {
+                const s = MIN_SPAWN_AU / r;
+                px *= s; py *= s; pz *= s;
+            } else {
+                px = MIN_SPAWN_AU; py = 0; pz = 0;
+            }
+        }
+        return spawnBodyAtRef.current({ x: px, y: py, z: pz });
+    }, []);
+
     const adjustStarfieldTier = useCallback((newTier: PerformanceTier) => {
         if (!engineRef.current || !engineRef.current.scene) return;
         const targetCount = getNumStarsForTier(newTier);
@@ -589,7 +620,10 @@ export function useSimulation(containerRef: React.RefObject<HTMLDivElement | nul
                     engine.selectedStar = system;
 
                     const targetPos = system.position.clone();
-                    const camOffset = engine.camera.position.clone().sub(controls.target).normalize().multiplyScalar(40);
+                    const diff = engine.camera.position.clone().sub(controls.target);
+                    const camOffset = diff.lengthSq() > 1e-6
+                        ? diff.normalize().multiplyScalar(40)
+                        : new THREE.Vector3(0, 0, 40);
                     engine.camera.position.copy(targetPos).add(camOffset);
                     controls.target.copy(targetPos);
                 } else {
@@ -927,6 +961,8 @@ export function useSimulation(containerRef: React.RefObject<HTMLDivElement | nul
         loadStarPreset,
         addBodyToSimulation,
         spawnBodyAt,
+        spawnDefaultBody,
+        spawnBody: spawnDefaultBody,
         engineRef,
         camera: engineRef.current?.camera ?? null,
         heroStars: engineRef.current?.heroStars ?? []

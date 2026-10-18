@@ -369,3 +369,60 @@ test('AUD-04: shared horizonsParser resolves 1P to Halley and rejects Kerberos i
     assert.ok(matching.every((c: any) => c.label.includes('Halley')));
 });
 
+test('BUG-01: discoverable spawn control exists in UI, defaults to 1 AU, and follows clamping path', () => {
+    const hudSrc = fs.readFileSync('src/ui/Hud.tsx', 'utf8');
+    const compSrc = fs.readFileSync('src/components/AetherGenesis.tsx', 'utf8');
+    const hookSrc = fs.readFileSync('src/utils/hooks/useSimulation.ts', 'utf8');
+
+    // 1. Visible button in HudActionButtons labeled "Spawn Body" with restrained HUD styling
+    assert.ok(hudSrc.includes('onSpawnBody?: () => void'), 'HudActionButtonsProps must include onSpawnBody callback');
+    assert.ok(hudSrc.includes('data-testid="spawn-body-btn"'), 'Spawn button must have data-testid="spawn-body-btn"');
+    assert.ok(hudSrc.includes('<span>Spawn Body</span>'), 'Spawn button must be clearly labeled "Spawn Body"');
+    assert.ok(hudSrc.includes('bg-[#C084FC]/15') && hudSrc.includes('border-[#C084FC]/40'), 'Spawn button must match TargetLockHUD aesthetic');
+
+    // 2. Wired in AetherGenesis
+    assert.ok(compSrc.includes('spawnDefaultBody'), 'AetherGenesis must destructure spawnDefaultBody from useSimulation');
+    assert.ok(compSrc.includes('onSpawnBody={spawnDefaultBody}'), 'AetherGenesis must pass spawnDefaultBody to HudActionButtons');
+
+    // 3. Sensible default (1 AU) and clamping in useSimulation hook
+    assert.ok(hookSrc.includes('spawnDefaultBody = useCallback'), 'useSimulation must define spawnDefaultBody callback');
+    assert.ok(hookSrc.includes('position_au?.x ?? 1.0'), 'spawnDefaultBody must default to 1 AU');
+    assert.ok(hookSrc.includes('const MAX_SPAWN_AU = 100') && hookSrc.includes('const MIN_SPAWN_AU = 0.05'), 'spawnDefaultBody must enforce 0.05-100 AU clamping');
+    assert.ok(hookSrc.includes('spawnBodyAtRef.current({ x: px, y: py, z: pz })'), 'spawnDefaultBody must delegate to spawnBodyAtRef');
+
+    // 4. Existing tap handler intact
+    assert.ok(hookSrc.includes("window.addEventListener('pointerup', onPointerUp)"), 'pointerup tap handler must remain intact');
+    assert.ok(hookSrc.includes('raycaster.ray.intersectPlane(ecliptic, hitPoint)'), 'ecliptic plane raycasting in tap handler must remain intact');
+});
+
+test('BUG-02: audio engine handles suspended context asynchronously and camera handlers guard against zero-vector normalization', () => {
+    const audioSrc = fs.readFileSync('src/audio/AudioEngine.ts', 'utf8');
+    const starSelectionSrc = fs.readFileSync('src/utils/hooks/useStarSelection.ts', 'utf8');
+    const simulationSrc = fs.readFileSync('src/utils/hooks/useSimulation.ts', 'utf8');
+    const shortcutsSrc = fs.readFileSync('src/utils/hooks/useKeyboardShortcuts.ts', 'utf8');
+    const targetLockSrc = fs.readFileSync('src/ui/navigation/TargetLockHUD.tsx', 'utf8');
+
+    // 1. AudioEngine initiates resume() non-blockingly and defers playback when suspended
+    assert.ok(audioSrc.includes("this.ctx.state === 'suspended'"), 'AudioEngine must check for suspended AudioContext state');
+    assert.ok(audioSrc.includes('this.ctx.resume().then('), 'playUiClick / playSupernovaSound must resume asynchronously without blocking UI thread');
+    assert.ok(audioSrc.includes('osc.onended = () =>'), 'AudioEngine must clean up oscillator and gain nodes on ended');
+
+    // 2. AudioEngine init begins resume on first gesture if suspended
+    assert.ok(audioSrc.includes("if (this.ctx.state === 'suspended') {\n                this.ctx.resume().catch(() => {});\n            }"), 'AudioEngine.init() must resume suspended context');
+
+    // 3. centerOnStar guards against zero-vector NaN normalization
+    assert.ok(starSelectionSrc.includes('diff.lengthSq() > 1e-6'), 'centerOnStar must check diff.lengthSq() > 1e-6 before normalizing');
+    assert.ok(starSelectionSrc.includes('new THREE.Vector3(0, 0, 40)'), 'centerOnStar must supply a safe fallback Vector3 on zero length');
+
+    // 4. Tap-select handler guards against zero-vector NaN normalization
+    assert.ok(simulationSrc.includes('diff.lengthSq() > 1e-6'), 'tap-select handler must check diff.lengthSq() > 1e-6 before normalizing');
+
+    // 5. [F] keyboard shortcut remains direct centerOnStar() call without audio overhead
+    assert.ok(shortcutsSrc.includes("case 'f':\n                case 'F':\n                    e.preventDefault();\n                    centerOnStar();\n                    break;"), '[F] shortcut must call centerOnStar directly');
+
+    // 6. TargetLockHUD maintains audio feedback on Go To action
+    assert.ok(targetLockSrc.includes('audioEngine.playUiClick()'), 'TargetLockHUD must play UI click audio on Go To');
+    assert.ok(targetLockSrc.includes('if (onWarpTo) onWarpTo()'), 'TargetLockHUD must invoke onWarpTo on Go To');
+});
+
+

@@ -1,5 +1,5 @@
 import React, { useRef, useState, useEffect } from 'react';
-import { Activity, Check, Copy, Crosshair, Navigation, Pause, Play, Search, Volume2, VolumeX } from 'lucide-react';
+import { Activity, Check, Copy, Crosshair, Navigation, Pause, Play, Plus, Search, Volume2, VolumeX } from 'lucide-react';
 import { audioEngine } from '../audio/AudioEngine';
 
 export interface HudProps {
@@ -569,23 +569,41 @@ export interface HudActionButtonsProps {
     onOpenCatalog?: () => void;
     resetCamera: () => void;
     centerOnStar: () => void;
+    onSpawnBody?: () => void;
     className?: string;
 }
 
 /**
- * Self-contained bottom-right action controls cluster (Audio, Catalog, Reset, Focus).
+ * Self-contained bottom-right action controls cluster (Audio, Catalog, Reset, Focus, Spawn).
  * Slotted into BottomHud right prop.
  */
 export const HudActionButtons: React.FC<HudActionButtonsProps> = ({
     onOpenCatalog,
     resetCamera,
     centerOnStar,
+    onSpawnBody,
     className = '',
 }) => {
     const [isMuted, setIsMuted] = useState(() => audioEngine.getIsMuted());
 
     return (
         <div className={`flex flex-col items-center md:items-end gap-2 text-center md:text-right ${className}`.trim()}>
+            {onSpawnBody && (
+                <button 
+                    type="button"
+                    onClick={() => {
+                        audioEngine.playUiClick();
+                        onSpawnBody();
+                    }}
+                    className="pointer-events-auto flex items-center justify-center gap-1.5 py-1.5 px-3 w-full rounded-md bg-[#C084FC]/15 hover:bg-[#C084FC]/30 border border-[#C084FC]/40 text-white font-semibold text-[9px] uppercase tracking-wider transition-colors cursor-pointer outline-none focus-visible:ring-2 focus-visible:ring-[#C084FC] backdrop-blur-md"
+                    title="Spawn gravitating body at default orbit [1 AU]"
+                    aria-label="Spawn Body"
+                    data-testid="spawn-body-btn"
+                >
+                    <Plus size={11} className="text-[#C084FC]" />
+                    <span>Spawn Body</span>
+                </button>
+            )}
             <div className="grid grid-cols-4 gap-2 pointer-events-auto">
                 <button 
                     onClick={() => {

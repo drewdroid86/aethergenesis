@@ -63,6 +63,7 @@ export function AetherGenesis() {
     setIsCatalogOpen,
     loadStarPreset,
     addBodyToSimulation,
+    spawnDefaultBody,
     currentTier, 
     fps, 
     showTierDownIndicator, 
@@ -237,6 +238,7 @@ export function AetherGenesis() {
                   onOpenCatalog={() => setIsCatalogOpen(true)}
                   resetCamera={resetCamera}
                   centerOnStar={centerOnStar}
+                  onSpawnBody={spawnDefaultBody}
                 />
               </div>
             }

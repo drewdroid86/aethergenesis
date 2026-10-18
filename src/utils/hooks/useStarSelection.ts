@@ -1,4 +1,5 @@
 import { useState, useRef, useCallback } from 'react';
+import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { Engine } from '../../core/engine';
 import { HeroStarSystem } from '../../rendering/systems/HeroStarSystem';
@@ -22,7 +23,10 @@ export function useStarSelection({ engineRef, controlsRef }: UseStarSelectionPro
     const centerOnStar = useCallback(() => {
         if (selectedStarRef.current && controlsRef.current && engineRef.current) {
             const targetPos = selectedStarRef.current.position.clone();
-            const camOffset = engineRef.current.camera.position.clone().sub(controlsRef.current.target).normalize().multiplyScalar(40);
+            const diff = engineRef.current.camera.position.clone().sub(controlsRef.current.target);
+            const camOffset = diff.lengthSq() > 1e-6
+                ? diff.normalize().multiplyScalar(40)
+                : new THREE.Vector3(0, 0, 40);
             engineRef.current.camera.position.copy(targetPos).add(camOffset);
             controlsRef.current.target.copy(targetPos);
             controlsRef.current.update();
