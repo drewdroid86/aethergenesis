@@ -23,6 +23,11 @@ This log is updated after every AI session. Each AI signs off with their entry. 
 
 ## RECENT LOGS
 
+### 2026-10-26 — Rendering model exploration plan (Grok 4.7)
+- **Plan only.** No shader, scene, or runtime changes.
+- Added `docs/plans/RENDERING-MODEL-EXPLORATION.md`: nine rendering models (spectral limb, layered atmosphere, volume budget, thin disk, LOD contract, optics catalog, magnetosphere, galactic density, gated compute particles) and six graphical upgrades (grade after ACES, tiered bloom and samples, unlit belt, planetary nebula shell, ion-tail wind, lensing-only chromatic aberration).
+- Sequence is eight waves. Wave 0 is a medium-tier frame-time baseline. WebGL 2 stays the shipping path. Hero caps stay 100 / 200 / 400 / 600. `StellarPhysics` stays the only phase clock.
+
 ### 2026-10-16 — Next-Gen Stellar, Planetary, & Relativistic Black Hole Graphics (Gemini 3.8 Flash)
 - **Astrophysical Black Hole Generation & Persistence (`src/simulation/StellarPhysics.ts`, `src/rendering/systems/HeroStarSystem.ts`):**
   - Upgraded `sampleKroupaMass()` with a 3-piece Kroupa (2001) + Schneider et al. (2018) OB-association Initial Mass Function (72% 0.08–0.5 M☉, 22% 0.5–8.0 M☉, 6% 8.0–45.0 M☉) producing ~2.5% M ≥ 15 M☉ black hole progenitors.
