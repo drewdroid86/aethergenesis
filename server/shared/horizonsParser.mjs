@@ -117,6 +117,33 @@ export function horizonsRecordMatchesRequest(targetName, requestedBodyId) {
  * @param {string} resultText
  * @returns {Array<{ record: string, label: string, desigKey: string, epochYear: number | null }>}
  */
+/**
+ * Select the single Horizons record to fetch from a DASTCOM index listing.
+ *
+ * Apparition records of one body (e.g. every Halley return) share one
+ * designation key, so ambiguity is judged by distinct designation keys —
+ * not by distinct record numbers. Judging by record numbers misreads Halley
+ * (~30 apparition records) as ambiguous. Returns `{ status: 'ok', record }`
+ * for a unique designation (epoch-closest apparition when several match, or
+ * the first candidate when none matches the request), or
+ * `{ status: 'ambiguous' }` when several designations match.
+ *
+ * @param {Array<{ record: string, label: string, desigKey: string, epochYear: number | null }>} candidates
+ * @param {string} requestedBodyId
+ * @param {number} queryYear
+ */
+export function selectHorizonsBestRecord(candidates, requestedBodyId, queryYear) {
+  const matching = candidates.filter((c) => horizonsRecordMatchesRequest(c.label, requestedBodyId));
+  const distinctDesigs = new Set(matching.map((c) => c.desigKey));
+  if (matching.length > 0 && distinctDesigs.size > 1) {
+    return { status: 'ambiguous' };
+  }
+  const epochCloseness = (c) =>
+    c.epochYear === null || Number.isNaN(queryYear) ? Number.MAX_SAFE_INTEGER : Math.abs(c.epochYear - queryYear);
+  const pool = matching.length > 0 ? [...matching].sort((a, b) => epochCloseness(a) - epochCloseness(b)) : candidates;
+  return { status: 'ok', record: pool[0].record };
+}
+
 export function parseHorizonsIndexCandidates(resultText) {
   const candidates = [];
   for (const line of String(resultText ?? '').split('\n')) {

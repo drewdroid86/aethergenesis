@@ -355,7 +355,7 @@ test('AUD-04: shared horizonsParser resolves 1P to Halley and rejects Kerberos i
     assert.ok(!mcpSrc.includes('recordNumbers[recordNumbers.length - 1]'), 'legacy last-record disambiguation must be gone from nasa-horizons.mjs');
 
     // @ts-expect-error .mjs shared helper
-    const { horizonsRecordMatchesRequest, parseHorizonsIndexCandidates } = await import('../../server/shared/horizonsParser.mjs');
+    const { horizonsRecordMatchesRequest, parseHorizonsIndexCandidates, selectHorizonsBestRecord } = await import('../../server/shared/horizonsParser.mjs');
     assert.strictEqual(horizonsRecordMatchesRequest('1P/Halley', '1P'), true);
     assert.strictEqual(horizonsRecordMatchesRequest('Kerberos (904)', '1P'), false);
     const listing = [
@@ -367,6 +367,33 @@ test('AUD-04: shared horizonsParser resolves 1P to Halley and rejects Kerberos i
     const matching = candidates.filter((c: any) => horizonsRecordMatchesRequest(c.label, '1P'));
     assert.strictEqual(matching.length, 2);
     assert.ok(matching.every((c: any) => c.label.includes('Halley')));
+    // Regression: many apparition records of ONE body share one designation
+    // key, so '1P' must resolve (epoch-closest to the query year) instead of
+    // being misread as ambiguous. Genuinely different designations stay
+    // ambiguous.
+    const halleyOnly = parseHorizonsIndexCandidates(
+        [
+            '  90000001  1682  1P               1P              Halley',
+            '  90000012  1987  1P               1P              Halley',
+            '  90000030  1986  1P               1P              Halley',
+        ].join('\n')
+    );
+    assert.strictEqual(
+        new Set(halleyOnly.map((c: any) => c.desigKey)).size,
+        1,
+        'all Halley apparitions must share one designation key'
+    );
+    const halleyPick: any = selectHorizonsBestRecord(halleyOnly, '1P', 2000);
+    assert.strictEqual(halleyPick.status, 'ok');
+    assert.strictEqual(halleyPick.record, '90000012', 'must pick the apparition epoch-closest to the query year');
+    const twoBodies = parseHorizonsIndexCandidates(
+        [
+            '  90000012  1987  1P               1P              Halley',
+            '  99999999  2000  HC               Halley          Comet-X',
+        ].join('\n')
+    );
+    const ambiguousPick: any = selectHorizonsBestRecord(twoBodies, 'halley comet', 2000);
+    assert.strictEqual(ambiguousPick.status, 'ambiguous');
 });
 
 test('BUG-01: discoverable spawn control exists in UI, defaults to 1 AU, and follows clamping path', () => {
