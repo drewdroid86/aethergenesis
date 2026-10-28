@@ -23,6 +23,33 @@ This log is updated after every AI session. Each AI signs off with their entry. 
 
 ## RECENT LOGS
 
+### 2026-10-28 — Asteroid belt shading perf pass (Grok 4.7)
+- **AsteroidBeltSystem (`src/rendering/systems/AsteroidBeltSystem.ts`):**
+  - Shared rock is a welded detail-1 icosahedron (80 triangles, 42 vertices) instead of the non-indexed detail-2 mesh (180 triangles, 540 vertices). Stretch, radial displacement (0.52), and object-space bounds are unchanged.
+  - Vertex shader evaluates one octave of value noise and its analytic gradient. It no longer calls the height function three times for finite-difference normals.
+  - Fragment shader uses that same value-noise helper twice (broad albedo plus one crater octave) and star-lit wrapped Lambert. Simplex FBM, derivative bump, specular, and fresnel are gone.
+  - Still three `InstancedMesh` bands, one shared geometry, one shared `ShaderMaterial`. Band radii, `√starMass` rotation, the eight `Math.random()` placement calls, and dispose are unchanged.
+- **Wide view, 10,000 instances, seed `0xA37E11D`, 1280×720, SwiftShader.** Frame time is a synced `readPixels` (steady frames after compile). The earlier 192.6 ms figure did not wait on the GPU, so it mostly spread shader compile across four submits.
+  - Before this pass: 697 ms/frame, 1,804,513 triangles, 3 belt draw calls.
+  - After: 177 ms/frame, 804,513 triangles, 3 belt draw calls.
+  - Same harness with the belt hidden: 22 ms (sun plus the composer pass, 4,513 triangles). A trivial shader on 10k instances still sat near 125 ms, so 100 ms is under the SwiftShader floor for this draw.
+- **Verification:** `npm run typecheck` exit 0. `npm run build` exit 0. `scripts/e2e/f4_comet.test.ts` 17/17, including `F4-T4-53` and `F4-T4-54`.
+
+### 2026-10-28 — Asteroid belt bounds match the displaced rocks (Grok 4.7)
+- **AsteroidBeltSystem (`src/rendering/systems/AsteroidBeltSystem.ts`):**
+  - The shared icosahedron `boundingBox` / `boundingSphere` were the belt orbital extent (`BANDS` hi 3.5 plus 0.5). `InstancedMesh` already transforms those bounds by each instance matrix, which already stores the orbital translation and scale, so the volume was expanded twice (outer-band sphere radius ~11.4 against a rock reach of ~3.57).
+  - Geometry bounds are now the object-space displaced rock: per-axis half extents `radius * (stretchMax + 0.52)`, sphere radius the longest of those. Stretch and radial displacement constants are shared with the vertex shader. Instance matrices still carry the orbit.
+- **Verification:** `F4-T4-54` checks the shared box and sphere, worst-case displaced vertices, and that each band's instanced sphere stays with the rocks rather than the doubled orbital extent.
+
+### 2026-10-28 — Irregular rocky asteroid belts (Grok 4.7)
+- **AsteroidBeltSystem (`src/rendering/systems/AsteroidBeltSystem.ts`):**
+  - Replaced the shared detail-0 icosahedron and flat grey-brown `MeshStandardMaterial` (`0x80664d`, roughness 0.9, metalness 0.1) with one detail-2 icosahedron (180 triangles) and one custom `ShaderMaterial`, still shared by the three `InstancedMesh` bands.
+  - Each rock gets a seed in `instanceColor`. The vertex shader stretches it, displaces it with 2-octave value noise, and builds a normal from finite differences so silhouettes are not the same scaled diamond. The fragment shader uses simplex FBM for carbon/stony/rust albedo, soft crater bowls, and Lambert light from the host star (the belt mesh origin). Scene point lights are not used.
+  - Band radii (2.0–3.5), differential rotation (`√starMass`, mid-band power law), the eight `Math.random()` placement calls per rock, and dispose (remove meshes, free instance buffers, geometry, material) stay as they were. `PlanetarySystem`, the hero star, Dyson, and comets are untouched.
+- **Verification:**
+  - `npm run typecheck` clean. `npm run build` clean. `scripts/e2e/f4_comet.test.ts` 16/16, including `F4-T4-53` (3 bands, shared geometry/material, Kepler rates, dispose).
+  - 10,000 instances, same camera and mulberry32 seed `0xA37E11D` (placement hash unchanged). Wide view on SwiftShader, no discrete GPU in the capture VM: 33.5 ms/frame before (204,513 triangles) and 192.6 ms/frame after (1,804,513 triangles). Still three belt draw calls.
+
 ### 2026-10-28 — Horizons lookup status: outages stay 502 (Grok 4.7)
 - **`/api/horizons/search` (`server.ts`, `server/shared/horizonsParser.mjs`, `server/mcp/nasa-horizons.mjs`):**
   - First Horizons response: a missing `result`, or an error that is not a no-match phrase, is HTTP 502. Only a true no-match phrase is 404. Removed the `|| !data.result` check that turned outages into 404.

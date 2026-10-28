@@ -546,4 +546,83 @@ test('F4-T4-53: P2 AsteroidBeltSystem concentric rings, DysonSwarmSystem precess
   assert.ok(nebulaCode.includes('NOISE_SCALE = 0.002'), 'Must define NOISE_SCALE = 0.002');
 });
 
+test('F4-T4-54: asteroid bounds match displaced rocks, not the belt orbit applied twice', () => {
+  const scene = new THREE.Scene();
+  const belt = new AsteroidBeltSystem(scene, 90);
+  const rings = (belt as any).rings as { mesh: THREE.InstancedMesh; mid: number }[];
+  const geometry = rings[0].mesh.geometry;
+  assert.strictEqual(rings[1].mesh.geometry, geometry);
+  assert.strictEqual(rings[2].mesh.geometry, geometry);
+
+  const radius = 0.02;
+  const displacement = 0.52;
+  const half = new THREE.Vector3(
+    radius * (0.62 + 0.76 + displacement),
+    radius * (0.58 + 0.82 + displacement),
+    radius * (0.64 + 0.70 + displacement),
+  );
+  const box = geometry.boundingBox;
+  const sphere = geometry.boundingSphere;
+  assert.ok(box, 'shared icosahedron must carry a displaced-rock bounding box');
+  assert.ok(sphere, 'shared icosahedron must carry a displaced-rock bounding sphere');
+  assert.ok(box.min.distanceTo(half.clone().negate()) < 1e-8, `box min ${box.min.toArray()} is not the displaced rock`);
+  assert.ok(box.max.distanceTo(half) < 1e-8, `box max ${box.max.toArray()} is not the displaced rock`);
+  assert.ok(sphere.center.length() < 1e-8, 'displaced rock sphere must stay centered on the mesh origin');
+  assert.ok(
+    Math.abs(sphere.radius - Math.max(half.x, half.y, half.z)) < 1e-8,
+    `sphere radius ${sphere.radius} must be the displaced rock, not the belt`,
+  );
+  const orbitalExtent = 3.5 + 0.5;
+  assert.ok(sphere.radius < orbitalExtent * 0.02, 'geometry bounds must not include the orbital extent');
+
+  const position = geometry.getAttribute('position');
+  const stretchMax = new THREE.Vector3(0.62 + 0.76, 0.58 + 0.82, 0.64 + 0.70);
+  const base = new THREE.Vector3();
+  const stretched = new THREE.Vector3();
+  const displaced = new THREE.Vector3();
+  for (let i = 0; i < position.count; i++) {
+    base.fromBufferAttribute(position, i);
+    stretched.copy(base).multiply(stretchMax);
+    const outward = stretched.clone().normalize().multiplyScalar(displacement * base.length());
+    for (const sign of [1, -1]) {
+      displaced.copy(stretched).addScaledVector(outward, sign);
+      assert.ok(box.containsPoint(displaced), `worst-case vertex ${i} left the bounding box`);
+      assert.ok(sphere.containsPoint(displaced), `worst-case vertex ${i} left the bounding sphere`);
+    }
+  }
+
+  const matrix = new THREE.Matrix4();
+  const pos = new THREE.Vector3();
+  const quat = new THREE.Quaternion();
+  const scale = new THREE.Vector3();
+  const instanceSphere = new THREE.Sphere();
+  for (const ring of rings) {
+    ring.mesh.computeBoundingSphere();
+    const bounds = ring.mesh.boundingSphere;
+    assert.ok(bounds, 'instanced mesh must compute a bounding sphere from the rocks');
+    let rockReach = 0;
+    let doubledReach = 0;
+    for (let i = 0; i < ring.mesh.count; i++) {
+      ring.mesh.getMatrixAt(i, matrix);
+      matrix.decompose(pos, quat, scale);
+      rockReach = Math.max(rockReach, pos.length() + sphere.radius * scale.x);
+      doubledReach = Math.max(doubledReach, pos.length() + orbitalExtent * scale.x);
+      instanceSphere.copy(sphere).applyMatrix4(matrix);
+      const covered = instanceSphere.center.distanceTo(bounds.center) + instanceSphere.radius;
+      assert.ok(
+        covered <= bounds.radius + 1e-4,
+        `band ${ring.mid} sphere does not contain instance ${i}`,
+      );
+    }
+    const midpoint = (rockReach + doubledReach) / 2;
+    assert.ok(
+      bounds.radius < midpoint,
+      `band ${ring.mid} sphere radius ${bounds.radius} is still the orbit expanded twice (rock reach ${rockReach}, doubled reach ${doubledReach})`,
+    );
+  }
+
+  belt.dispose();
+  assert.strictEqual(scene.children.length, 0);
+});
+
 
