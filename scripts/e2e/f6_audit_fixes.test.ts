@@ -5,7 +5,8 @@ import { computeMainSequenceLifetime, sampleKroupaMass } from '../../src/simulat
 import { solveKepler, keplerianToCartesian } from '../../src/simulation/OrbitalMechanics.ts';
 import fs from 'node:fs';
 import { AstrobiologyEngine } from '../../src/simulation/AstrobiologyEngine.ts';
-import { RemnantPhase, WHITE_DWARF_SCALE, WHITE_DWARF_COLOR, NEUTRON_STAR_COLOR } from '../../src/simulation/phases/RemnantPhase.ts';
+import { RemnantPhase, WHITE_DWARF_SCALE, WHITE_DWARF_COLOR, NEUTRON_STAR_COLOR, blackHoleShadowRadius, blackHoleGravitationalRadius, blackHoleInFrontOfCamera, BH_CORE_FILL } from '../../src/simulation/phases/RemnantPhase.ts';
+import { BH_CORE_RADIUS, BH_DISK_INNER, BH_DISK_THETA_SEGMENTS, GEOMETRIES } from '../../src/simulation/phases/geometries.ts';
 import { mulberry32 } from '../../src/physics/math.ts';
 
 // ==========================================
@@ -284,6 +285,51 @@ test('F6-16: sampleKroupaMass samples OB-association high-mass tail (>=15 M_sun 
   }
   // With 6% in 8-45 M_sun tail, ~2.5% of all stars are >= 15 M_sun
   assert.ok(massiveCount > 25, `Expected high-mass black hole progenitors, got ${massiveCount}/${N}`);
+});
+
+test('F6-18: black hole shadow authority scales meshes and the arch is not primary', () => {
+  const cyg = blackHoleShadowRadius(21.2);
+  assert.ok(Math.abs(cyg - BH_DISK_INNER) < 1e-9, `Cygnus b_c should be ${BH_DISK_INNER}, got ${cyg}`);
+  const rg = blackHoleGravitationalRadius(21.2);
+  assert.ok(Math.abs(rg - cyg / Math.sqrt(27)) < 1e-9, 'r_g = b_c / sqrt(27)');
+  const lo = blackHoleShadowRadius(15);
+  const hi = blackHoleShadowRadius(40);
+  assert.ok(lo < cyg && cyg < hi, 'shadow radius increases with mass');
+  assert.ok(lo / cyg > 0.7 && hi / cyg < 1.5, 'mass scale stays mild across 15–40 Msun');
+
+  assert.strictEqual(blackHoleInFrontOfCamera(-2, 0.2), true);
+  assert.strictEqual(blackHoleInFrontOfCamera(0.4, 0.2), false, 'behind-camera viewZ > 0 kills the lens');
+  assert.strictEqual(blackHoleInFrontOfCamera(-2, 1.2), false, 'ndc z past the far plane is not in front');
+  assert.strictEqual(blackHoleInFrontOfCamera(-2, -1.1), false);
+
+  const diskGeo = GEOMETRIES.blackHoleDisk;
+  assert.ok(diskGeo.parameters.thetaSegments <= 96, 'disk theta segments must stay ≤ 96');
+  assert.strictEqual(diskGeo.parameters.thetaSegments, BH_DISK_THETA_SEGMENTS);
+  assert.strictEqual((GEOMETRIES as unknown as { blackHoleLensedArch?: unknown }).blackHoleLensedArch, undefined);
+
+  const physics = { G: 1, c: 1, h: 1, k_B: 1, weakForce: 1, strongForce: 1, darkEnergy: 1 };
+  const phase = new RemnantPhase(21.2);
+  phase.init(new THREE.Group());
+  phase.update(0.016, 1, new THREE.Vector3(0, 3, 8), physics, 1.6, false, 1);
+  const disk = phase.blackHoleGroup.getObjectByName('bhDisk') as THREE.Mesh;
+  const wrap = phase.blackHoleGroup.getObjectByName('bhWrap') as THREE.Mesh;
+  const core = phase.blackHoleGroup.getObjectByName('bhCore') as THREE.Mesh;
+  const lens = phase.blackHoleGroup.getObjectByName('bhLocalLens') as THREE.Mesh;
+  assert.ok(disk && wrap && core && lens, 'core, disk, secondary wrap, and muted local lens must exist');
+  assert.ok(Math.abs(disk.scale.x - 1) < 1e-4, 'Cygnus disk scale is 1');
+  assert.ok(Math.abs(wrap.scale.x - disk.scale.x) < 1e-6, 'wrap shares the disk scale');
+  const coreScale = (cyg * BH_CORE_FILL) / BH_CORE_RADIUS;
+  assert.ok(Math.abs(core.scale.x - coreScale) < 1e-3, `core scale ${core.scale.x} vs ${coreScale}`);
+  assert.strictEqual(lens.visible, false, 'local lens mesh stays hidden');
+  assert.strictEqual(phase.blackHoleGroup.getObjectByName('bhArch'), undefined);
+  for (const child of phase.blackHoleGroup.children) {
+    const mat = (child as THREE.Mesh).material as THREE.Material | undefined;
+    if (mat) assert.notStrictEqual(mat.name, 'RemnantBlackHoleArchMaterial');
+  }
+  phase.setMass(40);
+  const expected = blackHoleShadowRadius(40) / BH_DISK_INNER;
+  assert.ok(Math.abs(disk.scale.x - expected) < 1e-4, 'setMass rescales the disk from b_c');
+  phase.dispose();
 });
 
 test('F6-17: HeroStarSystem applyPreset and cosmic lifecycle preserve Black Hole phase and persistence', () => {

@@ -23,6 +23,23 @@ This log is updated after every AI session. Each AI signs off with their entry. 
 
 ## RECENT LOGS
 
+### 2026-10-28 — Remnant black hole: one shadow, continuous wrap (Grok 4.7)
+- **Shadow authority (`src/simulation/phases/RemnantPhase.ts`, `src/simulation/phases/geometries.ts`, `src/rendering/pipeline.ts`):**
+  - `b_c(M) = 1.15 * (M / 21.2 M☉) ^ 0.35`, with `r_g = b_c / √27`. `b_c` is the critical impact parameter (photon-ring limb). The 0.35 exponent is the mild radial scale: Cygnus X-1 (21.2 M☉) stays at inner radius 1.15, 15 M☉ is ~0.88×, 40 M☉ is ~1.25×.
+  - That `b_c` scales the core sphere (`BH_CORE_FILL` 0.985 of the limb), both disk images, and post `uBlackHoleRadius`. The old post radius was a hardcoded 1.4.
+- **Wrap (`RemnantPhase.ts`):** Removed `GEOMETRIES.blackHoleLensedArch` and the camera-facing `bhArchMesh`. One disk shader draws the primary image and bends the far side over the shadow. A second mesh of the same geometry is the under-image only (`uFarOnly`, gain 0.62). Doppler beaming, gravitational redshift, and the ISCO temperature cue stay. The luminous ISCO ring is gone so it does not stack with the post ring. Filaments are sheared along the flow (thin in radius, broken along azimuth). No FBM. Theta segments stay 96; radial segments are 12.
+- **Single ring:** Cinematic photon ring is a short falloff just outside `b_c` (`cinematic.frag.glsl`). Local `_lensMesh` is `visible = false` with strength 0 whenever the cinematic pass can run. Jets stay, scaled down and dimmed so the disk owns the frame.
+- **Behind the camera / wide:** `updateLensing` snaps strength and radius to 0 when view-space z ≥ 0 or NDC z is outside [-1, 1], and again when the projected shadow is under 0.05 of screen height. Chromatic split runs only while `uLensingStrength > 0`. Bloom tightens (threshold 1.02, strength 0.28, radius 0.12) only while that lens is on, so a focused ring stays a line.
+- **Rig:** SwiftShader, 1280×720, FOV 42°, synced `readPixels`, median of 5 steady frames. Cygnus X-1 mass 21.2. Disk-relative cameras: three-quarter is 0.20 rad above the disk at distance 8.4; face-on is along the normal; edge-on is in the plane; wide is the three-quarter direction at distance 34; behind is the camera at z = −14 looking further toward −Z.
+  - Before → after, GPU ms / triangles / draws:
+  - Three-quarter: 141.7 ms, 12,031 tris, 22 calls → 154.6 ms, 6,631 tris, 20 calls. `uBlackHoleRadius` 0.217 → 0.178 (1.4 world units → `b_c` 1.15).
+  - Face-on: 150.8 / 12,031 / 22 → 154.6 / 6,655 / 21.
+  - Edge-on: 140.2 / 12,031 / 22 → 133.2 / 6,607 / 19.
+  - Wide: 129.3 / 12,031 / 23, strength 1, radius 0.054 → 120.4 / 6,655 / 22, strength 0, radius 0. Pixel match versus the lens-off frame (mean abs RGB 0).
+  - Behind: 126.3 / 15 / 17, strength 1, radius 0 → 127.3 / 15 / 17, strength 0, radius 0. Pixel match versus the lens-off frame.
+  - Main-sequence baseline in the same pipeline (lensing off): 152.2 ms, 9,607 tris, 21 calls.
+- **Verification:** `npm run typecheck` exit 0. `npm run build` exit 0. `scripts/e2e/f1_presets.test.ts` 13/13 including Cygnus X-1. `scripts/e2e/f6_audit_fixes.test.ts` including `F6-18` (authority, in-front test, no arch mesh). No satellite, moon, station, belt, dust, or comet edits.
+
 ### 2026-10-28 — Asteroid belt shading perf pass (Grok 4.7)
 - **AsteroidBeltSystem (`src/rendering/systems/AsteroidBeltSystem.ts`):**
   - Shared rock is a welded detail-1 icosahedron (80 triangles, 42 vertices) instead of the non-indexed detail-2 mesh (180 triangles, 540 vertices). Stretch, radial displacement (0.52), and object-space bounds are unchanged.

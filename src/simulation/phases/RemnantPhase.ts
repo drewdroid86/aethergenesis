@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { PhaseComponent } from './types';
 import { PhysicsConstants } from '../../types/physics';
-import { GEOMETRIES } from './geometries';
+import { BH_CORE_RADIUS, BH_DISK_INNER, BH_DISK_OUTER, GEOMETRIES } from './geometries';
 import { STELLAR_CONSTANTS } from '../../core/constants';
 import { phaseCounters } from '../../utils/performance';
 
@@ -16,6 +16,209 @@ export const WHITE_DWARF_SCALE = 3.0;
 export const WHITE_DWARF_COLOR = 0xfff6e0;
 export const NEUTRON_STAR_COLOR = 0xaaccff;
 
+/**
+ * Schwarzschild shadow authority, in scene units.
+ *
+ * r_g = GM/c². The photon sphere is 3 r_g. A distant observer sees the dark
+ * shadow out to the critical impact parameter
+ *   b_c = √27 r_g ≈ 5.196 r_g
+ * and the knife-edge photon ring sits on that limb.
+ *
+ * The shared disk mesh is built once with inner radius BH_DISK_INNER, which
+ * is b_c at the Cygnus X-1 catalog mass. Per remnant:
+ *   b_c(M) = BH_DISK_INNER * (M / 21.2 M☉) ^ 0.35
+ *   r_g(M) = b_c(M) / √27
+ * The 0.35 exponent is the mild radial scale: 15 M☉ → ~0.88×, 21.2 M☉ → 1×
+ * (inner edge stays 1.15), 40 M☉ → ~1.25×. Core sphere, both disk images, and
+ * Pipeline uBlackHoleRadius all read b_c(M). Hero groups are unscaled, so the
+ * world radius equals b_c.
+ */
+export const BH_REFERENCE_MASS_SOLAR = 21.2;
+export const BH_MASS_EXP = 0.35;
+/** Core sphere fills the shadow, a hair inside the post limb. */
+export const BH_CORE_FILL = 0.985;
+const BH_SQRT27 = Math.sqrt(27);
+
+export function blackHoleShadowRadius(massSolar: number): number {
+    const mass = Math.max(1e-3, massSolar);
+    return BH_DISK_INNER * Math.pow(mass / BH_REFERENCE_MASS_SOLAR, BH_MASS_EXP);
+}
+
+export function blackHoleGravitationalRadius(massSolar: number): number {
+    return blackHoleShadowRadius(massSolar) / BH_SQRT27;
+}
+
+/**
+ * True only when the remnant is in front of the camera.
+ * Three.js view space: the camera looks down -Z, so in-front points have viewZ < 0.
+ * NDC z outside [-1, 1] is outside the forward frustum (behind-camera perspective
+ * divide on this projection lands above +1).
+ */
+export function blackHoleInFrontOfCamera(viewZ: number, ndcZ: number): boolean {
+    return viewZ < 0 && ndcZ >= -1 && ndcZ <= 1;
+}
+
+function createBlackHoleDiskMaterial(kind: 'primary' | 'secondary'): THREE.ShaderMaterial {
+    const secondary = kind === 'secondary';
+    const mat = new THREE.ShaderMaterial({
+        uniforms: {
+            uTime: { value: 0 },
+            uOpacity: { value: 1.0 },
+            uCameraPos: { value: new THREE.Vector3(0, 0, 10) },
+            uCameraLocal: { value: new THREE.Vector3(0, 0.4, 8) },
+            uBendSign: { value: secondary ? -1.0 : 1.0 },
+            uOblique: { value: 0.65 },
+            uImageGain: { value: secondary ? 0.62 : 1.0 },
+            uFarOnly: { value: secondary ? 1.0 : 0.0 },
+            uInner: { value: BH_DISK_INNER },
+            uOuter: { value: BH_DISK_OUTER },
+        },
+        transparent: true,
+        blending: THREE.AdditiveBlending,
+        side: THREE.DoubleSide,
+        depthWrite: false,
+        vertexShader: `
+            varying vec3 vLocalPos;
+            varying vec3 vWorldPos;
+            varying float vFacing;
+            uniform vec3 uCameraLocal;
+            uniform float uBendSign;
+            uniform float uOblique;
+            uniform float uInner;
+            uniform float uOuter;
+            void main() {
+                vec3 p = position;
+                vec2 radial = p.xz;
+                float r = length(radial);
+                vec2 radN = r > 1e-4 ? radial / r : vec2(1.0, 0.0);
+                vec2 camXZ = uCameraLocal.xz;
+                float camXZLen = length(camXZ);
+                vec2 camAxis = camXZLen > 1e-3 ? camXZ / camXZLen : vec2(0.0, 1.0);
+                float facing = dot(radN, camAxis);
+                // Far side of the annulus curls over (or under) the shadow.
+                // Height ~0.46 at the inner rim clears the limb by ~10% at a
+                // three-quarter view and falls off by mid-disk, so this is the
+                // same mesh wrapping, not a second ring.
+                float far = 1.0 - smoothstep(-0.55, 0.35, facing);
+                float falloff = 1.0 - smoothstep(uInner * 1.15, uOuter * 0.8, r);
+                // ~0.85 local units at the inner rim. At a three-quarter view that
+                // sits just outside the shadow limb instead of a tall second arch.
+                float h = uBendSign * 0.85 * far * uOblique * falloff;
+                float ang = atan(p.z, p.x);
+                float puff = 0.02 * max(r - uInner, 0.0) * sin(ang * 3.0);
+                p.y += h + puff;
+                vec4 worldPos = modelMatrix * vec4(p, 1.0);
+                vLocalPos = p;
+                vWorldPos = worldPos.xyz;
+                vFacing = facing;
+                gl_Position = projectionMatrix * viewMatrix * worldPos;
+            }
+        `,
+        fragmentShader: `
+            #ifdef GL_FRAGMENT_PRECISION_HIGH
+            precision highp float;
+            #else
+            precision mediump float;
+            #endif
+
+            varying vec3 vLocalPos;
+            varying vec3 vWorldPos;
+            varying float vFacing;
+            uniform float uTime;
+            uniform float uOpacity;
+            uniform vec3 uCameraPos;
+            uniform float uOblique;
+            uniform float uImageGain;
+            uniform float uFarOnly;
+            uniform float uInner;
+            uniform float uOuter;
+
+            void main() {
+                float dist = length(vLocalPos.xz);
+                float r = clamp((dist - uInner) / (uOuter - uInner), 0.0, 1.0);
+                float angle = atan(vLocalPos.z, vLocalPos.x);
+
+                // Relativistic shading kept: Doppler beaming, gravitational redshift, ISCO.
+                float beta = clamp(0.62 / sqrt(dist * 0.8 + 0.35), 0.0, 0.72);
+                vec3 tangentDir = normalize(vec3(-sin(angle), 0.0, cos(angle)));
+                vec3 viewDir = normalize(uCameraPos - vWorldPos);
+                float beta_los = beta * dot(tangentDir, viewDir);
+                float gamma = 1.0 / sqrt(max(0.01, 1.0 - beta * beta));
+                float delta = 1.0 / max(0.1, gamma * (1.0 - beta_los));
+                float beaming = pow(delta, 3.2);
+                float g_grav = sqrt(max(0.04, 1.0 - 0.5 / max(0.55, dist)));
+                float freqShift = g_grav * delta;
+
+                // Longitudinal filaments: thin across radius, long along the sheared
+                // flow (log r from differential rotation). High azimuthal frequency
+                // reads as concentric rings; this stays flow-wise. No FBM spots.
+                float orbitalFreq = 4.5 / pow(dist + 0.2, 1.5);
+                float shear = angle - log(max(dist, 0.55)) * 5.5 - uTime * 0.3 * orbitalFreq;
+                float lane = pow(0.5 + 0.5 * sin(dist * 11.0 - shear * 2.4), 4.0);
+                float lane2 = pow(0.5 + 0.5 * sin(dist * 19.0 - shear * 1.1 + 2.0), 5.0);
+                float wisps = smoothstep(0.22, 0.82, 0.5 + 0.5 * sin(shear * 3.6));
+                float threads = clamp(lane * 0.72 + lane2 * 0.48, 0.0, 1.0) * wisps;
+                float clumps = pow(max(sin(shear * 2.4 + 0.6) * sin(shear * 0.85), 0.0), 2.6);
+
+                vec3 coreColor = vec3(1.0, 0.98, 0.94);
+                vec3 midColor  = vec3(1.0, 0.50, 0.08);
+                vec3 outerColor = vec3(0.68, 0.08, 0.01);
+                vec3 baseColor = mix(coreColor, midColor, smoothstep(0.0, 0.32, r));
+                baseColor = mix(baseColor, outerColor, smoothstep(0.32, 1.0, r));
+                // ISCO temperature cue only. The luminous photon ring is the post pass.
+                baseColor = mix(baseColor, coreColor, clamp(exp(-r * 9.0), 0.0, 1.0) * 0.42);
+
+                vec3 blueShiftColor = vec3(0.42, 0.88, 1.0);
+                vec3 redShiftColor  = vec3(0.55, 0.04, 0.0);
+                vec3 spectralColor = baseColor;
+                if (freqShift > 1.05) {
+                    float bFactor = clamp((freqShift - 1.05) * 0.75, 0.0, 1.0);
+                    spectralColor = mix(spectralColor, blueShiftColor, bFactor * 0.60);
+                    // Doppler factor above is unchanged. The extra cyan emissive
+                    // was painting a prism on the limb; keep a hint only.
+                    spectralColor += vec3(0.28, 0.60, 1.0) * bFactor * 0.22;
+                } else if (freqShift < 0.95) {
+                    float rFactor = clamp((0.95 - freqShift) * 1.6, 0.0, 1.0);
+                    spectralColor = mix(spectralColor, redShiftColor, rFactor * 0.70);
+                }
+
+                vec3 finalDiskColor = spectralColor * beaming;
+                finalDiskColor *= mix(0.16, 1.0, clamp(threads + clumps * 0.45, 0.0, 1.0));
+                finalDiskColor = mix(finalDiskColor, vec3(1.0, 0.94, 0.86), clamp(clumps, 0.0, 0.72));
+
+                // Shallow-angle foreground ribbon: the near limb, strongest edge-on.
+                float ribbon = uOblique * pow(max(vFacing, 0.0), 1.55);
+                ribbon *= 1.0 - smoothstep(0.02, 0.62, r);
+                finalDiskColor += vec3(1.0, 0.62, 0.22) * ribbon * 0.55;
+                finalDiskColor *= 1.0 + ribbon * 0.85;
+
+                // Exposure lean toward the orange reference. The Doppler ratio is
+                // already in beaming; this only stops stacked fragments blooming white.
+                finalDiskColor *= 0.62;
+                float peak = max(finalDiskColor.r, max(finalDiskColor.g, finalDiskColor.b));
+                if (peak > 0.9) {
+                    finalDiskColor *= 1.35 / (1.0 + 0.5 * peak);
+                }
+
+                // Nothing inside the shadow. The inner edge is b_c in local units.
+                float innerCut = smoothstep(uInner, uInner + 0.11, dist);
+                float outerCut = 1.0 - smoothstep(0.7, 1.0, r);
+                float body = 0.04 * (1.0 - smoothstep(0.05, 1.0, r));
+                float density = clamp(body * 0.5 + threads * 0.85 + clumps * 0.65 + ribbon * 0.4, 0.0, 1.0);
+                float alpha = density * innerCut * outerCut;
+                if (uFarOnly > 0.5) {
+                    alpha *= uOblique * (1.0 - smoothstep(-0.7, 0.05, vFacing));
+                }
+                alpha = clamp(alpha, 0.0, 1.0) * uOpacity * uImageGain;
+                gl_FragColor = vec4(finalDiskColor, alpha);
+            }
+        `,
+    });
+    mat.name = secondary ? 'RemnantBlackHoleWrapMaterial' : 'RemnantBlackHoleDiskMaterial';
+    mat.customProgramCacheKey = () => 'remnant_bh_disk_wrap_v1';
+    return mat;
+}
+
 export class RemnantPhase implements PhaseComponent {
     public neutronStarGroup!: THREE.Group;
     public nsMagneticLines!: THREE.Group;
@@ -28,10 +231,12 @@ export class RemnantPhase implements PhaseComponent {
     private _opNsLines: number = 0;
     private bhRadius = 0.5;
     private bhDiskMaterial?: THREE.ShaderMaterial;
-    private bhDiskGeometry?: THREE.RingGeometry;
-    private bhArchMaterial?: THREE.ShaderMaterial;
-    private bhArchMesh?: THREE.Mesh;
+    private bhWrapMaterial?: THREE.ShaderMaterial;
+    private bhDiskMesh?: THREE.Mesh;
+    private bhWrapMesh?: THREE.Mesh;
+    private bhCoreMesh?: THREE.Mesh;
     private bhJetMaterial?: THREE.ShaderMaterial;
+    private _camLocal = new THREE.Vector3();
 
     private _lensMat?: THREE.ShaderMaterial;
     private _lensMesh?: THREE.Mesh;
@@ -50,6 +255,38 @@ export class RemnantPhase implements PhaseComponent {
 
     setMass(mass: number): void {
         this.mass = mass;
+        if (this.bhDiskMesh) this.applyShadowAuthority();
+    }
+
+    /** Scale core + both disk images from b_c(M). See blackHoleShadowRadius. */
+    private applyShadowAuthority(): void {
+        const shadow = blackHoleShadowRadius(this.mass);
+        this.bhRadius = shadow;
+        if (this.bhCoreMesh) {
+            this.bhCoreMesh.scale.setScalar((shadow * BH_CORE_FILL) / BH_CORE_RADIUS);
+        }
+        const diskScale = shadow / BH_DISK_INNER;
+        this.bhDiskMesh?.scale.setScalar(diskScale);
+        this.bhWrapMesh?.scale.setScalar(diskScale);
+        if (this._lensMesh) {
+            this._lensMesh.visible = false;
+            this._lensMesh.scale.setScalar(shadow);
+        }
+    }
+
+    private syncDiskMaterial(
+        mat: THREE.ShaderMaterial | undefined,
+        appTime: number,
+        globalFade: number,
+        cameraPos: THREE.Vector3,
+        oblique: number,
+    ): void {
+        if (!mat) return;
+        mat.uniforms.uTime.value = appTime;
+        mat.uniforms.uOpacity.value = globalFade;
+        mat.uniforms.uCameraPos.value.copy(cameraPos);
+        mat.uniforms.uCameraLocal.value.copy(this._camLocal);
+        mat.uniforms.uOblique.value = oblique;
     }
 
     init(parent: THREE.Group): void {
@@ -149,224 +386,29 @@ export class RemnantPhase implements PhaseComponent {
         this.blackHoleGroup = new THREE.Group();
         const bhCoreMat = new THREE.MeshBasicMaterial({ color: 0x000000 });
         bhCoreMat.name = 'RemnantBlackHoleCoreMaterial';
-        const bhCore = new THREE.Mesh(
-            GEOMETRIES.blackHoleCore,
-            bhCoreMat
-        );
-        
-        // Accretion disk with relativistic Doppler beaming, gravitational redshift, ISCO photon ring & MHD spiral turbulence
+        const bhCore = new THREE.Mesh(GEOMETRIES.blackHoleCore, bhCoreMat);
+        bhCore.name = 'bhCore';
+        this.bhCoreMesh = bhCore;
+
+        // One disk shader, two images. Primary curls the far side over the shadow.
+        // Secondary is the under-image only (uFarOnly), same filaments, dimmer —
+        // not a camera-facing RingGeometry arch.
         const bhDiskGeometry = GEOMETRIES.blackHoleDisk;
-        this.bhDiskMaterial = new THREE.ShaderMaterial({
-            uniforms: {
-                uTime: { value: 0 },
-                uOpacity: { value: 1.0 },
-                uCameraPos: { value: new THREE.Vector3(0, 0, 10) }
-            },
-            transparent: true,
-            blending: THREE.AdditiveBlending,
-            side: THREE.DoubleSide,
-            depthWrite: false,
-            vertexShader: `
-                varying vec3 vLocalPos;
-                varying vec3 vWorldPos;
-                varying vec2 vUv;
-                void main() {
-                    vUv = uv;
-                    vLocalPos = position;
-                    vec4 worldPos = modelMatrix * vec4(position, 1.0);
-                    vWorldPos = worldPos.xyz;
-                    gl_Position = projectionMatrix * viewMatrix * worldPos;
-                }
-            `,
-            fragmentShader: `
-                #ifdef GL_FRAGMENT_PRECISION_HIGH
-                precision highp float;
-                #else
-                precision mediump float;
-                #endif
-
-                varying vec3 vLocalPos;
-                varying vec3 vWorldPos;
-                varying vec2 vUv;
-                uniform float uTime;
-                uniform float uOpacity;
-                uniform vec3 uCameraPos;
-
-                float hash21(vec2 p) {
-                    p = fract(p * vec2(123.34, 456.21));
-                    p += dot(p, p + 45.32);
-                    return fract(p.x * p.y);
-                }
-
-                float vnoise(vec2 p) {
-                    vec2 i = floor(p);
-                    vec2 f = fract(p);
-                    f = f * f * (3.0 - 2.0 * f);
-                    return mix(
-                        mix(hash21(i), hash21(i + vec2(1.0, 0.0)), f.x),
-                        mix(hash21(i + vec2(0.0, 1.0)), hash21(i + vec2(1.0, 1.0)), f.x),
-                        f.y
-                    );
-                }
-
-                void main() {
-                    float dist = length(vLocalPos.xz);
-                    // r is normalized from ISCO (1.15) to outer edge (4.8)
-                    float r = clamp((dist - 1.15) / (4.8 - 1.15), 0.0, 1.0);
-                    
-                    // Azimuthal coordinate in disk plane
-                    float angle = atan(vLocalPos.z, vLocalPos.x);
-                    
-                    // Relativistic velocity beta = v/c: ~0.58c at ISCO decaying to ~0.15c at outer edge
-                    float beta = clamp(0.62 / sqrt(dist * 0.8 + 0.35), 0.0, 0.72);
-                    
-                    // Tangential orbital velocity vector in local disk plane
-                    vec3 tangentDir = normalize(vec3(-sin(angle), 0.0, cos(angle)));
-                    vec3 viewDir = normalize(uCameraPos - vWorldPos);
-                    
-                    // Line-of-sight velocity component (beta_parallel)
-                    float beta_los = beta * dot(tangentDir, viewDir);
-                    
-                    // Relativistic Lorentz factor: gamma = 1 / sqrt(1 - beta^2)
-                    float gamma = 1.0 / sqrt(max(0.01, 1.0 - beta * beta));
-                    
-                    // Relativistic Doppler factor: delta = 1 / (gamma * (1 - beta_los))
-                    float delta = 1.0 / max(0.1, gamma * (1.0 - beta_los));
-                    
-                    // Relativistic Doppler flux beaming: I_obs = I_0 * delta^(3 + alpha) where alpha ~ 1
-                    float beaming = pow(delta, 3.2);
-                    
-                    // Gravitational redshift factor: g = sqrt(1 - r_s / r) where r_s ~ 0.5
-                    float g_grav = sqrt(max(0.04, 1.0 - 0.5 / max(0.55, dist)));
-                    
-                    // Combined spectral frequency shift ratio
-                    float freqShift = g_grav * delta;
-                    
-                    // Differential Keplerian rotation: Omega(r) ~ r^(-1.5) for swirling magnetohydrodynamic gas
-                    float orbitalFreq = 4.5 / pow(dist + 0.2, 1.5);
-                    float spiralPhase = angle - uTime * 2.2 * orbitalFreq + log(max(dist, 0.5)) * 6.5;
-                    vec2 polarCoord = vec2(dist * 4.5, sin(spiralPhase) * 2.0 + cos(spiralPhase * 2.0));
-                    float mhdFbm = vnoise(polarCoord) * 0.6 + vnoise(polarCoord * 2.3 + uTime * 0.8) * 0.4;
-                    float turbulence = sin(angle * 7.0 - uTime * 8.0 * orbitalFreq + sin(dist * 5.0)) * 0.5 + 0.5;
-                    float fineStreams = sin(angle * 16.0 - uTime * 15.0 * orbitalFreq + mhdFbm * 4.0) * 0.35 + 0.65;
-                    float gasDensity = (0.30 + 0.70 * mix(turbulence, mhdFbm, 0.55) * fineStreams);
-
-                    // Intense photon ring / ISCO inner edge flare
-                    float iscoFlare = exp(-r * 18.0) * 1.8;
-                    
-                    // Base multi-temperature Novikov-Thorne blackbody color gradient
-                    vec3 coreColor = vec3(1.0, 0.99, 0.95); // Ultra-hot white inner edge
-                    vec3 midColor  = vec3(1.0, 0.50, 0.08); // High-temperature plasma orange
-                    vec3 outerColor = vec3(0.68, 0.08, 0.01); // Cooler crimson outer rim
-                    vec3 baseColor = mix(coreColor, midColor, smoothstep(0.0, 0.32, r));
-                    baseColor = mix(baseColor, outerColor, smoothstep(0.32, 1.0, r));
-                    baseColor += coreColor * iscoFlare;
-                    
-                    // Relativistic spectral color shifting:
-                    // Blueshift (approaching side): shifts toward radiant electric cyan / UV-white
-                    // Redshift (receding side & gravitational plunge): shifts toward deep amber / infrared-crimson
-                    vec3 blueShiftColor = vec3(0.42, 0.88, 1.0);
-                    vec3 redShiftColor  = vec3(0.55, 0.04, 0.0);
-                    
-                    vec3 spectralColor = baseColor;
-                    if (freqShift > 1.05) {
-                        float bFactor = clamp((freqShift - 1.05) * 0.75, 0.0, 1.0);
-                        spectralColor = mix(spectralColor, blueShiftColor, bFactor * 0.60);
-                        spectralColor += vec3(0.28, 0.60, 1.0) * bFactor * 0.80;
-                    } else if (freqShift < 0.95) {
-                        float rFactor = clamp((0.95 - freqShift) * 1.6, 0.0, 1.0);
-                        spectralColor = mix(spectralColor, redShiftColor, rFactor * 0.70);
-                    }
-                    
-                    // Relativistic intensity modulation
-                    vec3 finalDiskColor = spectralColor * beaming;
-                    
-                    // Accretion disk opacity: sharp cutoff inside ISCO, gradual taper at outer edge
-                    float innerCut = smoothstep(0.0, 0.07, r);
-                    float outerCut = 1.0 - smoothstep(0.75, 1.0, r);
-                    float alpha = clamp((gasDensity + iscoFlare * 0.5) * innerCut * outerCut * 0.92, 0.0, 1.0) * uOpacity;
-                    
-                    gl_FragColor = vec4(finalDiskColor, alpha);
-                }
-            `
-        });
-        this.bhDiskMaterial.name = 'RemnantBlackHoleDiskMaterial';
-        this.bhDiskMaterial.customProgramCacheKey = () => 'remnant_bh_disk_material';
+        this.bhDiskMaterial = createBlackHoleDiskMaterial('primary');
+        this.bhWrapMaterial = createBlackHoleDiskMaterial('secondary');
         const diskMesh = new THREE.Mesh(bhDiskGeometry, this.bhDiskMaterial);
+        diskMesh.name = 'bhDisk';
+        diskMesh.renderOrder = 2;
+        const wrapMesh = new THREE.Mesh(bhDiskGeometry, this.bhWrapMaterial);
+        wrapMesh.name = 'bhWrap';
+        wrapMesh.renderOrder = 3;
+        this.bhDiskMesh = diskMesh;
+        this.bhWrapMesh = wrapMesh;
         this.blackHoleGroup.add(bhCore);
         this.blackHoleGroup.add(diskMesh);
+        this.blackHoleGroup.add(wrapMesh);
+        this.applyShadowAuthority();
 
-        // Secondary gravitationally lensed arch: light from the rear of the disk deflected over/under event horizon
-        this.bhArchMaterial = new THREE.ShaderMaterial({
-            uniforms: {
-                uTime: { value: 0 },
-                uOpacity: { value: 1.0 },
-                uCameraPos: { value: new THREE.Vector3(0, 0, 10) }
-            },
-            transparent: true,
-            blending: THREE.AdditiveBlending,
-            side: THREE.DoubleSide,
-            depthWrite: false,
-            vertexShader: `
-                varying vec3 vLocalPos;
-                varying vec3 vWorldPos;
-                varying vec2 vUv;
-                void main() {
-                    vUv = uv;
-                    vLocalPos = position;
-                    vec4 worldPos = modelMatrix * vec4(position, 1.0);
-                    vWorldPos = worldPos.xyz;
-                    gl_Position = projectionMatrix * viewMatrix * worldPos;
-                }
-            `,
-            fragmentShader: `
-                #ifdef GL_FRAGMENT_PRECISION_HIGH
-                precision highp float;
-                #else
-                precision mediump float;
-                #endif
-
-                varying vec3 vLocalPos;
-                varying vec3 vWorldPos;
-                varying vec2 vUv;
-                uniform float uTime;
-                uniform float uOpacity;
-                uniform vec3 uCameraPos;
-
-                void main() {
-                    float dist = length(vLocalPos.xy);
-                    float r = clamp((dist - 1.0) / (3.1 - 1.0), 0.0, 1.0);
-                    
-                    float angle = atan(vLocalPos.y, vLocalPos.x);
-                    
-                    // Gravitationally bent arch from the far side of the accretion disk
-                    float orbitalFreq = 3.5 / pow(dist + 0.3, 1.5);
-                    float wave = sin(angle * 6.0 - uTime * 7.0 * orbitalFreq) * 0.4 + 0.6;
-                    float fineArc = sin(dist * 18.0 - uTime * 5.0) * 0.25 + 0.75;
-                    
-                    // Asymmetric Doppler brightening on the approaching limb of the lensed arch
-                    float dopplerArch = 1.0 + 0.65 * cos(angle);
-                    
-                    vec3 archCore = vec3(1.0, 0.96, 0.90);
-                    vec3 archOuter = vec3(0.95, 0.42, 0.06);
-                    vec3 archColor = mix(archCore, archOuter, smoothstep(0.0, 0.55, r)) * dopplerArch;
-                    if (cos(angle) > 0.1) {
-                        archColor += vec3(0.18, 0.45, 0.85) * cos(angle) * (1.0 - smoothstep(0.0, 0.5, r));
-                    }
-                    
-                    // Thin curved halo profile with highest intensity near the photon sphere
-                    float photonPeak = exp(-r * 10.0) * 1.4;
-                    float ringFade = (1.0 - smoothstep(0.65, 1.0, r)) * smoothstep(0.0, 0.06, r);
-                    float alpha = clamp((0.35 + 0.65 * wave * fineArc + photonPeak) * ringFade * 0.85, 0.0, 1.0) * uOpacity;
-                    
-                    gl_FragColor = vec4(archColor * 1.6, alpha);
-                }
-            `
-        });
-        this.bhArchMaterial.name = 'RemnantBlackHoleArchMaterial';
-        this.bhArchMaterial.customProgramCacheKey = () => 'remnant_bh_arch_material';
-        this.bhArchMesh = new THREE.Mesh(GEOMETRIES.blackHoleLensedArch, this.bhArchMaterial);
-        this.blackHoleGroup.add(this.bhArchMesh);
 
         // Relativistic Blandford-Znajek polar plasma jets launched from the black hole magnetosphere
         this.bhJetMaterial = new THREE.ShaderMaterial({
@@ -413,20 +455,21 @@ export class RemnantPhase implements PhaseComponent {
                     vec3 outerJet = vec3(0.25, 0.45, 1.0); // Synchrotron blue-violet sheath
                     vec3 col = mix(outerJet, innerJet, radialCore * knots);
 
-                    float alpha = radialCore * knots * baseFade * 0.65 * uOpacity;
-                    gl_FragColor = vec4(col * 1.8, alpha);
+                    // Dim versus the disk. Same helix knots; the disk and photon ring own the frame.
+                    float alpha = radialCore * knots * baseFade * 0.04 * uOpacity;
+                    gl_FragColor = vec4(col * 0.12, alpha);
                 }
             `
         });
         this.bhJetMaterial.name = 'RemnantBlackHoleJetMaterial';
         this.bhJetMaterial.customProgramCacheKey = () => 'remnant_bh_jet_material';
         const jetNorth = new THREE.Mesh(GEOMETRIES.protostarJet, this.bhJetMaterial);
-        jetNorth.position.y = 4.2;
-        jetNorth.scale.set(0.85, 0.9, 0.85);
+        jetNorth.position.y = 6.4;
+        jetNorth.scale.set(0.28, 0.38, 0.28);
         const jetSouth = new THREE.Mesh(GEOMETRIES.protostarJet, this.bhJetMaterial);
-        jetSouth.position.y = -4.2;
+        jetSouth.position.y = -6.4;
         jetSouth.rotation.x = Math.PI;
-        jetSouth.scale.set(0.85, 0.9, 0.85);
+        jetSouth.scale.set(0.28, 0.38, 0.28);
         this.blackHoleGroup.add(jetNorth);
         this.blackHoleGroup.add(jetSouth);
 
@@ -483,10 +526,16 @@ export class RemnantPhase implements PhaseComponent {
         lensMat.name = 'RemnantGravitationalLensingMaterial';
         lensMat.customProgramCacheKey = () => 'remnant_gravitational_lensing_material';
         const lensSphere = new THREE.Mesh(GEOMETRIES.mainSeq, lensMat);
-        lensSphere.scale.setScalar(this.bhRadius * 3.5);
+        lensSphere.name = 'bhLocalLens';
+        // Cinematic pass owns the photon ring and the screen-space warp.
+        // This sphere's rim stacked a second ring and a second lens on top.
+        lensSphere.visible = false;
+        lensMat.uniforms.uStrength.value = 0;
+        lensMat.uniforms.uOpacity.value = 0;
         this._lensMat = lensMat;
         this._lensMesh = lensSphere;
         this.blackHoleGroup.add(lensSphere);
+        this.applyShadowAuthority();
 
         this.parent.add(this.blackHoleGroup);
         
@@ -500,40 +549,33 @@ export class RemnantPhase implements PhaseComponent {
         // white dwarf (<= 8 branch), so the pulsar branch is > 8, not >= 8.
         if (this.mass >= STELLAR_CONSTANTS.PHYSICS.MASS_THRESHOLD_BLACK_HOLE) {
             this.blackHoleGroup.visible = globalFade > 0.01;
+            // Spin axis stays near +Y (jets). The extra X tilt keeps a camera on
+            // world +Z out of the disk plane — rotation.z alone put that camera
+            // edge-on, which is why the old vertical arch had to face the viewer.
+            this.blackHoleGroup.rotation.x = 0.58;
             this.blackHoleGroup.rotation.z = Math.PI / 8;
-
-            // Keep the gravitationally lensed rear-disk arch facing the observer around the spin axis
-            if (this.bhArchMesh && this.parent) {
-                const dx = cameraPos.x - this.parent.position.x;
-                const dz = cameraPos.z - this.parent.position.z;
-                this.bhArchMesh.rotation.y = Math.atan2(dx, dz);
+            this.applyShadowAuthority();
+            if (this.bhDiskMesh) {
+                this._camLocal.copy(cameraPos);
+                this.bhDiskMesh.worldToLocal(this._camLocal);
             }
-
-            if (this.bhDiskMaterial) {
-                this.bhDiskMaterial.uniforms.uTime.value = appTime;
-                this.bhDiskMaterial.uniforms.uOpacity.value = globalFade;
-                this.bhDiskMaterial.uniforms.uCameraPos.value.copy(cameraPos);
-            }
-
-            if (this.bhArchMaterial) {
-                this.bhArchMaterial.uniforms.uTime.value = appTime;
-                this.bhArchMaterial.uniforms.uOpacity.value = globalFade;
-                this.bhArchMaterial.uniforms.uCameraPos.value.copy(cameraPos);
-            }
+            const camLen = Math.max(1e-4, this._camLocal.length());
+            const mu = Math.abs(this._camLocal.y) / camLen;
+            const oblique = 1 - THREE.MathUtils.smoothstep(mu, 0.18, 0.94);
+            this.syncDiskMaterial(this.bhDiskMaterial, appTime, globalFade, cameraPos, oblique);
+            this.syncDiskMaterial(this.bhWrapMaterial, appTime, globalFade, cameraPos, oblique);
 
             if (this.bhJetMaterial) {
                 this.bhJetMaterial.uniforms.uTime.value = appTime;
                 this.bhJetMaterial.uniforms.uOpacity.value = globalFade;
             }
 
+            // Local rim stays muted whenever the cinematic lens can run.
+            if (this._lensMesh) this._lensMesh.visible = false;
             if (this._lensMat) {
                 this._lensMat.uniforms.uTime.value = appTime;
-                this._lensMat.uniforms.uStrength.value = THREE.MathUtils.lerp(
-                    this._lensMat.uniforms.uStrength.value,
-                    1.0,
-                    delta * 2.0
-                );
-                this._lensMat.uniforms.uOpacity.value = globalFade;
+                this._lensMat.uniforms.uStrength.value = 0;
+                this._lensMat.uniforms.uOpacity.value = 0;
             }
         } else if (this.mass > STELLAR_CONSTANTS.PHYSICS.MASS_THRESHOLD_SUPERNOVA) {
             // Neutron Star branch (> 8 Msun): scale 1.0, blue-white color, active beams & magnetic lines
@@ -615,14 +657,14 @@ export class RemnantPhase implements PhaseComponent {
             if (
                 mat instanceof THREE.Material &&
                 mat !== this.bhDiskMaterial &&
-                mat !== this.bhArchMaterial &&
+                mat !== this.bhWrapMaterial &&
                 mat !== this.bhJetMaterial
             ) {
                 mat.dispose();
             }
         }
         if (this.bhDiskMaterial) this.bhDiskMaterial.dispose();
-        if (this.bhArchMaterial) this.bhArchMaterial.dispose();
+        if (this.bhWrapMaterial) this.bhWrapMaterial.dispose();
         if (this.bhJetMaterial) this.bhJetMaterial.dispose();
         this.parent.remove(this.neutronStarGroup);
         this.parent.remove(this.blackHoleGroup);
