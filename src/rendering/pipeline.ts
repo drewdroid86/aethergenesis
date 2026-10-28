@@ -48,7 +48,6 @@ export class Pipeline {
     }
 
     public updateLensing(selectedStar: any, camera: THREE.PerspectiveCamera, delta: number) {
-        let targetLensing = 0.0;
         this._screenPos.set(0.5, 0.5);
         let screenRadius = 0.0;
 
@@ -65,7 +64,6 @@ export class Pipeline {
             inFront = blackHoleInFrontOfCamera(viewZ, this._tempV.z);
 
             if (inFront) {
-                targetLensing = 1.0;
                 this._screenPos.x = (this._tempV.x + 1.0) * 0.5;
                 this._screenPos.y = (this._tempV.y + 1.0) * 0.5;
 
@@ -89,7 +87,7 @@ export class Pipeline {
             this.lensingStrength = 0;
             screenRadius = 0;
         } else {
-            targetLensing = THREE.MathUtils.smoothstep(screenRadius, 0.05, 0.10);
+            const targetLensing = THREE.MathUtils.smoothstep(screenRadius, 0.05, 0.10);
             this.lensingStrength = THREE.MathUtils.lerp(this.lensingStrength, targetLensing, Math.min(1, delta * 8.0));
         }
         
