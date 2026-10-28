@@ -5,7 +5,7 @@ import { computeMainSequenceLifetime, sampleKroupaMass } from '../../src/simulat
 import { solveKepler, keplerianToCartesian } from '../../src/simulation/OrbitalMechanics.ts';
 import fs from 'node:fs';
 import { AstrobiologyEngine } from '../../src/simulation/AstrobiologyEngine.ts';
-import { RemnantPhase, WHITE_DWARF_SCALE, WHITE_DWARF_COLOR, NEUTRON_STAR_COLOR, blackHoleShadowRadius, blackHoleGravitationalRadius, blackHoleInFrontOfCamera, BH_CORE_FILL } from '../../src/simulation/phases/RemnantPhase.ts';
+import { RemnantPhase, WHITE_DWARF_SCALE, WHITE_DWARF_COLOR, NEUTRON_STAR_COLOR, blackHoleShadowRadius, blackHoleWorldShadowRadius, blackHoleGravitationalRadius, blackHoleInFrontOfCamera, BH_CORE_FILL } from '../../src/simulation/phases/RemnantPhase.ts';
 import { BH_CORE_RADIUS, BH_DISK_INNER, BH_DISK_THETA_SEGMENTS, GEOMETRIES } from '../../src/simulation/phases/geometries.ts';
 import { mulberry32 } from '../../src/physics/math.ts';
 
@@ -290,6 +290,8 @@ test('F6-16: sampleKroupaMass samples OB-association high-mass tail (>=15 M_sun 
 test('F6-18: black hole shadow authority scales meshes and the arch is not primary', () => {
   const cyg = blackHoleShadowRadius(21.2);
   assert.ok(Math.abs(cyg - BH_DISK_INNER) < 1e-9, `Cygnus b_c should be ${BH_DISK_INNER}, got ${cyg}`);
+  assert.ok(Math.abs(blackHoleWorldShadowRadius(21.2, 1) - cyg) < 1e-9, 'unit group scale leaves b_c unchanged');
+  assert.ok(Math.abs(blackHoleWorldShadowRadius(21.2, 2) - cyg * 2) < 1e-9, 'post ring must track hero expansion scale');
   const rg = blackHoleGravitationalRadius(21.2);
   assert.ok(Math.abs(rg - cyg / Math.sqrt(27)) < 1e-9, 'r_g = b_c / sqrt(27)');
   const lo = blackHoleShadowRadius(15);

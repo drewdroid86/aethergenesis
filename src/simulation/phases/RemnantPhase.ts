@@ -29,9 +29,10 @@ export const NEUTRON_STAR_COLOR = 0xaaccff;
  *   b_c(M) = BH_DISK_INNER * (M / 21.2 M☉) ^ 0.35
  *   r_g(M) = b_c(M) / √27
  * The 0.35 exponent is the mild radial scale: 15 M☉ → ~0.88×, 21.2 M☉ → 1×
- * (inner edge stays 1.15), 40 M☉ → ~1.25×. Core sphere, both disk images, and
- * Pipeline uBlackHoleRadius all read b_c(M). Hero groups are unscaled, so the
- * world radius equals b_c.
+ * (inner edge stays 1.15), 40 M☉ → ~1.25×. Core sphere and both disk images
+ * read b_c(M) in the hero group's local space. Pipeline multiplies by the
+ * group's expansion scale (physics.lambda) so the post photon ring matches
+ * the scaled 3D limb.
  */
 export const BH_REFERENCE_MASS_SOLAR = 21.2;
 export const BH_MASS_EXP = 0.35;
@@ -46,6 +47,15 @@ export function blackHoleShadowRadius(massSolar: number): number {
 
 export function blackHoleGravitationalRadius(massSolar: number): number {
     return blackHoleShadowRadius(massSolar) / BH_SQRT27;
+}
+
+/**
+ * World-space shadow limb. b_c is in the hero group's local space;
+ * HeroStarSystem.scale is the cosmological expansion (physics.lambda).
+ */
+export function blackHoleWorldShadowRadius(massSolar: number, groupScale = 1): number {
+    const scale = Number.isFinite(groupScale) ? Math.abs(groupScale) : 1;
+    return blackHoleShadowRadius(massSolar) * scale;
 }
 
 /**
@@ -139,7 +149,10 @@ function createBlackHoleDiskMaterial(kind: 'primary' | 'secondary'): THREE.Shade
 
                 // Relativistic shading kept: Doppler beaming, gravitational redshift, ISCO.
                 float beta = clamp(0.62 / sqrt(dist * 0.8 + 0.35), 0.0, 0.72);
-                vec3 tangentDir = normalize(vec3(-sin(angle), 0.0, cos(angle)));
+                // Orbital tangent of the tilted disk. Local XZ is the mesh plane;
+                // modelMatrix carries blackHoleGroup's 0.58 rad tilt into world space.
+                vec3 tangentLocal = vec3(-sin(angle), 0.0, cos(angle));
+                vec3 tangentDir = normalize(mat3(modelMatrix) * tangentLocal);
                 vec3 viewDir = normalize(uCameraPos - vWorldPos);
                 float beta_los = beta * dot(tangentDir, viewDir);
                 float gamma = 1.0 / sqrt(max(0.01, 1.0 - beta * beta));
@@ -194,8 +207,11 @@ function createBlackHoleDiskMaterial(kind: 'primary' | 'secondary'): THREE.Shade
                 finalDiskColor *= 1.0 + ribbon * 0.48;
 
                 float peak = max(finalDiskColor.r, max(finalDiskColor.g, finalDiskColor.b));
-                if (peak > 1.15) {
-                    finalDiskColor *= 1.55 / (1.0 + 0.35 * peak);
+                // Shoulder anchored at 1.15. Factor is 1 on the threshold and
+                // below 1 above it, so the limb is dimmed rather than boosted.
+                float excess = max(peak - 1.15, 0.0);
+                if (excess > 0.0) {
+                    finalDiskColor *= 1.0 / (1.0 + 0.85 * excess / 1.15);
                 }
 
                 // Nothing inside the shadow. The inner edge is b_c in local units.

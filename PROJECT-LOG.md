@@ -23,6 +23,12 @@ This log is updated after every AI session. Each AI signs off with their entry. 
 
 ## RECENT LOGS
 
+### 2026-10-28 — Bugbot fixes on the remnant black hole PR (Grok 4.7)
+- **Photon ring vs expansion (`pipeline.ts`, `RemnantPhase.ts`):** `uBlackHoleRadius` now uses `blackHoleWorldShadowRadius(mass, hero.scale.x)`. `b_c` stays in the group's local space; the post ring multiplies by the same `physics.lambda` scale the hero group applies to the core and disk.
+- **Doppler on the tilted disk (`RemnantPhase.ts`):** The orbital tangent is still `(-sin θ, 0, cos θ)` in the mesh plane, then `normalize(mat3(modelMatrix) * tangent)`. That carries `blackHoleGroup.rotation.x = 0.58` into the line-of-sight dot. Beta, gamma, and `delta^3.2` are unchanged.
+- **Highlight shoulder:** Above 1.15 the factor is `1 / (1 + 0.85 * (peak - 1.15) / 1.15)`. It is 1 at 1.15 and below 1 above it (1.57 maps to about 1.20). The old `1.55 / (1 + 0.35 * peak)` was about 1.11 at the threshold, so it brightened the limb up to ~1.57.
+- **Verification:** `npm run typecheck` exit 0. Eslint on the touched files exit 0. `F6-18` exit 0, including group scale 2 → `2 * b_c`. `ejecta.vert.glsl` was not edited.
+
 ### 2026-10-28 — Remnant disk plane restored on the same shadow (Grok 4.7)
 - **Follow-up on the black-hole wrap.** The first pass bent most of the far annulus off the plane and kept the disk almost transparent, so the frame read as a photon ring plus wrap. The equatorial disk is the primary image again.
 - **`RemnantPhase.ts`:** The curl is only the inner far rim (`0.34` local units, dying by about `2 × b_c`). The rest of the annulus stays in the plane. Primary disk uses normal blending so overlaps do not add into a white fog. The under-image stays additive at gain `0.28`. Filaments are thin sheared lanes on an orange floor, with white clumps. Doppler beaming, redshift, and the ISCO temperature cue are unchanged; beaming is display-compressed above 1 so the limb stays the bright side. A small vertex puff gives the edge-on plane a visible band. Radial segments 16, theta segments still 96.

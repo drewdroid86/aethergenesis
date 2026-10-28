@@ -6,7 +6,7 @@ import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { CinematicPassShader } from './shaders/stellar';
 import { STELLAR_CONSTANTS } from '../core/constants';
-import { blackHoleInFrontOfCamera, blackHoleShadowRadius } from '../simulation/phases/RemnantPhase';
+import { blackHoleInFrontOfCamera, blackHoleWorldShadowRadius } from '../simulation/phases/RemnantPhase';
 
 export class Pipeline {
     composer: EffectComposer;
@@ -69,8 +69,12 @@ export class Pipeline {
 
                 const dist = Math.max(0.05, camera.position.distanceTo(selectedStar.position));
                 const fovRad = (camera.fov * Math.PI) / 180;
-                // Same b_c the core sphere and disk inner edge are scaled to.
-                const worldRadius = blackHoleShadowRadius(selectedStar.mass);
+                // b_c in the hero group's local space, times that group's expansion
+                // scale, so the post ring tracks the scaled 3D shadow.
+                const groupScale = selectedStar.scale && Number.isFinite(selectedStar.scale.x)
+                    ? selectedStar.scale.x
+                    : 1;
+                const worldRadius = blackHoleWorldShadowRadius(selectedStar.mass, groupScale);
                 const denom = 2 * dist * Math.tan(fovRad * 0.5);
                 screenRadius = denom > 0 ? Math.min(0.85, worldRadius / denom) : 0;
             }
