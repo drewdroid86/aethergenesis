@@ -23,6 +23,15 @@ This log is updated after every AI session. Each AI signs off with their entry. 
 
 ## RECENT LOGS
 
+### 2026-10-28 — Irregular rocky asteroid belts (Grok 4.7)
+- **AsteroidBeltSystem (`src/rendering/systems/AsteroidBeltSystem.ts`):**
+  - Replaced the shared detail-0 icosahedron and flat grey-brown `MeshStandardMaterial` (`0x80664d`, roughness 0.9, metalness 0.1) with one detail-2 icosahedron (180 triangles) and one custom `ShaderMaterial`, still shared by the three `InstancedMesh` bands.
+  - Each rock gets a seed in `instanceColor`. The vertex shader stretches it, displaces it with 2-octave value noise, and builds a normal from finite differences so silhouettes are not the same scaled diamond. The fragment shader uses simplex FBM for carbon/stony/rust albedo, soft crater bowls, and Lambert light from the host star (the belt mesh origin). Scene point lights are not used.
+  - Band radii (2.0–3.5), differential rotation (`√starMass`, mid-band power law), the eight `Math.random()` placement calls per rock, and dispose (remove meshes, free instance buffers, geometry, material) stay as they were. `PlanetarySystem`, the hero star, Dyson, and comets are untouched.
+- **Verification:**
+  - `npm run typecheck` clean. `npm run build` clean. `scripts/e2e/f4_comet.test.ts` 16/16, including `F4-T4-53` (3 bands, shared geometry/material, Kepler rates, dispose).
+  - 10,000 instances, same camera and mulberry32 seed `0xA37E11D` (placement hash unchanged). Wide view on SwiftShader, no discrete GPU in the capture VM: 33.5 ms/frame before (204,513 triangles) and 192.6 ms/frame after (1,804,513 triangles). Still three belt draw calls.
+
 ### 2026-10-28 — Horizons lookup status: outages stay 502 (Grok 4.7)
 - **`/api/horizons/search` (`server.ts`, `server/shared/horizonsParser.mjs`, `server/mcp/nasa-horizons.mjs`):**
   - First Horizons response: a missing `result`, or an error that is not a no-match phrase, is HTTP 502. Only a true no-match phrase is 404. Removed the `|| !data.result` check that turned outages into 404.
