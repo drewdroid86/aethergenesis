@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { mergeVertices } from 'three/addons/utils/BufferGeometryUtils.js';
 
 const BANDS = [
     { lo: 2.0, hi: 2.5, mid: 2.25 },
@@ -6,10 +7,12 @@ const BANDS = [
     { lo: 3.0, hi: 3.5, mid: 3.25 },
 ];
 
-// Detail 2 is the cheapest icosahedron that still has enough vertices for a
-// per-instance silhouette. One shared mesh and one shader cover every band.
+// Detail 1 is 80 triangles: enough vertices for a stretched, displaced
+// silhouette, and well under the detail-2 mesh. Vertices are welded so the
+// vertex shader runs once per unique corner. One shared mesh and one shader
+// cover every band.
 const ASTEROID_RADIUS = 0.02;
-const ASTEROID_DETAIL = 2;
+const ASTEROID_DETAIL = 1;
 
 // Closed upper bounds of the per-axis stretch in ASTEROID_VS
 // (`min + fract(seed) * span`). fract never reaches 1.
@@ -44,10 +47,14 @@ float hash13(vec3 p3) {
     return fract((p3.x + p3.y) * p3.z);
 }
 
-float vnoise(vec3 p) {
+// One value-noise sample plus its analytic gradient. Replaces the old
+// 2-octave height evaluated three times for finite-difference normals.
+void vnoiseGrad(vec3 p, out float value, out vec3 grad) {
     vec3 i = floor(p);
     vec3 f = fract(p);
-    f = f * f * (3.0 - 2.0 * f);
+    vec3 s = f * f * (3.0 - 2.0 * f);
+    vec3 ds = 6.0 * f * (1.0 - f);
+
     float n000 = hash13(i);
     float n100 = hash13(i + vec3(1.0, 0.0, 0.0));
     float n010 = hash13(i + vec3(0.0, 1.0, 0.0));
@@ -56,23 +63,22 @@ float vnoise(vec3 p) {
     float n101 = hash13(i + vec3(1.0, 0.0, 1.0));
     float n011 = hash13(i + vec3(0.0, 1.0, 1.0));
     float n111 = hash13(i + vec3(1.0, 1.0, 1.0));
-    return mix(
-        mix(mix(n000, n100, f.x), mix(n010, n110, f.x), f.y),
-        mix(mix(n001, n101, f.x), mix(n011, n111, f.x), f.y),
-        f.z
-    );
-}
 
-float rockHeight(vec3 dir, vec3 seedOff) {
-    float n1 = vnoise(dir * 2.7 + seedOff);
-    float n2 = vnoise(dir * 5.4 + seedOff.zxy + 4.2);
-    return (n1 * 0.68 + n2 * 0.32) * 2.0 - 1.0;
-}
+    float nx00 = mix(n000, n100, s.x);
+    float nx10 = mix(n010, n110, s.x);
+    float nx01 = mix(n001, n101, s.x);
+    float nx11 = mix(n011, n111, s.x);
+    float nxy0 = mix(nx00, nx10, s.y);
+    float nxy1 = mix(nx01, nx11, s.y);
+    value = mix(nxy0, nxy1, s.z);
 
-vec3 rockPoint(vec3 basePos, vec3 stretch, vec3 seedOff) {
-    vec3 p = basePos * stretch;
-    p += normalize(p) * rockHeight(normalize(basePos), seedOff) * ${glslFloat(RADIAL_DISPLACEMENT)} * length(basePos);
-    return p;
+    float dnx00 = (n100 - n000) * ds.x;
+    float dnx10 = (n110 - n010) * ds.x;
+    float dnx01 = (n101 - n001) * ds.x;
+    float dnx11 = (n111 - n011) * ds.x;
+    grad.x = mix(mix(dnx00, dnx10, s.y), mix(dnx01, dnx11, s.y), s.z);
+    grad.y = mix((nx10 - nx00) * ds.y, (nx11 - nx01) * ds.y, s.z);
+    grad.z = (nxy1 - nxy0) * ds.z;
 }
 
 void main() {
@@ -88,14 +94,19 @@ void main() {
     );
     vec3 seedOff = vec3(seed, seedB, fract(seed * 7.0 + seedB)) * 53.0;
 
-    vec3 p = rockPoint(position, stretch, seedOff);
     vec3 dir = normalize(position);
-    vec3 tang = normalize(cross(dir, abs(dir.y) < 0.92 ? vec3(0.0, 1.0, 0.0) : vec3(1.0, 0.0, 0.0)));
-    vec3 bit = cross(dir, tang);
-    float eps = length(position) * 0.22;
-    vec3 pT = rockPoint(position + tang * eps, stretch, seedOff);
-    vec3 pB = rockPoint(position + bit * eps, stretch, seedOff);
-    vec3 nObj = normalize(cross(pT - p, pB - p));
+    float n1;
+    vec3 g1;
+    vnoiseGrad(dir * 2.7 + seedOff, n1, g1);
+    float height = n1 * 2.0 - 1.0;
+    vec3 heightGrad = g1 * 5.4;
+
+    vec3 p = position * stretch;
+    p += normalize(p) * height * ${glslFloat(RADIAL_DISPLACEMENT)} * length(position);
+
+    vec3 nEll = normalize(dir / stretch);
+    vec3 slope = heightGrad - dir * dot(heightGrad, dir);
+    vec3 nObj = normalize(nEll - slope * ${glslFloat(RADIAL_DISPLACEMENT * 0.5)});
 
     vObjDir = normalize(p);
     vec4 worldPos = modelMatrix * instanceMatrix * vec4(p, 1.0);
@@ -122,66 +133,37 @@ varying vec3 vObjDir;
 varying float vSeed;
 varying float vTint;
 
-vec4 permute(vec4 x) { return mod(((x * 34.0) + 1.0) * x, 289.0); }
-vec4 taylorInvSqrt(vec4 r) { return 1.79284291400159 - 0.85373472095314 * r; }
-
-float snoise(vec3 v) {
-    const vec2 C = vec2(1.0 / 6.0, 1.0 / 3.0);
-    const vec4 D = vec4(0.0, 0.5, 1.0, 2.0);
-    vec3 i = floor(v + dot(v, C.yyy));
-    vec3 x0 = v - i + dot(i, C.xxx);
-    vec3 g = step(x0.yzx, x0.xyz);
-    vec3 l = 1.0 - g;
-    vec3 i1 = min(g.xyz, l.zxy);
-    vec3 i2 = max(g.xyz, l.zxy);
-    vec3 x1 = x0 - i1 + 1.0 * C.xxx;
-    vec3 x2 = x0 - i2 + 2.0 * C.xxx;
-    vec3 x3 = x0 - D.yyy;
-    i = mod(i, 289.0);
-    vec4 p = permute(permute(permute(
-        i.z + vec4(0.0, i1.z, i2.z, 1.0))
-        + i.y + vec4(0.0, i1.y, i2.y, 1.0))
-        + i.x + vec4(0.0, i1.x, i2.x, 1.0));
-    float n_ = 1.0 / 7.0;
-    vec3 ns = n_ * D.wyz - D.xzx;
-    vec4 j = p - 49.0 * floor(p * ns.z * ns.z);
-    vec4 x_ = floor(j * ns.z);
-    vec4 y_ = floor(j - 7.0 * x_);
-    vec4 x = x_ * ns.x + ns.yyyy;
-    vec4 y = y_ * ns.x + ns.yyyy;
-    vec4 h = 1.0 - abs(x) - abs(y);
-    vec4 b0 = vec4(x.xy, y.xy);
-    vec4 b1 = vec4(x.zw, y.zw);
-    vec4 s0 = floor(b0) * 2.0 + 1.0;
-    vec4 s1 = floor(b1) * 2.0 + 1.0;
-    vec4 sh = -step(h, vec4(0.0));
-    vec4 a0 = b0.xzyw + s0.xzyw * sh.xxyy;
-    vec4 a1 = b1.xzyw + s1.xzyw * sh.zzww;
-    vec3 p0 = vec3(a0.xy, h.x);
-    vec3 p1 = vec3(a0.zw, h.y);
-    vec3 p2 = vec3(a1.xy, h.z);
-    vec3 p3 = vec3(a1.zw, h.w);
-    vec4 norm = taylorInvSqrt(vec4(dot(p0, p0), dot(p1, p1), dot(p2, p2), dot(p3, p3)));
-    p0 *= norm.x;
-    p1 *= norm.y;
-    p2 *= norm.z;
-    p3 *= norm.w;
-    vec4 m = max(0.6 - vec4(dot(x0, x0), dot(x1, x1), dot(x2, x2), dot(x3, x3)), 0.0);
-    m = m * m;
-    return 42.0 * dot(m * m, vec4(dot(p0, x0), dot(p1, x1), dot(p2, x2), dot(p3, x3)));
+float hash13(vec3 p3) {
+    p3 = fract(p3 * 0.1031);
+    p3 += dot(p3, p3.zyx + 31.32);
+    return fract((p3.x + p3.y) * p3.z);
 }
 
-float fbm(vec3 p) {
-    return snoise(p) * 0.55
-        + snoise(p * 2.15 + vec3(17.3, -9.1, 13.7)) * 0.30
-        + snoise(p * 4.5 + vec3(-11.2, 23.4, -7.8)) * 0.15;
+float vnoise(vec3 p) {
+    vec3 i = floor(p);
+    vec3 f = fract(p);
+    f = f * f * (3.0 - 2.0 * f);
+    float n000 = hash13(i);
+    float n100 = hash13(i + vec3(1.0, 0.0, 0.0));
+    float n010 = hash13(i + vec3(0.0, 1.0, 0.0));
+    float n110 = hash13(i + vec3(1.0, 1.0, 0.0));
+    float n001 = hash13(i + vec3(0.0, 0.0, 1.0));
+    float n101 = hash13(i + vec3(1.0, 0.0, 1.0));
+    float n011 = hash13(i + vec3(0.0, 1.0, 1.0));
+    float n111 = hash13(i + vec3(1.0, 1.0, 1.0));
+    return mix(
+        mix(mix(n000, n100, f.x), mix(n010, n110, f.x), f.y),
+        mix(mix(n001, n101, f.x), mix(n011, n111, f.x), f.y),
+        f.z
+    );
 }
 
 void main() {
     vec3 sp = vObjDir * 2.4 + vec3(vSeed * 19.0, vTint * 11.0, vSeed * vTint * 6.0);
-    float n = fbm(sp);
-    float pits = fbm(sp * 1.85 + vec3(4.2, -2.7, 1.1));
-    float fine = snoise(sp * 3.6 + 8.0);
+    // Shared value noise: low octave mottles albedo, one extra octave is the bowl.
+    float broad = vnoise(sp);
+    float pits = vnoise(sp * 2.2 + vec3(4.2, -2.7, 1.1));
+    float n = broad * 2.0 - 1.0;
 
     float family = vTint;
     vec3 carbon = vec3(0.13, 0.12, 0.11);
@@ -192,20 +174,16 @@ void main() {
     albedo = mix(albedo, pale, smoothstep(0.72, 0.96, family));
     albedo = mix(albedo, rust, smoothstep(0.55, 0.95, fract(vSeed * 9.13)) * 0.55);
     albedo = mix(albedo * 0.62, albedo, smoothstep(-0.4, 0.45, n));
-    albedo *= 0.78 + 0.28 * smoothstep(-0.2, 0.55, pits);
-    // Soft bowl darkening with a thin raised rim, not high-frequency salt.
-    float bowl = smoothstep(0.05, 0.42, pits);
-    float rim = smoothstep(0.02, 0.16, pits) * (1.0 - smoothstep(0.16, 0.38, pits));
-    albedo = mix(albedo * 0.55, albedo, bowl);
-    albedo += vec3(0.07, 0.05, 0.035) * rim;
-    albedo *= 0.92 + 0.10 * fine;
+    albedo *= 0.78 + 0.28 * smoothstep(0.32, 0.70, pits);
+    // Soft bowl darkening with a thin raised rim.
+    float bowl = smoothstep(0.16, 0.50, pits);
+    float rim = smoothstep(0.38, 0.50, pits) * (1.0 - smoothstep(0.50, 0.66, pits));
+    albedo = mix(albedo * 0.52, albedo, bowl);
+    albedo += vec3(0.08, 0.055, 0.04) * rim;
 
     vec3 viewDir = normalize(cameraPosition - vWorldPos);
     vec3 N = normalize(vNormal);
     if (dot(N, viewDir) < 0.0) N = -N;
-    float bump = (pits - 0.15) * 0.55;
-    vec3 grad = dFdx(vWorldPos) * dFdx(bump) + dFdy(vWorldPos) * dFdy(bump);
-    N = normalize(N - grad);
 
     vec3 lightDir = normalize(vStarWorld - vWorldPos);
     float ndotl = dot(N, lightDir);
@@ -214,16 +192,7 @@ void main() {
     float diff = max(mix(lambert, wrap, 0.22), 0.045);
 
     vec3 sunCol = vec3(1.22, 1.08, 0.90);
-    vec3 color = albedo * sunCol * diff;
-
-    vec3 halfDir = normalize(lightDir + viewDir);
-    float spec = pow(max(dot(N, halfDir), 0.0), 24.0) * smoothstep(0.05, 0.35, ndotl);
-    color += vec3(1.0, 0.94, 0.82) * spec * 0.12;
-
-    float fres = pow(1.0 - clamp(dot(N, viewDir), 0.0, 1.0), 2.4);
-    color += albedo * fres * 0.05;
-
-    gl_FragColor = vec4(color, 1.0);
+    gl_FragColor = vec4(albedo * sunCol * diff, 1.0);
 }
 `;
 
@@ -237,7 +206,11 @@ export class AsteroidBeltSystem {
     private material: THREE.ShaderMaterial;
 
     constructor(scene: THREE.Scene, count: number = 10000) {
-        this.geometry = new THREE.IcosahedronGeometry(ASTEROID_RADIUS, ASTEROID_DETAIL);
+        const baseGeometry = new THREE.IcosahedronGeometry(ASTEROID_RADIUS, ASTEROID_DETAIL);
+        // UVs would keep face corners from welding. The shader does not sample them.
+        baseGeometry.deleteAttribute('uv');
+        this.geometry = mergeVertices(baseGeometry, 1e-5);
+        baseGeometry.dispose();
         // Object-space bounds of one displaced rock. InstancedMesh unions a copy of
         // these transformed by each instance matrix, and those matrices already store
         // the orbital translation and instance scale. The belt radii stay out of here.

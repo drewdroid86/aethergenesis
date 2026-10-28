@@ -23,6 +23,18 @@ This log is updated after every AI session. Each AI signs off with their entry. 
 
 ## RECENT LOGS
 
+### 2026-10-28 — Asteroid belt shading perf pass (Grok 4.7)
+- **AsteroidBeltSystem (`src/rendering/systems/AsteroidBeltSystem.ts`):**
+  - Shared rock is a welded detail-1 icosahedron (80 triangles, 42 vertices) instead of the non-indexed detail-2 mesh (180 triangles, 540 vertices). Stretch, radial displacement (0.52), and object-space bounds are unchanged.
+  - Vertex shader evaluates one octave of value noise and its analytic gradient. It no longer calls the height function three times for finite-difference normals.
+  - Fragment shader uses that same value-noise helper twice (broad albedo plus one crater octave) and star-lit wrapped Lambert. Simplex FBM, derivative bump, specular, and fresnel are gone.
+  - Still three `InstancedMesh` bands, one shared geometry, one shared `ShaderMaterial`. Band radii, `√starMass` rotation, the eight `Math.random()` placement calls, and dispose are unchanged.
+- **Wide view, 10,000 instances, seed `0xA37E11D`, 1280×720, SwiftShader.** Frame time is a synced `readPixels` (steady frames after compile). The earlier 192.6 ms figure did not wait on the GPU, so it mostly spread shader compile across four submits.
+  - Before this pass: 697 ms/frame, 1,804,513 triangles, 3 belt draw calls.
+  - After: 177 ms/frame, 804,513 triangles, 3 belt draw calls.
+  - Same harness with the belt hidden: 22 ms (sun plus the composer pass, 4,513 triangles). A trivial shader on 10k instances still sat near 125 ms, so 100 ms is under the SwiftShader floor for this draw.
+- **Verification:** `npm run typecheck` exit 0. `npm run build` exit 0. `scripts/e2e/f4_comet.test.ts` 17/17, including `F4-T4-53` and `F4-T4-54`.
+
 ### 2026-10-28 — Asteroid belt bounds match the displaced rocks (Grok 4.7)
 - **AsteroidBeltSystem (`src/rendering/systems/AsteroidBeltSystem.ts`):**
   - The shared icosahedron `boundingBox` / `boundingSphere` were the belt orbital extent (`BANDS` hi 3.5 plus 0.5). `InstancedMesh` already transforms those bounds by each instance matrix, which already stores the orbital translation and scale, so the volume was expanded twice (outer-band sphere radius ~11.4 against a rock reach of ~3.57).
