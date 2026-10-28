@@ -23,6 +23,16 @@ This log is updated after every AI session. Each AI signs off with their entry. 
 
 ## RECENT LOGS
 
+### 2026-10-28 — Remnant disk plane restored on the same shadow (Grok 4.7)
+- **Follow-up on the black-hole wrap.** The first pass bent most of the far annulus off the plane and kept the disk almost transparent, so the frame read as a photon ring plus wrap. The equatorial disk is the primary image again.
+- **`RemnantPhase.ts`:** The curl is only the inner far rim (`0.34` local units, dying by about `2 × b_c`). The rest of the annulus stays in the plane. Primary disk uses normal blending so overlaps do not add into a white fog. The under-image stays additive at gain `0.28`. Filaments are thin sheared lanes on an orange floor, with white clumps. Doppler beaming, redshift, and the ISCO temperature cue are unchanged; beaming is display-compressed above 1 so the limb stays the bright side. A small vertex puff gives the edge-on plane a visible band. Radial segments 16, theta segments still 96.
+- **`pipeline.ts`:** Focused bloom is tighter (threshold 1.45, strength 0.12, radius 0.05) so the plane is not haloed into a blob. Behind-camera kill and the wide-view snap are unchanged.
+- **Rig:** same SwiftShader 1280×720 synced `readPixels`, Cygnus X-1, median of 5 frames. Before this follow-up is the wrap-dominant pass.
+  - Three-quarter: 154.6 ms, 6,631 tris, 20 calls → 151.9 ms, 8,167 tris, 20 calls.
+  - Face-on: 154.6 / 6,655 / 21 → 153.5 / 8,191 / 21.
+  - Edge-on: 133.2 / 6,607 / 19 → 131.4 / 8,143 / 19.
+- **Verification:** `npm run typecheck` exit 0. `npm run build` exit 0. `scripts/e2e/f1_presets.test.ts` green, including Cygnus X-1.
+
 ### 2026-10-28 — Remnant black hole: one shadow, continuous wrap (Grok 4.7)
 - **Shadow authority (`src/simulation/phases/RemnantPhase.ts`, `src/simulation/phases/geometries.ts`, `src/rendering/pipeline.ts`):**
   - `b_c(M) = 1.15 * (M / 21.2 M☉) ^ 0.35`, with `r_g = b_c / √27`. `b_c` is the critical impact parameter (photon-ring limb). The 0.35 exponent is the mild radial scale: Cygnus X-1 (21.2 M☉) stays at inner radius 1.15, 15 M☉ is ~0.88×, 40 M☉ is ~1.25×.

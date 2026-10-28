@@ -124,9 +124,10 @@ export class Pipeline {
         // warp itself scales with b_c² so it is already negligible at that size.
         const focus = screenRadius <= 0 ? 0 : THREE.MathUtils.smoothstep(screenRadius, 0.045, 0.11);
         const k = this.lensingStrength * focus;
-        this.bloomPass.threshold = THREE.MathUtils.lerp(this._bloomThreshold, 1.02, k);
-        this.bloomPass.strength = THREE.MathUtils.lerp(this._bloomStrength, 0.28, k);
-        this.bloomPass.radius = THREE.MathUtils.lerp(this._bloomRadius, 0.12, k);
+        // Tight halo on the hottest clumps only. A wide bloom washes the disk plane.
+        this.bloomPass.threshold = THREE.MathUtils.lerp(this._bloomThreshold, 1.45, k);
+        this.bloomPass.strength = THREE.MathUtils.lerp(this._bloomStrength, 0.12, k);
+        this.bloomPass.radius = THREE.MathUtils.lerp(this._bloomRadius, 0.05, k);
     }
 
     public render(appTime: number, _delta: number): void {

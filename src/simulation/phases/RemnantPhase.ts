@@ -68,13 +68,15 @@ function createBlackHoleDiskMaterial(kind: 'primary' | 'secondary'): THREE.Shade
             uCameraLocal: { value: new THREE.Vector3(0, 0.4, 8) },
             uBendSign: { value: secondary ? -1.0 : 1.0 },
             uOblique: { value: 0.65 },
-            uImageGain: { value: secondary ? 0.62 : 1.0 },
+            uImageGain: { value: secondary ? 0.28 : 1.0 },
             uFarOnly: { value: secondary ? 1.0 : 0.0 },
             uInner: { value: BH_DISK_INNER },
             uOuter: { value: BH_DISK_OUTER },
         },
         transparent: true,
-        blending: THREE.AdditiveBlending,
+        // The plane composites. Additive overlap was stacking the disk into a
+        // white fog. The under-image stays additive and dim.
+        blending: secondary ? THREE.AdditiveBlending : THREE.NormalBlending,
         side: THREE.DoubleSide,
         depthWrite: false,
         vertexShader: `
@@ -95,17 +97,14 @@ function createBlackHoleDiskMaterial(kind: 'primary' | 'secondary'): THREE.Shade
                 float camXZLen = length(camXZ);
                 vec2 camAxis = camXZLen > 1e-3 ? camXZ / camXZLen : vec2(0.0, 1.0);
                 float facing = dot(radN, camAxis);
-                // Far side of the annulus curls over (or under) the shadow.
-                // Height ~0.46 at the inner rim clears the limb by ~10% at a
-                // three-quarter view and falls off by mid-disk, so this is the
-                // same mesh wrapping, not a second ring.
-                float far = 1.0 - smoothstep(-0.55, 0.35, facing);
-                float falloff = 1.0 - smoothstep(uInner * 1.15, uOuter * 0.8, r);
-                // ~0.85 local units at the inner rim. At a three-quarter view that
-                // sits just outside the shadow limb instead of a tall second arch.
-                float h = uBendSign * 0.85 * far * uOblique * falloff;
+                // Only the inner far rim curls over or under the shadow. The rest
+                // of the annulus stays in the disk plane so the plane reads first.
+                float far = 1.0 - smoothstep(-0.92, -0.15, facing);
+                float falloff = 1.0 - smoothstep(uInner * 1.02, uInner * 2.05, r);
+                float h = uBendSign * 0.34 * far * uOblique * falloff;
                 float ang = atan(p.z, p.x);
-                float puff = 0.02 * max(r - uInner, 0.0) * sin(ang * 3.0);
+                // Cheap thickness so an edge-on view is a band, not a hairline.
+                float puff = 0.1 * (0.55 + 0.45 * sin(ang * 2.0));
                 p.y += h + puff;
                 vec4 worldPos = modelMatrix * vec4(p, 1.0);
                 vLocalPos = p;
@@ -149,16 +148,15 @@ function createBlackHoleDiskMaterial(kind: 'primary' | 'secondary'): THREE.Shade
                 float g_grav = sqrt(max(0.04, 1.0 - 0.5 / max(0.55, dist)));
                 float freqShift = g_grav * delta;
 
-                // Longitudinal filaments: thin across radius, long along the sheared
-                // flow (log r from differential rotation). High azimuthal frequency
-                // reads as concentric rings; this stays flow-wise. No FBM spots.
+                // Longitudinal filaments on top of the plane: thin across radius,
+                // long along the sheared flow. No FBM spots.
                 float orbitalFreq = 4.5 / pow(dist + 0.2, 1.5);
-                float shear = angle - log(max(dist, 0.55)) * 5.5 - uTime * 0.3 * orbitalFreq;
-                float lane = pow(0.5 + 0.5 * sin(dist * 11.0 - shear * 2.4), 4.0);
-                float lane2 = pow(0.5 + 0.5 * sin(dist * 19.0 - shear * 1.1 + 2.0), 5.0);
-                float wisps = smoothstep(0.22, 0.82, 0.5 + 0.5 * sin(shear * 3.6));
-                float threads = clamp(lane * 0.72 + lane2 * 0.48, 0.0, 1.0) * wisps;
-                float clumps = pow(max(sin(shear * 2.4 + 0.6) * sin(shear * 0.85), 0.0), 2.6);
+                float shear = angle - log(max(dist, 0.55)) * 6.5 - uTime * 0.28 * orbitalFreq;
+                float lane = pow(0.5 + 0.5 * sin(dist * 20.0 - shear * 2.6), 3.0);
+                float lane2 = pow(0.5 + 0.5 * sin(dist * 33.0 - shear * 1.15 + 1.7), 4.0);
+                float along = smoothstep(0.12, 0.78, 0.5 + 0.5 * sin(shear * 3.1 + dist * 0.15));
+                float threads = clamp(lane * 0.7 + lane2 * 0.45, 0.0, 1.0) * mix(0.25, 1.0, along);
+                float clumps = pow(max(sin(shear * 2.8 + 0.4) * sin(dist * 4.5 + shear * 0.6), 0.0), 2.4);
 
                 vec3 coreColor = vec3(1.0, 0.98, 0.94);
                 vec3 midColor  = vec3(1.0, 0.50, 0.08);
@@ -182,29 +180,29 @@ function createBlackHoleDiskMaterial(kind: 'primary' | 'secondary'): THREE.Shade
                     spectralColor = mix(spectralColor, redShiftColor, rFactor * 0.70);
                 }
 
-                vec3 finalDiskColor = spectralColor * beaming;
-                finalDiskColor *= mix(0.16, 1.0, clamp(threads + clumps * 0.45, 0.0, 1.0));
-                finalDiskColor = mix(finalDiskColor, vec3(1.0, 0.94, 0.86), clamp(clumps, 0.0, 0.72));
+                // Display compress of the kept beaming term so the Doppler limb
+                // stays the bright side without flooding the plane.
+                float beamed = beaming / (1.0 + 0.62 * max(beaming - 1.0, 0.0));
+                vec3 finalDiskColor = spectralColor * beamed;
+                finalDiskColor *= mix(0.34, 1.08, clamp(threads, 0.0, 1.0));
+                finalDiskColor = mix(finalDiskColor, vec3(1.0, 0.98, 0.94), clamp(clumps * 1.35, 0.0, 0.9));
 
                 // Shallow-angle foreground ribbon: the near limb, strongest edge-on.
-                float ribbon = uOblique * pow(max(vFacing, 0.0), 1.55);
-                ribbon *= 1.0 - smoothstep(0.02, 0.62, r);
-                finalDiskColor += vec3(1.0, 0.62, 0.22) * ribbon * 0.55;
-                finalDiskColor *= 1.0 + ribbon * 0.85;
+                float ribbon = uOblique * pow(max(vFacing, 0.0), 1.2);
+                ribbon *= 0.65 + 0.35 * (1.0 - smoothstep(0.0, 0.7, r));
+                finalDiskColor += vec3(1.0, 0.72, 0.32) * ribbon * 0.28;
+                finalDiskColor *= 1.0 + ribbon * 0.48;
 
-                // Exposure lean toward the orange reference. The Doppler ratio is
-                // already in beaming; this only stops stacked fragments blooming white.
-                finalDiskColor *= 0.62;
                 float peak = max(finalDiskColor.r, max(finalDiskColor.g, finalDiskColor.b));
-                if (peak > 0.9) {
-                    finalDiskColor *= 1.35 / (1.0 + 0.5 * peak);
+                if (peak > 1.15) {
+                    finalDiskColor *= 1.55 / (1.0 + 0.35 * peak);
                 }
 
                 // Nothing inside the shadow. The inner edge is b_c in local units.
-                float innerCut = smoothstep(uInner, uInner + 0.11, dist);
-                float outerCut = 1.0 - smoothstep(0.7, 1.0, r);
-                float body = 0.04 * (1.0 - smoothstep(0.05, 1.0, r));
-                float density = clamp(body * 0.5 + threads * 0.85 + clumps * 0.65 + ribbon * 0.4, 0.0, 1.0);
+                float innerCut = smoothstep(uInner, uInner + 0.05, dist);
+                float outerCut = 1.0 - smoothstep(0.58, 1.0, r);
+                float plane = uFarOnly > 0.5 ? 0.35 : 0.82 * (1.0 - 0.28 * smoothstep(0.08, 1.0, r));
+                float density = clamp(plane + threads * 0.16 + clumps * 0.2 + ribbon * 0.12, 0.0, 1.0);
                 float alpha = density * innerCut * outerCut;
                 if (uFarOnly > 0.5) {
                     alpha *= uOblique * (1.0 - smoothstep(-0.7, 0.05, vFacing));
@@ -215,7 +213,7 @@ function createBlackHoleDiskMaterial(kind: 'primary' | 'secondary'): THREE.Shade
         `,
     });
     mat.name = secondary ? 'RemnantBlackHoleWrapMaterial' : 'RemnantBlackHoleDiskMaterial';
-    mat.customProgramCacheKey = () => 'remnant_bh_disk_wrap_v1';
+    mat.customProgramCacheKey = () => 'remnant_bh_disk_wrap_v3';
     return mat;
 }
 

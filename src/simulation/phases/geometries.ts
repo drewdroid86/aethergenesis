@@ -17,7 +17,7 @@ class MagneticCurve extends THREE.Curve<THREE.Vector3> {
 export const BH_DISK_INNER = 1.15;
 export const BH_DISK_OUTER = 4.8;
 export const BH_DISK_THETA_SEGMENTS = 96;
-export const BH_DISK_RADIAL_SEGMENTS = 12;
+export const BH_DISK_RADIAL_SEGMENTS = 16;
 /** Geometry radius of GEOMETRIES.blackHoleCore before per-mass scale. */
 export const BH_CORE_RADIUS = 0.5;
 
