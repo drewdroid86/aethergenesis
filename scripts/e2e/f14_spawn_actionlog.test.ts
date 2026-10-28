@@ -2,6 +2,11 @@ import test from 'node:test';
 import assert from 'node:assert';
 import * as THREE from 'three';
 import fs from 'node:fs';
+import http from 'node:http';
+import net from 'node:net';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { spawn, type ChildProcess } from 'node:child_process';
 import { ActionLog, ingestWorkerEvent } from '../../src/simulation/ActionLog.ts';
 import {
     buildSpawnBody,
@@ -352,10 +357,15 @@ test('AUD-04: shared horizonsParser resolves 1P to Halley and rejects Kerberos i
     const mcpSrc = fs.readFileSync('server/mcp/nasa-horizons.mjs', 'utf8');
     assert.ok(serverSrc.includes('./server/shared/horizonsParser.mjs'), 'server.ts must import shared horizonsParser.mjs');
     assert.ok(mcpSrc.includes('../shared/horizonsParser.mjs'), 'nasa-horizons.mjs must import shared horizonsParser.mjs');
+    assert.ok(mcpSrc.includes('selectHorizonsBestRecord'), 'nasa-horizons.mjs must use the shared record selector');
     assert.ok(!mcpSrc.includes('recordNumbers[recordNumbers.length - 1]'), 'legacy last-record disambiguation must be gone from nasa-horizons.mjs');
+    assert.ok(
+        !serverSrc.includes('isHorizonsNoMatchError(data.error) || !data.result'),
+        'a missing Horizons result on the first response must not be forced to 404'
+    );
 
     // @ts-expect-error .mjs shared helper
-    const { horizonsRecordMatchesRequest, parseHorizonsIndexCandidates } = await import('../../server/shared/horizonsParser.mjs');
+    const { horizonsRecordMatchesRequest, parseHorizonsIndexCandidates, selectHorizonsBestRecord, isHorizonsNoMatchError } = await import('../../server/shared/horizonsParser.mjs');
     assert.strictEqual(horizonsRecordMatchesRequest('1P/Halley', '1P'), true);
     assert.strictEqual(horizonsRecordMatchesRequest('Kerberos (904)', '1P'), false);
     const listing = [
@@ -367,6 +377,45 @@ test('AUD-04: shared horizonsParser resolves 1P to Halley and rejects Kerberos i
     const matching = candidates.filter((c: any) => horizonsRecordMatchesRequest(c.label, '1P'));
     assert.strictEqual(matching.length, 2);
     assert.ok(matching.every((c: any) => c.label.includes('Halley')));
+    // Regression: many apparition records of ONE body share one designation
+    // key, so '1P' must resolve (epoch-closest to the query year) instead of
+    // being misread as ambiguous. Genuinely different designations stay
+    // ambiguous.
+    const halleyOnly = parseHorizonsIndexCandidates(
+        [
+            '  90000001  1682  1P               1P              Halley',
+            '  90000012  1987  1P               1P              Halley',
+            '  90000030  1986  1P               1P              Halley',
+        ].join('\n')
+    );
+    assert.strictEqual(
+        new Set(halleyOnly.map((c: any) => c.desigKey)).size,
+        1,
+        'all Halley apparitions must share one designation key'
+    );
+    const halleyPick: any = selectHorizonsBestRecord(halleyOnly, '1P', 2000);
+    assert.strictEqual(halleyPick.status, 'ok');
+    assert.strictEqual(halleyPick.record, '90000012', 'must pick the apparition epoch-closest to the query year');
+    const twoBodies = parseHorizonsIndexCandidates(
+        [
+            '  90000012  1987  1P               1P              Halley',
+            '  99999999  2000  HC               Halley          Comet-X',
+        ].join('\n')
+    );
+    const ambiguousPick: any = selectHorizonsBestRecord(twoBodies, 'halley comet', 2000);
+    assert.strictEqual(ambiguousPick.status, 'ambiguous');
+    const kerberosOnly = parseHorizonsIndexCandidates('       904  2020  (904)            Kerberos');
+    const nonePick: any = selectHorizonsBestRecord(kerberosOnly, '1P', 2000);
+    assert.strictEqual(nonePick.status, 'none');
+    assert.ok(!('record' in nonePick) || nonePick.record !== kerberosOnly[0].record, 'zero label matches must not return the first candidate');
+    assert.strictEqual(selectHorizonsBestRecord([], '1P', 2000).status, 'none');
+    assert.strictEqual(selectHorizonsBestRecord(undefined, '1P', 2000).status, 'none');
+    assert.strictEqual(isHorizonsNoMatchError('unknown error'), false);
+    assert.strictEqual(isHorizonsNoMatchError('An unknown error occurred'), false);
+    assert.strictEqual(isHorizonsNoMatchError('ambiguous target'), false);
+    assert.strictEqual(isHorizonsNoMatchError('No matches found'), true);
+    assert.strictEqual(isHorizonsNoMatchError('No records found'), true);
+    assert.strictEqual(isHorizonsNoMatchError(undefined), false);
 });
 
 test('BUG-01: discoverable spawn control exists in UI, defaults to 1 AU, and follows clamping path', () => {
@@ -423,6 +472,197 @@ test('BUG-02: audio engine handles suspended context asynchronously and camera h
     // 6. TargetLockHUD maintains audio feedback on Go To action
     assert.ok(targetLockSrc.includes('audioEngine.playUiClick()'), 'TargetLockHUD must play UI click audio on Go To');
     assert.ok(targetLockSrc.includes('if (onWarpTo) onWarpTo()'), 'TargetLockHUD must invoke onWarpTo on Go To');
+});
+
+const HALLEY_ELEMENTS = [
+    'Target body name: 1P/Halley',
+    '$$SOE',
+    'EC= 9.6714291E-01 QR= 5.8597811E-01 IN= 1.6226269E+02 OM= 5.8420080E+01 W = 1.1133249E+02 MA= 3.8384260E+01 A = 1.7834144E+01 AD= 3.5082309E+01 PR= 2.7510000E+04',
+    '$$EOE',
+].join('\n');
+
+const HALLEY_INDEX = [
+    '  90000001  1682  1P               1P              Halley',
+    '  90000012  1987  1P               1P              Halley',
+    '  90000030  1986  1P               1P              Halley',
+].join('\n');
+
+function horizonsCommand(rawUrl: string): string {
+    const command = new URL(rawUrl, 'http://127.0.0.1').searchParams.get('COMMAND') || '';
+    return command.replace(/^'+|'+$/g, '');
+}
+
+function mockHorizonsPayload(command: string): Record<string, unknown> {
+    if (command === '1P') return { result: HALLEY_INDEX };
+    if (command === '90000012;') return { result: HALLEY_ELEMENTS };
+    if (command === 'halley comet') {
+        return {
+            result: [
+                '  90000012  1987  1P               1P              Halley',
+                '  99999999  2000  HC               Halley          Comet-X',
+            ].join('\n'),
+        };
+    }
+    if (command === 'Tempel') return { result: '  90000055  2005  9P               9P              Tempel' };
+    if (command === '90000055;') return { error: 'unknown error' };
+    if (command === 'nosuchrock') return { error: 'No matches found' };
+    if (command === 'zzprobe' || command === 'Ceres') return { error: 'unknown error' };
+    if (command === 'zzempty') return { result: null };
+    return { error: `unscripted mock command ${command}` };
+}
+
+function previousFirstResponseStatus(data: { error?: unknown; result?: unknown }): number {
+    const text = String(data.error ?? '').toLowerCase();
+    const noMatch = ['no match', 'no records', 'not found', 'unknown', 'cannot find', 'ambiguous']
+        .some((phrase) => text.includes(phrase));
+    if (data.error || !data.result) {
+        if (noMatch || !data.result) return 404;
+        return 502;
+    }
+    return 200;
+}
+
+function freePort(): Promise<number> {
+    return new Promise((resolve, reject) => {
+        const srv = net.createServer();
+        srv.once('error', reject);
+        srv.listen(0, '127.0.0.1', () => {
+            const addr = srv.address();
+            const port = typeof addr === 'object' && addr ? addr.port : 0;
+            srv.close((err) => (err ? reject(err) : resolve(port)));
+        });
+    });
+}
+
+async function stopChild(child: ChildProcess | null): Promise<void> {
+    if (!child?.pid || child.exitCode !== null) return;
+    child.kill('SIGTERM');
+    const exited = await new Promise<boolean>((resolve) => {
+        const timer = setTimeout(() => resolve(false), 1500);
+        child.once('exit', () => {
+            clearTimeout(timer);
+            resolve(true);
+        });
+    });
+    if (!exited && child.pid) {
+        try {
+            process.kill(child.pid, 'SIGKILL');
+        } catch {
+            // already exited
+        }
+    }
+}
+
+test('AUD-04: Horizons first response keeps outages at 502 and true no-match at 404', { timeout: 60_000 }, async () => {
+    const mock = http.createServer((req, res) => {
+        const body = mockHorizonsPayload(horizonsCommand(req.url || ''));
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify(body));
+    });
+    await new Promise<void>((resolve, reject) => {
+        mock.once('error', reject);
+        mock.listen(0, '127.0.0.1', () => resolve());
+    });
+    const mockAddr = mock.address();
+    const mockPort = typeof mockAddr === 'object' && mockAddr ? mockAddr.port : 0;
+    const horizonsUrl = `http://127.0.0.1:${mockPort}/horizons`;
+    const appPort = await freePort();
+    const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
+    const logs: string[] = [];
+    const child = spawn('node', ['node_modules/tsx/dist/cli.mjs', 'server.ts'], {
+        cwd: repoRoot,
+        env: {
+            ...process.env,
+            PORT: String(appPort),
+            HORIZONS_BASE_URL: horizonsUrl,
+            WS_TOKEN: 'test_secret',
+            NODE_ENV: 'development',
+            ALLOWED_ORIGINS: `http://127.0.0.1:${appPort}`,
+        },
+        stdio: ['ignore', 'pipe', 'pipe'],
+    });
+    child.stdout?.on('data', (chunk) => logs.push(String(chunk)));
+    child.stderr?.on('data', (chunk) => logs.push(String(chunk)));
+
+    const base = `http://127.0.0.1:${appPort}`;
+    try {
+        let ready = false;
+        for (let i = 0; i < 40; i++) {
+            try {
+                const health = await fetch(`${base}/health`);
+                if (health.status === 200) {
+                    ready = true;
+                    break;
+                }
+            } catch {
+                // server still booting
+            }
+            await new Promise((resolve) => setTimeout(resolve, 250));
+        }
+        assert.ok(ready, `horizons status server did not start\n${logs.join('')}`);
+
+        async function lookup(bodyId: string) {
+            const res = await fetch(`${base}/api/horizons/search?body_id=${encodeURIComponent(bodyId)}`);
+            const body = await res.json();
+            return { status: res.status, body };
+        }
+
+        const halley = await lookup('1P');
+        const outage = await lookup('zzprobe');
+        const missing = await lookup('zzempty');
+        const noMatch = await lookup('nosuchrock');
+        const ambiguous = await lookup('halley comet');
+        const retryOutage = await lookup('Tempel');
+        const cachedOutage = await lookup('Ceres');
+
+        assert.strictEqual(halley.status, 200);
+        assert.strictEqual(halley.body.naif_id, '1P');
+        assert.match(String(halley.body.body_name), /Halley/i);
+        assert.strictEqual(halley.body.source, 'NASA JPL Horizons');
+        assert.ok(halley.body.semi_major_axis_au > 10);
+
+        assert.strictEqual(outage.status, 502);
+        assert.deepStrictEqual(outage.body, { error: 'unknown error' });
+        assert.strictEqual(missing.status, 502);
+        assert.deepStrictEqual(missing.body, { error: 'No results from Horizons' });
+        assert.strictEqual(noMatch.status, 404);
+        assert.deepStrictEqual(noMatch.body, { error: 'No matches found' });
+        assert.strictEqual(ambiguous.status, 404);
+        assert.match(String(ambiguous.body.error), /multiple Horizons records/);
+        assert.ok(Array.isArray(ambiguous.body.candidates) && ambiguous.body.candidates.length >= 2);
+        assert.strictEqual(retryOutage.status, 502);
+        assert.deepStrictEqual(retryOutage.body, { error: 'unknown error' });
+        assert.strictEqual(cachedOutage.status, 200);
+        assert.match(String(cachedOutage.body.source), /Cached Fallback/);
+        assert.match(String(cachedOutage.body.body_name), /Ceres/);
+
+        const proof = {
+            previousPredicate: 'isHorizonsNoMatchError matched bare unknown/ambiguous, and the first response returned 404 when result was missing',
+            cases: {
+                halleySuccess: {
+                    before: { status: previousFirstResponseStatus({ result: HALLEY_ELEMENTS }), note: 'direct elements response was already 200' },
+                    after: { status: halley.status, body: { body_name: halley.body.body_name, naif_id: halley.body.naif_id, source: halley.body.source, semi_major_axis_au: halley.body.semi_major_axis_au } },
+                },
+                outageUnknownError: {
+                    before: { status: previousFirstResponseStatus({ error: 'unknown error' }), body: { error: 'unknown error' } },
+                    after: { status: outage.status, body: outage.body },
+                },
+                missingResult: {
+                    before: { status: previousFirstResponseStatus({ result: null }), body: { error: 'No results from Horizons' } },
+                    after: { status: missing.status, body: missing.body },
+                },
+                trueNoMatch: {
+                    before: { status: previousFirstResponseStatus({ error: 'No matches found' }), body: { error: 'No matches found' } },
+                    after: { status: noMatch.status, body: noMatch.body },
+                },
+            },
+        };
+        fs.mkdirSync('/opt/cursor/artifacts', { recursive: true });
+        fs.writeFileSync('/opt/cursor/artifacts/horizons-status-proof.json', JSON.stringify(proof, null, 2));
+    } finally {
+        await stopChild(child);
+        await new Promise<void>((resolve) => mock.close(() => resolve()));
+    }
 });
 
 

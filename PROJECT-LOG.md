@@ -23,6 +23,14 @@ This log is updated after every AI session. Each AI signs off with their entry. 
 
 ## RECENT LOGS
 
+### 2026-10-28 — Horizons lookup status: outages stay 502 (Grok 4.7)
+- **`/api/horizons/search` (`server.ts`, `server/shared/horizonsParser.mjs`, `server/mcp/nasa-horizons.mjs`):**
+  - First Horizons response: a missing `result`, or an error that is not a no-match phrase, is HTTP 502. Only a true no-match phrase is 404. Removed the `|| !data.result` check that turned outages into 404.
+  - `isHorizonsNoMatchError` matches specific phrases (`no matches found`, `no records found`, and the other listed no-match phrases). It does not match bare `unknown` or `ambiguous`, so “unknown error” is not a 404.
+  - `selectHorizonsBestRecord` returns `{ status: 'none' }` when no label matches and when the candidate list is empty. It does not throw, and it does not return `{ status: 'ok', record: candidates[0] }`. The Express index path and `server/mcp/nasa-horizons.mjs` both call that helper.
+  - Cached `FALLBACK_SMALL_BODIES` for the eleven known keys is unchanged.
+- **Verification:** `npm run typecheck` (0 errors), `npm run build` (clean), eslint on the touched files (clean). `f1_presets` 13/13, including live `F1-T1-5` (`1P` → `1P/Halley`). `f14` 18/18, including AUD-04: Halley apparitions resolve, two designations stay ambiguous, “unknown error” and a missing `result` are 502, and “No matches found” is 404.
+
 ### 2026-10-26 — Rendering model exploration plan (Grok 4.7)
 - **Plan only.** No shader, scene, or runtime changes.
 - Added `docs/plans/RENDERING-MODEL-EXPLORATION.md`: nine rendering models (spectral limb, layered atmosphere, volume budget, thin disk, LOD contract, optics catalog, magnetosphere, galactic density, gated compute particles) and six graphical upgrades (grade after ACES, tiered bloom and samples, unlit belt, planetary nebula shell, ion-tail wind, lensing-only chromatic aberration).

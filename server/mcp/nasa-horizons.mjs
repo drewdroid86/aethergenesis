@@ -5,6 +5,7 @@ import {
   parseOrbitalElements,
   horizonsRecordMatchesRequest,
   parseHorizonsIndexCandidates,
+  selectHorizonsBestRecord,
 } from '../shared/horizonsParser.mjs';
 
 // Initialize the server
@@ -55,8 +56,6 @@ async function fetchHorizons(url, bodyId) {
   const baseUrlObj = new URL(url);
   const startTimeParam = baseUrlObj.searchParams.get('START_TIME') || '2000-01-01';
   const queryYear = parseInt(startTimeParam.substring(0, 4), 10);
-  const epochCloseness = (c) =>
-    c.epochYear === null || Number.isNaN(queryYear) ? Number.MAX_SAFE_INTEGER : Math.abs(c.epochYear - queryYear);
 
   let resultText = data.result;
   let finalUrl = url;
@@ -64,18 +63,15 @@ async function fetchHorizons(url, bodyId) {
   // If result is search list (no $$SOE markers)
   if (!resultText.includes('$$SOE')) {
     const candidates = parseHorizonsIndexCandidates(resultText);
-    if (candidates.length === 0) {
-      throw new Error('Ambiguous body_id and could not parse record numbers from search list');
+    const selection = selectHorizonsBestRecord(candidates, bodyId, queryYear);
+    if (selection.status !== 'ok') {
+      throw new Error(
+        selection.status === 'ambiguous'
+          ? `Ambiguous body "${bodyId}": multiple Horizons designations match the request`
+          : `Ambiguous body or no records found for '${bodyId}'`
+      );
     }
-    const matching = candidates.filter((c) => horizonsRecordMatchesRequest(c.label, bodyId));
-    const distinctDesigs = Array.from(new Set(matching.map((c) => c.desigKey)));
-    if (matching.length > 0 && distinctDesigs.length > 1) {
-      throw new Error(`Ambiguous body "${bodyId}": multiple Horizons designations match the request`);
-    }
-    const ordered = matching.length > 0
-      ? [...matching].sort((a, b) => epochCloseness(a) - epochCloseness(b))
-      : candidates;
-    const bestRecord = ordered[0].record;
+    const bestRecord = selection.record;
     console.error(`Ambiguous body_id "${bodyId}". Selected record "${bestRecord}" from search results.`);
     console.error(`Original URL: ${url}`);
 
@@ -114,18 +110,16 @@ async function fetchHorizons(url, bodyId) {
     const indexCandidates = indexData && !indexData.error && indexData.result
       ? parseHorizonsIndexCandidates(indexData.result)
       : [];
-    const matching = indexCandidates.filter((c) => horizonsRecordMatchesRequest(c.label, bodyId));
-    const distinctDesigs = Array.from(new Set(matching.map((c) => c.desigKey)));
-    if (matching.length === 0 || distinctDesigs.length !== 1) {
+    const indexSelection = selectHorizonsBestRecord(indexCandidates, bodyId, queryYear);
+    if (indexSelection.status !== 'ok') {
       throw new Error(
-        matching.length === 0
-          ? `Horizons returned '${bodyName}' which does not match requested body '${bodyId}', and index search found no match`
-          : `Ambiguous body '${bodyId}': multiple Horizons designations match the request`
+        indexSelection.status === 'ambiguous'
+          ? `Ambiguous body '${bodyId}': multiple Horizons designations match the request`
+          : `Horizons returned '${bodyName}' which does not match requested body '${bodyId}', and index search found no match`
       );
     }
-    const ordered = [...matching].sort((a, b) => epochCloseness(a) - epochCloseness(b));
     const recordUrlObj = new URL(url);
-    recordUrlObj.searchParams.set('COMMAND', `'${ordered[0].record};'`);
+    recordUrlObj.searchParams.set('COMMAND', `'${indexSelection.record};'`);
     const recordUrl = recordUrlObj.toString();
     const recordRes = await fetchWithTimeout(recordUrl);
     if (recordRes.status !== 200) {
