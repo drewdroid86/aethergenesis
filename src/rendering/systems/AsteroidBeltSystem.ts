@@ -11,6 +11,25 @@ const BANDS = [
 const ASTEROID_RADIUS = 0.02;
 const ASTEROID_DETAIL = 2;
 
+// Closed upper bounds of the per-axis stretch in ASTEROID_VS
+// (`min + fract(seed) * span`). fract never reaches 1.
+const STRETCH_X_MIN = 0.62;
+const STRETCH_X_SPAN = 0.76;
+const STRETCH_Y_MIN = 0.58;
+const STRETCH_Y_SPAN = 0.82;
+const STRETCH_Z_MIN = 0.64;
+const STRETCH_Z_SPAN = 0.70;
+// rockHeight is in [-1, 1]; the vertex offset is rockHeight * this * |basePos|.
+const RADIAL_DISPLACEMENT = 0.52;
+
+function glslFloat(n: number): string {
+    return n.toFixed(2);
+}
+
+function displacedHalfExtent(stretchMin: number, stretchSpan: number): number {
+    return ASTEROID_RADIUS * (stretchMin + stretchSpan + RADIAL_DISPLACEMENT);
+}
+
 const ASTEROID_VS = `
 varying vec3 vWorldPos;
 varying vec3 vStarWorld;
@@ -52,7 +71,7 @@ float rockHeight(vec3 dir, vec3 seedOff) {
 
 vec3 rockPoint(vec3 basePos, vec3 stretch, vec3 seedOff) {
     vec3 p = basePos * stretch;
-    p += normalize(p) * rockHeight(normalize(basePos), seedOff) * 0.52 * length(basePos);
+    p += normalize(p) * rockHeight(normalize(basePos), seedOff) * ${glslFloat(RADIAL_DISPLACEMENT)} * length(basePos);
     return p;
 }
 
@@ -63,9 +82,9 @@ void main() {
     vTint = instanceColor.b;
 
     vec3 stretch = vec3(
-        0.62 + fract(seed * 13.17) * 0.76,
-        0.58 + fract(seedB * 47.23) * 0.82,
-        0.64 + fract(seed * 91.71 + seedB) * 0.70
+        ${glslFloat(STRETCH_X_MIN)} + fract(seed * 13.17) * ${glslFloat(STRETCH_X_SPAN)},
+        ${glslFloat(STRETCH_Y_MIN)} + fract(seedB * 47.23) * ${glslFloat(STRETCH_Y_SPAN)},
+        ${glslFloat(STRETCH_Z_MIN)} + fract(seed * 91.71 + seedB) * ${glslFloat(STRETCH_Z_SPAN)}
     );
     vec3 seedOff = vec3(seed, seedB, fract(seed * 7.0 + seedB)) * 53.0;
 
@@ -219,12 +238,17 @@ export class AsteroidBeltSystem {
 
     constructor(scene: THREE.Scene, count: number = 10000) {
         this.geometry = new THREE.IcosahedronGeometry(ASTEROID_RADIUS, ASTEROID_DETAIL);
-        const extent = BANDS[BANDS.length - 1].hi + 0.5;
+        // Object-space bounds of one displaced rock. InstancedMesh unions a copy of
+        // these transformed by each instance matrix, and those matrices already store
+        // the orbital translation and instance scale. The belt radii stay out of here.
+        const hx = displacedHalfExtent(STRETCH_X_MIN, STRETCH_X_SPAN);
+        const hy = displacedHalfExtent(STRETCH_Y_MIN, STRETCH_Y_SPAN);
+        const hz = displacedHalfExtent(STRETCH_Z_MIN, STRETCH_Z_SPAN);
         this.geometry.boundingBox = new THREE.Box3(
-            new THREE.Vector3(-extent, -extent, -extent),
-            new THREE.Vector3(extent, extent, extent)
+            new THREE.Vector3(-hx, -hy, -hz),
+            new THREE.Vector3(hx, hy, hz)
         );
-        this.geometry.boundingSphere = new THREE.Sphere(new THREE.Vector3(), extent);
+        this.geometry.boundingSphere = new THREE.Sphere(new THREE.Vector3(), Math.max(hx, hy, hz));
         this.geometry.name = 'AsteroidBeltGeometry';
 
         this.material = new THREE.ShaderMaterial({

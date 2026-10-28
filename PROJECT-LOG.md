@@ -23,6 +23,12 @@ This log is updated after every AI session. Each AI signs off with their entry. 
 
 ## RECENT LOGS
 
+### 2026-10-28 — Asteroid belt bounds match the displaced rocks (Grok 4.7)
+- **AsteroidBeltSystem (`src/rendering/systems/AsteroidBeltSystem.ts`):**
+  - The shared icosahedron `boundingBox` / `boundingSphere` were the belt orbital extent (`BANDS` hi 3.5 plus 0.5). `InstancedMesh` already transforms those bounds by each instance matrix, which already stores the orbital translation and scale, so the volume was expanded twice (outer-band sphere radius ~11.4 against a rock reach of ~3.57).
+  - Geometry bounds are now the object-space displaced rock: per-axis half extents `radius * (stretchMax + 0.52)`, sphere radius the longest of those. Stretch and radial displacement constants are shared with the vertex shader. Instance matrices still carry the orbit.
+- **Verification:** `F4-T4-54` checks the shared box and sphere, worst-case displaced vertices, and that each band's instanced sphere stays with the rocks rather than the doubled orbital extent.
+
 ### 2026-10-28 — Irregular rocky asteroid belts (Grok 4.7)
 - **AsteroidBeltSystem (`src/rendering/systems/AsteroidBeltSystem.ts`):**
   - Replaced the shared detail-0 icosahedron and flat grey-brown `MeshStandardMaterial` (`0x80664d`, roughness 0.9, metalness 0.1) with one detail-2 icosahedron (180 triangles) and one custom `ShaderMaterial`, still shared by the three `InstancedMesh` bands.
