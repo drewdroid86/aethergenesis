@@ -151,24 +151,6 @@ async function fetchHorizonsWithRetry(url: string, attempts = 2): Promise<Respon
   throw lastError;
 }
 
-/**
- * Horizons signals "this body cannot be resolved" either as a clean index
- * listing with no matches or, for some bodies, as an `error` payload. Map
- * the no-match-shaped errors to 404 (the invalid-body contract) while
- * keeping genuine outages as 502/504 after retries.
- */
-function isHorizonsNoMatchError(message: unknown): boolean {
-  const text = String(message ?? '').toLowerCase();
-  return (
-    text.includes('no match') ||
-    text.includes('no records') ||
-    text.includes('not found') ||
-    text.includes('unknown') ||
-    text.includes('cannot find') ||
-    text.includes('ambiguous')
-  );
-}
-
 // --- Preset catalog and JPL Horizons search logic ---
 
 interface PlanetPreset {
@@ -201,7 +183,7 @@ interface StarPreset {
 // @ts-expect-error missing types
 import { PRESETS as _PRESETS, estimateParams as _estimateParams } from "./server/shared/stellarCatalog.mjs";
 // @ts-expect-error missing types
-import { parseOrbitalElements as _parseOrbitalElements, horizonsRecordMatchesRequest as _horizonsRecordMatchesRequest, parseHorizonsIndexCandidates as _parseHorizonsIndexCandidates, selectHorizonsBestRecord as _selectHorizonsBestRecord } from "./server/shared/horizonsParser.mjs";
+import { parseOrbitalElements as _parseOrbitalElements, horizonsRecordMatchesRequest as _horizonsRecordMatchesRequest, parseHorizonsIndexCandidates as _parseHorizonsIndexCandidates, selectHorizonsBestRecord as _selectHorizonsBestRecord, isHorizonsNoMatchError as _isHorizonsNoMatchError } from "./server/shared/horizonsParser.mjs";
 
 const PRESETS = _PRESETS as StarPreset[];
 const estimateParams = _estimateParams as (spType: string) => any;
@@ -238,7 +220,10 @@ const selectHorizonsBestRecord = _selectHorizonsBestRecord as (
   candidates: HorizonsIndexCandidate[],
   requestedBodyId: string,
   queryYear: number
-) => { status: 'ok'; record: string } | { status: 'ambiguous' };
+) => { status: 'ok'; record: string } | { status: 'ambiguous' } | { status: 'none' };
+const isHorizonsNoMatchError = _isHorizonsNoMatchError as (message: unknown) => boolean;
+
+const HORIZONS_API_URL = process.env.HORIZONS_BASE_URL || 'https://ssd.jpl.nasa.gov/api/horizons.api';
 
 app.get('/api/catalog/presets', (_req, res) => {
   res.json(PRESETS);
@@ -608,7 +593,7 @@ app.get('/api/horizons/search', async (req, res) => {
     try {
       const epoch = '2000-01-01';
       const stopStr = '2000-01-02';
-      const url = `https://ssd.jpl.nasa.gov/api/horizons.api?format=json&EPHEM_TYPE=ELEMENTS&COMMAND='${encodeURIComponent(bodyId)}'&MAKE_EPHEM=YES&CENTER=500@10&START_TIME=${epoch}&STOP_TIME=${stopStr}&STEP_SIZE=1d&OBJ_DATA=YES`;
+      const url = `${HORIZONS_API_URL}?format=json&EPHEM_TYPE=ELEMENTS&COMMAND='${encodeURIComponent(bodyId)}'&MAKE_EPHEM=YES&CENTER=500@10&START_TIME=${epoch}&STOP_TIME=${stopStr}&STEP_SIZE=1d&OBJ_DATA=YES`;
       
       const response = await fetchHorizonsWithRetry(url);
       if (response.status !== 200) {
@@ -622,7 +607,9 @@ app.get('/api/horizons/search', async (req, res) => {
         if (fallback) {
           return res.json({ ...fallback, naif_id: bodyId, source: 'NASA JPL Horizons (Cached Fallback)' });
         }
-        if (isHorizonsNoMatchError(data.error) || !data.result) {
+        // Missing `result` without a no-match phrase is an outage (502), not
+        // an invalid body. Only the specific no-match phrases are 404.
+        if (isHorizonsNoMatchError(data.error)) {
           return res.status(404).json({ error: data.error || `Ambiguous body or no records found for '${bodyId}'` });
         }
         return res.status(502).json({ error: data.error || 'No results from Horizons' });
@@ -643,17 +630,19 @@ app.get('/api/horizons/search', async (req, res) => {
           // wrong-body guard below still rejects an unrelated record.
           const queryYear = parseInt(epoch.substring(0, 4), 10);
           const selection = selectHorizonsBestRecord(candidates, bodyId, queryYear);
-          if (selection.status === 'ambiguous') {
+          if (selection.status !== 'ok') {
             if (fallback) {
               return res.json({ ...fallback, naif_id: bodyId, source: 'NASA JPL Horizons (Cached Fallback)' });
             }
             return res.status(404).json({
-              error: `Ambiguous body '${bodyId}': multiple Horizons records match the request`,
+              error: selection.status === 'ambiguous'
+                ? `Ambiguous body '${bodyId}': multiple Horizons records match the request`
+                : `Ambiguous body or no records found for '${bodyId}'`,
               candidates: candidateLabels.slice(0, 25),
             });
           }
           const bestRecord = selection.record;
-          const retryUrl = `https://ssd.jpl.nasa.gov/api/horizons.api?format=json&EPHEM_TYPE=ELEMENTS&COMMAND='${encodeURIComponent(bestRecord + ';')}'&MAKE_EPHEM=YES&CENTER=500@10&START_TIME=${epoch}&STOP_TIME=${stopStr}&STEP_SIZE=1d&OBJ_DATA=YES`;
+          const retryUrl = `${HORIZONS_API_URL}?format=json&EPHEM_TYPE=ELEMENTS&COMMAND='${encodeURIComponent(bestRecord + ';')}'&MAKE_EPHEM=YES&CENTER=500@10&START_TIME=${epoch}&STOP_TIME=${stopStr}&STEP_SIZE=1d&OBJ_DATA=YES`;
           const retryRes = await fetchHorizonsWithRetry(retryUrl);
           if (retryRes.status !== 200) {
             if (fallback) {
@@ -704,7 +693,7 @@ app.get('/api/horizons/search', async (req, res) => {
         // COMMAND='1P' resolves directly to Kerberos). Retry via the
         // small-body index search form (trailing ';'), which returns a
         // disambiguation list, and select the unambiguous designation match.
-        const indexUrl = `https://ssd.jpl.nasa.gov/api/horizons.api?format=json&EPHEM_TYPE=ELEMENTS&COMMAND='${encodeURIComponent(bodyId + ';')}'&MAKE_EPHEM=YES&CENTER=500@10&START_TIME=${epoch}&STOP_TIME=${stopStr}&STEP_SIZE=1d&OBJ_DATA=YES`;
+        const indexUrl = `${HORIZONS_API_URL}?format=json&EPHEM_TYPE=ELEMENTS&COMMAND='${encodeURIComponent(bodyId + ';')}'&MAKE_EPHEM=YES&CENTER=500@10&START_TIME=${epoch}&STOP_TIME=${stopStr}&STEP_SIZE=1d&OBJ_DATA=YES`;
         const indexRes = await fetchHorizonsWithRetry(indexUrl);
         if (indexRes.status !== 200) {
           if (fallback) {
@@ -718,9 +707,9 @@ app.get('/api/horizons/search', async (req, res) => {
         const indexCandidates = indexData && !indexData.error && indexData.result
           ? parseHorizonsIndexCandidates(indexData.result)
           : [];
-        const matching = indexCandidates.filter((c) => horizonsRecordMatchesRequest(c.label, bodyId));
-        const distinctDesigs = Array.from(new Set(matching.map((c) => c.desigKey)));
-        if (matching.length === 0 || distinctDesigs.length !== 1) {
+        const indexQueryYear = parseInt(epoch.substring(0, 4), 10);
+        const indexSelection = selectHorizonsBestRecord(indexCandidates, bodyId, indexQueryYear);
+        if (indexSelection.status !== 'ok') {
           const labels = indexCandidates.length > 0
             ? indexCandidates.map((c) => c.label)
             : candidateLabels;
@@ -728,20 +717,14 @@ app.get('/api/horizons/search', async (req, res) => {
             return res.json({ ...fallback, naif_id: bodyId, source: 'NASA JPL Horizons (Cached Fallback)' });
           }
           return res.status(404).json({
-            error: matching.length === 0
-              ? `Horizons returned '${bodyName}' which does not match requested body '${bodyId}', and index search found no match`
-              : `Ambiguous body '${bodyId}': multiple Horizons designations match the request`,
+            error: indexSelection.status === 'ambiguous'
+              ? `Ambiguous body '${bodyId}': multiple Horizons designations match the request`
+              : `Horizons returned '${bodyName}' which does not match requested body '${bodyId}', and index search found no match`,
             candidates: labels.slice(0, 25),
           });
         }
         candidateLabels = indexCandidates.map((c) => c.label);
-        // One designation may span many apparition records (e.g. Halley):
-        // prefer the solution epoch closest to the requested elements epoch.
-        const queryYear = parseInt(epoch.substring(0, 4), 10);
-        const epochCloseness = (c: HorizonsIndexCandidate) =>
-          c.epochYear === null || Number.isNaN(queryYear) ? Number.MAX_SAFE_INTEGER : Math.abs(c.epochYear - queryYear);
-        const ordered = [...matching].sort((a, b) => epochCloseness(a) - epochCloseness(b));
-        const recordUrl = `https://ssd.jpl.nasa.gov/api/horizons.api?format=json&EPHEM_TYPE=ELEMENTS&COMMAND='${encodeURIComponent(ordered[0].record + ';')}'&MAKE_EPHEM=YES&CENTER=500@10&START_TIME=${epoch}&STOP_TIME=${stopStr}&STEP_SIZE=1d&OBJ_DATA=YES`;
+        const recordUrl = `${HORIZONS_API_URL}?format=json&EPHEM_TYPE=ELEMENTS&COMMAND='${encodeURIComponent(indexSelection.record + ';')}'&MAKE_EPHEM=YES&CENTER=500@10&START_TIME=${epoch}&STOP_TIME=${stopStr}&STEP_SIZE=1d&OBJ_DATA=YES`;
         const recordRes = await fetchHorizonsWithRetry(recordUrl);
         if (recordRes.status !== 200) {
           if (fallback) {

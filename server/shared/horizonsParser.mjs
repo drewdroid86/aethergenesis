@@ -111,39 +111,74 @@ export function horizonsRecordMatchesRequest(targetName, requestedBodyId) {
 }
 
 /**
- * Parse DASTCOM small-body index rows ("<record> <epoch-yr> <match-desig> ...")
- * from a Horizons disambiguation listing.
+ * Horizons signals "this body cannot be resolved" with a small set of
+ * phrases. Map only those to the invalid-body contract (HTTP 404). Bare
+ * substrings such as "unknown" or "ambiguous" are not no-match: an outage
+ * message like "unknown error" must stay a 502.
  *
- * @param {string} resultText
- * @returns {Array<{ record: string, label: string, desigKey: string, epochYear: number | null }>}
+ * @param {unknown} message
+ * @returns {boolean}
  */
+export function isHorizonsNoMatchError(message) {
+  const text = String(message ?? '').toLowerCase();
+  if (!text) return false;
+  const phrases = [
+    'no matches found',
+    'no match found',
+    'no records found',
+    'no record found',
+    'no matching records',
+    'cannot find',
+    'not found',
+  ];
+  return phrases.some((phrase) => text.includes(phrase));
+}
+
 /**
  * Select the single Horizons record to fetch from a DASTCOM index listing.
  *
  * Apparition records of one body (e.g. every Halley return) share one
  * designation key, so ambiguity is judged by distinct designation keys —
  * not by distinct record numbers. Judging by record numbers misreads Halley
- * (~30 apparition records) as ambiguous. Returns `{ status: 'ok', record }`
- * for a unique designation (epoch-closest apparition when several match, or
- * the first candidate when none matches the request), or
- * `{ status: 'ambiguous' }` when several designations match.
+ * (~30 apparition records) as ambiguous.
+ *
+ * Returns `{ status: 'ok', record }` for one designation (the apparition
+ * whose epoch is closest to the query year), `{ status: 'ambiguous' }` when
+ * several designations match, or `{ status: 'none' }` when nothing matches
+ * — including an empty candidate list. Zero matches are a no-match, same as
+ * the index path; they are not `{ status: 'ok', record: candidates[0] }`.
  *
  * @param {Array<{ record: string, label: string, desigKey: string, epochYear: number | null }>} candidates
  * @param {string} requestedBodyId
  * @param {number} queryYear
+ * @returns {{ status: 'ok', record: string } | { status: 'ambiguous' } | { status: 'none' }}
  */
 export function selectHorizonsBestRecord(candidates, requestedBodyId, queryYear) {
-  const matching = candidates.filter((c) => horizonsRecordMatchesRequest(c.label, requestedBodyId));
+  const list = Array.isArray(candidates) ? candidates : [];
+  const matching = list.filter((c) => c && horizonsRecordMatchesRequest(c.label, requestedBodyId));
+  if (matching.length === 0) {
+    return { status: 'none' };
+  }
   const distinctDesigs = new Set(matching.map((c) => c.desigKey));
-  if (matching.length > 0 && distinctDesigs.size > 1) {
+  if (distinctDesigs.size > 1) {
     return { status: 'ambiguous' };
   }
+  const year = Number(queryYear);
   const epochCloseness = (c) =>
-    c.epochYear === null || Number.isNaN(queryYear) ? Number.MAX_SAFE_INTEGER : Math.abs(c.epochYear - queryYear);
-  const pool = matching.length > 0 ? [...matching].sort((a, b) => epochCloseness(a) - epochCloseness(b)) : candidates;
-  return { status: 'ok', record: pool[0].record };
+    c.epochYear === null || Number.isNaN(year) ? Number.MAX_SAFE_INTEGER : Math.abs(c.epochYear - year);
+  const pool = [...matching].sort((a, b) => epochCloseness(a) - epochCloseness(b));
+  const record = pool[0] && pool[0].record;
+  if (!record) return { status: 'none' };
+  return { status: 'ok', record };
 }
 
+/**
+ * Parse DASTCOM small-body index rows ("<record> <epoch-yr> <match-desig> ...")
+ * from a Horizons disambiguation listing.
+ *
+ * @param {string} resultText
+ * @returns {Array<{ record: string, label: string, desigKey: string, epochYear: number | null }>}
+ */
 export function parseHorizonsIndexCandidates(resultText) {
   const candidates = [];
   for (const line of String(resultText ?? '').split('\n')) {
