@@ -92,6 +92,7 @@ function createBlackHoleDiskMaterial(kind: 'primary' | 'secondary'): THREE.Shade
         vertexShader: `
             varying vec3 vLocalPos;
             varying vec3 vWorldPos;
+            varying vec3 vTangentWorld;
             varying float vFacing;
             uniform vec3 uCameraLocal;
             uniform float uBendSign;
@@ -119,6 +120,7 @@ function createBlackHoleDiskMaterial(kind: 'primary' | 'secondary'): THREE.Shade
                 vec4 worldPos = modelMatrix * vec4(p, 1.0);
                 vLocalPos = p;
                 vWorldPos = worldPos.xyz;
+                vTangentWorld = mat3(modelMatrix) * vec3(-sin(ang), 0.0, cos(ang));
                 vFacing = facing;
                 gl_Position = projectionMatrix * viewMatrix * worldPos;
             }
@@ -132,6 +134,7 @@ function createBlackHoleDiskMaterial(kind: 'primary' | 'secondary'): THREE.Shade
 
             varying vec3 vLocalPos;
             varying vec3 vWorldPos;
+            varying vec3 vTangentWorld;
             varying float vFacing;
             uniform float uTime;
             uniform float uOpacity;
@@ -151,8 +154,7 @@ function createBlackHoleDiskMaterial(kind: 'primary' | 'secondary'): THREE.Shade
                 float beta = clamp(0.62 / sqrt(dist * 0.8 + 0.35), 0.0, 0.72);
                 // Orbital tangent of the tilted disk. Local XZ is the mesh plane;
                 // modelMatrix carries blackHoleGroup's 0.58 rad tilt into world space.
-                vec3 tangentLocal = vec3(-sin(angle), 0.0, cos(angle));
-                vec3 tangentDir = normalize(mat3(modelMatrix) * tangentLocal);
+                vec3 tangentDir = normalize(vTangentWorld);
                 vec3 viewDir = normalize(uCameraPos - vWorldPos);
                 float beta_los = beta * dot(tangentDir, viewDir);
                 float gamma = 1.0 / sqrt(max(0.01, 1.0 - beta * beta));

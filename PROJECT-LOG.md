@@ -907,3 +907,12 @@ Do not push to `main` directly. Do not run `git commit --amend` on pushed commit
 ## ARCHITECT SIGN-OFF
 Last comprehensive audit: 2026-08-28 (Claude Opus 4.6). 8-fix stabilization pass completed.
 All branches merged to main. Next architect review needed for: deployment pipeline, code splitting strategy, PR workflow enforcement.
+## 2026-10-29 — PR #257 shader review follow-up
+
+- Move the disk orbital tangent transform to the vertex shader and interpolate its world-space direction; `modelMatrix` is not a Three.js fragment-stage built-in.
+- Validate standalone GLSL with Three.js declarations and resolved noise includes, and include all inline RemnantPhase shader stages in the same check.
+- Extend the workflow path filters so changes to the validator and inline remnant shaders trigger validation.
+- Confirm the existing highlight shoulder is continuous at 1.15 and attenuates values above the threshold; the remaining review thread describes an older formula.
+- Local GLSL validation passes with glslang 16.6.0, including all remnant stages.
+- Replace the Horizons test's hardcoded Cursor artifact path with `ARTIFACT_DIR` or a unique directory under the platform temporary directory.
+- Build and lint/typecheck pass (two pre-existing lint warnings). The full test run passed all suites except the artifact-path failure; after fixing that path, the affected F14 suite passes all 18 tests.
