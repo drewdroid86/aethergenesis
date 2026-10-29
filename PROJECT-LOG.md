@@ -916,3 +916,4 @@ All branches merged to main. Next architect review needed for: deployment pipeli
 - Local GLSL validation passes with glslang 16.6.0, including all remnant stages.
 - Replace the Horizons test's hardcoded Cursor artifact path with `ARTIFACT_DIR` or a unique directory under the platform temporary directory.
 - Build and lint/typecheck pass (two pre-existing lint warnings). The full test run passed all suites except the artifact-path failure; after fixing that path, the affected F14 suite passes all 18 tests.
+- GitHub's build, shader validation, review check, and physics benchmarks pass on the pushed fixes. Align the CI job name with the repository ruleset's required context `CI / build (pull_request)`; the old `build` name left successful PRs blocked.
