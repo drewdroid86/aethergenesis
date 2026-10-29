@@ -5,6 +5,7 @@ import fs from 'node:fs';
 import http from 'node:http';
 import net from 'node:net';
 import path from 'node:path';
+import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { spawn, type ChildProcess } from 'node:child_process';
 import { ActionLog, ingestWorkerEvent } from '../../src/simulation/ActionLog.ts';
@@ -657,8 +658,9 @@ test('AUD-04: Horizons first response keeps outages at 502 and true no-match at 
                 },
             },
         };
-        fs.mkdirSync('/opt/cursor/artifacts', { recursive: true });
-        fs.writeFileSync('/opt/cursor/artifacts/horizons-status-proof.json', JSON.stringify(proof, null, 2));
+        const artifactsDir = process.env.ARTIFACT_DIR || fs.mkdtempSync(path.join(tmpdir(), 'aethergenesis-proof-'));
+        fs.mkdirSync(artifactsDir, { recursive: true });
+        fs.writeFileSync(path.join(artifactsDir, 'horizons-status-proof.json'), JSON.stringify(proof, null, 2));
     } finally {
         await stopChild(child);
         await new Promise<void>((resolve) => mock.close(() => resolve()));

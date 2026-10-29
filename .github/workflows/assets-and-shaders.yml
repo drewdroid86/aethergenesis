@@ -8,6 +8,9 @@ on:
       - '**.glsl'
       - '**.vert'
       - '**.frag'
+      - 'src/simulation/phases/RemnantPhase.ts'
+      - 'scripts/validate-shaders.mjs'
+      - '.github/workflows/assets-and-shaders.yml'
 
 jobs:
   shader-lint:
@@ -16,16 +19,17 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - run: npm ci
+
       - name: Install glslang validator
         run: sudo apt-get install -y glslang-tools
 
       - name: Validate Shaders
-        run: |
-          echo "Linting GLSL shader files..."
-          find src/shaders -type f \( -name "*.glsl" -o -name "*.vert" -o -name "*.frag" \) | while read -r shader; do
-            echo "Checking $shader..."
-            glslangValidator "$shader"
-          done
+        run: node scripts/validate-shaders.mjs
 
   asset-optimize:
     name: Compress 3D Models
