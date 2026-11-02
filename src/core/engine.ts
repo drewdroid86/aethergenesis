@@ -49,6 +49,7 @@ export class Engine {
     isScrubbing: boolean = false;
     physicsConstants: PhysicsConstants = DEFAULT_CONSTANTS;
     cosmicAge: number = 5.0;
+    simulatedTimeYears: number = 0;
     timeScale: 'cosmic' | 'realtime' = 'cosmic';
     nbodyBuffer: Float32Array | null = null;
     /**
@@ -87,8 +88,10 @@ export class Engine {
             const delta = Math.max(0.001, Math.min((now - this._lastFrameTime) / 1000, 0.05));
             this._lastFrameTime = now;
             
-            if (this.isPlayingCosmic && !this.isGlobalScrubbing) {
-                this.cosmicAge += this.timeScale === 'cosmic' ? delta * 0.2 : (delta / 31557600) / 1e9;
+            if (!this.isPaused && this.isPlayingCosmic && !this.isGlobalScrubbing) {
+                const elapsedYears = this.timeScale === 'cosmic' ? delta * 200000000 : delta / 31557600;
+                this.simulatedTimeYears += elapsedYears;
+                this.cosmicAge += elapsedYears / 1e9;
                 if (this.cosmicAge > 14) {
                     this.cosmicAge = 0;
                     this.respawnAllStars();
@@ -499,10 +502,8 @@ export class Engine {
             const targetStarMass = targetStar?.mass || 1.0;
             // Comet phase visibility updates continuously during scrubber drags into non-MS phases
             this.cometSystem.update(this.getStellarState(), this.appTime, targetStarPos);
-            if (!this.isPaused && !isScrubbing) {
-                this.dysonSwarmSystem.update(this.highestKardashevTier, this.appTime, targetStarPos, delta);
-                this.asteroidBeltSystem.update(this.appTime, targetStarPos, targetStarMass);
-            }
+            this.dysonSwarmSystem.update(this.highestKardashevTier, this.appTime, targetStarPos, this.isPaused || isScrubbing ? 0 : delta);
+            this.asteroidBeltSystem.update(this.appTime, targetStarPos, targetStarMass);
         } catch (error) {
             if (typeof (window as any).emitErrorOverlay === 'function') {
                 (window as any).emitErrorOverlay(error);
@@ -604,6 +605,7 @@ export class Engine {
         for (let i = 0; i < this.heroStars.length; i++) {
             this.heroStars[i].dispose(this.renderer);
         }
+        PlanetarySystemQueue.flushDisposals();
         this.cometSystem.dispose();
         this.dysonSwarmSystem.dispose();
         this.asteroidBeltSystem.dispose();

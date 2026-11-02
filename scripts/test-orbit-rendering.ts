@@ -1,0 +1,21 @@
+import assert from 'node:assert/strict';
+import * as THREE from 'three';
+import { PlanetarySystem } from '../src/rendering/systems/PlanetarySystem';
+import { PHASES } from '../src/core/constants';
+
+const star = Object.assign(new THREE.Group(), { phase: PHASES.MAIN_SEQUENCE, mass: 1, currentMass: 1, physicsId: 'test' });
+const system = new PlanetarySystem(star);
+const v = Math.sqrt(4 * Math.PI * Math.PI * 3);
+const buffer = new Float32Array([0.5, 0, 0, 0, 0, v, 0]);
+system.update(0, 0, buffer);
+assert.equal(system.orbitLinesGroup.children.length, 1);
+const line = system.orbitLinesGroup.children[0] as THREE.LineLoop;
+const points = line.geometry.getAttribute('position');
+assert.ok(Math.abs(points.getX(0) - 6) < 1e-3);
+assert.ok(Math.abs(points.getX(32) + 18) < 1e-3);
+assert.ok(Math.abs(points.getY(16)) > 1);
+system.update(0, 0, new Float32Array());
+assert.equal((system as any).instancedMesh.count, 0);
+assert.equal(system.orbitLinesGroup.children.length, 0);
+system.dispose();
+console.log('Inclined eccentric orbit and empty roster passed');

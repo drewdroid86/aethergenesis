@@ -47,6 +47,7 @@ export class SimulationCoordinator {
     private astrobiologyEngine: AstrobiologyEngine;
     private lastAnalysisTime: number = 0;
     private lastStateSendTime: number = 0;
+    private lastSimulatedTimeYears: number = 0;
 
     // Callbacks for UI updates
     onAstrobiologyUpdate: ((data: AstrobiologyStateData[]) => void) | null = null;
@@ -125,7 +126,7 @@ export class SimulationCoordinator {
                 logT: Math.log10(Math.max(star.currentTemp, 1)),
                 logL: Math.log10(Math.max(star.currentLum, 1e-10))
             },
-            sim_time_yr: this.engine.appTime * 1e6
+            sim_time_yr: this.engine.simulatedTimeYears
         };
 
         const buffer = this.engine.nbodyBuffer;
@@ -135,9 +136,8 @@ export class SimulationCoordinator {
 
         if (buffer) {
             const numBodies = buffer.length / 7;
-            const sim_time_yr = this.engine.appTime * 1e6;
-            const elapsedWallSec = Math.min(0.5, (currentTime - this.lastStateSendTime) / 1000.0);
-            const deltaTime_yr = this.engine.isPaused ? 0 : (this.engine.timeScale === 'cosmic' ? elapsedWallSec * 200000000 : elapsedWallSec * 1000);
+            const sim_time_yr = this.engine.simulatedTimeYears;
+            const deltaTime_yr = Math.max(0, sim_time_yr - this.lastSimulatedTimeYears);
 
             const MASS_EARTH = 5.97e24;
             const RADIUS_EARTH = 6371000;
@@ -162,7 +162,8 @@ export class SimulationCoordinator {
                 }
 
                 const p = star.planetarySystem?.bodies[i];
-                const bodyType = p ? (p.type === 1 ? 'gas_giant' : p.type === 2 ? 'ice' : p.type === 3 ? 'lava' : p.type === 4 ? 'ocean' : p.type === 5 ? 'desert' : p.type === 6 ? 'jungle' : 'rocky') : (bodyTypeVal === 1 ? 'comet' : 'rocky');
+                const physicalType = this.engine.nbodyRoster?.[i]?.type;
+                const bodyType = physicalType && physicalType !== 'planet' ? physicalType : p ? (p.type === 1 ? 'gas_giant' : p.type === 2 ? 'ice' : p.type === 3 ? 'lava' : p.type === 4 ? 'ocean' : p.type === 5 ? 'desert' : p.type === 6 ? 'jungle' : 'rocky') : (bodyTypeVal === 1 ? 'comet' : 'rocky');
 
                 // Stable worker id when the roster has arrived; index fallback before that.
                 // (The astrobiology planetKey below intentionally stays
@@ -201,10 +202,12 @@ export class SimulationCoordinator {
                     mass *= 0.6; radius *= 0.75; albedo = 0.15;
                 }
 
-                const planetKey = AstrobiologyEngine.key(star.physicsId, `body_${i}`);
+                const planetKey = AstrobiologyEngine.key(star.physicsId, rosterId ?? `body_${i}`);
                 const habState: AstrobiologyStateData = this.astrobiologyEngine.evaluatePlanet(
                     planetKey, a, mass, radius, albedo, perStarState, deltaTime_yr, bodyType
                 );
+
+                habState.planet_id = rosterId ?? `body_${i}`;
 
                 habState.sim_time_yr = sim_time_yr;
                 astrobiologyStates.push(habState);
@@ -214,6 +217,7 @@ export class SimulationCoordinator {
                 }
             }
         }
+        this.lastSimulatedTimeYears = this.engine.simulatedTimeYears;
 
         this.engine.highestKardashevTier = maxK;
 

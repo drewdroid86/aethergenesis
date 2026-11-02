@@ -610,6 +610,7 @@ export class PlanetarySystem {
         this.material.customProgramCacheKey = () => 'planetary_system_material';
 
         this.instancedMesh = new THREE.InstancedMesh(geometry, this.material, numBodies);
+        this.instancedMesh.frustumCulled = false;
         
         const types = new Float32Array(numBodies);
         const seeds = new Float32Array(numBodies);
@@ -740,6 +741,7 @@ export class PlanetarySystem {
         this.ringMaterial.name = 'InstancedPlanetaryRingMaterial';
         this.ringMaterial.customProgramCacheKey = () => 'planetary_ring_material';
         this.ringInstancedMesh = new THREE.InstancedMesh(ringGeometry, this.ringMaterial, numBodies);
+        this.ringInstancedMesh.frustumCulled = false;
         this.ringInstancedMesh.count = 0;
         
         this.group.add(this.instancedMesh);
@@ -790,10 +792,11 @@ export class PlanetarySystem {
         let scorchDirty = false;
         let visualsDirty = false;
 
-        const isBufferDriven = buffer && buffer.length >= 7;
+        const isBufferDriven = buffer != null;
         const numBodies = isBufferDriven
             ? Math.min(this.bodies.length, Math.floor(buffer!.length / 7))
             : this.proceduralOrbits.length;
+        if (numBodies === 0 && this.orbitLinesBuilt) this.clearOrbitLines();
 
         // Construct orbit trajectory path lines once per body generation —
         // rebuild whenever the live body count changes (INIT empty roster,
@@ -806,10 +809,28 @@ export class PlanetarySystem {
                 const orbitScale = 12.0;
                 let radius: number;
                 if (isBufferDriven) {
-                    // Worker emits ecliptic X-Y plane; renderer draws orbit rings in X-Z plane.
-                    const bx = buffer![i * 7 + 0] * orbitScale;
-                    const by = buffer![i * 7 + 1] * orbitScale;
-                    radius = Math.sqrt(bx * bx + by * by);
+                    const offset = i * 7;
+                    const r = new THREE.Vector3(buffer![offset], buffer![offset + 1], buffer![offset + 2]);
+                    const v = new THREE.Vector3(buffer![offset + 3], buffer![offset + 4], buffer![offset + 5]);
+                    const mu = 4 * Math.PI * Math.PI * Math.max(0.01, star.currentMass ?? star.mass ?? 1);
+                    const h = new THREE.Vector3().crossVectors(r, v);
+                    const distance = r.length();
+                    if (!(distance > 0) || h.lengthSq() < 1e-12) continue;
+                    const eccentricity = new THREE.Vector3().crossVectors(v, h).divideScalar(mu).sub(r.clone().divideScalar(distance));
+                    const e = eccentricity.length();
+                    if (!Number.isFinite(e) || e >= 1) continue;
+                    const axis = e > 1e-6 ? eccentricity.normalize() : r.clone().normalize();
+                    const transverse = new THREE.Vector3().crossVectors(h.clone().normalize(), axis);
+                    const p = h.lengthSq() / mu;
+                    const points: THREE.Vector3[] = [];
+                    for (let s = 0; s < 64; s++) {
+                        const theta = s / 64 * Math.PI * 2;
+                        const d = orbitScale * p / (1 + e * Math.cos(theta));
+                        const point = axis.clone().multiplyScalar(d * Math.cos(theta)).addScaledVector(transverse, d * Math.sin(theta));
+                        points.push(new THREE.Vector3(point.x, point.z, point.y));
+                    }
+                    this.orbitLinesGroup.add(new THREE.LineLoop(new THREE.BufferGeometry().setFromPoints(points), this.orbitLineMat));
+                    continue;
                 } else {
                     radius = this.proceduralOrbits[i].semiMajorAxis_au * orbitScale;
                 }
@@ -1049,6 +1070,10 @@ export class PlanetarySystemQueue {
     private static pendingCreations: { star: any; renderer?: THREE.WebGLRenderer }[] = [];
     private static pendingDisposals: PlanetarySystem[] = [];
     private static BUDGET_PER_FRAME = 2; // Process at most 2 creations/disposals per frame
+
+    public static flushDisposals() {
+        for (const system of this.pendingDisposals.splice(0)) system.dispose();
+    }
 
     public static enqueueCreation(star: any, renderer?: THREE.WebGLRenderer) {
         // Prevent duplicate queueing

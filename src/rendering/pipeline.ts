@@ -11,6 +11,7 @@ export class Pipeline {
     composer: EffectComposer;
     bloomPass: UnrealBloomPass;
     cinematicPass: ShaderPass;
+    private outputPass: OutputPass;
     lensingStrength: number = 0.0;
 
     // BOLT: Cached vector instances to avoid per-frame allocations during 60/120fps render loop
@@ -37,8 +38,8 @@ export class Pipeline {
         this.cinematicPass.material.customProgramCacheKey = () => 'cinematic_pass_material';
         this.composer.addPass(this.cinematicPass);
 
-        const outputPass = new OutputPass();
-        this.composer.addPass(outputPass);
+        this.outputPass = new OutputPass();
+        this.composer.addPass(this.outputPass);
     }
 
     public updateLensing(selectedStar: any, camera: THREE.PerspectiveCamera, delta: number) {
@@ -119,6 +120,7 @@ export class Pipeline {
             this.cinematicPass.material.dispose();
         }
         this.cinematicPass.dispose();
+        this.outputPass.dispose();
         this.composer.dispose();
     }
 }

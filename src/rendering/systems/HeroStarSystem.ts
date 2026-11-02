@@ -763,6 +763,9 @@ export class HeroStarSystem extends THREE.Group {
         _frustumSphere.radius = boundRadius * expL;
         const isVisible = frustum ? frustum.intersectsSphere(_frustumSphere) : true;
         if (!isVisible && overrideT === undefined) {
+            if (this.planetarySystem && nbodyBuffer != null) {
+                this.planetarySystem.update(delta, appTime, nbodyBuffer, false, globalFade);
+            }
             return;
         }
 

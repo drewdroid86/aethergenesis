@@ -245,7 +245,8 @@ export function useSimulation(containerRef: React.RefObject<HTMLDivElement | nul
         setIsCatalogOpen(false);
         if (!elements) return;
 
-        const centralMass = selectedStarRef.current?.mass || 1.0;
+        const selected = selectedStarRef.current ?? engineRef.current?.heroStars[0];
+        const centralMass = selected?.currentMass ?? selected?.mass ?? 1.0;
         const eccentricity = Math.max(0, elements.eccentricity || 0);
         const safeEcc = Math.min(0.9999, eccentricity);
         const semiMajorAxis_au = elements.semi_major_axis_au || (elements.perihelion_au ? (elements.perihelion_au / (1 - safeEcc)) : 1.0);
