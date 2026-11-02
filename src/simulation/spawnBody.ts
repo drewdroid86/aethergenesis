@@ -39,6 +39,11 @@ export function nextSpawnId(): string {
     return `spawned_${spawnCounter++}`;
 }
 
+/** Instance ID for a catalog import, independent of browser secure-context APIs. */
+export function nextCatalogId(): string {
+    return `catalog_${nextSpawnId()}`;
+}
+
 /** Reset the spawn id counter (tests / fresh deterministic runs). */
 export function resetSpawnCounter(): void {
     spawnCounter = 1;

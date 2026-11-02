@@ -13,6 +13,7 @@ import {
     buildSpawnBody,
     computeSpawnState,
     circularOrbitSpeed,
+    nextCatalogId,
     resetSpawnCounter,
 } from '../../src/simulation/spawnBody.ts';
 import { PlanetarySystem } from '../../src/rendering/systems/PlanetarySystem.ts';
@@ -131,6 +132,14 @@ test('F14-5: spawn ids and state are deterministic (no Math.random)', () => {
     resetSpawnCounter();
     const replay = buildSpawnBody({ position_au: { x: 2, y: 0, z: 0 }, centralMass_solar: 1.0 });
     assert.strictEqual(replay.id, 'spawned_1', 'counter reset must replay identically');
+});
+
+test('catalog imports generate distinct ids without browser crypto', () => {
+    resetSpawnCounter();
+    const first = nextCatalogId();
+    const second = nextCatalogId();
+    assert.notStrictEqual(first, second);
+    assert.match(first, /^catalog_spawned_\d+$/);
 });
 
 test('F14-6: degenerate spawn radius clamps deterministically', () => {

@@ -11,7 +11,7 @@ import { OrbitalBody, buildWorkerBodiesFromOrbits, keplerianToCartesian } from '
 import { PlanetarySystem, PlanetarySystemQueue } from '../../rendering/systems/PlanetarySystem';
 import { SimulationCoordinator } from '../../simulation/SimulationCoordinator';
 import { actionLog, ingestWorkerEvent } from '../../simulation/ActionLog';
-import { buildSpawnBody, type SpawnMode } from '../../simulation/spawnBody';
+import { buildSpawnBody, nextCatalogId, type SpawnMode } from '../../simulation/spawnBody';
 
 // Sub-hooks
 import { useWebSocket } from './useWebSocket';
@@ -299,7 +299,7 @@ export function useSimulation(containerRef: React.RefObject<HTMLDivElement | nul
         const bodyType: 'comet' | 'asteroid' | 'planet' = elements.type === 'asteroid' ? 'asteroid' : (elements.type === 'comet' ? 'comet' : (eccentricity > 0.8 ? 'comet' : 'planet'));
 
         const newBody: OrbitalBody = {
-            id: `catalog_${crypto.randomUUID()}`,
+            id: nextCatalogId(),
             catalogId: String(elements.naif_id ?? elements.name ?? ''),
             type: bodyType,
             mass_solar: elements.mass_solar || (bodyType === 'comet' ? 1e-12 : (bodyType === 'asteroid' ? 1e-10 : 0.000003)),
