@@ -23,6 +23,15 @@ This log is updated after every AI session. Each AI signs off with their entry. 
 
 ## RECENT LOGS
 
+### 2026-11-02 — Close the disk/curl filament seam (Grok 4.7)
+- **`RemnantPhase.ts` only.** The vertical cut on the left of the three-quarter Cygnus view was the filament phase. `atan` jumps by 2π on the local −X ray, and the lane harmonics (2.6, 1.15, 3.1, 2.8, 0.6) are not integers, so the streaks offset across that ray where the plane meets the curl. Every multiple of `angle` is now an integer (3 or 1). The curl ramp is wider in azimuth and radius, and the under-image fades with that same `vCurl` weight so it does not share a face with the flat disk.
+- Doppler still uses the tilted-disk tangent. Shadow scale, highlight shoulder, normal blending, and bloom are unchanged. `ejecta.vert.glsl` was not edited.
+- **Rig:** SwiftShader, 1280×720, FOV 42°, synced `readPixels`, median of 5 frames. Cygnus X-1, distance 8.4.
+  - Three-quarter: 153.9 ms, 8,167 tris, 20 calls → 182.6 ms, 8,167 tris, 20 calls.
+  - Face-on after: 163.2 ms, 8,191 tris, 21 calls.
+  - Edge-on after: 183.8 ms, 8,143 tris, 19 calls.
+  - Triangle counts are unchanged. The time spread is SwiftShader variance on the same draw.
+
 ### 2026-10-28 — Bugbot fixes on the remnant black hole PR (Grok 4.7)
 - **Photon ring vs expansion (`pipeline.ts`, `RemnantPhase.ts`):** `uBlackHoleRadius` now uses `blackHoleWorldShadowRadius(mass, hero.scale.x)`. `b_c` stays in the group's local space; the post ring multiplies by the same `physics.lambda` scale the hero group applies to the core and disk.
 - **Doppler on the tilted disk (`RemnantPhase.ts`):** The orbital tangent is still `(-sin θ, 0, cos θ)` in the mesh plane, then `normalize(mat3(modelMatrix) * tangent)`. That carries `blackHoleGroup.rotation.x = 0.58` into the line-of-sight dot. Beta, gamma, and `delta^3.2` are unchanged.

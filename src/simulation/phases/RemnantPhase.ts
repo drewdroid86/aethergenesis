@@ -94,6 +94,7 @@ function createBlackHoleDiskMaterial(kind: 'primary' | 'secondary'): THREE.Shade
             varying vec3 vWorldPos;
             varying vec3 vTangentWorld;
             varying float vFacing;
+            varying float vCurl;
             uniform vec3 uCameraLocal;
             uniform float uBendSign;
             uniform float uOblique;
@@ -108,11 +109,12 @@ function createBlackHoleDiskMaterial(kind: 'primary' | 'secondary'): THREE.Shade
                 float camXZLen = length(camXZ);
                 vec2 camAxis = camXZLen > 1e-3 ? camXZ / camXZLen : vec2(0.0, 1.0);
                 float facing = dot(radN, camAxis);
-                // Only the inner far rim curls over or under the shadow. The rest
-                // of the annulus stays in the disk plane so the plane reads first.
-                float far = 1.0 - smoothstep(-0.92, -0.15, facing);
-                float falloff = 1.0 - smoothstep(uInner * 1.02, uInner * 2.05, r);
-                float h = uBendSign * 0.34 * far * uOblique * falloff;
+                // Inner far rim only. Wide ramps so the surface eases off the plane
+                // instead of a radial step where the curl starts.
+                float far = 1.0 - smoothstep(-1.0, -0.05, facing);
+                float falloff = 1.0 - smoothstep(uInner * 1.05, uInner * 2.55, r);
+                float curl = far * falloff;
+                float h = uBendSign * 0.34 * uOblique * curl;
                 float ang = atan(p.z, p.x);
                 // Cheap thickness so an edge-on view is a band, not a hairline.
                 float puff = 0.1 * (0.55 + 0.45 * sin(ang * 2.0));
@@ -122,6 +124,7 @@ function createBlackHoleDiskMaterial(kind: 'primary' | 'secondary'): THREE.Shade
                 vWorldPos = worldPos.xyz;
                 vTangentWorld = mat3(modelMatrix) * vec3(-sin(ang), 0.0, cos(ang));
                 vFacing = facing;
+                vCurl = curl;
                 gl_Position = projectionMatrix * viewMatrix * worldPos;
             }
         `,
@@ -136,6 +139,7 @@ function createBlackHoleDiskMaterial(kind: 'primary' | 'secondary'): THREE.Shade
             varying vec3 vWorldPos;
             varying vec3 vTangentWorld;
             varying float vFacing;
+            varying float vCurl;
             uniform float uTime;
             uniform float uOpacity;
             uniform vec3 uCameraPos;
@@ -163,15 +167,17 @@ function createBlackHoleDiskMaterial(kind: 'primary' | 'secondary'): THREE.Shade
                 float g_grav = sqrt(max(0.04, 1.0 - 0.5 / max(0.55, dist)));
                 float freqShift = g_grav * delta;
 
-                // Longitudinal filaments on top of the plane: thin across radius,
-                // long along the sheared flow. No FBM spots.
+                // Longitudinal filaments. Every multiple of angle is an integer.
+                // atan jumps by 2π on the local -X ray, and a non-integer harmonic
+                // offsets the lanes across that ray. That was the vertical cut
+                // where the plane meets the curl.
                 float orbitalFreq = 4.5 / pow(dist + 0.2, 1.5);
                 float shear = angle - log(max(dist, 0.55)) * 6.5 - uTime * 0.28 * orbitalFreq;
-                float lane = pow(0.5 + 0.5 * sin(dist * 20.0 - shear * 2.6), 3.0);
-                float lane2 = pow(0.5 + 0.5 * sin(dist * 33.0 - shear * 1.15 + 1.7), 4.0);
-                float along = smoothstep(0.12, 0.78, 0.5 + 0.5 * sin(shear * 3.1 + dist * 0.15));
+                float lane = pow(0.5 + 0.5 * sin(dist * 20.0 - shear * 3.0), 3.0);
+                float lane2 = pow(0.5 + 0.5 * sin(dist * 33.0 - shear + 1.7), 4.0);
+                float along = smoothstep(0.12, 0.78, 0.5 + 0.5 * sin(shear * 3.0 + dist * 0.15));
                 float threads = clamp(lane * 0.7 + lane2 * 0.45, 0.0, 1.0) * mix(0.25, 1.0, along);
-                float clumps = pow(max(sin(shear * 2.8 + 0.4) * sin(dist * 4.5 + shear * 0.6), 0.0), 2.4);
+                float clumps = pow(max(sin(shear * 3.0 + 0.4) * sin(dist * 4.5 + shear), 0.0), 2.4);
 
                 vec3 coreColor = vec3(1.0, 0.98, 0.94);
                 vec3 midColor  = vec3(1.0, 0.50, 0.08);
@@ -223,7 +229,10 @@ function createBlackHoleDiskMaterial(kind: 'primary' | 'secondary'): THREE.Shade
                 float density = clamp(plane + threads * 0.16 + clumps * 0.2 + ribbon * 0.12, 0.0, 1.0);
                 float alpha = density * innerCut * outerCut;
                 if (uFarOnly > 0.5) {
-                    alpha *= uOblique * (1.0 - smoothstep(-0.7, 0.05, vFacing));
+                    // Under-image only where the surface has left the plane, using
+                    // the same curl weight as the primary so the meshes do not
+                    // share a face and slice the filaments.
+                    alpha *= uOblique * smoothstep(0.04, 0.45, vCurl);
                 }
                 alpha = clamp(alpha, 0.0, 1.0) * uOpacity * uImageGain;
                 gl_FragColor = vec4(finalDiskColor, alpha);
@@ -231,7 +240,7 @@ function createBlackHoleDiskMaterial(kind: 'primary' | 'secondary'): THREE.Shade
         `,
     });
     mat.name = secondary ? 'RemnantBlackHoleWrapMaterial' : 'RemnantBlackHoleDiskMaterial';
-    mat.customProgramCacheKey = () => 'remnant_bh_disk_wrap_v3';
+    mat.customProgramCacheKey = () => 'remnant_bh_disk_wrap_v4';
     return mat;
 }
 
