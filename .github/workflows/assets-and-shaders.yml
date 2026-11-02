@@ -21,11 +21,7 @@ jobs:
 
       - name: Validate Shaders
         run: |
-          echo "Linting GLSL shader files..."
-          find src/shaders -type f \( -name "*.glsl" -o -name "*.vert" -o -name "*.frag" \) | while read -r shader; do
-            echo "Checking $shader..."
-            glslangValidator "$shader"
-          done
+          node scripts/validate-shaders.mjs
 
   asset-optimize:
     name: Compress 3D Models
