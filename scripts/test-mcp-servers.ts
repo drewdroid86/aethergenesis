@@ -13,13 +13,13 @@ interface JsonRpcMessage {
 class McpTestClient {
   private proc: ChildProcessWithoutNullStreams;
   private messageId: number = 1;
-  private pendingRequests: Map<number | string, (response: JsonRpcMessage) => void> = new Map();
+  private pendingRequests: Map<number | string, { resolve: (response: JsonRpcMessage) => void; reject: (error: Error) => void }> = new Map();
   private buffer: string = '';
 
   constructor(serverScript: string) {
     const fullPath = path.resolve(process.cwd(), serverScript);
     this.proc = spawn('node', [fullPath], {
-      env: { ...process.env, NODE_ENV: 'test' },
+      env: { ...process.env, NODE_ENV: 'test', WS_CONTROL_TOKEN: 'mcp_test_control_token' },
       stdio: ['pipe', 'pipe', 'pipe']
     });
 
@@ -34,7 +34,7 @@ class McpTestClient {
         try {
           const msg = JSON.parse(trimmed) as JsonRpcMessage;
           if (msg.id && this.pendingRequests.has(msg.id)) {
-            const resolve = this.pendingRequests.get(msg.id)!;
+            const { resolve } = this.pendingRequests.get(msg.id)!;
             this.pendingRequests.delete(msg.id);
             resolve(msg);
           }
@@ -47,6 +47,12 @@ class McpTestClient {
     this.proc.stderr.on('data', () => {
       // Suppress server logs
     });
+    this.proc.on('exit', (code, signal) => {
+      for (const { reject } of this.pendingRequests.values()) {
+        reject(new Error(`${serverScript} exited before responding (code ${code}, signal ${signal})`));
+      }
+      this.pendingRequests.clear();
+    });
   }
 
   async sendRequest(method: string, params: any = {}): Promise<JsonRpcMessage> {
@@ -58,8 +64,15 @@ class McpTestClient {
       params
     }) + '\n';
 
-    return new Promise((resolve) => {
-      this.pendingRequests.set(id, resolve);
+    return new Promise((resolve, reject) => {
+      const timeout = setTimeout(() => {
+        this.pendingRequests.delete(id);
+        reject(new Error(`MCP request ${method} timed out`));
+      }, 30000);
+      this.pendingRequests.set(id, {
+        resolve: response => { clearTimeout(timeout); resolve(response); },
+        reject: error => { clearTimeout(timeout); reject(error); },
+      });
       this.proc.stdin.write(payload);
     });
   }

@@ -23,6 +23,79 @@ This log is updated after every AI session. Each AI signs off with their entry. 
 
 ## RECENT LOGS
 
+### 2026-10-28 — Bugbot fixes on the remnant black hole PR (Grok 4.7)
+- **Photon ring vs expansion (`pipeline.ts`, `RemnantPhase.ts`):** `uBlackHoleRadius` now uses `blackHoleWorldShadowRadius(mass, hero.scale.x)`. `b_c` stays in the group's local space; the post ring multiplies by the same `physics.lambda` scale the hero group applies to the core and disk.
+- **Doppler on the tilted disk (`RemnantPhase.ts`):** The orbital tangent is still `(-sin θ, 0, cos θ)` in the mesh plane, then `normalize(mat3(modelMatrix) * tangent)`. That carries `blackHoleGroup.rotation.x = 0.58` into the line-of-sight dot. Beta, gamma, and `delta^3.2` are unchanged.
+- **Highlight shoulder:** Above 1.15 the factor is `1 / (1 + 0.85 * (peak - 1.15) / 1.15)`. It is 1 at 1.15 and below 1 above it (1.57 maps to about 1.20). The old `1.55 / (1 + 0.35 * peak)` was about 1.11 at the threshold, so it brightened the limb up to ~1.57.
+- **Verification:** `npm run typecheck` exit 0. Eslint on the touched files exit 0. `F6-18` exit 0, including group scale 2 → `2 * b_c`. `ejecta.vert.glsl` was not edited.
+
+### 2026-10-28 — Remnant disk plane restored on the same shadow (Grok 4.7)
+- **Follow-up on the black-hole wrap.** The first pass bent most of the far annulus off the plane and kept the disk almost transparent, so the frame read as a photon ring plus wrap. The equatorial disk is the primary image again.
+- **`RemnantPhase.ts`:** The curl is only the inner far rim (`0.34` local units, dying by about `2 × b_c`). The rest of the annulus stays in the plane. Primary disk uses normal blending so overlaps do not add into a white fog. The under-image stays additive at gain `0.28`. Filaments are thin sheared lanes on an orange floor, with white clumps. Doppler beaming, redshift, and the ISCO temperature cue are unchanged; beaming is display-compressed above 1 so the limb stays the bright side. A small vertex puff gives the edge-on plane a visible band. Radial segments 16, theta segments still 96.
+- **`pipeline.ts`:** Focused bloom is tighter (threshold 1.45, strength 0.12, radius 0.05) so the plane is not haloed into a blob. Behind-camera kill and the wide-view snap are unchanged.
+- **Rig:** same SwiftShader 1280×720 synced `readPixels`, Cygnus X-1, median of 5 frames. Before this follow-up is the wrap-dominant pass.
+  - Three-quarter: 154.6 ms, 6,631 tris, 20 calls → 151.9 ms, 8,167 tris, 20 calls.
+  - Face-on: 154.6 / 6,655 / 21 → 153.5 / 8,191 / 21.
+  - Edge-on: 133.2 / 6,607 / 19 → 131.4 / 8,143 / 19.
+- **Verification:** `npm run typecheck` exit 0. `npm run build` exit 0. `scripts/e2e/f1_presets.test.ts` green, including Cygnus X-1.
+
+### 2026-10-28 — Remnant black hole: one shadow, continuous wrap (Grok 4.7)
+- **Shadow authority (`src/simulation/phases/RemnantPhase.ts`, `src/simulation/phases/geometries.ts`, `src/rendering/pipeline.ts`):**
+  - `b_c(M) = 1.15 * (M / 21.2 M☉) ^ 0.35`, with `r_g = b_c / √27`. `b_c` is the critical impact parameter (photon-ring limb). The 0.35 exponent is the mild radial scale: Cygnus X-1 (21.2 M☉) stays at inner radius 1.15, 15 M☉ is ~0.88×, 40 M☉ is ~1.25×.
+  - That `b_c` scales the core sphere (`BH_CORE_FILL` 0.985 of the limb), both disk images, and post `uBlackHoleRadius`. The old post radius was a hardcoded 1.4.
+- **Wrap (`RemnantPhase.ts`):** Removed `GEOMETRIES.blackHoleLensedArch` and the camera-facing `bhArchMesh`. One disk shader draws the primary image and bends the far side over the shadow. A second mesh of the same geometry is the under-image only (`uFarOnly`, gain 0.62). Doppler beaming, gravitational redshift, and the ISCO temperature cue stay. The luminous ISCO ring is gone so it does not stack with the post ring. Filaments are sheared along the flow (thin in radius, broken along azimuth). No FBM. Theta segments stay 96; radial segments are 12.
+- **Single ring:** Cinematic photon ring is a short falloff just outside `b_c` (`cinematic.frag.glsl`). Local `_lensMesh` is `visible = false` with strength 0 whenever the cinematic pass can run. Jets stay, scaled down and dimmed so the disk owns the frame.
+- **Behind the camera / wide:** `updateLensing` snaps strength and radius to 0 when view-space z ≥ 0 or NDC z is outside [-1, 1], and again when the projected shadow is under 0.05 of screen height. Chromatic split runs only while `uLensingStrength > 0`. Bloom tightens (threshold 1.02, strength 0.28, radius 0.12) only while that lens is on, so a focused ring stays a line.
+- **Rig:** SwiftShader, 1280×720, FOV 42°, synced `readPixels`, median of 5 steady frames. Cygnus X-1 mass 21.2. Disk-relative cameras: three-quarter is 0.20 rad above the disk at distance 8.4; face-on is along the normal; edge-on is in the plane; wide is the three-quarter direction at distance 34; behind is the camera at z = −14 looking further toward −Z.
+  - Before → after, GPU ms / triangles / draws:
+  - Three-quarter: 141.7 ms, 12,031 tris, 22 calls → 154.6 ms, 6,631 tris, 20 calls. `uBlackHoleRadius` 0.217 → 0.178 (1.4 world units → `b_c` 1.15).
+  - Face-on: 150.8 / 12,031 / 22 → 154.6 / 6,655 / 21.
+  - Edge-on: 140.2 / 12,031 / 22 → 133.2 / 6,607 / 19.
+  - Wide: 129.3 / 12,031 / 23, strength 1, radius 0.054 → 120.4 / 6,655 / 22, strength 0, radius 0. Pixel match versus the lens-off frame (mean abs RGB 0).
+  - Behind: 126.3 / 15 / 17, strength 1, radius 0 → 127.3 / 15 / 17, strength 0, radius 0. Pixel match versus the lens-off frame.
+  - Main-sequence baseline in the same pipeline (lensing off): 152.2 ms, 9,607 tris, 21 calls.
+- **Verification:** `npm run typecheck` exit 0. `npm run build` exit 0. `scripts/e2e/f1_presets.test.ts` 13/13 including Cygnus X-1. `scripts/e2e/f6_audit_fixes.test.ts` including `F6-18` (authority, in-front test, no arch mesh). No satellite, moon, station, belt, dust, or comet edits.
+
+### 2026-10-28 — Asteroid belt shading perf pass (Grok 4.7)
+- **AsteroidBeltSystem (`src/rendering/systems/AsteroidBeltSystem.ts`):**
+  - Shared rock is a welded detail-1 icosahedron (80 triangles, 42 vertices) instead of the non-indexed detail-2 mesh (180 triangles, 540 vertices). Stretch, radial displacement (0.52), and object-space bounds are unchanged.
+  - Vertex shader evaluates one octave of value noise and its analytic gradient. It no longer calls the height function three times for finite-difference normals.
+  - Fragment shader uses that same value-noise helper twice (broad albedo plus one crater octave) and star-lit wrapped Lambert. Simplex FBM, derivative bump, specular, and fresnel are gone.
+  - Still three `InstancedMesh` bands, one shared geometry, one shared `ShaderMaterial`. Band radii, `√starMass` rotation, the eight `Math.random()` placement calls, and dispose are unchanged.
+- **Wide view, 10,000 instances, seed `0xA37E11D`, 1280×720, SwiftShader.** Frame time is a synced `readPixels` (steady frames after compile). The earlier 192.6 ms figure did not wait on the GPU, so it mostly spread shader compile across four submits.
+  - Before this pass: 697 ms/frame, 1,804,513 triangles, 3 belt draw calls.
+  - After: 177 ms/frame, 804,513 triangles, 3 belt draw calls.
+  - Same harness with the belt hidden: 22 ms (sun plus the composer pass, 4,513 triangles). A trivial shader on 10k instances still sat near 125 ms, so 100 ms is under the SwiftShader floor for this draw.
+- **Verification:** `npm run typecheck` exit 0. `npm run build` exit 0. `scripts/e2e/f4_comet.test.ts` 17/17, including `F4-T4-53` and `F4-T4-54`.
+
+### 2026-10-28 — Asteroid belt bounds match the displaced rocks (Grok 4.7)
+- **AsteroidBeltSystem (`src/rendering/systems/AsteroidBeltSystem.ts`):**
+  - The shared icosahedron `boundingBox` / `boundingSphere` were the belt orbital extent (`BANDS` hi 3.5 plus 0.5). `InstancedMesh` already transforms those bounds by each instance matrix, which already stores the orbital translation and scale, so the volume was expanded twice (outer-band sphere radius ~11.4 against a rock reach of ~3.57).
+  - Geometry bounds are now the object-space displaced rock: per-axis half extents `radius * (stretchMax + 0.52)`, sphere radius the longest of those. Stretch and radial displacement constants are shared with the vertex shader. Instance matrices still carry the orbit.
+- **Verification:** `F4-T4-54` checks the shared box and sphere, worst-case displaced vertices, and that each band's instanced sphere stays with the rocks rather than the doubled orbital extent.
+
+### 2026-10-28 — Irregular rocky asteroid belts (Grok 4.7)
+- **AsteroidBeltSystem (`src/rendering/systems/AsteroidBeltSystem.ts`):**
+  - Replaced the shared detail-0 icosahedron and flat grey-brown `MeshStandardMaterial` (`0x80664d`, roughness 0.9, metalness 0.1) with one detail-2 icosahedron (180 triangles) and one custom `ShaderMaterial`, still shared by the three `InstancedMesh` bands.
+  - Each rock gets a seed in `instanceColor`. The vertex shader stretches it, displaces it with 2-octave value noise, and builds a normal from finite differences so silhouettes are not the same scaled diamond. The fragment shader uses simplex FBM for carbon/stony/rust albedo, soft crater bowls, and Lambert light from the host star (the belt mesh origin). Scene point lights are not used.
+  - Band radii (2.0–3.5), differential rotation (`√starMass`, mid-band power law), the eight `Math.random()` placement calls per rock, and dispose (remove meshes, free instance buffers, geometry, material) stay as they were. `PlanetarySystem`, the hero star, Dyson, and comets are untouched.
+- **Verification:**
+  - `npm run typecheck` clean. `npm run build` clean. `scripts/e2e/f4_comet.test.ts` 16/16, including `F4-T4-53` (3 bands, shared geometry/material, Kepler rates, dispose).
+  - 10,000 instances, same camera and mulberry32 seed `0xA37E11D` (placement hash unchanged). Wide view on SwiftShader, no discrete GPU in the capture VM: 33.5 ms/frame before (204,513 triangles) and 192.6 ms/frame after (1,804,513 triangles). Still three belt draw calls.
+
+### 2026-10-28 — Horizons lookup status: outages stay 502 (Grok 4.7)
+- **`/api/horizons/search` (`server.ts`, `server/shared/horizonsParser.mjs`, `server/mcp/nasa-horizons.mjs`):**
+  - First Horizons response: a missing `result`, or an error that is not a no-match phrase, is HTTP 502. Only a true no-match phrase is 404. Removed the `|| !data.result` check that turned outages into 404.
+  - `isHorizonsNoMatchError` matches specific phrases (`no matches found`, `no records found`, and the other listed no-match phrases). It does not match bare `unknown` or `ambiguous`, so “unknown error” is not a 404.
+  - `selectHorizonsBestRecord` returns `{ status: 'none' }` when no label matches and when the candidate list is empty. It does not throw, and it does not return `{ status: 'ok', record: candidates[0] }`. The Express index path and `server/mcp/nasa-horizons.mjs` both call that helper.
+  - Cached `FALLBACK_SMALL_BODIES` for the eleven known keys is unchanged.
+- **Verification:** `npm run typecheck` (0 errors), `npm run build` (clean), eslint on the touched files (clean). `f1_presets` 13/13, including live `F1-T1-5` (`1P` → `1P/Halley`). `f14` 18/18, including AUD-04: Halley apparitions resolve, two designations stay ambiguous, “unknown error” and a missing `result` are 502, and “No matches found” is 404.
+
+### 2026-10-26 — Rendering model exploration plan (Grok 4.7)
+- **Plan only.** No shader, scene, or runtime changes.
+- Added `docs/plans/RENDERING-MODEL-EXPLORATION.md`: nine rendering models (spectral limb, layered atmosphere, volume budget, thin disk, LOD contract, optics catalog, magnetosphere, galactic density, gated compute particles) and six graphical upgrades (grade after ACES, tiered bloom and samples, unlit belt, planetary nebula shell, ion-tail wind, lensing-only chromatic aberration).
+- Sequence is eight waves. Wave 0 is a medium-tier frame-time baseline. WebGL 2 stays the shipping path. Hero caps stay 100 / 200 / 400 / 600. `StellarPhysics` stays the only phase clock.
+
 ### 2026-10-16 — Next-Gen Stellar, Planetary, & Relativistic Black Hole Graphics (Gemini 3.8 Flash)
 - **Astrophysical Black Hole Generation & Persistence (`src/simulation/StellarPhysics.ts`, `src/rendering/systems/HeroStarSystem.ts`):**
   - Upgraded `sampleKroupaMass()` with a 3-piece Kroupa (2001) + Schneider et al. (2018) OB-association Initial Mass Function (72% 0.08–0.5 M☉, 22% 0.5–8.0 M☉, 6% 8.0–45.0 M☉) producing ~2.5% M ≥ 15 M☉ black hole progenitors.
@@ -834,3 +907,13 @@ Do not push to `main` directly. Do not run `git commit --amend` on pushed commit
 ## ARCHITECT SIGN-OFF
 Last comprehensive audit: 2026-08-28 (Claude Opus 4.6). 8-fix stabilization pass completed.
 All branches merged to main. Next architect review needed for: deployment pipeline, code splitting strategy, PR workflow enforcement.
+## 2026-10-29 — PR #257 shader review follow-up
+
+- Move the disk orbital tangent transform to the vertex shader and interpolate its world-space direction; `modelMatrix` is not a Three.js fragment-stage built-in.
+- Validate standalone GLSL with Three.js declarations and resolved noise includes, and include all inline RemnantPhase shader stages in the same check.
+- Extend the workflow path filters so changes to the validator and inline remnant shaders trigger validation.
+- Confirm the existing highlight shoulder is continuous at 1.15 and attenuates values above the threshold; the remaining review thread describes an older formula.
+- Local GLSL validation passes with glslang 16.6.0, including all remnant stages.
+- Replace the Horizons test's hardcoded Cursor artifact path with `ARTIFACT_DIR` or a unique directory under the platform temporary directory.
+- Build and lint/typecheck pass (two pre-existing lint warnings). The full test run passed all suites except the artifact-path failure; after fixing that path, the affected F14 suite passes all 18 tests.
+- GitHub's build, shader validation, review check, and physics benchmarks pass on the pushed fixes. Align the CI job name with the repository ruleset's required context `CI / build (pull_request)`; the old `build` name left successful PRs blocked.

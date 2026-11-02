@@ -13,6 +13,14 @@ class MagneticCurve extends THREE.Curve<THREE.Vector3> {
     }
 }
 
+/** Shared disk annulus at the Cygnus X-1 shadow limb. Theta segments stay ≤ 96. */
+export const BH_DISK_INNER = 1.15;
+export const BH_DISK_OUTER = 4.8;
+export const BH_DISK_THETA_SEGMENTS = 96;
+export const BH_DISK_RADIAL_SEGMENTS = 16;
+/** Geometry radius of GEOMETRIES.blackHoleCore before per-mass scale. */
+export const BH_CORE_RADIUS = 0.5;
+
 export const GEOMETRIES = {
     nebula: new THREE.SphereGeometry(1, 48, 48),
     protostar: new THREE.SphereGeometry(1, 64, 64),
@@ -40,14 +48,27 @@ export const GEOMETRIES = {
         geo.translate(0, -1.5, 0);
         return geo;
     })(),
-    blackHoleCore: new THREE.SphereGeometry(0.5, 32, 32),
+    // Shadow authority lives in RemnantPhase.blackHoleShadowRadius. These
+    // radii are the Cygnus X-1 (21.2 M☉) mesh: inner edge = b_c, core sphere
+    // is scaled per remnant so its limb matches that same b_c.
+    blackHoleCore: new THREE.SphereGeometry(BH_CORE_RADIUS, 32, 32),
     blackHoleDisk: (() => {
-        const geo = new THREE.RingGeometry(1.15, 4.8, 96, 6);
+        const geo = new THREE.RingGeometry(
+            BH_DISK_INNER,
+            BH_DISK_OUTER,
+            BH_DISK_THETA_SEGMENTS,
+            BH_DISK_RADIAL_SEGMENTS,
+        );
         geo.rotateX(Math.PI / 2);
-        return geo;
-    })(),
-    blackHoleLensedArch: (() => {
-        const geo = new THREE.RingGeometry(1.0, 3.1, 96, 4);
+        // Far-side vertices bend off the plane (see RemnantPhase disk shader).
+        // The flat annulus bound would clip that curl at the frustum edge.
+        geo.computeBoundingSphere();
+        if (geo.boundingSphere) geo.boundingSphere.radius += 0.6;
+        geo.computeBoundingBox();
+        if (geo.boundingBox) {
+            geo.boundingBox.min.y -= 0.6;
+            geo.boundingBox.max.y += 0.6;
+        }
         return geo;
     })(),
     flare: (() => {
