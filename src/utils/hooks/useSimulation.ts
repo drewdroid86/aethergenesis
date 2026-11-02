@@ -373,7 +373,7 @@ export function useSimulation(containerRef: React.RefObject<HTMLDivElement | nul
             }
         }
         return spawnBodyAtRef.current({ x: px, y: py, z: pz });
-    }, []);
+    }, [selectedStarRef]);
 
     const adjustStarfieldTier = useCallback((newTier: PerformanceTier) => {
         if (!engineRef.current || !engineRef.current.scene) return;

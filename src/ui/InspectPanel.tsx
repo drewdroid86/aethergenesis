@@ -49,7 +49,6 @@ export const InspectPanel: React.FC<InspectPanelProps> = ({
 }) => {
     const [isAnalyzing, setIsAnalyzing] = useState(false);
     const [geminiData, setGeminiData] = useState<GeminiAnalysisResult | null>(null);
-    const [analysisFailed, setAnalysisFailed] = useState(false);
     const [copied, setCopied] = useState(false);
     const [announcement, setAnnouncement] = useState('');
     const [cooldownRemaining, setCooldownRemaining] = useState(0);
@@ -60,7 +59,6 @@ export const InspectPanel: React.FC<InspectPanelProps> = ({
     // Reset AI analysis when selected star changes
     useEffect(() => {
         setGeminiData(null);
-        setAnalysisFailed(false);
     }, [selectedStar?.physicsId]);
 
     useEffect(() => {
@@ -176,13 +174,11 @@ Civilization: ${geminiData.civilization}`;
             
             if (!signal.aborted) {
                 setGeminiData(data);
-                setAnalysisFailed(false);
             }
         } catch (err: any) {
             if (err.name !== 'AbortError') {
                 console.warn("Analysis unavailable - using predictive fallback.");
                 if (!signal.aborted) {
-                    setAnalysisFailed(true);
                     setGeminiData({
                         planet_name: "Kerath-7",
                         biome: "Crystalline Deserts",
