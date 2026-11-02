@@ -11,10 +11,10 @@ const includes: Record<string, string> = {
  */
 export function resolveIncludes(source: string): string {
     return source.replace(/#include\s+<([\w/.-]+)>/g, (_, name) => {
-        if (includes[name]) {
-            return includes[name];
+        const inc = includes[name];
+        if (inc === undefined) {
+            throw new Error(`[shaderLoader] missing include <${name}> — typo or unregistered include`);
         }
-        console.warn(`Shader include <${name}> not found.`);
-        return `// Error: include <${name}> not found`;
+        return inc;
     });
 }
