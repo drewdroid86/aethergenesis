@@ -6,6 +6,7 @@ export interface Vector3 {
 
 export interface OrbitalBody {
     id: string;
+    catalogId?: string;
     type: 'star' | 'planet' | 'comet' | 'asteroid';
     mass_solar: number;
     radius_km: number;

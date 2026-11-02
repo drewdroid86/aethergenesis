@@ -10,6 +10,15 @@ import { PlanetarySystem } from '../../src/rendering/systems/PlanetarySystem';
 import { AsteroidBeltSystem } from '../../src/rendering/systems/AsteroidBeltSystem';
 import { DysonSwarmSystem } from '../../src/rendering/systems/DysonSwarmSystem';
 import { PHASES } from '../../src/core/constants';
+import { colorTempToRGB } from '../../src/physics/math';
+
+test('stellar temperature colors convert from sRGB to linear space', () => {
+  const rawGreen = (99.4708025861 * Math.log(30) - 161.1195681661) / 255;
+  const target = new THREE.Color();
+  assert.strictEqual(colorTempToRGB(3000, target), target);
+  assert.ok(target.g > 0 && target.g < rawGreen);
+  assert.ok(Number.isFinite(colorTempToRGB(5778).b));
+});
 
 // Proximity detection function used by the engine
 function checkProximity(posA: { x: number; y: number; z: number }, posB: { x: number; y: number; z: number }): number {

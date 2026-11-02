@@ -11,7 +11,7 @@ import { OrbitalBody, buildWorkerBodiesFromOrbits, keplerianToCartesian } from '
 import { PlanetarySystem, PlanetarySystemQueue } from '../../rendering/systems/PlanetarySystem';
 import { SimulationCoordinator } from '../../simulation/SimulationCoordinator';
 import { actionLog, ingestWorkerEvent } from '../../simulation/ActionLog';
-import { buildSpawnBody, type SpawnMode } from '../../simulation/spawnBody';
+import { buildSpawnBody, nextCatalogId, type SpawnMode } from '../../simulation/spawnBody';
 
 // Sub-hooks
 import { useWebSocket } from './useWebSocket';
@@ -19,6 +19,8 @@ import { useCosmicAge } from './useCosmicAge';
 import { usePerformanceAutoTuning } from './usePerformanceAutoTuning';
 import { useStarSelection } from './useStarSelection';
 import { useKeyboardShortcuts } from './useKeyboardShortcuts';
+
+let workerGeneration = 0;
 
 /**
  * H-N1 fix — shared n-body re-key for every star-selection path.
@@ -53,7 +55,7 @@ export function rekeyNBodyForStar(star: HeroStarSystem, renderer: THREE.WebGLRen
         const bodies: OrbitalBody[] = buildWorkerBodiesFromOrbits(orbits, centralMass);
         nbodyWorker.postMessage({
             type: 'RESET_BODIES',
-            payload: { bodies, centralMass_solar: centralMass }
+            payload: { bodies, centralMass_solar: centralMass, generation: ++workerGeneration }
         });
     } else {
         // M4 fix — the target star has no generated planets (e.g. remnant):
@@ -75,7 +77,7 @@ export function clearNBodyWorker(nbodyWorker: Worker, centralMass_solar: number 
     const centralMass = Number.isFinite(centralMass_solar) && centralMass_solar > 0 ? centralMass_solar : 1.0;
     nbodyWorker.postMessage({
         type: 'RESET_BODIES',
-        payload: { bodies: [], centralMass_solar: centralMass }
+        payload: { bodies: [], centralMass_solar: centralMass, generation: ++workerGeneration }
     });
 }
 
@@ -219,6 +221,27 @@ export function useSimulation(containerRef: React.RefObject<HTMLDivElement | nul
         controlsRef
     });
 
+    const invalidateNBodySnapshot = useCallback(() => {
+        nbodyBufferRef.current = null;
+        if (engineRef.current) {
+            engineRef.current.nbodyBuffer = null;
+            engineRef.current.nbodyRoster = null;
+        }
+    }, []);
+
+    const selectStarFromUi = useCallback((star: HeroStarSystem | null) => {
+        const engine = engineRef.current;
+        const worker = nbodyWorkerRef.current;
+        if (star && star !== selectedStarRef.current && engine && worker) {
+            invalidateNBodySnapshot();
+            rekeyNBodyForStar(star, engine.renderer, worker);
+            const mass = star.currentMass ?? star.mass;
+            lastSyncedWorkerMassRef.current = Number.isFinite(mass) && mass > 0 ? mass : 1;
+        }
+        if (engine) engine.selectedStar = star;
+        setSelectedStar(star);
+    }, [selectedStarRef, setSelectedStar, invalidateNBodySnapshot]);
+
     const loadStarPreset = useCallback((preset: any) => {
         setIsCatalogOpen(false);
         if (!preset) return;
@@ -229,6 +252,7 @@ export function useSimulation(containerRef: React.RefObject<HTMLDivElement | nul
                 coordinatorRef.current.clearHistory(star.physicsId);
             }
             if (nbodyWorkerRef.current) {
+                invalidateNBodySnapshot();
                 rekeyNBodyForStar(star, engineRef.current?.renderer, nbodyWorkerRef.current);
                 const rawMass = star.currentMass ?? star.mass;
                 lastSyncedWorkerMassRef.current = Number.isFinite(rawMass) && rawMass > 0 ? rawMass : 1.0;
@@ -239,11 +263,16 @@ export function useSimulation(containerRef: React.RefObject<HTMLDivElement | nul
             setSelectedStar(star);
             centerOnStar();
         }
-    }, [selectedStarRef, setSelectedStar, centerOnStar]);
+    }, [selectedStarRef, setSelectedStar, centerOnStar, invalidateNBodySnapshot]);
 
     const addBodyToSimulation = useCallback((elements: any) => {
         setIsCatalogOpen(false);
-        if (!elements) return;
+        if (!elements || !nbodyWorkerRef.current) return;
+
+        const numericFields = ['eccentricity', 'semi_major_axis_au', 'perihelion_au', 'inclination_deg',
+            'longitude_ascending_node_deg', 'longitudeOfAscendingNode_deg', 'argument_perihelion_deg',
+            'argumentOfPeriapsis_deg', 'mean_anomaly_deg', 'meanAnomaly_deg', 'mass_solar', 'radius_km'];
+        if (numericFields.some(key => elements[key] != null && !Number.isFinite(elements[key]))) return;
 
         const selected = selectedStarRef.current ?? engineRef.current?.heroStars[0];
         const centralMass = selected?.currentMass ?? selected?.mass ?? 1.0;
@@ -254,6 +283,9 @@ export function useSimulation(containerRef: React.RefObject<HTMLDivElement | nul
         const longitudeOfAscendingNode_deg = elements.longitude_ascending_node_deg || elements.longitudeOfAscendingNode_deg || 0;
         const argumentOfPeriapsis_deg = elements.argument_perihelion_deg || elements.argumentOfPeriapsis_deg || 0;
         const meanAnomaly_deg = elements.mean_anomaly_deg || elements.meanAnomaly_deg || 0;
+
+        if (![centralMass, eccentricity, semiMajorAxis_au, inclination_deg, longitudeOfAscendingNode_deg, argumentOfPeriapsis_deg, meanAnomaly_deg].every(Number.isFinite)
+            || centralMass <= 0 || semiMajorAxis_au <= 0 || eccentricity >= 1) return;
 
         const cartesian = keplerianToCartesian({
             semiMajorAxis_au,
@@ -267,7 +299,8 @@ export function useSimulation(containerRef: React.RefObject<HTMLDivElement | nul
         const bodyType: 'comet' | 'asteroid' | 'planet' = elements.type === 'asteroid' ? 'asteroid' : (elements.type === 'comet' ? 'comet' : (eccentricity > 0.8 ? 'comet' : 'planet'));
 
         const newBody: OrbitalBody = {
-            id: elements.naif_id || elements.name || `body_${Date.now()}`,
+            id: nextCatalogId(),
+            catalogId: String(elements.naif_id ?? elements.name ?? ''),
             type: bodyType,
             mass_solar: elements.mass_solar || (bodyType === 'comet' ? 1e-12 : (bodyType === 'asteroid' ? 1e-10 : 0.000003)),
             radius_km: elements.radius_km || (bodyType === 'comet' ? 5.0 : 10.0),
@@ -275,6 +308,9 @@ export function useSimulation(containerRef: React.RefObject<HTMLDivElement | nul
             position_au: cartesian.position,
             velocity_au_yr: cartesian.velocity
         };
+
+        if (!Number.isFinite(newBody.mass_solar) || newBody.mass_solar < 0 || !Number.isFinite(newBody.radius_km) || newBody.radius_km < 0
+            || !Object.values(newBody.position_au).every(Number.isFinite) || !Object.values(newBody.velocity_au_yr).every(Number.isFinite)) return;
 
         if (nbodyWorkerRef.current) {
             nbodyWorkerRef.current.postMessage({
@@ -290,7 +326,7 @@ export function useSimulation(containerRef: React.RefObject<HTMLDivElement | nul
             wallTimestamp: Date.now(),
             masses: [newBody.mass_solar],
             positions: [{ ...newBody.position_au }],
-            note: `catalog:${newBody.type}`,
+            note: `catalog:${newBody.type}:${String(elements.naif_id ?? elements.name ?? '')}`,
         });
     }, [selectedStarRef]);
 
@@ -502,6 +538,7 @@ export function useSimulation(containerRef: React.RefObject<HTMLDivElement | nul
                 nbodyWorkerRef.current = worker;
                 
                 worker.onmessage = (e) => {
+                    if ((e.data.type === 'UPDATE' || e.data.type === 'ROSTER') && e.data.generation !== workerGeneration) return;
                     if (e.data.type === 'UPDATE') {
                         nbodyBufferRef.current = e.data.buffer;
                         if (engineRef.current) {
@@ -512,6 +549,8 @@ export function useSimulation(containerRef: React.RefObject<HTMLDivElement | nul
                         // version-bumped so the engine applies it to the
                         // focused star's system, even a late-created one.
                         if (engineRef.current && Array.isArray(e.data.bodies)) {
+                            nbodyBufferRef.current = null;
+                            engineRef.current.nbodyBuffer = null;
                             engineRef.current.nbodyRoster = e.data.bodies;
                             engineRef.current.nbodyRosterVersion++;
                         }
@@ -548,6 +587,7 @@ export function useSimulation(containerRef: React.RefObject<HTMLDivElement | nul
                     type: 'INIT',
                     payload: {
                         bodies: [],
+                        generation: workerGeneration,
                         centralMass_solar: centralMass,
                         dt_yr: 0.05,
                         isRunning: !isPausedRef.current
@@ -574,6 +614,7 @@ export function useSimulation(containerRef: React.RefObject<HTMLDivElement | nul
                     if (!workerNow || !eng) return;
                     const focused = eng.selectedStar ?? eng.heroStars[0];
                     if (star === focused) {
+                        invalidateNBodySnapshot();
                         rekeyNBodyForStar(star, eng.renderer, workerNow);
                         const rawMass = star.currentMass ?? star.mass;
                         lastSyncedWorkerMassRef.current = Number.isFinite(rawMass) && rawMass > 0 ? rawMass : 1.0;
@@ -612,6 +653,7 @@ export function useSimulation(containerRef: React.RefObject<HTMLDivElement | nul
                     const hit = intersects[0].object;
                     const system = hit.parent as HeroStarSystem;
                     if (nbodyWorkerRef.current) {
+                        invalidateNBodySnapshot();
                         rekeyNBodyForStar(system, engine.renderer, nbodyWorkerRef.current);
                         const rawMass = system.currentMass ?? system.mass;
                         lastSyncedWorkerMassRef.current = Number.isFinite(rawMass) && rawMass > 0 ? rawMass : 1.0;
@@ -839,6 +881,7 @@ export function useSimulation(containerRef: React.RefObject<HTMLDivElement | nul
             const engine = engineRef.current;
             const worker = nbodyWorkerRef.current;
             if (engine && worker) {
+                invalidateNBodySnapshot();
                 // Same shared re-key the selection path uses, targeting the
                 // coordinator's fallback (SimulationCoordinator falls back to
                 // engine.selectedStar || engine.heroStars[0]).
@@ -854,7 +897,7 @@ export function useSimulation(containerRef: React.RefObject<HTMLDivElement | nul
             }
         }
         prevSelectedStarRef.current = selectedStar;
-    }, [selectedStar]);
+    }, [selectedStar, invalidateNBodySnapshot]);
 
     // Sync play/pause cosmic to engine
     useEffect(() => {
@@ -897,7 +940,7 @@ export function useSimulation(containerRef: React.RefObject<HTMLDivElement | nul
 
     return {
         selectedStar,
-        setSelectedStar,
+        setSelectedStar: selectStarFromUi,
         isPaused,
         setIsPaused,
         fatalError,

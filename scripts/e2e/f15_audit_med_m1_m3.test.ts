@@ -30,6 +30,27 @@ const heroSrc = (): string => src('src/rendering/systems/HeroStarSystem.ts');
 const engineSrc = (): string => src('src/core/engine.ts');
 const planetarySrc = (): string => src('src/rendering/systems/PlanetarySystem.ts');
 
+test('paused worker publishes coherent snapshots for reset, add, and empty reset', () => {
+    const body = (id: string, x: number) => ({ id, type: 'planet', mass_solar: 3e-6, radius_km: 6371,
+        position_au: { x, y: 0, z: 0 }, velocity_au_yr: { x: 0, y: 1, z: 0 } });
+    dispatch('INIT', { bodies: [body('old', 1)], centralMass_solar: 1, isRunning: false, generation: 1 });
+    posted.length = 0;
+    dispatch('RESET_BODIES', { bodies: [body('new', 2)], centralMass_solar: 2, generation: 2 });
+    assert.deepEqual(posted.map(m => m.type), ['ROSTER', 'UPDATE']);
+    assert.equal(posted[0].generation, 2);
+    assert.equal(posted[1].generation, 2);
+    assert.equal(posted[0].bodies[0].id, 'new');
+    assert.equal(posted[1].buffer[0], 2);
+    posted.length = 0;
+    dispatch('ADD_BODY', { body: { ...body('new', 3), catalogId: '1P' } });
+    assert.notEqual(posted[0].bodies[0].id, posted[0].bodies[1].id);
+    assert.equal(posted[0].bodies[1].catalogId, '1P');
+    assert.equal(posted[1].buffer[7], 3);
+    posted.length = 0;
+    dispatch('RESET_BODIES', { bodies: [], centralMass_solar: 1, generation: 3 });
+    assert.equal(posted[1].buffer.length, 0);
+});
+
 // --- M3 behavioral: an EMPTY init roster is a legal worker state ---
 // The hook now INITs with bodies: [] (no demo earth/jupiter/halley).
 

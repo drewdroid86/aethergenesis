@@ -56,8 +56,6 @@ export function colorTempToRGB(kelvin: number, outColor?: THREE.Color): THREE.Co
     const g = Math.min(255, Math.max(0, green)) / 255;
     const b = Math.min(255, Math.max(0, blue)) / 255;
 
-    if (outColor) {
-        return outColor.setRGB(r, g, b);
-    }
-    return new THREE.Color(r, g, b);
+    const color = outColor ?? new THREE.Color();
+    return color.setRGB(r, g, b, THREE.SRGBColorSpace);
 }

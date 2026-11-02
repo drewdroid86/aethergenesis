@@ -99,7 +99,8 @@ export class MainSequencePhase implements PhaseComponent {
                 uColor: { value: new THREE.Color(msColor) },
                 uOpacity: { value: 0.0 },
                 uFalloff: { value: 3.5 },
-                uTint: { value: 0.4 }
+                uTint: { value: 0.4 },
+                uNoiseStrength: { value: 0.035 }
             },
             vertexShader: glowVS,
             fragmentShader: glowFS,

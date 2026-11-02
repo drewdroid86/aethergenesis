@@ -442,6 +442,7 @@ interface ProceduralOrbit {
 export interface BodyRosterEntry {
     id: string;
     type: string;
+    catalogId?: string;
 }
 
 function hashString(str: string): number {
@@ -563,6 +564,10 @@ export class PlanetarySystem {
     /** Resolve a roster id to its stable instance slot (undefined if unknown). */
     public slotForBodyId(id: string): number | undefined {
         return this.slotById.get(id);
+    }
+
+    public visualForBodyId(id: string): { scale: number; type: number; seed: number } | undefined {
+        return this.slotById.has(id) ? this.visualsById.get(id) : undefined;
     }
 
     private clearOrbitLines(): void {

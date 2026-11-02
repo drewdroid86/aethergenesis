@@ -75,7 +75,7 @@ test('F9-7: [selectedStar] effect re-keys ONLY on deselect (#13), never on selec
   const anchor = 'engineRef.current.selectedStar = selectedStar';
   const idx = s.indexOf(anchor);
   assert.ok(idx !== -1, 'effect must still propagate selectedStar to the engine');
-  const end = s.indexOf('}, [selectedStar]);', idx);
+  const end = s.indexOf('}, [selectedStar, invalidateNBodySnapshot]);', idx);
   assert.ok(end !== -1 && end > idx, 'effect end must be locatable');
   const window = s.slice(idx, end);
   // Deselect is a star -> null transition: select transitions must not re-key here

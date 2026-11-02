@@ -23,6 +23,7 @@ export interface StellarStateData {
 
 export interface OrbitalStateData {
     body_id: string;
+    catalog_id?: string;
     body_type: string;
     position_au: { x: number; y: number; z: number };
     velocity_au_yr: { x: number; y: number; z: number };
@@ -161,17 +162,16 @@ export class SimulationCoordinator {
                     a = invA > 0 ? 1.0 / invA : r;
                 }
 
-                const p = star.planetarySystem?.bodies[i];
+                const rosterId = this.engine.nbodyRoster?.[i]?.id;
+                const p = rosterId ? star.planetarySystem?.visualForBodyId(rosterId) : star.planetarySystem?.bodies[i];
                 const physicalType = this.engine.nbodyRoster?.[i]?.type;
                 const bodyType = physicalType && physicalType !== 'planet' ? physicalType : p ? (p.type === 1 ? 'gas_giant' : p.type === 2 ? 'ice' : p.type === 3 ? 'lava' : p.type === 4 ? 'ocean' : p.type === 5 ? 'desert' : p.type === 6 ? 'jungle' : 'rocky') : (bodyTypeVal === 1 ? 'comet' : 'rocky');
 
                 // Stable worker id when the roster has arrived; index fallback before that.
-                // (The astrobiology planetKey below intentionally stays
-                // index-based so evaluation history survives roster changes.)
-                const rosterId = this.engine.nbodyRoster?.[i]?.id;
 
                 orbitalStates.push({
                     body_id: rosterId ?? `body_${i}`,
+                    ...(this.engine.nbodyRoster?.[i]?.catalogId ? { catalog_id: this.engine.nbodyRoster[i].catalogId } : {}),
                     body_type: bodyType,
                     position_au: { x, y, z },
                     velocity_au_yr: { x: vx, y: vy, z: vz },

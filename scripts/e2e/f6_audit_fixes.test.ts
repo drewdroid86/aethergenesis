@@ -8,6 +8,8 @@ import { AstrobiologyEngine } from '../../src/simulation/AstrobiologyEngine.ts';
 import { RemnantPhase, WHITE_DWARF_SCALE, WHITE_DWARF_COLOR, NEUTRON_STAR_COLOR, blackHoleShadowRadius, blackHoleWorldShadowRadius, blackHoleGravitationalRadius, blackHoleInFrontOfCamera, BH_CORE_FILL } from '../../src/simulation/phases/RemnantPhase.ts';
 import { BH_CORE_RADIUS, BH_DISK_INNER, BH_DISK_THETA_SEGMENTS, GEOMETRIES } from '../../src/simulation/phases/geometries.ts';
 import { mulberry32 } from '../../src/physics/math.ts';
+import { setStellarAge } from '../../src/simulation/stellarAge.ts';
+import { SimulationCoordinator } from '../../src/simulation/SimulationCoordinator.ts';
 
 // ==========================================
 // Batch-1 audit fixes: guards that stop NaN/Infinity from poisoning
@@ -17,6 +19,42 @@ import { mulberry32 } from '../../src/physics/math.ts';
 function keplerResidual(E: number, M: number, e: number): number {
   return E - e * Math.sin(E) - M;
 }
+
+test('explicit stellar age updates survive recalculation under modified gravity', () => {
+  for (const gravity of [0.5, 1, 2]) {
+    const star = { lifespanReal: 10000, currentRealAge: 500, t: 0.05, birthAge: 0 };
+    const cosmicAge = 2;
+    setStellarAge(star, 1500, cosmicAge, gravity);
+    assert.ok(Math.abs((cosmicAge - star.birthAge) * 1000 * gravity - 1500) < 1e-8);
+    assert.equal(star.t, 0.15);
+    const afterFrame = (cosmicAge - star.birthAge) * 1000 * gravity / star.lifespanReal;
+    assert.ok(Math.abs(afterFrame - star.t) < 1e-10);
+  }
+});
+
+test('telemetry preserves worker body types and stable visuals after reorder', () => {
+  const previousWebSocket = globalThis.WebSocket;
+  (globalThis as any).WebSocket = { OPEN: 1 };
+  try {
+    const sent: any[] = [];
+    const socket = { readyState: 1, send: (data: string) => sent.push(JSON.parse(data)) };
+    const visuals: Record<string, any> = { p: { type: 1 }, c: { type: 0 }, a: { type: 0 } };
+    const star = { physicsId: 'star', mass: 1, currentMass: 1, currentRealAge: 1000, currentLum: 1,
+      currentTemp: 5778, currentRadius: 1, phase: 2,
+      planetarySystem: { visualForBodyId: (id: string) => visuals[id], updateAstrobiology: () => {} } };
+    const engine = { selectedStar: star, heroStars: [star], cosmicAge: 5, simulatedTimeYears: 1,
+      nbodyRoster: [{ id: 'c', type: 'comet' }, { id: 'p', type: 'planet' }, { id: 'a', type: 'asteroid' }],
+      nbodyBuffer: new Float32Array([1, 0, 0, 0, 1, 0, 1, 2, 0, 0, 0, 1, 0, 0, 4, 0, 0, 0, 1, 0, 1]) };
+    const coordinator = new SimulationCoordinator(engine as any, socket as any);
+    (coordinator as any).processSimulationState(0, 1000);
+    const bodies = sent[0].data.orbital;
+    assert.deepStrictEqual(bodies.map((b: any) => [b.body_id, b.body_type]), [['c', 'comet'], ['p', 'gas_giant'], ['a', 'asteroid']]);
+    assert.equal(bodies[0].coma_active, true);
+    assert.ok(bodies[0].tail_vector);
+  } finally {
+    (globalThis as any).WebSocket = previousWebSocket;
+  }
+});
 
 test('F6-1: Sun lifetime is ~10 Gyr', () => {
   const tau = computeMainSequenceLifetime(1.0);

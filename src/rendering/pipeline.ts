@@ -5,7 +5,7 @@ import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js'
 import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { CinematicPassShader } from './shaders/stellar';
-import { STELLAR_CONSTANTS } from '../core/constants';
+import { STELLAR_CONSTANTS, PHASES } from '../core/constants';
 import { blackHoleInFrontOfCamera, blackHoleWorldShadowRadius } from '../simulation/phases/RemnantPhase';
 
 export class Pipeline {
@@ -35,8 +35,6 @@ export class Pipeline {
             new THREE.Vector2(window.innerWidth, window.innerHeight), 
             0.85, 0.4, 1.0
         );
-        this.bloomPass.radius = 0.4;
-        this.bloomPass.threshold = 1.0;
         this.composer.addPass(this.bloomPass);
 
         this.cinematicPass = new ShaderPass(CinematicPassShader);
@@ -53,7 +51,7 @@ export class Pipeline {
         let screenRadius = 0.0;
 
         let inFront = false;
-        if (selectedStar && selectedStar.phase === 5 && selectedStar.mass >= STELLAR_CONSTANTS.PHYSICS.MASS_THRESHOLD_BLACK_HOLE) { // REMNANT = 5
+        if (selectedStar && selectedStar.phase === PHASES.REMNANT && selectedStar.mass >= STELLAR_CONSTANTS.PHYSICS.MASS_THRESHOLD_BLACK_HOLE) {
             // View space first: the camera looks down -Z, so in-front points have
             // viewZ < 0. project() alone (`ndc.z <= 1`) still left lensingStrength
             // at 1 when the remnant was behind the camera (radius happened to be 0,
@@ -93,7 +91,7 @@ export class Pipeline {
             screenRadius = 0;
         } else {
             const targetLensing = THREE.MathUtils.smoothstep(screenRadius, 0.05, 0.10);
-            this.lensingStrength = THREE.MathUtils.lerp(this.lensingStrength, targetLensing, Math.min(1, delta * 8.0));
+            this.lensingStrength = THREE.MathUtils.damp(this.lensingStrength, targetLensing, 8.0, delta);
         }
         
         if (selectedStar && selectedStar.isSupernovaFlashing) {

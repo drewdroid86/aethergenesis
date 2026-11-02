@@ -13,6 +13,7 @@ import {
     buildSpawnBody,
     computeSpawnState,
     circularOrbitSpeed,
+    nextCatalogId,
     resetSpawnCounter,
 } from '../../src/simulation/spawnBody.ts';
 import { PlanetarySystem } from '../../src/rendering/systems/PlanetarySystem.ts';
@@ -133,6 +134,14 @@ test('F14-5: spawn ids and state are deterministic (no Math.random)', () => {
     assert.strictEqual(replay.id, 'spawned_1', 'counter reset must replay identically');
 });
 
+test('catalog imports generate distinct ids without browser crypto', () => {
+    resetSpawnCounter();
+    const first = nextCatalogId();
+    const second = nextCatalogId();
+    assert.notStrictEqual(first, second);
+    assert.match(first, /^catalog_spawned_\d+$/);
+});
+
 test('F14-6: degenerate spawn radius clamps deterministically', () => {
     const atOrigin = computeSpawnState({ position_au: { x: 0, y: 0, z: 0 }, centralMass_solar: 1.0 });
     const r = Math.sqrt(atOrigin.position.x ** 2 + atOrigin.position.y ** 2 + atOrigin.position.z ** 2);
@@ -246,6 +255,8 @@ test('F14-10: roster reorder keeps each body\'s visuals (no index-shift misassig
     assert.deepStrictEqual(slotTranslation(sys, 1), [0, 0, 24]);
     const aType = typeAttrAt(sys, 0);
     const bType = typeAttrAt(sys, 1);
+    const aVisual = sys.visualForBodyId('a');
+    const bVisual = sys.visualForBodyId('b');
 
     // Reorder the roster (as a remove/merge-style change would) with matching rows.
     sys.applyRoster([{ id: 'b', type: 'planet' }, { id: 'a', type: 'planet' }], 2);
@@ -254,6 +265,9 @@ test('F14-10: roster reorder keeps each body\'s visuals (no index-shift misassig
     assert.deepStrictEqual(slotTranslation(sys, 1), [12, 0, 0], 'slot 1 must now show a');
     assert.strictEqual(typeAttrAt(sys, 0), bType, "b keeps b's visual, not the index visual");
     assert.strictEqual(typeAttrAt(sys, 1), aType, "a keeps a's visual, not the index visual");
+    assert.strictEqual(sys.visualForBodyId('a'), aVisual);
+    assert.strictEqual(sys.visualForBodyId('b'), bVisual);
+    assert.equal(sys.visualForBodyId('missing'), undefined);
 });
 
 test('F14-11: spawned ids render; retired ids compact away; star/BH TODO is marked', () => {
