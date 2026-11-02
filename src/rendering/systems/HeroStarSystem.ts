@@ -354,8 +354,7 @@ export class HeroStarSystem extends THREE.Group {
     }
 
     public syncBirthAge(cosmicAge: number, effG: number = 1.0): void {
-        const cosmicAgeMyr = Math.max(0.01, cosmicAge) * 1000;
-        this.currentRealAge = Math.min(this.t * this.lifespanReal, cosmicAgeMyr);
+        this.currentRealAge = Math.max(0, this.t * this.lifespanReal);
         this.birthAge = cosmicAge - (this.currentRealAge / 1000) / effG;
     }
 
@@ -710,11 +709,8 @@ export class HeroStarSystem extends THREE.Group {
             this.isSupernovaFlashing = false;
         }
 
-        // Real age cannot exceed the cosmic age in Myr unless explicitly scrubbed or in remnant phase:
-        const cosmicAgeMyr = Math.max(0.01, cosmicAge ?? 13.8) * 1000;
-        this.currentRealAge = (overrideT !== undefined || this.t >= STELLAR_CONSTANTS.PHASE_BOUNDARIES.REMNANT_START)
-            ? this.t * this.lifespanReal
-            : Math.min(this.t * this.lifespanReal, cosmicAgeMyr);
+        // Explicit per-star time advances may place birthAge before the simulation epoch.
+        this.currentRealAge = Math.max(0, this.t * this.lifespanReal);
         const age_yr = this.currentRealAge * 1e6;
 
         const metallicity = (physics as any)?.metallicity ?? 0.02;

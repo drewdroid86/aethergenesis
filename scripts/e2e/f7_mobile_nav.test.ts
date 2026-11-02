@@ -50,7 +50,7 @@ test('F7-T1-2: Catalog Load flies the camera like Focus [F]', () => {
 test('F7-T1-3: Load selection is wired to the camera move', () => {
   const hook = src('src/utils/hooks/useSimulation.ts');
   assert.ok(
-    hook.includes('}, [selectedStarRef, setSelectedStar, centerOnStar]);'),
+    /\}, \[[^\]]*setSelectedStar[^\]]*centerOnStar[^\]]*\]\);/.test(hook),
     'loadStarPreset deps must include setSelectedStar and centerOnStar'
   );
 });

@@ -22,6 +22,8 @@ const worker = await import('../../src/simulation/nbodyWorker.ts');
 
 function dispatch(type: string, payload: any): void {
     (globalThis as any).self.onmessage({ data: { type, payload } });
+    // These tests count integration ticks; reset/initialization also publish snapshots.
+    if (type === 'INIT' || type === 'RESET_BODIES') updates.length = 0;
 }
 
 function init(dt_yr = 0.3, centralMass_solar = 1.0): void {

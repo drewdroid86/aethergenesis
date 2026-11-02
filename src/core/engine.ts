@@ -11,6 +11,7 @@ import { STELLAR_CONSTANTS } from './constants';
 import { PlanetarySystemQueue } from '../rendering/systems/PlanetarySystem';
 import type { BodyRosterEntry } from '../rendering/systems/PlanetarySystem';
 import { actionLog } from '../simulation/ActionLog';
+import { setStellarAge } from '../simulation/stellarAge';
 
 /** Numeric PHASES value → StellarPhase name for log payloads. */
 const PHASE_NUM_TO_NAME: Record<number, StellarPhase> = {
@@ -151,19 +152,15 @@ export class Engine {
         star.baseRadius = Math.pow(mass, 0.8) * 0.8;
         
         // Advance normalized timeline progress t to supernova phase start (1.2 τ_MS)
-        star.t = STELLAR_CONSTANTS.PHASE_BOUNDARIES.SUPERNOVA_START + 0.01;
-        star.currentRealAge = star.t * star.lifespanReal;
+        setStellarAge(star, (STELLAR_CONSTANTS.PHASE_BOUNDARIES.SUPERNOVA_START + 0.01) * star.lifespanReal, this.cosmicAge, this.physicsConstants.G);
     }
 
     advanceTime(years: number) {
         const star = this.selectedStar || this.heroStars[0];
         if (!star) return;
 
-        const deltaMyr = years / 1e6;
-        star.currentRealAge += deltaMyr;
-        if (star.lifespanReal > 0) {
-            star.t = star.currentRealAge / star.lifespanReal;
-        }
+        if (!Number.isFinite(years)) return;
+        setStellarAge(star, star.currentRealAge + years / 1e6, this.cosmicAge, this.physicsConstants.G);
     }
 
     private _frustum = new THREE.Frustum();

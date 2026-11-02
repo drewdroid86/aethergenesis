@@ -9,6 +9,7 @@ const softeningSq = 0.0001; // small softening for N-body
 let dt_yr = 1.0 / 365.25; // default 1 day step
 let tickTimeout: any = null;
 let dtAccumulator = 0;
+let generation = 0;
 
 // ─── Stable-id roster (Phase B) ─────────────────────────────────────────────
 // Every body carries a stable string id from creation. Bodies that arrive
@@ -26,7 +27,7 @@ function ensureStableIds(list: OrbitalBody[]): void {
     knownIds.clear();
     nextWorkerId = 1;
     for (const b of list) {
-        if (typeof b.id === 'string' && b.id.length > 0) {
+        if (typeof b.id === 'string' && b.id.length > 0 && !knownIds.has(b.id)) {
             claimId(b.id);
             continue;
         }
@@ -40,7 +41,7 @@ function ensureStableIds(list: OrbitalBody[]): void {
 }
 
 function assignStableId(body: OrbitalBody): void {
-    if (typeof body.id === 'string' && body.id.length > 0) {
+    if (typeof body.id === 'string' && body.id.length > 0 && !knownIds.has(body.id)) {
         claimId(body.id);
         return;
     }
@@ -55,6 +56,7 @@ function assignStableId(body: OrbitalBody): void {
 export interface RosterEntry {
     id: string;
     type: string;
+    catalogId?: string;
 }
 
 /**
@@ -65,8 +67,8 @@ export interface RosterEntry {
  * a future MERGE retires ids here and introduces the merged body's id.
  */
 function emitRoster(): void {
-    const roster: RosterEntry[] = bodies.map((b) => ({ id: b.id, type: b.type }));
-    (self as any).postMessage({ type: 'ROSTER', bodies: roster });
+    const roster: RosterEntry[] = bodies.map((b) => ({ id: b.id, type: b.type, ...(b.catalogId ? { catalogId: b.catalogId } : {}) }));
+    (self as any).postMessage({ type: 'ROSTER', bodies: roster, generation });
 }
 
 // ─── Worker→main physics events (Phase A) ───────────────────────────────────
@@ -186,6 +188,7 @@ function isValidBody(body: any): body is OrbitalBody {
 self.onmessage = (e) => {
     const { type, payload } = e.data;
     if (type === 'INIT') {
+        generation = payload.generation ?? 0;
         // Validate inbound bodies — same poison guard as ADD_BODY (a single
         // NaN field used to freeze the integration loop forever).
         const inbound = Array.isArray(payload.bodies) ? payload.bodies : [];
@@ -210,6 +213,7 @@ self.onmessage = (e) => {
         emitRoster();
         accelsValid = false; // BOLT: Reset cache on re-init
         dtAccumulator = 0;
+        emitBuffer();
         const shouldRun = payload.isRunning !== undefined ? payload.isRunning : true;
         isRunning = shouldRun;
         if (isRunning && !tickTimeout) {
@@ -227,6 +231,7 @@ self.onmessage = (e) => {
             recomputeTMin();
             emitRoster();
             accelsValid = false; // BOLT: Invalidate cache when body added
+            emitBuffer();
         } else {
             console.warn('[nbody] ADD_BODY rejected: malformed body payload', payload.body);
         }
@@ -266,6 +271,7 @@ self.onmessage = (e) => {
             emitBuffer();
         }
     } else if (type === 'RESET_BODIES') {
+        generation = payload.generation ?? generation;
         const inboundReset = Array.isArray(payload.bodies) ? payload.bodies : [];
         const rejectedReset = inboundReset.filter((b: any) => !isValidBody(b)).length;
         if (rejectedReset > 0) {
@@ -281,6 +287,7 @@ self.onmessage = (e) => {
         emitRoster();
         accelsValid = false;
         dtAccumulator = 0;
+        emitBuffer();
     }
 };
 
@@ -595,7 +602,7 @@ function emitBuffer(): void {
 
     // Pass buffer via transferable interface (one-way transfer detaches the buffer,
     // requiring per-tick reallocation below; true zero-alloc would require SharedArrayBuffer or return-transfer)
-    (self as any).postMessage({ type: 'UPDATE', buffer }, [buffer.buffer]);
+    (self as any).postMessage({ type: 'UPDATE', buffer, generation }, [buffer.buffer]);
 
     // Reallocate the transferred buffer since it was detached/neutered
     if (useA) {
