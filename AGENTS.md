@@ -18,3 +18,12 @@ Muse Code reads this file as project rules when it runs in this directory.
 - `docs/`: Project docs.
 - `.agents/`: Project agent skills and shared agent guidance.
 - `.github/`: GitHub workflow and issue files.
+
+## Architecture and development
+
+- React and Three.js client: `src/`; simulation worker: `src/simulation/nbodyWorker.ts`.
+- Express API and WebSocket server: `server.ts`; MCP servers and shared catalog parsing: `server/`.
+- Automated suites and helpers: `scripts/`; `npm test` starts a server and may call external catalog services.
+- Run `npm run dev:full` for the client and server; see `.env.example` for configuration. Never commit secrets.
+- Quality checks: `npm run lint` (includes typecheck), `npm run build`, `npm test`, and `npm run test:mcp` for MCP changes.
+- `VITE_` variables are included in the browser bundle; treat them as public.
