@@ -54,7 +54,7 @@ const clients = new Set<WebSocket>();
 let wss: WebSocketServer | null = null;
 
 // Security: Strict event whitelist to prevent arbitrary command injection
-const ALLOWED_EVENTS = ['force_supernova', 'advance_1gyr', 'reset', 'spawn_comet', 'impact_event'];
+const ALLOWED_EVENTS = ['force_supernova', 'advance_1gyr', 'reset'];
 
 // Security: Max concurrent WebSocket clients to prevent resource exhaustion
 const MAX_CLIENTS = 100;
@@ -110,6 +110,7 @@ export function broadcastSimState(state: SimBroadcast, exclude?: WebSocket): voi
 
 export function initWebSocketServer(server: http.Server, allowedOrigins: string[]): void {
     const expectedToken = process.env.WS_TOKEN;
+    const controlToken = process.env.WS_CONTROL_TOKEN;
     if (!expectedToken) {
         throw new Error('FATAL: WS_TOKEN environment variable is not set. WebSocket server refused to start without handshake key.');
     }
@@ -117,6 +118,9 @@ export function initWebSocketServer(server: http.Server, allowedOrigins: string[
     // placeholder token must never be accepted in production.
     if (process.env.NODE_ENV === 'production' && expectedToken === 'default_secret') {
         throw new Error('FATAL: refusing to start with default WS_TOKEN in production. Set a unique WS_TOKEN.');
+    }
+    if (controlToken && (controlToken === expectedToken || controlToken === 'default_secret')) {
+        throw new Error('WS_CONTROL_TOKEN must be distinct from WS_TOKEN and the default placeholder.');
     }
 
     wss = new WebSocketServer({
@@ -126,7 +130,7 @@ export function initWebSocketServer(server: http.Server, allowedOrigins: string[
             // Security: Origin validation to prevent Cross-Site WebSocket Hijacking (CSWH)
             const origin = info.origin;
             const isDev = process.env.NODE_ENV !== 'production';
-            const isAllowed = isOriginAllowed(origin, allowedOrigins, isDev);
+            const isAllowed = !origin || isOriginAllowed(origin, allowedOrigins, isDev);
 
             if (!isAllowed) {
                 cb(false, 403, 'Forbidden: Unauthorized origin');
@@ -141,7 +145,8 @@ export function initWebSocketServer(server: http.Server, allowedOrigins: string[
 
             // Parse CSV protocol header correctly
             const protocols = protocolHeader.split(',').map(p => p.trim());
-            if (!protocols.includes(expectedToken)) {
+            if ((!origin && (!controlToken || !protocols.includes(controlToken))) ||
+                (origin && !protocols.includes(expectedToken) && (!controlToken || !protocols.includes(controlToken)))) {
                 cb(false, 401, 'Unauthorized: Invalid handshake key');
                 return;
             }
@@ -151,6 +156,7 @@ export function initWebSocketServer(server: http.Server, allowedOrigins: string[
         handleProtocols: (protocols) => {
             // Handshake: Validate the expected key from the client.
             // This is required for browser-based WebSocket clients to successfully complete the handshake.
+            if (controlToken && protocols.has(controlToken)) return controlToken;
             if (protocols.has(expectedToken)) {
                 return expectedToken;
             }
@@ -268,6 +274,7 @@ export function initWebSocketServer(server: http.Server, allowedOrigins: string[
                         }
                     }
                 } else if (data.type === 'event' || data.event) {
+                    if (!controlToken || ws.protocol !== controlToken) return;
                     const eventName = data.event || data.data?.event;
 
                     // Security: Whitelist validation to prevent arbitrary event injection

@@ -15,7 +15,7 @@ const port = process.env.PORT || 3001;
 app.disable('x-powered-by');
 
 // Security: Trust proxy for correct IP detection in rate limiting (e.g., on Render)
-app.set('trust proxy', 1);
+app.set('trust proxy', process.env.TRUST_PROXY || false);
 
 // Security: Limit payload size to mitigate DoS risks
 app.use(express.json({ limit: '10kb' }));
@@ -243,6 +243,7 @@ app.get('/api/catalog/search', async (req, res) => {
   if (name) {
     // 1. Search presets
     const cleanName = name.toLowerCase().replace(/[^a-z0-9]/g, '');
+    if (!cleanName) return res.status(400).json({ error: 'Invalid name parameter' });
     const preset = PRESETS.find(p => {
       const pName = p.name.toLowerCase().replace(/[^a-z0-9]/g, '');
       return cleanName.includes(pName) || pName.includes(cleanName);

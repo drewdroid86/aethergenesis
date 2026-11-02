@@ -111,7 +111,11 @@ graph TD
    GEMINI_API_KEY="your-key-here"
    WS_TOKEN="a-strong-random-secret"
    VITE_WS_TOKEN="same-strong-random-secret"
+   WS_CONTROL_TOKEN="a-different-strong-random-secret"
    ```
+
+   `VITE_WS_TOKEN` is public in the browser bundle and permits state publishing.
+   Keep `WS_CONTROL_TOKEN` private; the simulation MCP server uses it for control events.
 
 3. **Run full application (Vite Client + Express WS Server):**
    ```bash

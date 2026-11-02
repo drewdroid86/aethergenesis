@@ -170,6 +170,7 @@ async function querySimbad(adql) {
  */
 function findPresetStar(name) {
   const cleanName = name.toLowerCase().replace(/[^a-z0-9]/g, '');
+  if (!cleanName) return null;
   return PRESETS.find(p => {
     const pName = p.name.toLowerCase().replace(/[^a-z0-9]/g, '');
     return cleanName.includes(pName) || pName.includes(cleanName);

@@ -18,10 +18,10 @@ const server = new Server(
 
 const SIM_PORT = process.env.SIM_PORT || '3001';
 const SIM_HOST = process.env.SIM_HOST || 'localhost';
-const WS_TOKEN = process.env.WS_TOKEN;
+const WS_TOKEN = process.env.WS_CONTROL_TOKEN;
 
 if (!WS_TOKEN) {
-  console.error('FATAL: WS_TOKEN environment variable is not set. Refusing to start MCP sim-state server without authentication token.');
+  console.error('FATAL: WS_CONTROL_TOKEN environment variable is not set. Refusing to start MCP sim-state server without authentication token.');
   process.exit(1);
 }
 
@@ -142,7 +142,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
           properties: {
             event: {
               type: 'string',
-              enum: ['force_supernova', 'advance_1gyr', 'reset', 'spawn_comet', 'impact_event'],
+              enum: ['force_supernova', 'advance_1gyr', 'reset'],
               description: 'The simulation event to trigger'
             },
             target_id: { type: 'string', description: 'Target body ID (optional)' },
@@ -179,7 +179,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
               type: 'text',
               text: JSON.stringify({
                 success: true,
-                message: `Successfully sent event command "${eventName}" to simulation.`,
+                message: `Sent event command "${eventName}"; execution is not confirmed.`,
                 new_state_summary: latestState?.stellar ? {
                   phase: latestState.stellar.phase,
                   age_yr: latestState.stellar.age_yr,
