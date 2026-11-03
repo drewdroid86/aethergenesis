@@ -5,6 +5,7 @@ import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js'
 import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { CinematicPassShader } from './shaders/stellar';
+import gradeFragmentShader from '../shaders/grade.frag.glsl?raw';
 import { STELLAR_CONSTANTS, PHASES } from '../core/constants';
 import { blackHoleInFrontOfCamera, blackHoleWorldShadowRadius } from '../simulation/phases/RemnantPhase';
 
@@ -13,6 +14,7 @@ export class Pipeline {
     bloomPass: UnrealBloomPass;
     cinematicPass: ShaderPass;
     private outputPass: OutputPass;
+    private gradePass: ShaderPass;
     lensingStrength: number = 0.0;
 
     // BOLT: Cached vector instances to avoid per-frame allocations during 60/120fps render loop
@@ -20,8 +22,9 @@ export class Pipeline {
     private _screenPos: THREE.Vector2 = new THREE.Vector2(0.5, 0.5);
     // Resting bloom. updateLensing tightens this while a black hole is in front
     // so the photon ring and disk don't bloom into a soft blob.
-    private _bloomStrength = 0.85;
-    private _bloomRadius = 0.4;
+    // AESTHETIC: not physics-derived, intentional restrained stellar halo.
+    private _bloomStrength = 0.65;
+    private _bloomRadius = 0.25;
     private _bloomThreshold = 1.0;
 
     constructor(renderer: THREE.WebGLRenderer, scene: THREE.Scene, camera: THREE.PerspectiveCamera) {
@@ -33,7 +36,7 @@ export class Pipeline {
 
         this.bloomPass = new UnrealBloomPass(
             new THREE.Vector2(window.innerWidth, window.innerHeight), 
-            0.85, 0.4, 1.0
+            this._bloomStrength, this._bloomRadius, this._bloomThreshold
         );
         this.composer.addPass(this.bloomPass);
 
@@ -44,6 +47,17 @@ export class Pipeline {
 
         this.outputPass = new OutputPass();
         this.composer.addPass(this.outputPass);
+
+        // Lens/shockwave remain in linear light. Only grain/vignette run after ACES.
+        this.gradePass = new ShaderPass({
+            uniforms: { tDiffuse: { value: null }, time: { value: 0 } },
+            vertexShader: CinematicPassShader.vertexShader,
+            fragmentShader: gradeFragmentShader,
+        });
+        this.gradePass.material.name = 'DisplayGradeMaterial';
+        this.gradePass.material.toneMapped = false;
+        this.gradePass.material.customProgramCacheKey = () => 'display_grade_material_v1';
+        this.composer.addPass(this.gradePass);
     }
 
     public updateLensing(selectedStar: any, camera: THREE.PerspectiveCamera, delta: number) {
@@ -135,6 +149,7 @@ export class Pipeline {
 
     public render(appTime: number, _delta: number): void {
         if (this.cinematicPass.uniforms.time) this.cinematicPass.uniforms.time.value = appTime;
+        this.gradePass.uniforms.time.value = appTime;
         this.composer.render();
     }
 
@@ -155,6 +170,7 @@ export class Pipeline {
         }
         this.cinematicPass.dispose();
         this.outputPass.dispose();
+        this.gradePass.dispose();
         this.composer.dispose();
     }
 }

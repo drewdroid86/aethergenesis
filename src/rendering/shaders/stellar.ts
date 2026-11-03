@@ -49,28 +49,28 @@ precision mediump float;
 #endif
 
 uniform vec3 uColor;
+uniform vec3 uHotColor;
 uniform float uOpacity;
-uniform float uFalloff;
-uniform float uTint;
-uniform float uNoiseStrength;
+uniform float uSurfaceRatio;
 varying vec3 vNormal;
 varying vec3 vViewDir;
 varying vec3 vLocalPos;
-float rand(vec2 co) {
-    return fract(sin(dot(co, vec2(12.9898, 78.233))) * 43758.5453);
-}
 void main() {
-    float rim = 1.0 - abs(dot(vNormal, vViewDir));
-    float glow = exp(-rim * rim * uFalloff);
+    float mu = clamp(abs(dot(normalize(vNormal), normalize(vViewDir))), 0.0, 1.0);
+    // Projected height above the photosphere, normalized to the shell's outer edge.
+    float projectedRadius = sqrt(max(0.0, 1.0 - mu * mu));
+    float height = clamp((projectedRadius - uSurfaceRatio) / (1.0 - uSurfaceRatio), 0.0, 1.0);
     // Coronal helmet-streamer radial structure (K-corona magnetic anisotropy)
     vec3 dir = normalize(vLocalPos);
     float theta = atan(dir.z, dir.x);
     float phi = asin(clamp(dir.y, -1.0, 1.0));
-    float streamers = 0.84 + 0.16 * sin(theta * 6.0 + cos(phi * 4.0) * 2.0) * sin(phi * 5.0);
-    // Corona is optically thin and hotter → push slightly toward white
-    vec3 col = mix(uColor, vec3(1.0, 0.98, 0.94), uTint * rim);
-    glow = max(0.0, glow + (rand(gl_FragCoord.xy) - 0.5) * uNoiseStrength);
-    gl_FragColor = vec4(col * streamers, glow * streamers * uOpacity);
+    float streamers = 0.62 + 0.38 * pow(0.5 + 0.5 * sin(theta * 8.0 + cos(phi * 4.0) * 2.0), 2.0);
+    streamers *= 0.85 + 0.15 * cos(phi * 6.0);
+    // AESTHETIC: not physics-derived, intentional optically thin profile, fading to zero.
+    float glow = exp(-height * (7.0 - 3.0 * streamers)) * (1.0 - smoothstep(0.65, 1.0, height));
+    // Optically thin continuum cue sampled from the stellar palette, not a coronal blackbody.
+    vec3 col = mix(uColor, uHotColor, 0.75);
+    gl_FragColor = vec4(col * 1.2, glow * streamers * uOpacity * 0.09);
 }
 `;
 

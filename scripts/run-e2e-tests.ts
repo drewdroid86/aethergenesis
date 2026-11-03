@@ -111,6 +111,7 @@ async function main() {
     'scripts/e2e/f14_spawn_actionlog.test.ts',
     'scripts/e2e/f15_audit_med_m1_m3.test.ts',
     'scripts/e2e/f16_stellar_time.test.ts',
+    'scripts/e2e/f17_stellar_appearance.test.ts',
   ];
 
   let allPassed = true;
