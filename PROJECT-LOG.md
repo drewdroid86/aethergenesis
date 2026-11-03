@@ -23,6 +23,26 @@ This log is updated after every AI session. Each AI signs off with their entry. 
 
 ## RECENT LOGS
 
+### 2026-11-03 — Prepare graphical upgrades for main (GPT-6)
+- Fetched `origin/main` at `3d0a1f2`; the feature branch starts at that exact commit, with no upstream conflicts.
+- Rechecked lint/typecheck, production build, and the repository's `glslangValidator` shader validation. Preparing a pull request targeting `main` for the complete stellar/black-hole appearance change, including its regression tests and rendered smoke-test command.
+- The integrated change spans 17 files (shared shaders, their phase consumers, test coverage, and this log), exceeding the PR template's five-file preference; no unrelated changes are included.
+
+### 2026-11-03 — Interstellar-inspired black-hole silhouette (GPT-6)
+- User requested a Gargantua-style appearance. The far annulus now compresses into a broad upper lensed image and a narrower lower image, with an equatorial foreground ribbon and a shallow default inclination. Original disk coordinates drive the thermal palette and finer animated filaments. Geometry bounds include the taller apparent arcs.
+- Foreground disk emission is preserved inside the projected shadow; scene depth still occludes the rear disk with the core. Screen-space deflection fades smoothly at the shadow lip and photon-ring emission is hidden behind bright foreground material, avoiding a circular cutout or seam across the disk.
+- This is an artistic apparent-image approximation in the existing WebGL renderer, not a relativistic geodesic solver. Mass gates and shadow scaling remain intact; face-on views fade out the apparent-image deformation.
+- Verification: lint/typecheck, production build, full test suite (with `NODE_USE_ENV_PROXY=1`), and nine Chromium rendered scenarios. Actual previews saved under `/workspace/artifacts/gargantua/`; software-rendered timings do not establish mobile GPU performance.
+
+### 2026-11-03 — Achievable stellar appearance upgrades (GPT-6)
+- **Branch:** `feat/stellar-appearance`. Implements the achievable column from the graphical concept study. No simulation state, phase thresholds, hero counts, or planetary rendering changes.
+- **Stars:** Shared CPU-sampled temperature palettes for photosphere, hot granules, and cool lanes; cached in-place updates; bounded wavelength-dependent limb coefficients. Main sequence and red giant coronae use a soft radial profile with streamer modulation. Removed the main-sequence flat halo and restrained diffraction/prominence glare. Warm-star display contrast is explicitly aesthetic, not a molecular absorption model.
+- **Black holes:** Both existing disk images share a 64-entry sRGB thermal palette sampled in linear light. Radial temperature follows a `r^-3/4` visual proxy with existing Doppler/gravitational shifts; local clumps brighten their spectrum instead of becoming white patches. Inner temperature is explicitly a visible-band display proxy, not an X-ray/accretion-rate prediction. Shadow scale, geometry, beaming, and lens gates remain authoritative.
+- **Post-processing:** Scene → bloom → lens/shockwave → ACES/sRGB output → subtle display-space grain/vignette. Grade masks grain out of dark pixels so the shadow stays black. One additional fullscreen pass; the new pass is disposed with the pipeline.
+- **Verification:** `npm run lint` (includes typecheck), `npm run build`, and `NODE_USE_ENV_PROXY=1 npm test` passed. Proxy opt-in is needed for this environment's external Horizons/SIMBAD calls. F17 adds six palette/lifecycle/source-contract tests; F6's RNG import assertion now checks the imported symbol independently of other imports.
+- **Rendered verification:** `npm run test:appearance` passed all nine Chromium/SwiftShader scenarios at 960×640: Betelgeuse, Sirius A, protostar, black-hole oblique/face/edge/wide/behind, and low-detail Sirius A. No shader compile or WebGL errors; focused shadow-center pixels are `[0,0,0]`; wide/behind lens strength is zero. Fixed seed/time/cameras; screenshots can be directed with `APPEARANCE_ARTIFACT_DIR`, Chromium with `CHROME_PATH`.
+- **Limit:** Software-rendered timing is not a mobile GPU benchmark. Medium-tier full-scene frame budgets still require a device check before making performance claims. Broader rendering-model exploration waves remain unimplemented.
+
 ### 2026-10-28 — Bugbot fixes on the remnant black hole PR (Grok 4.7)
 - **Photon ring vs expansion (`pipeline.ts`, `RemnantPhase.ts`):** `uBlackHoleRadius` now uses `blackHoleWorldShadowRadius(mass, hero.scale.x)`. `b_c` stays in the group's local space; the post ring multiplies by the same `physics.lambda` scale the hero group applies to the core and disk.
 - **Doppler on the tilted disk (`RemnantPhase.ts`):** The orbital tangent is still `(-sin θ, 0, cos θ)` in the mesh plane, then `normalize(mat3(modelMatrix) * tangent)`. That carries `blackHoleGroup.rotation.x = 0.58` into the line-of-sight dot. Beta, gamma, and `delta^3.2` are unchanged.

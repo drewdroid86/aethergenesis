@@ -6,6 +6,9 @@ precision mediump float;
 
 uniform float uTime;
 uniform vec3 uColor;
+uniform vec3 uHotColor;
+uniform vec3 uCoolColor;
+uniform vec3 uLimbDarkening;
 uniform float uTurbulence;
 uniform float uOpacity;
 uniform float uLowDetail;
@@ -54,33 +57,28 @@ void main() {
     float faculaeBand = smoothstep(0.27, 0.34, n1) * (1.0 - smoothstep(0.34, 0.46, n1));
     float faculaeBoost = faculaeBand * smoothstep(0.42, 0.68, n2) * (0.45 + 0.85 * (1.0 - mu));
     
-    // Planckian core-to-convection color ramp: hotter white-shifted upwelling cores, deeper intergranular lanes
-    vec3 hotCoreColor = mix(uColor * 1.45, vec3(1.0, 0.98, 0.94), 0.35);
-    vec3 coolLaneColor = uColor * vec3(0.48, 0.34, 0.22);
+    // Temperature-sampled convection palette: no fixed warm-white tint on hot stars.
+    // AESTHETIC: not physics-derived, intentional HDR contrast for controlled bloom.
+    vec3 hotCoreColor = uHotColor * 1.65;
+    vec3 coolLaneColor = uCoolColor * 0.32;
     vec3 baseCol = mix(coolLaneColor, hotCoreColor, smoothstep(0.20, 0.82, noiseVal));
     
     // Add bright magnetic faculae filaments
-    baseCol += mix(uColor, vec3(1.0, 0.97, 0.90), 0.5) * faculaeBoost * 0.95;
+    baseCol += uHotColor * faculaeBoost * 0.65;
     
     // Apply sunspot penumbra and deep umbra darkening
-    vec3 penumbraCol = uColor * vec3(0.28, 0.16, 0.08);
-    vec3 umbraCol = uColor * vec3(0.07, 0.03, 0.01);
+    vec3 penumbraCol = uCoolColor * 0.22;
+    vec3 umbraCol = uCoolColor * 0.045;
     vec3 finalColor = mix(baseCol, penumbraCol, sunspotMask * 0.78);
     finalColor = mix(finalColor, umbraCol, sunspotUmbra * 0.92);
     
-    // Wavelength-dependent Eddington-Barbier limb darkening:
-    // Shorter (blue/green) wavelengths experience higher optical depth at grazing angles than red
-    float eddingtonScalar = 0.4 + 0.6 * mu;
-    vec3 chromaticLimb = vec3(
-        pow(max(mu, 0.001), 0.36),
-        pow(max(mu, 0.001), 0.55),
-        pow(max(mu, 0.001), 0.80)
-    );
-    finalColor *= mix(vec3(eddingtonScalar), chromaticLimb, 0.65);
+    // Cooler stars redden more at the limb; hot stars retain their blue-white identity.
+    // Linear limb darkening stays finite at grazing angles instead of a black outline.
+    finalColor *= vec3(1.0) - uLimbDarkening * (1.0 - mu);
     
     // Subtle chromospheric spicule emission ring at extreme grazing limb
     float spiculeRim = pow(1.0 - mu, 4.5) * (0.6 + 0.4 * n2);
-    finalColor += uColor * vec3(1.15, 0.65, 0.35) * spiculeRim * 0.32;
+    finalColor += uColor * spiculeRim * 0.12;
     
     gl_FragColor = vec4(finalColor, uOpacity);
 }

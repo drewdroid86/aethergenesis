@@ -1,11 +1,12 @@
 import * as THREE from 'three';
 import { PhaseComponent } from './types';
 import { PhysicsConstants } from '../../types/physics';
-import { subtleDisplacementVS, starSurfaceFS } from '../../rendering/shaders/stellar';
+import { subtleDisplacementVS, starSurfaceFS, glowVS, glowFS } from '../../rendering/shaders/stellar';
 import { GEOMETRIES } from './geometries';
 import { STELLAR_CONSTANTS } from '../../core/constants';
 import { phaseCounters } from '../../utils/performance';
-import { colorTempToRGB, mulberry32 } from '../../physics/math';
+import { mulberry32 } from '../../physics/math';
+import { createStellarSurfaceUniforms, updateStellarSurfaceUniforms } from '../../rendering/stellarAppearance';
 
 // TODO: Expand seeded determinism across all visual phases when star/universe seeds are propagated to phase inits.
 export const DEFAULT_RED_GIANT_SEED = 1337;
@@ -17,7 +18,8 @@ export class RedGiantPhase implements PhaseComponent {
     public flareMesh!: THREE.InstancedMesh;
     public flareMat!: THREE.ShaderMaterial;
     private _haloMesh!: THREE.Mesh;
-    private _haloMat!: THREE.MeshBasicMaterial;
+    private _haloMat!: THREE.ShaderMaterial;
+    private surfaceUniforms = createStellarSurfaceUniforms();
     private parent!: THREE.Group;
     private baseRadius: number;
     private tHeat: number;
@@ -49,8 +51,8 @@ export class RedGiantPhase implements PhaseComponent {
             vertexShader: subtleDisplacementVS,
             fragmentShader: starSurfaceFS,
             uniforms: {
+                ...this.surfaceUniforms,
                 uTime: { value: 0 },
-                uColor: { value: new THREE.Color(0xff3300) },
                 uTurbulence: { value: 0.8 },
                 uOpacity: { value: 0.0 },
                 uHbar: { value: 1.0 },
@@ -59,19 +61,27 @@ export class RedGiantPhase implements PhaseComponent {
             transparent: true, blending: THREE.NormalBlending
         });
         this.redGiantMat.name = 'RedGiantPhaseMaterial';
-        this.redGiantMat.customProgramCacheKey = () => 'red_giant_star_material';
+        this.redGiantMat.customProgramCacheKey = () => 'red_giant_star_material_v2';
         this.redGiantMesh = new THREE.Mesh(GEOMETRIES.redGiant, this.redGiantMat);
         this.redGiantGroup.add(this.redGiantMesh);
 
-        // Luminous red atmospheric halo envelope
-        this._haloMat = new THREE.MeshBasicMaterial({
-            color: 0xff2200,
+        // Replace the flat halo with the shared structured corona, at the same draw count.
+        this._haloMat = new THREE.ShaderMaterial({
+            uniforms: {
+                uColor: this.surfaceUniforms.uColor,
+                uHotColor: this.surfaceUniforms.uHotColor,
+                uOpacity: { value: 0.0 },
+                uSurfaceRatio: { value: 1 / 1.35 },
+            },
+            vertexShader: glowVS,
+            fragmentShader: glowFS,
             transparent: true,
-            opacity: 0.0,
+            depthWrite: false,
             side: THREE.BackSide,
             blending: THREE.AdditiveBlending
         });
-        this._haloMat.name = 'RedGiantHaloMeshMaterial';
+        this._haloMat.name = 'RedGiantCoronaMaterial';
+        this._haloMat.customProgramCacheKey = () => 'red_giant_corona_material_v2';
         this._haloMesh = new THREE.Mesh(GEOMETRIES.redGiant, this._haloMat);
         this.redGiantGroup.add(this._haloMesh);
 
@@ -147,17 +157,10 @@ export class RedGiantPhase implements PhaseComponent {
         this.flareMat.uniforms.uTime.value = appTime;
 
         const effectiveTemp = currentTemp ?? this.getCurrentTemp(t);
-        colorTempToRGB(effectiveTemp, this.redGiantMat.uniforms.uColor.value);
-        // Titanium oxide & molecular absorption enhances deep red chromatic saturation for red giants
-        this.redGiantMat.uniforms.uColor.value.r = Math.max(this.redGiantMat.uniforms.uColor.value.r, 1.0);
-        this.redGiantMat.uniforms.uColor.value.g *= 0.45;
-        this.redGiantMat.uniforms.uColor.value.b *= 0.15;
+        updateStellarSurfaceUniforms(this.surfaceUniforms, effectiveTemp);
 
-        if (this._haloMat) {
-            this._haloMat.color.copy(this.redGiantMat.uniforms.uColor.value);
-        }
         if (this.flareMat) {
-            this.flareMat.uniforms.uColor.value.copy(this.redGiantMat.uniforms.uColor.value);
+            this.flareMat.uniforms.uColor.value.copy(this.surfaceUniforms.uHotColor.value);
         }
     }
 
@@ -196,9 +199,10 @@ export class RedGiantPhase implements PhaseComponent {
 
     setOpacity(opacity: number): void {
         this.redGiantMat.uniforms.uOpacity.value = opacity;
-        this.flareMat.uniforms.uOpacity.value = opacity * 0.8;
+        // AESTHETIC: not physics-derived, intentional restrained prominence emission.
+        this.flareMat.uniforms.uOpacity.value = opacity * 0.35;
         if (this._haloMat) {
-            this._haloMat.opacity = opacity * 0.35;
+            this._haloMat.uniforms.uOpacity.value = opacity;
         }
     }
 

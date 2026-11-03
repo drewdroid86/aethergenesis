@@ -66,8 +66,9 @@ export const GEOMETRIES = {
         if (geo.boundingSphere) geo.boundingSphere.radius += 0.6;
         geo.computeBoundingBox();
         if (geo.boundingBox) {
-            geo.boundingBox.min.y -= 0.6;
-            geo.boundingBox.max.y += 0.6;
+            // Apparent far-disk arcs can rise ~2.2 local units above/below the plane.
+            geo.boundingBox.min.y -= 2.3;
+            geo.boundingBox.max.y += 2.3;
         }
         return geo;
     })(),

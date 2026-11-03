@@ -4,6 +4,7 @@ import { PhysicsConstants } from '../../types/physics';
 import { BH_CORE_RADIUS, BH_DISK_INNER, BH_DISK_OUTER, GEOMETRIES } from './geometries';
 import { STELLAR_CONSTANTS } from '../../core/constants';
 import { phaseCounters } from '../../utils/performance';
+import { thermalPalette, THERMAL_PALETTE_MIN_K, THERMAL_PALETTE_MAX_K, THERMAL_PALETTE_SIZE } from '../../rendering/stellarAppearance';
 
 // BOLT: Module-level helper to avoid closure overhead
 const stepOp = (current: number, target: number, speed: number) => {
@@ -78,10 +79,16 @@ function createBlackHoleDiskMaterial(kind: 'primary' | 'secondary'): THREE.Shade
             uCameraLocal: { value: new THREE.Vector3(0, 0.4, 8) },
             uBendSign: { value: secondary ? -1.0 : 1.0 },
             uOblique: { value: 0.65 },
-            uImageGain: { value: secondary ? 0.28 : 1.0 },
+            uImageGain: { value: secondary ? 0.55 : 1.0 },
             uFarOnly: { value: secondary ? 1.0 : 0.0 },
             uInner: { value: BH_DISK_INNER },
             uOuter: { value: BH_DISK_OUTER },
+            uThermalPalette: { value: thermalPalette },
+            uPaletteRange: { value: new THREE.Vector2(THERMAL_PALETTE_MIN_K, THERMAL_PALETTE_MAX_K) },
+            uPaletteTexelSize: { value: 1 / THERMAL_PALETTE_SIZE },
+            // AESTHETIC: not physics-derived, intentional visible-band temperature proxy.
+            // No accretion-rate state exists; this is not the disk's X-ray temperature.
+            uInnerTemperatureK: { value: 7200 },
         },
         transparent: true,
         // The plane composites. Additive overlap was stacking the disk into a
@@ -108,17 +115,19 @@ function createBlackHoleDiskMaterial(kind: 'primary' | 'secondary'): THREE.Shade
                 float camXZLen = length(camXZ);
                 vec2 camAxis = camXZLen > 1e-3 ? camXZ / camXZLen : vec2(0.0, 1.0);
                 float facing = dot(radN, camAxis);
-                // Only the inner far rim curls over or under the shadow. The rest
-                // of the annulus stays in the disk plane so the plane reads first.
-                float far = 1.0 - smoothstep(-0.92, -0.15, facing);
-                float falloff = 1.0 - smoothstep(uInner * 1.02, uInner * 2.05, r);
-                float h = uBendSign * 0.34 * far * uOblique * falloff;
-                float ang = atan(p.z, p.x);
-                // Cheap thickness so an edge-on view is a band, not a hairline.
-                float puff = 0.1 * (0.55 + 0.45 * sin(ang * 2.0));
-                p.y += h + puff;
+                float ang = atan(position.z, position.x);
+                // AESTHETIC: view-dependent apparent disk image, not a geodesic solver.
+                // Compress the far annulus into a broad upper arc and a thinner lower
+                // image. Near-side vertices remain the equatorial foreground ribbon.
+                float far = 1.0 - smoothstep(-0.65, -0.02, facing);
+                float imageWidth = uBendSign > 0.0 ? 0.26 : 0.10;
+                float imageRadius = uInner * 1.06 + (r - uInner) * imageWidth;
+                p.xz = mix(radial, radN * imageRadius, far * uOblique);
+                float h = uBendSign * imageRadius * max(-facing, 0.0) * uOblique;
+                // Thin emitting layer, still visible at grazing incidence.
+                p.y += h + 0.025;
                 vec4 worldPos = modelMatrix * vec4(p, 1.0);
-                vLocalPos = p;
+                vLocalPos = position;
                 vWorldPos = worldPos.xyz;
                 vTangentWorld = mat3(modelMatrix) * vec3(-sin(ang), 0.0, cos(ang));
                 vFacing = facing;
@@ -144,6 +153,10 @@ function createBlackHoleDiskMaterial(kind: 'primary' | 'secondary'): THREE.Shade
             uniform float uFarOnly;
             uniform float uInner;
             uniform float uOuter;
+            uniform sampler2D uThermalPalette;
+            uniform vec2 uPaletteRange;
+            uniform float uPaletteTexelSize;
+            uniform float uInnerTemperatureK;
 
             void main() {
                 float dist = length(vLocalPos.xz);
@@ -153,7 +166,7 @@ function createBlackHoleDiskMaterial(kind: 'primary' | 'secondary'): THREE.Shade
                 // Relativistic shading kept: Doppler beaming, gravitational redshift, ISCO.
                 float beta = clamp(0.62 / sqrt(dist * 0.8 + 0.35), 0.0, 0.72);
                 // Orbital tangent of the tilted disk. Local XZ is the mesh plane;
-                // modelMatrix carries blackHoleGroup's 0.58 rad tilt into world space.
+                // modelMatrix carries blackHoleGroup's tilt into world space.
                 vec3 tangentDir = normalize(vTangentWorld);
                 vec3 viewDir = normalize(uCameraPos - vWorldPos);
                 float beta_los = beta * dot(tangentDir, viewDir);
@@ -167,45 +180,32 @@ function createBlackHoleDiskMaterial(kind: 'primary' | 'secondary'): THREE.Shade
                 // long along the sheared flow. No FBM spots.
                 float orbitalFreq = 4.5 / pow(dist + 0.2, 1.5);
                 float shear = angle - log(max(dist, 0.55)) * 6.5 - uTime * 0.28 * orbitalFreq;
-                float lane = pow(0.5 + 0.5 * sin(dist * 20.0 - shear * 2.6), 3.0);
-                float lane2 = pow(0.5 + 0.5 * sin(dist * 33.0 - shear * 1.15 + 1.7), 4.0);
+                float lane = pow(0.5 + 0.5 * sin(dist * 48.0 - shear * 2.6 + 0.6 * sin(angle * 31.0 + dist * 5.0 - uTime * 0.35)), 3.0);
+                float lane2 = pow(0.5 + 0.5 * sin(dist * 87.0 - shear * 1.15 + 1.7), 4.0);
                 float along = smoothstep(0.12, 0.78, 0.5 + 0.5 * sin(shear * 3.1 + dist * 0.15));
                 float threads = clamp(lane * 0.7 + lane2 * 0.45, 0.0, 1.0) * mix(0.25, 1.0, along);
                 float clumps = pow(max(sin(shear * 2.8 + 0.4) * sin(dist * 4.5 + shear * 0.6), 0.0), 2.4);
 
-                vec3 coreColor = vec3(1.0, 0.98, 0.94);
-                vec3 midColor  = vec3(1.0, 0.50, 0.08);
-                vec3 outerColor = vec3(0.68, 0.08, 0.01);
-                vec3 baseColor = mix(coreColor, midColor, smoothstep(0.0, 0.32, r));
-                baseColor = mix(baseColor, outerColor, smoothstep(0.32, 1.0, r));
-                // ISCO temperature cue only. The luminous photon ring is the post pass.
-                baseColor = mix(baseColor, coreColor, clamp(exp(-r * 9.0), 0.0, 1.0) * 0.42);
-
-                vec3 blueShiftColor = vec3(0.42, 0.88, 1.0);
-                vec3 redShiftColor  = vec3(0.55, 0.04, 0.0);
-                vec3 spectralColor = baseColor;
-                if (freqShift > 1.05) {
-                    float bFactor = clamp((freqShift - 1.05) * 0.75, 0.0, 1.0);
-                    spectralColor = mix(spectralColor, blueShiftColor, bFactor * 0.60);
-                    // Doppler factor above is unchanged. The extra cyan emissive
-                    // was painting a prism on the limb; keep a hint only.
-                    spectralColor += vec3(0.28, 0.60, 1.0) * bFactor * 0.22;
-                } else if (freqShift < 0.95) {
-                    float rFactor = clamp((0.95 - freqShift) * 1.6, 0.0, 1.0);
-                    spectralColor = mix(spectralColor, redShiftColor, rFactor * 0.70);
-                }
+                // Thin-disk radial temperature shape, with Doppler + gravitational
+                // frequency shift applied before sampling the shared blackbody palette.
+                // AESTHETIC: visible-band proxy, not a physical accretion simulation.
+                float temperatureK = uInnerTemperatureK * pow(max(dist / uInner, 1.0), -0.75) * freqShift;
+                float paletteU = clamp((temperatureK - uPaletteRange.x) / (uPaletteRange.y - uPaletteRange.x), 0.0, 1.0);
+                paletteU = mix(0.5 * uPaletteTexelSize, 1.0 - 0.5 * uPaletteTexelSize, paletteU);
+                vec3 spectralColor = texture2D(uThermalPalette, vec2(paletteU, 0.5)).rgb;
 
                 // Display compress of the kept beaming term so the Doppler limb
                 // stays the bright side without flooding the plane.
                 float beamed = beaming / (1.0 + 0.62 * max(beaming - 1.0, 0.0));
                 vec3 finalDiskColor = spectralColor * beamed;
                 finalDiskColor *= mix(0.34, 1.08, clamp(threads, 0.0, 1.0));
-                finalDiskColor = mix(finalDiskColor, vec3(1.0, 0.98, 0.94), clamp(clumps * 1.35, 0.0, 0.9));
+                // Clumps brighten the local spectrum instead of painting flat white patches.
+                finalDiskColor *= 1.0 + clumps * 0.55;
 
                 // Shallow-angle foreground ribbon: the near limb, strongest edge-on.
                 float ribbon = uOblique * pow(max(vFacing, 0.0), 1.2);
                 ribbon *= 0.65 + 0.35 * (1.0 - smoothstep(0.0, 0.7, r));
-                finalDiskColor += vec3(1.0, 0.72, 0.32) * ribbon * 0.28;
+                finalDiskColor += spectralColor * ribbon * 0.22;
                 finalDiskColor *= 1.0 + ribbon * 0.48;
 
                 float peak = max(finalDiskColor.r, max(finalDiskColor.g, finalDiskColor.b));
@@ -231,7 +231,7 @@ function createBlackHoleDiskMaterial(kind: 'primary' | 'secondary'): THREE.Shade
         `,
     });
     mat.name = secondary ? 'RemnantBlackHoleWrapMaterial' : 'RemnantBlackHoleDiskMaterial';
-    mat.customProgramCacheKey = () => 'remnant_bh_disk_wrap_v3';
+    mat.customProgramCacheKey = () => 'remnant_bh_disk_wrap_v5';
     return mat;
 }
 
@@ -568,8 +568,8 @@ export class RemnantPhase implements PhaseComponent {
             // Spin axis stays near +Y (jets). The extra X tilt keeps a camera on
             // world +Z out of the disk plane — rotation.z alone put that camera
             // edge-on, which is why the old vertical arch had to face the viewer.
-            this.blackHoleGroup.rotation.x = 0.58;
-            this.blackHoleGroup.rotation.z = Math.PI / 8;
+            this.blackHoleGroup.rotation.x = 0.12;
+            this.blackHoleGroup.rotation.z = 0;
             this.applyShadowAuthority();
             if (this.bhDiskMesh) {
                 this._camLocal.copy(cameraPos);

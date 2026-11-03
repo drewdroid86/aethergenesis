@@ -5,7 +5,7 @@ import { subtleDisplacementVS, starSurfaceFS, glowVS, glowFS } from '../../rende
 import { GEOMETRIES } from './geometries';
 import { STELLAR_CONSTANTS } from '../../core/constants';
 import { phaseCounters } from '../../utils/performance';
-import { colorTempToRGB } from '../../physics/math';
+import { createStellarSurfaceUniforms, updateStellarSurfaceUniforms } from '../../rendering/stellarAppearance';
 import { computeLuminosity } from '../StellarPhysics';
 
 // BOLT: Static scratchpad to eliminate per-frame allocations
@@ -26,8 +26,8 @@ export class MainSequencePhase implements PhaseComponent {
     private mass: number;
     private baseRadius: number;
 
-    private _haloMat?: THREE.Material;
     private _coronaMat?: THREE.ShaderMaterial;
+    private surfaceUniforms = createStellarSurfaceUniforms();
 
     private initialized = false;
 
@@ -71,8 +71,8 @@ export class MainSequencePhase implements PhaseComponent {
             vertexShader: subtleDisplacementVS,
             fragmentShader: starSurfaceFS,
             uniforms: {
+                ...this.surfaceUniforms,
                 uTime: { value: 0 },
-                uColor: { value: new THREE.Color(msColor) },
                 uTurbulence: { value: 1.0 },
                 uOpacity: { value: 0.0 },
                 uHbar: { value: 1.0 },
@@ -81,26 +81,19 @@ export class MainSequencePhase implements PhaseComponent {
             transparent: true, blending: THREE.NormalBlending
         });
         this.starMat.name = 'MainSequenceStarMaterial';
-        this.starMat.customProgramCacheKey = () => 'main_sequence_star_material';
+        this.starMat.customProgramCacheKey = () => 'main_sequence_star_material_v2';
         this.starMesh = new THREE.Mesh(GEOMETRIES.mainSeq, this.starMat);
         this.starMesh.scale.setScalar(this.baseRadius); // BOLT: Set scale once
 
-        const haloMat = new THREE.MeshBasicMaterial({ color: msColor, transparent: true, opacity: 0.1, side: THREE.BackSide, blending: THREE.AdditiveBlending });
-        haloMat.name = 'MainSequenceHaloMeshMaterial';
-        const haloMesh = new THREE.Mesh(GEOMETRIES.mainSeq, haloMat);
-        this._haloMat = haloMat;
-        haloMesh.scale.setScalar(this.baseRadius * STELLAR_CONSTANTS.VISUALS.HALO_SCALE_FACTOR);
-        
         this.mainSeqGroup.add(this.starMesh);
 
         // Atmospheric corona glow
         const coronaMat = new THREE.ShaderMaterial({
             uniforms: {
-                uColor: { value: new THREE.Color(msColor) },
+                uColor: this.surfaceUniforms.uColor,
+                uHotColor: this.surfaceUniforms.uHotColor,
                 uOpacity: { value: 0.0 },
-                uFalloff: { value: 3.5 },
-                uTint: { value: 0.4 },
-                uNoiseStrength: { value: 0.035 }
+                uSurfaceRatio: { value: 1 / 1.35 },
             },
             vertexShader: glowVS,
             fragmentShader: glowFS,
@@ -110,11 +103,11 @@ export class MainSequencePhase implements PhaseComponent {
             side: THREE.BackSide
         });
         coronaMat.name = 'MainSequenceCoronaShaderMaterial';
-        coronaMat.customProgramCacheKey = () => 'main_sequence_corona_material';
+        coronaMat.customProgramCacheKey = () => 'main_sequence_corona_material_v2';
         this.coronaMesh = new THREE.Mesh(GEOMETRIES.corona, coronaMat);
-        this.coronaMesh.scale.setScalar(this.baseRadius);
+        // AESTHETIC: not physics-derived, intentional 35% corona envelope.
+        this.coronaMesh.scale.setScalar(this.baseRadius * 1.35 / 1.15);
         this._coronaMat = coronaMat;
-        this.mainSeqGroup.add(haloMesh);
         this.mainSeqGroup.add(this.coronaMesh);
         
         // Solar Flares / Magnetic Prominence Loops
@@ -237,20 +230,14 @@ export class MainSequencePhase implements PhaseComponent {
         this.flareMat.uniforms.uTime.value = appTime;
         this.updateProminences(appTime);
 
-        // Drive dynamic blackbody star colors from Planckian locus (colorTempToRGB)
+        // The shared palette follows the authoritative StellarPhysics temperature.
         if (currentTemp) {
-            colorTempToRGB(currentTemp, this.starMat.uniforms.uColor.value);
+            updateStellarSurfaceUniforms(this.surfaceUniforms, currentTemp);
             if (this.flareMat) {
-                colorTempToRGB(currentTemp, this.flareMat.uniforms.uColor.value);
-            }
-            if (this._coronaMat) {
-                colorTempToRGB(currentTemp, this._coronaMat.uniforms.uColor.value);
+                this.flareMat.uniforms.uColor.value.copy(this.surfaceUniforms.uHotColor.value);
             }
             if (this.diffractionMat) {
-                colorTempToRGB(currentTemp, this.diffractionMat.uniforms.uColor.value);
-            }
-            if (this._haloMat instanceof THREE.MeshBasicMaterial) {
-                colorTempToRGB(currentTemp, this._haloMat.color);
+                this.diffractionMat.uniforms.uColor.value.copy(this.surfaceUniforms.uColor.value);
             }
         }
 
@@ -279,15 +266,13 @@ export class MainSequencePhase implements PhaseComponent {
 
     setOpacity(opacity: number): void {
         this.starMat.uniforms.uOpacity.value = opacity;
-        this.flareMat.uniforms.uOpacity.value = opacity * 0.8;
+        // AESTHETIC: not physics-derived, intentional restraint around resolved surfaces.
+        this.flareMat.uniforms.uOpacity.value = opacity * 0.35;
         if (this._coronaMat) {
             this._coronaMat.uniforms.uOpacity.value = opacity;
         }
         if (this.diffractionMat) {
-            this.diffractionMat.uniforms.uOpacity.value = opacity * 0.8;
-        }
-        if (this._haloMat instanceof THREE.MeshBasicMaterial) {
-            this._haloMat.opacity = opacity * 0.1;
+            this.diffractionMat.uniforms.uOpacity.value = opacity * 0.12;
         }
     }
 
@@ -313,9 +298,6 @@ export class MainSequencePhase implements PhaseComponent {
         }
         if (this._coronaMat) {
             this._coronaMat.dispose();
-        }
-        if (this._haloMat) {
-            this._haloMat.dispose();
         }
         (this.hzMesh.material as THREE.Material).dispose();
         this.parent.remove(this.mainSeqGroup);

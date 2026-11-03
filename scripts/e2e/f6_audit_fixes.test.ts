@@ -190,7 +190,7 @@ test('F6-9: mulberry32 generates deterministic sequences and RedGiantPhase uses 
   assert.notStrictEqual(rng1(), rng3(), 'Different seed must produce different numbers');
 
   const rgSrc = fs.readFileSync('src/simulation/phases/RedGiantPhase.ts', 'utf8');
-  assert.ok(rgSrc.includes("import { colorTempToRGB, mulberry32 } from '../../physics/math';"), 'RedGiantPhase must import mulberry32');
+  assert.match(rgSrc, /import\s*\{[^}]*\bmulberry32\b[^}]*\}\s*from\s*'\.\.\/\.\.\/physics\/math'/, 'RedGiantPhase must import mulberry32');
   assert.ok(rgSrc.includes('DEFAULT_RED_GIANT_SEED'), 'RedGiantPhase must export/define DEFAULT_RED_GIANT_SEED');
   assert.ok(rgSrc.includes('const rng = mulberry32(this.seed);'), 'RedGiantPhase.init must instantiate mulberry32 with this.seed');
   assert.ok(rgSrc.includes('rng() * Math.PI * 2'), 'RedGiantPhase must use rng() for Euler rotation');

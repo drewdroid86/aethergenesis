@@ -6,6 +6,7 @@ import { GEOMETRIES } from './geometries';
 import { STELLAR_CONSTANTS } from '../../core/constants';
 import { phaseCounters } from '../../utils/performance';
 import { colorTempToRGB } from '../../physics/math';
+import { createStellarSurfaceUniforms, updateStellarSurfaceUniforms } from '../../rendering/stellarAppearance';
 
 export class ProtostarPhase implements PhaseComponent {
     public protostarGroup!: THREE.Group;
@@ -14,6 +15,7 @@ export class ProtostarPhase implements PhaseComponent {
     public protostarDisk!: THREE.Mesh;
     private parent!: THREE.Group;
     private baseRadius: number;
+    private surfaceUniforms = createStellarSurfaceUniforms();
 
     private _jetMat1?: THREE.ShaderMaterial;
     private _jetMat2?: THREE.ShaderMaterial;
@@ -39,8 +41,8 @@ export class ProtostarPhase implements PhaseComponent {
             vertexShader: displacementVS,
             fragmentShader: starSurfaceFS,
             uniforms: {
+                ...this.surfaceUniforms,
                 uTime: { value: 0 },
-                uColor: { value: new THREE.Color(0xff3300) },
                 uTurbulence: { value: 2.0 },
                 uOpacity: { value: 0.0 },
                 uHbar: { value: 1.0 },
@@ -49,7 +51,7 @@ export class ProtostarPhase implements PhaseComponent {
             transparent: true, blending: THREE.AdditiveBlending
         });
         this.protostarMat.name = 'ProtostarPhaseMaterial';
-        this.protostarMat.customProgramCacheKey = () => 'protostar_phase_material';
+        this.protostarMat.customProgramCacheKey = () => 'protostar_phase_material_v2';
         this.protostarMesh = new THREE.Mesh(GEOMETRIES.protostar, this.protostarMat);
 
         const diskMat = new THREE.MeshBasicMaterial({ color: 0xff6600, transparent: true, opacity: 0, blending: THREE.AdditiveBlending });
@@ -128,7 +130,7 @@ export class ProtostarPhase implements PhaseComponent {
         this.protostarDisk.rotation.z += delta;
 
         if (currentTemp) {
-            colorTempToRGB(currentTemp, this.protostarMat.uniforms.uColor.value);
+            updateStellarSurfaceUniforms(this.surfaceUniforms, currentTemp);
             if (this.protostarDisk?.material) {
                 colorTempToRGB(currentTemp, (this.protostarDisk.material as THREE.MeshBasicMaterial).color);
             }

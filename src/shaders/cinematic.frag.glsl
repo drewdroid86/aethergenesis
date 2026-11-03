@@ -14,10 +14,6 @@ uniform float uLensingStrength;
 uniform float uAspectRatio;
 uniform float uShockwave;
 
-float random(vec2 p) {
-  return fract(sin(dot(p.xy, vec2(12.9898,78.233))) * 43758.5453);
-}
-
 void main() {
   vec2 uv = vUv;
   float horizonMask = 1.0;
@@ -61,8 +57,9 @@ void main() {
       // top/bottom wrap; this term bends the starfield and the limb. Samples
       // stay outside the shadow so bright disk pixels are not smeared into a
       // second ring.
-      float deflection = (rE * rE / dist + 0.15 * rE * rE * rE / (dist * dist)) * uLensingStrength * 0.55;
-      float theta = max(rE * 1.03, dist - min(dist * 0.72, deflection));
+      float deflection = (rE * rE / dist + 0.15 * rE * rE * rE / (dist * dist)) * uLensingStrength * 0.12;
+      deflection *= smoothstep(rE, rE * 1.8, dist);
+      float theta = max(rE, dist - min(dist * 0.72, deflection));
 
       vec2 normalDir = normalize(delta);
       uv = uBlackHoleScreenPos + normalDir * vec2(theta / uAspectRatio, theta);
@@ -81,7 +78,7 @@ void main() {
       float dRing = dist - rE;
       if (dRing < ringHalf) {
         float t = 1.0 - dRing / ringHalf;
-        float ringIntensity = pow(t, 2.6) * 1.7 * uLensingStrength;
+        float ringIntensity = pow(t, 2.6) * 0.8 * uLensingStrength;
         vec3 photonColor = mix(vec3(1.0, 0.58, 0.2), vec3(1.0, 0.98, 0.95), pow(t, 1.8));
         photonRingGlow = photonColor * ringIntensity;
       }
@@ -97,17 +94,13 @@ void main() {
   } else {
     color = texture2D(tDiffuse, uv).rgb;
   }
-  color = color * horizonMask + photonRingGlow;
-
-  // Dynamic Film Grain
-  float noise = random(uv + fract(time));
-  float grain = (noise - 0.5) * 0.012;
-  color += grain;
-
-  // Vignette (avoiding undefined behavior smoothstep(0.8, 0.2) where edge0 > edge1)
-  float dist = distance(vUv, vec2(0.5));
-  float vignette = 1.0 - smoothstep(0.4, 0.8, dist * 1.1);
-  color *= mix(1.0, vignette, 0.25); // Subtle 25% vignette
+  // The foreground disk can cross the apparent shadow. The scene depth test
+  // already occludes the far disk with the black core; preserve that near image
+  // inside the shadow instead of cutting a circular hole through the whole disk.
+  vec3 foreground = texture2D(tDiffuse, vUv).rgb;
+  float foregroundBrightness = max(foreground.r, max(foreground.g, foreground.b));
+  float ringVisibility = 1.0 - smoothstep(0.03, 0.2, foregroundBrightness);
+  color = mix(foreground, color, horizonMask) + photonRingGlow * ringVisibility;
 
   gl_FragColor = vec4(color, 1.0);
 }
