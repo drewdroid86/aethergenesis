@@ -315,14 +315,39 @@ test('F6-15: applyPreset takes a typed StarPreset, not any', () => {
 
 test('F6-16: sampleKroupaMass samples OB-association high-mass tail (>=15 M_sun Black Hole progenitors)', () => {
   let massiveCount = 0;
+  const random = mulberry32(257);
   const N = 5000;
   for (let i = 0; i < N; i++) {
-    const m = sampleKroupaMass();
+    const m = sampleKroupaMass(random);
     assert.ok(m >= 0.08 && m <= 45.0, `Mass out of bounds: ${m}`);
     if (m >= 15.0) massiveCount++;
   }
   // With 6% in 8-45 M_sun tail, ~2.5% of all stars are >= 15 M_sun
   assert.ok(massiveCount > 25, `Expected high-mass black hole progenitors, got ${massiveCount}/${N}`);
+});
+
+test('F6-16b: Kroupa inverse CDF preserves branch endpoints and quantiles', () => {
+  const branches = [
+    { start: 0, weight: 0.72, min: 0.08, max: 0.5, exponent: -0.3 },
+    { start: 0.72, weight: 0.22, min: 0.5, max: 8, exponent: -1.3 },
+    { start: 0.94, weight: 0.06, min: 8, max: 45, exponent: -0.9 },
+  ];
+  for (const { start, weight, min, max, exponent } of branches) {
+    let previous = min;
+    for (const quantile of [0, 0.25, 0.5, 0.75, 1 - 1e-12]) {
+      const mass = sampleKroupaMass(() => start + weight * quantile);
+      assert.ok(mass >= min && mass <= max, `branch [${min}, ${max}]: ${mass}`);
+      assert.ok(mass >= previous, 'inverse CDF must be monotonic');
+      const cdf = (mass ** exponent - min ** exponent) / (max ** exponent - min ** exponent);
+      assert.ok(Math.abs(cdf - quantile) < 1e-10, `CDF ${cdf} should match ${quantile}`);
+      previous = mass;
+    }
+  }
+  for (const u of [0, 0.72 - Number.EPSILON, 0.72, 0.94 - Number.EPSILON, 0.94, 1 - Number.EPSILON]) {
+    const mass = sampleKroupaMass(() => u);
+    assert.ok(mass >= 0.08 && mass <= 45, `u=${u}: mass=${mass}`);
+  }
+  assert.ok(sampleKroupaMass(() => 1 - Number.EPSILON) > 44.999999);
 });
 
 test('F6-18: black hole shadow authority scales meshes and the arch is not primary', () => {

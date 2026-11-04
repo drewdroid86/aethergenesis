@@ -111,29 +111,32 @@ export function computeLuminosity(mass_solar: number): number {
  *
  * @citation Kroupa, P. (2001) "On the variation of the initial mass function", MNRAS 322, 231–246
  * @citation Schneider, F.R.N. et al. (2018) "An excess of massive stars in the local 30 Doradus starburst", Science 359, 69–71
+ * @param random Uniform RNG returning values in [0, 1); injectable for reproducible sampling.
  * @returns Sampled stellar birth mass in solar masses (M☉)
  */
-export function sampleKroupaMass(): number {
-  const u = Math.random();
+export function sampleKroupaMass(random: () => number = Math.random): number {
+  const u = random();
   // Low-mass branch: [0.08, 0.50] M☉ (72.0% of stellar population)
   if (u < 0.72) {
     const uNorm = u / 0.72;
-    const mMinPow = 2.1334; // 0.08^(-0.3)
-    const mMaxPow = 1.2311; // 0.50^(-0.3)
-    return Math.pow(mMinPow - uNorm * (mMinPow - mMaxPow), -1 / 0.3);
+    const mMinPow = Math.pow(0.08, -0.3);
+    const mMaxPow = Math.pow(0.50, -0.3);
+    return Math.min(0.50, Math.max(0.08, Math.pow(mMinPow - uNorm * (mMinPow - mMaxPow), -1 / 0.3)));
   }
   // Solar & intermediate-mass branch: [0.50, 8.0] M☉ (22.0% of stellar population)
   if (u < 0.94) {
     const uNorm = (u - 0.72) / 0.22;
-    const mMinPow = 2.4623; // 0.50^(-1.3)
-    const mMaxPow = 0.0670; // 8.00^(-1.3)
-    return Math.pow(mMinPow - uNorm * (mMinPow - mMaxPow), -1 / 1.3);
+    const mMinPow = Math.pow(0.50, -1.3);
+    const mMaxPow = Math.pow(8.00, -1.3);
+    return Math.min(8.0, Math.max(0.50, Math.pow(mMinPow - uNorm * (mMinPow - mMaxPow), -1 / 1.3)));
   }
   // Massive OB-association branch: [8.0, 45.0] M☉ (6.0% of stellar population)
   const uNorm = (u - 0.94) / 0.06;
-  const mMinPow = 0.1539; // 8.00^(-0.9)
-  const mMaxPow = 0.0325; // 45.0^(-0.9)
-  return Math.pow(mMinPow - uNorm * (mMinPow - mMaxPow), -1 / 0.9);
+  // Derive endpoints without decimal rounding: 0.0325 implied 45.02595 Msun.
+  // Clamp only floating-point roundoff at the branch boundaries.
+  const mMinPow = Math.pow(8.00, -0.9);
+  const mMaxPow = Math.pow(45.0, -0.9);
+  return Math.min(45.0, Math.max(8.0, Math.pow(mMinPow - uNorm * (mMinPow - mMaxPow), -1 / 0.9)));
 }
 
 /**

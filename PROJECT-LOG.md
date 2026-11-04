@@ -23,6 +23,12 @@ This log is updated after every AI session. Each AI signs off with their entry. 
 
 ## RECENT LOGS
 
+### 2026-11-04 — Correct PR #257 mass-sampler CI failure (GPT-6)
+- Replaced rounded inverse-CDF endpoint powers with powers calculated from the documented 0.08, 0.5, 8, and 45 solar-mass bounds. Branch clamps contain floating-point roundoff; the former massive-star endpoint implied 45.02595 solar masses.
+- Added an optional RNG argument, seeded F6-16, and added deterministic branch-boundary, quantile, and monotonicity coverage. The numerical regression fails with the original rounded constants and passes with the corrected sampler.
+- Verified on current main: F6 suite 21/21, ESLint and TypeScript checks, production build, and full npm test (E2E, WebSocket authorization, and orbit rendering) pass. Build retains existing Vite configuration/chunk-size warnings.
+- The previously resolved Bugbot shader fixes remain intact; current main also contains newer appearance changes and browser smoke coverage. No rendering behavior changed in this follow-up.
+
 ### 2026-11-03 — Prepare graphical upgrades for main (GPT-6)
 - Fetched `origin/main` at `3d0a1f2`; the feature branch starts at that exact commit, with no upstream conflicts.
 - Rechecked lint/typecheck, production build, and the repository's `glslangValidator` shader validation. Preparing a pull request targeting `main` for the complete stellar/black-hole appearance change, including its regression tests and rendered smoke-test command.
