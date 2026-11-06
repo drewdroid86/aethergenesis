@@ -191,7 +191,6 @@ export class CometSystem {
     private _posV = new THREE.Vector3();
     private _vel = new THREE.Vector3();
     private _ionDir = new THREE.Vector3();
-    private _crossVec = new THREE.Vector3();
     private _dustDir = new THREE.Vector3();
 
     constructor(scene: THREE.Scene) {
