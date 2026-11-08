@@ -584,7 +584,7 @@ test('AUD-04: Horizons first response keeps outages at 502 and true no-match at 
     const appPort = await freePort();
     const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
     const logs: string[] = [];
-    const child = spawn('node', ['node_modules/tsx/dist/cli.mjs', 'server.ts'], {
+    const child = spawn('node', ['--import', 'tsx', 'server.ts'], {
         cwd: repoRoot,
         env: {
             ...process.env,
