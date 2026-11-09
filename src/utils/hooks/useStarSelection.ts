@@ -23,10 +23,13 @@ export function useStarSelection({ engineRef, controlsRef }: UseStarSelectionPro
     const centerOnStar = useCallback(() => {
         if (selectedStarRef.current && controlsRef.current && engineRef.current) {
             const targetPos = selectedStarRef.current.position.clone();
+            const bhOffset = selectedStarRef.current.blackHoleFocusOffset(engineRef.current.camera);
             const diff = engineRef.current.camera.position.clone().sub(controlsRef.current.target);
-            const camOffset = diff.lengthSq() > 1e-6
-                ? diff.normalize().multiplyScalar(40)
-                : new THREE.Vector3(0, 0, 40);
+            const camOffset = bhOffset
+                ? bhOffset
+                : diff.lengthSq() > 1e-6
+                    ? diff.normalize().multiplyScalar(40)
+                    : new THREE.Vector3(0, 0, 40);
             engineRef.current.camera.position.copy(targetPos).add(camOffset);
             controlsRef.current.target.copy(targetPos);
             controlsRef.current.update();

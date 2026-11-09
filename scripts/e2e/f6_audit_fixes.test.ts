@@ -5,8 +5,8 @@ import { computeMainSequenceLifetime, sampleKroupaMass } from '../../src/simulat
 import { solveKepler, keplerianToCartesian } from '../../src/simulation/OrbitalMechanics.ts';
 import fs from 'node:fs';
 import { AstrobiologyEngine } from '../../src/simulation/AstrobiologyEngine.ts';
-import { RemnantPhase, WHITE_DWARF_SCALE, WHITE_DWARF_COLOR, NEUTRON_STAR_COLOR, blackHoleShadowRadius, blackHoleWorldShadowRadius, blackHoleGravitationalRadius, blackHoleInFrontOfCamera, BH_CORE_FILL } from '../../src/simulation/phases/RemnantPhase.ts';
-import { BH_CORE_RADIUS, BH_DISK_INNER, BH_DISK_THETA_SEGMENTS, GEOMETRIES } from '../../src/simulation/phases/geometries.ts';
+import { RemnantPhase, WHITE_DWARF_SCALE, WHITE_DWARF_COLOR, NEUTRON_STAR_COLOR, blackHoleShadowRadius, blackHoleWorldShadowRadius, blackHoleGravitationalRadius, blackHoleInFrontOfCamera, blackHoleFocusOffsetFromDisk, BH_CORE_FILL, BH_FOCUS_ELEVATION_RAD } from '../../src/simulation/phases/RemnantPhase.ts';
+import { BH_CORE_RADIUS, BH_DISK_INNER, BH_DISK_OUTER, BH_DISK_THETA_SEGMENTS, GEOMETRIES } from '../../src/simulation/phases/geometries.ts';
 import { mulberry32 } from '../../src/physics/math.ts';
 import { setStellarAge } from '../../src/simulation/stellarAge.ts';
 import { SimulationCoordinator } from '../../src/simulation/SimulationCoordinator.ts';
@@ -372,6 +372,40 @@ test('F6-18: black hole shadow authority scales meshes and the arch is not prima
   const expected = blackHoleShadowRadius(40) / BH_DISK_INNER;
   assert.ok(Math.abs(disk.scale.x - expected) < 1e-4, 'setMass rescales the disk from b_c');
   phase.dispose();
+});
+
+test('F6-19: Cygnus focus frames the disk off the horizon and the disk plane', () => {
+  const normal = new THREE.Vector3(0, 1, 0).applyAxisAngle(new THREE.Vector3(1, 0, 0), 0.22);
+  const offset = blackHoleFocusOffsetFromDisk(21.2, 1, normal, 75, 1280 / 720);
+  const distance = offset.length();
+  const span = BH_DISK_OUTER * 2;
+  const frustumW = 2 * distance * Math.tan((75 * Math.PI) / 180 / 2) * (1280 / 720);
+  const fraction = span / frustumW;
+  assert.ok(fraction >= 0.4 && fraction <= 0.6, `disk width fraction ${fraction}`);
+  const elevation = Math.asin(Math.abs(offset.clone().normalize().dot(normal.clone().normalize())));
+  assert.ok(Math.abs(elevation - BH_FOCUS_ELEVATION_RAD) < 1e-3, `elevation ${elevation}`);
+  assert.ok(distance > blackHoleShadowRadius(21.2) * 4, 'camera stays outside the shadow');
+  assert.ok(distance > BH_DISK_OUTER, 'camera stays outside the disk body');
+
+  const heroSrc = fs.readFileSync('src/rendering/systems/HeroStarSystem.ts', 'utf8');
+  assert.ok(heroSrc.includes('blackHoleFocusOffsetFromDisk'), 'HeroStarSystem frames a black hole through the disk offset');
+  assert.ok(heroSrc.includes('this.phase !== PHASES.REMNANT'), 'only a remnant black hole takes the close frame');
+  const selectionSrc = fs.readFileSync('src/utils/hooks/useStarSelection.ts', 'utf8');
+  assert.ok(selectionSrc.includes('blackHoleFocusOffset'), 'centerOnStar uses the black-hole frame');
+  assert.ok(selectionSrc.includes('new THREE.Vector3(0, 0, 40)'), 'non-black-hole focus keeps the zero-length fallback');
+
+  const engineSrc = fs.readFileSync('src/core/engine.ts', 'utf8');
+  assert.ok(engineSrc.includes('this.asteroidBeltSystem.setVisible(!focusedBlackHole)'), 'the belt is hidden only while a black hole is focused');
+  const remnantSrc = fs.readFileSync('src/simulation/phases/RemnantPhase.ts', 'utf8');
+  assert.ok(remnantSrc.includes('sin(shear * 17.0)'), 'filament harmonics are integers');
+  assert.ok(remnantSrc.includes('smoothstep(0.04, 0.45, vCurl)'), 'under-image fades with the curl weight');
+  assert.ok(!remnantSrc.includes('shear * 2.6') && !remnantSrc.includes('shear * 1.15'), 'non-integer shear harmonics are gone');
+  assert.ok(remnantSrc.includes('lensSphere.visible = false'));
+  assert.ok(!remnantSrc.includes('bhArchMesh'));
+  const cine = fs.readFileSync('src/shaders/cinematic.frag.glsl', 'utf8');
+  assert.ok(cine.includes('if (uLensingStrength > 0.001)'));
+  const pipe = fs.readFileSync('src/rendering/pipeline.ts', 'utf8');
+  assert.ok(pipe.includes('if (!inFront)') && pipe.includes('this.lensingStrength = 0'));
 });
 
 test('F6-17: HeroStarSystem applyPreset and cosmic lifecycle preserve Black Hole phase and persistence', () => {

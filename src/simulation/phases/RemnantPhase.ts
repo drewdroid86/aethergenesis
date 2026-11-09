@@ -69,6 +69,56 @@ export function blackHoleInFrontOfCamera(viewZ: number, ndcZ: number): boolean {
     return viewZ < 0 && ndcZ >= -1 && ndcZ <= 1;
 }
 
+/** Fraction of viewport width the focused disk (plus its outer rim) should span. */
+export const BH_FOCUS_WIDTH_FRACTION = 0.5;
+/** Radians above the disk plane. Clear of the plane, still a three-quarter view. */
+export const BH_FOCUS_ELEVATION_RAD = 0.48;
+/** Lean of the spin axis so jets are not dead vertical. The focus offset is measured from the disk normal, so this does not stack on the elevation. */
+export const BH_DISK_TILT_X = 0.22;
+
+const _focusNormal = new THREE.Vector3();
+const _focusInPlane = new THREE.Vector3();
+const _focusOffset = new THREE.Vector3();
+
+/**
+ * World-space camera offset that frames one black hole.
+ * `span / frustumWidth` is BH_FOCUS_WIDTH_FRACTION, then clamped so the
+ * camera stays outside the shadow and outside the disk body.
+ * The direction sits BH_FOCUS_ELEVATION_RAD above `diskNormal`.
+ */
+export function blackHoleFocusOffsetFromDisk(
+    massSolar: number,
+    heroScale: number,
+    diskNormal: THREE.Vector3,
+    fovDeg: number,
+    aspect: number,
+): THREE.Vector3 {
+    const scale = Number.isFinite(heroScale) && heroScale > 0 ? heroScale : 1;
+    const shadow = blackHoleShadowRadius(massSolar) * scale;
+    const outer = BH_DISK_OUTER * (shadow / BH_DISK_INNER);
+    const span = outer * 2;
+    const safeAspect = Number.isFinite(aspect) && aspect > 0.05 ? aspect : 1;
+    const fov = (Math.min(140, Math.max(10, fovDeg)) * Math.PI) / 180;
+    const tanHalf = Math.tan(fov * 0.5);
+    let distance = span / (2 * BH_FOCUS_WIDTH_FRACTION * tanHalf * safeAspect);
+    const minDistance = Math.max(shadow * 4.5, outer * 1.12);
+    if (!Number.isFinite(distance) || distance < minDistance) distance = minDistance;
+
+    const normal = _focusNormal.copy(diskNormal);
+    if (normal.lengthSq() < 1e-8) normal.set(0, 1, 0);
+    else normal.normalize();
+    const inPlane = _focusInPlane.set(0, 0, 1);
+    if (Math.abs(normal.dot(inPlane)) > 0.85) inPlane.set(1, 0, 0);
+    inPlane.addScaledVector(normal, -normal.dot(inPlane)).normalize();
+    return _focusOffset
+        .copy(inPlane)
+        .multiplyScalar(Math.cos(BH_FOCUS_ELEVATION_RAD))
+        .addScaledVector(normal, Math.sin(BH_FOCUS_ELEVATION_RAD))
+        .normalize()
+        .multiplyScalar(distance)
+        .clone();
+}
+
 function createBlackHoleDiskMaterial(kind: 'primary' | 'secondary'): THREE.ShaderMaterial {
     const secondary = kind === 'secondary';
     const mat = new THREE.ShaderMaterial({
@@ -79,7 +129,7 @@ function createBlackHoleDiskMaterial(kind: 'primary' | 'secondary'): THREE.Shade
             uCameraLocal: { value: new THREE.Vector3(0, 0.4, 8) },
             uBendSign: { value: secondary ? -1.0 : 1.0 },
             uOblique: { value: 0.65 },
-            uImageGain: { value: secondary ? 0.55 : 1.0 },
+            uImageGain: { value: secondary ? 0.62 : 1.0 },
             uFarOnly: { value: secondary ? 1.0 : 0.0 },
             uInner: { value: BH_DISK_INNER },
             uOuter: { value: BH_DISK_OUTER },
@@ -88,7 +138,9 @@ function createBlackHoleDiskMaterial(kind: 'primary' | 'secondary'): THREE.Shade
             uPaletteTexelSize: { value: 1 / THERMAL_PALETTE_SIZE },
             // AESTHETIC: not physics-derived, intentional visible-band temperature proxy.
             // No accretion-rate state exists; this is not the disk's X-ray temperature.
-            uInnerTemperatureK: { value: 7200 },
+            // 9800 K puts the inner rim on the white side of the shared palette;
+            // the r^-3/4 falloff then runs through orange before the outer cut.
+            uInnerTemperatureK: { value: 9800 },
         },
         transparent: true,
         // The plane composites. Additive overlap was stacking the disk into a
@@ -101,6 +153,7 @@ function createBlackHoleDiskMaterial(kind: 'primary' | 'secondary'): THREE.Shade
             varying vec3 vWorldPos;
             varying vec3 vTangentWorld;
             varying float vFacing;
+            varying float vCurl;
             uniform vec3 uCameraLocal;
             uniform float uBendSign;
             uniform float uOblique;
@@ -116,21 +169,31 @@ function createBlackHoleDiskMaterial(kind: 'primary' | 'secondary'): THREE.Shade
                 vec2 camAxis = camXZLen > 1e-3 ? camXZ / camXZLen : vec2(0.0, 1.0);
                 float facing = dot(radN, camAxis);
                 float ang = atan(position.z, position.x);
-                // AESTHETIC: view-dependent apparent disk image, not a geodesic solver.
-                // Compress the far annulus into a broad upper arc and a thinner lower
-                // image. Near-side vertices remain the equatorial foreground ribbon.
-                float far = 1.0 - smoothstep(-0.65, -0.02, facing);
-                float imageWidth = uBendSign > 0.0 ? 0.26 : 0.10;
-                float imageRadius = uInner * 1.06 + (r - uInner) * imageWidth;
-                p.xz = mix(radial, radN * imageRadius, far * uOblique);
-                float h = uBendSign * imageRadius * max(-facing, 0.0) * uOblique;
-                // Thin emitting layer, still visible at grazing incidence.
-                p.y += h + 0.025;
+                // AESTHETIC: apparent image, not a geodesic solver.
+                // The far inner rim lifts off the plane (primary over the shadow,
+                // secondary under it). Radius is only gathered, and never inside
+                // the shadow limb — pulling vertices across the hole stretched
+                // triangles through the black core and cut a jagged band.
+                // Broad far half, so the arc meets the plane at both limbs of the
+                // shadow instead of a cap stuck on the back of the hole.
+                float far = 1.0 - smoothstep(-0.98, 0.08, facing);
+                float inner = 1.0 - smoothstep(uInner * 1.04, uInner * 3.15, r);
+                float curl = far * mix(0.5, 1.0, inner);
+                float crest = pow(clamp(far, 0.0, 1.0), 1.2) * inner;
+                float lift = uBendSign * (0.48 * curl + 1.05 * crest) * uInner * uOblique;
+                // Gather stays outside the shadow limb. Crossing that limb is
+                // what stretched triangles through the black core.
+                float gathered = max(r * (1.0 - 0.05 * curl), uInner * 1.06);
+                p.xz = radN * gathered;
+                // Integer azimuth harmonic: sin(ang * 2) matches across the atan cut.
+                float puff = 0.04 * (0.7 + 0.3 * sin(ang * 2.0));
+                p.y += lift + puff * uOblique;
                 vec4 worldPos = modelMatrix * vec4(p, 1.0);
                 vLocalPos = position;
                 vWorldPos = worldPos.xyz;
                 vTangentWorld = mat3(modelMatrix) * vec3(-sin(ang), 0.0, cos(ang));
                 vFacing = facing;
+                vCurl = curl;
                 gl_Position = projectionMatrix * viewMatrix * worldPos;
             }
         `,
@@ -145,6 +208,7 @@ function createBlackHoleDiskMaterial(kind: 'primary' | 'secondary'): THREE.Shade
             varying vec3 vWorldPos;
             varying vec3 vTangentWorld;
             varying float vFacing;
+            varying float vCurl;
             uniform float uTime;
             uniform float uOpacity;
             uniform vec3 uCameraPos;
@@ -176,15 +240,20 @@ function createBlackHoleDiskMaterial(kind: 'primary' | 'secondary'): THREE.Shade
                 float g_grav = sqrt(max(0.04, 1.0 - 0.5 / max(0.55, dist)));
                 float freqShift = g_grav * delta;
 
-                // Longitudinal filaments on top of the plane: thin across radius,
-                // long along the sheared flow. No FBM spots.
+                // Longitudinal filaments. Keplerian orbitalFreq shears the lanes
+                // (inner gas pulls ahead). Every multiplier of shear is an
+                // integer: atan jumps by 2π on the local -X ray, and a
+                // non-integer harmonic (the old 2.6 / 1.15 / 3.1) offset the
+                // streaks across that ray. dist-only terms are continuous.
                 float orbitalFreq = 4.5 / pow(dist + 0.2, 1.5);
-                float shear = angle - log(max(dist, 0.55)) * 6.5 - uTime * 0.28 * orbitalFreq;
-                float lane = pow(0.5 + 0.5 * sin(dist * 48.0 - shear * 2.6 + 0.6 * sin(angle * 31.0 + dist * 5.0 - uTime * 0.35)), 3.0);
-                float lane2 = pow(0.5 + 0.5 * sin(dist * 87.0 - shear * 1.15 + 1.7), 4.0);
-                float along = smoothstep(0.12, 0.78, 0.5 + 0.5 * sin(shear * 3.1 + dist * 0.15));
-                float threads = clamp(lane * 0.7 + lane2 * 0.45, 0.0, 1.0) * mix(0.25, 1.0, along);
-                float clumps = pow(max(sin(shear * 2.8 + 0.4) * sin(dist * 4.5 + shear * 0.6), 0.0), 2.4);
+                float shear = angle - log(max(dist, 0.55)) * 6.0 - uTime * 0.22 * orbitalFreq;
+                float lane = pow(0.5 + 0.5 * sin(shear * 17.0), 18.0);
+                float lane2 = pow(0.5 + 0.5 * sin(shear * 29.0 + 1.3), 26.0);
+                float lane3 = pow(0.5 + 0.5 * sin(shear * 7.0), 10.0);
+                float along = smoothstep(0.22, 0.8, 0.5 + 0.5 * sin(shear * 2.0 + dist * 0.35));
+                float threads = clamp(lane * 0.7 + lane2 * 0.62 + lane3 * 0.28, 0.0, 1.0);
+                threads *= mix(0.18, 1.0, along);
+                float clumps = pow(max(sin(shear * 3.0) * sin(shear * 5.0 + dist * 2.0), 0.0), 2.0);
 
                 // Thin-disk radial temperature shape, with Doppler + gravitational
                 // frequency shift applied before sampling the shared blackbody palette.
@@ -192,21 +261,26 @@ function createBlackHoleDiskMaterial(kind: 'primary' | 'secondary'): THREE.Shade
                 float temperatureK = uInnerTemperatureK * pow(max(dist / uInner, 1.0), -0.75) * freqShift;
                 float paletteU = clamp((temperatureK - uPaletteRange.x) / (uPaletteRange.y - uPaletteRange.x), 0.0, 1.0);
                 paletteU = mix(0.5 * uPaletteTexelSize, 1.0 - 0.5 * uPaletteTexelSize, paletteU);
-                vec3 spectralColor = texture2D(uThermalPalette, vec2(paletteU, 0.5)).rgb;
+                vec3 body = texture2D(uThermalPalette, vec2(paletteU, 0.5)).rgb;
+                // Orange-white filaments. The palette still tints the grade;
+                // a flat beige fill was the opaque mid-temperature plane.
+                float heat = clamp((temperatureK - 2200.0) / 9000.0, 0.0, 1.0);
+                vec3 ember = mix(vec3(0.62, 0.08, 0.01), vec3(1.0, 0.46, 0.07), smoothstep(0.0, 0.48, heat));
+                vec3 spectralColor = mix(ember, vec3(1.0, 0.97, 0.92), smoothstep(0.40, 1.0, heat));
+                spectralColor = mix(spectralColor, body, 0.2);
 
                 // Display compress of the kept beaming term so the Doppler limb
                 // stays the bright side without flooding the plane.
                 float beamed = beaming / (1.0 + 0.62 * max(beaming - 1.0, 0.0));
                 vec3 finalDiskColor = spectralColor * beamed;
-                finalDiskColor *= mix(0.34, 1.08, clamp(threads, 0.0, 1.0));
-                // Clumps brighten the local spectrum instead of painting flat white patches.
-                finalDiskColor *= 1.0 + clumps * 0.55;
+                finalDiskColor *= mix(0.22, 1.28, clamp(threads, 0.0, 1.0));
+                finalDiskColor = mix(finalDiskColor, vec3(1.0, 0.97, 0.92), clamp(clumps * threads * 1.15, 0.0, 0.8));
 
                 // Shallow-angle foreground ribbon: the near limb, strongest edge-on.
-                float ribbon = uOblique * pow(max(vFacing, 0.0), 1.2);
-                ribbon *= 0.65 + 0.35 * (1.0 - smoothstep(0.0, 0.7, r));
-                finalDiskColor += spectralColor * ribbon * 0.22;
-                finalDiskColor *= 1.0 + ribbon * 0.48;
+                float ribbon = uOblique * pow(max(vFacing, 0.0), 1.35);
+                ribbon *= 0.55 + 0.45 * (1.0 - smoothstep(0.0, 0.65, r));
+                finalDiskColor += vec3(1.0, 0.72, 0.28) * ribbon * 0.2;
+                finalDiskColor *= 1.0 + ribbon * 0.28;
 
                 float peak = max(finalDiskColor.r, max(finalDiskColor.g, finalDiskColor.b));
                 // Shoulder anchored at 1.15. Factor is 1 on the threshold and
@@ -218,12 +292,20 @@ function createBlackHoleDiskMaterial(kind: 'primary' | 'secondary'): THREE.Shade
 
                 // Nothing inside the shadow. The inner edge is b_c in local units.
                 float innerCut = smoothstep(uInner, uInner + 0.05, dist);
-                float outerCut = 1.0 - smoothstep(0.58, 1.0, r);
-                float plane = uFarOnly > 0.5 ? 0.35 : 0.82 * (1.0 - 0.28 * smoothstep(0.08, 1.0, r));
-                float density = clamp(plane + threads * 0.16 + clumps * 0.2 + ribbon * 0.12, 0.0, 1.0);
+                // Keep the bright streaks just off the shadow limb so an
+                // edge-on inner rim does not rule a line across the hole.
+                innerCut *= smoothstep(uInner, uInner + 0.14, dist);
+                float outerCut = 1.0 - smoothstep(0.78, 1.0, r);
+                // The streaks carry the light. A bright floor was the beige cone.
+                float veil = uFarOnly > 0.5 ? 0.0 : 0.04 * (1.0 - 0.35 * r);
+                float radial = mix(1.2, 0.4, smoothstep(0.0, 0.88, r));
+                float density = clamp(veil + threads * radial + ribbon * 0.08, 0.0, 1.0);
                 float alpha = density * innerCut * outerCut;
                 if (uFarOnly > 0.5) {
-                    alpha *= uOblique * (1.0 - smoothstep(-0.7, 0.05, vFacing));
+                    // Same curl weight that lifts the vertex. Where the surface
+                    // is still on the plane, the under-image is gone, so the two
+                    // meshes do not share a face and slice the filaments.
+                    alpha *= uOblique * smoothstep(0.04, 0.45, vCurl);
                 }
                 alpha = clamp(alpha, 0.0, 1.0) * uOpacity * uImageGain;
                 gl_FragColor = vec4(finalDiskColor, alpha);
@@ -231,7 +313,7 @@ function createBlackHoleDiskMaterial(kind: 'primary' | 'secondary'): THREE.Shade
         `,
     });
     mat.name = secondary ? 'RemnantBlackHoleWrapMaterial' : 'RemnantBlackHoleDiskMaterial';
-    mat.customProgramCacheKey = () => 'remnant_bh_disk_wrap_v5';
+    mat.customProgramCacheKey = () => 'remnant_bh_disk_wrap_v6';
     return mat;
 }
 
@@ -400,6 +482,7 @@ export class RemnantPhase implements PhaseComponent {
 
         // Black Hole
         this.blackHoleGroup = new THREE.Group();
+        this.blackHoleGroup.rotation.x = BH_DISK_TILT_X;
         const bhCoreMat = new THREE.MeshBasicMaterial({ color: 0x000000 });
         bhCoreMat.name = 'RemnantBlackHoleCoreMaterial';
         const bhCore = new THREE.Mesh(GEOMETRIES.blackHoleCore, bhCoreMat);
@@ -565,10 +648,9 @@ export class RemnantPhase implements PhaseComponent {
         // white dwarf (<= 8 branch), so the pulsar branch is > 8, not >= 8.
         if (this.mass >= STELLAR_CONSTANTS.PHYSICS.MASS_THRESHOLD_BLACK_HOLE) {
             this.blackHoleGroup.visible = globalFade > 0.01;
-            // Spin axis stays near +Y (jets). The extra X tilt keeps a camera on
-            // world +Z out of the disk plane — rotation.z alone put that camera
-            // edge-on, which is why the old vertical arch had to face the viewer.
-            this.blackHoleGroup.rotation.x = 0.12;
+            // Spin axis stays near +Y (jets). Focus framing, not this tilt, is
+            // what holds the default camera off the disk plane.
+            this.blackHoleGroup.rotation.x = BH_DISK_TILT_X;
             this.blackHoleGroup.rotation.z = 0;
             this.applyShadowAuthority();
             if (this.bhDiskMesh) {
