@@ -663,10 +663,13 @@ export function useSimulation(containerRef: React.RefObject<HTMLDivElement | nul
                     engine.selectedStar = system;
 
                     const targetPos = system.position.clone();
+                    const bhOffset = system.blackHoleFocusOffset(engine.camera);
                     const diff = engine.camera.position.clone().sub(controls.target);
-                    const camOffset = diff.lengthSq() > 1e-6
-                        ? diff.normalize().multiplyScalar(40)
-                        : new THREE.Vector3(0, 0, 40);
+                    const camOffset = bhOffset
+                        ? bhOffset
+                        : diff.lengthSq() > 1e-6
+                            ? diff.normalize().multiplyScalar(40)
+                            : new THREE.Vector3(0, 0, 40);
                     engine.camera.position.copy(targetPos).add(camOffset);
                     controls.target.copy(targetPos);
                 } else {
@@ -766,6 +769,12 @@ export function useSimulation(containerRef: React.RefObject<HTMLDivElement | nul
                     }
 
                     if (nebulaSystemRef.current) {
+                        const focus = selectedStarRef.current;
+                        const bhFramed = !!focus
+                            && focus.phase === PHASES.REMNANT
+                            && focus.mass >= STELLAR_CONSTANTS.PHYSICS.MASS_THRESHOLD_BLACK_HOLE
+                            && engine.camera.position.distanceToSquared(focus.position) < 18 * 18;
+                        nebulaSystemRef.current.setFocusDim(bhFramed ? 1 : 0);
                         nebulaSystemRef.current.update(delta, engine.appTime);
                     }
 

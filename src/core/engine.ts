@@ -7,7 +7,7 @@ import { AsteroidBeltSystem } from '../rendering/systems/AsteroidBeltSystem';
 import { detectPerformanceTier, getNumStarsForTier } from '../utils/performance';
 import { Pipeline } from '../rendering/pipeline';
 import { createStellarState, StellarState, StellarPhase, PhaseTransitionEvent, computeMainSequenceLifetime } from '../simulation/StellarPhysics';
-import { STELLAR_CONSTANTS } from './constants';
+import { PHASES, STELLAR_CONSTANTS } from './constants';
 import { PlanetarySystemQueue } from '../rendering/systems/PlanetarySystem';
 import type { BodyRosterEntry } from '../rendering/systems/PlanetarySystem';
 import { actionLog } from '../simulation/ActionLog';
@@ -500,6 +500,13 @@ export class Engine {
             // Comet phase visibility updates continuously during scrubber drags into non-MS phases
             this.cometSystem.update(this.getStellarState(), this.appTime, targetStarPos);
             this.dysonSwarmSystem.update(this.highestKardashevTier, this.appTime, targetStarPos, this.isPaused || isScrubbing ? 0 : delta);
+            // Belt rocks occupy the same radii as the accretion disk. On a
+            // black hole they are the jagged band across the shadow, so the
+            // meshes stay hidden until the focus moves to another star.
+            const focusedBlackHole = !!targetStar
+                && targetStar.phase === PHASES.REMNANT
+                && targetStar.mass >= STELLAR_CONSTANTS.PHYSICS.MASS_THRESHOLD_BLACK_HOLE;
+            this.asteroidBeltSystem.setVisible(!focusedBlackHole);
             this.asteroidBeltSystem.update(this.appTime, targetStarPos, targetStarMass);
         } catch (error) {
             if (typeof (window as any).emitErrorOverlay === 'function') {

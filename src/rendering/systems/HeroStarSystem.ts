@@ -8,7 +8,7 @@ import { ProtostarPhase } from '../../simulation/phases/ProtostarPhase';
 import { MainSequencePhase } from '../../simulation/phases/MainSequencePhase';
 import { RedGiantPhase } from '../../simulation/phases/RedGiantPhase';
 import { SupernovaPhase } from '../../simulation/phases/SupernovaPhase';
-import { RemnantPhase } from '../../simulation/phases/RemnantPhase';
+import { RemnantPhase, blackHoleFocusOffsetFromDisk } from '../../simulation/phases/RemnantPhase';
 import { GEOMETRIES } from '../../simulation/phases/geometries';
 import { PlanetarySystem, PlanetarySystemQueue } from './PlanetarySystem';
 import { audioEngine } from '../../audio/AudioEngine';
@@ -29,6 +29,8 @@ const STELLAR_PHASE_TO_NUM: Record<StellarPhase, number> = {
 };
 
 const _frustumSphere = new THREE.Sphere();
+const _bhFocusNormal = new THREE.Vector3();
+const _bhFocusQuat = new THREE.Quaternion();
 
 /**
  * Catalog star preset (mirrors the server catalog shape in server.ts).
@@ -133,6 +135,25 @@ export class HeroStarSystem extends THREE.Group {
     }
 
     public hitMesh: THREE.Mesh;
+
+    /**
+     * Offset from the star that frames a black hole: disk plus outer rim near
+     * half the viewport width, outside the shadow, and above the disk plane.
+     * Null for every other phase. The returned vector is a fresh copy.
+     */
+    public blackHoleFocusOffset(camera: THREE.PerspectiveCamera): THREE.Vector3 | null {
+        if (this.phase !== PHASES.REMNANT || this.mass < STELLAR_CONSTANTS.PHYSICS.MASS_THRESHOLD_BLACK_HOLE) {
+            return null;
+        }
+        const group = this._remnantPhase?.blackHoleGroup;
+        if (!group) return null;
+        this.updateWorldMatrix(true, true);
+        const normal = _bhFocusNormal.set(0, 1, 0).applyQuaternion(group.getWorldQuaternion(_bhFocusQuat));
+        const aspect = camera.aspect > 0.05 ? camera.aspect : 1;
+        const scale = Number.isFinite(this.scale.x) ? Math.abs(this.scale.x) : 1;
+        return blackHoleFocusOffsetFromDisk(this.mass, scale || 1, normal, camera.fov, aspect);
+    }
+
     public planetarySystem?: PlanetarySystem;
     public starLight?: THREE.PointLight;
 
