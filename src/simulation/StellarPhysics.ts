@@ -100,6 +100,17 @@ export function computeLuminosity(mass_solar: number): number {
 }
 
 /**
+ * Rounded anchors for the OB-association branch of {@link sampleKroupaMass}.
+ * ξ(M) ∝ M^(-1.9) on the nominal interval [8, 45] M☉, so the inverse-CDF
+ * exponent is 0.9. These powers round 8^(-0.9) and 45^(-0.9); they are the
+ * values the sampler actually inverts, and the branch endpoint is
+ * `KROUPA_OB_M_MAX_POW` raised to `-1 / KROUPA_OB_MASS_EXPONENT`.
+ */
+export const KROUPA_OB_M_MIN_POW = 0.1539; // 8.00^(-0.9)
+export const KROUPA_OB_M_MAX_POW = 0.0325; // 45.0^(-0.9)
+export const KROUPA_OB_MASS_EXPONENT = 0.9;
+
+/**
  * Sample stellar birth mass using the empirical Kroupa (2001) Initial Mass Function
  * with an OB-association high-mass tail (Schneider et al. 2018).
  *
@@ -131,9 +142,9 @@ export function sampleKroupaMass(): number {
   }
   // Massive OB-association branch: [8.0, 45.0] M☉ (6.0% of stellar population)
   const uNorm = (u - 0.94) / 0.06;
-  const mMinPow = 0.1539; // 8.00^(-0.9)
-  const mMaxPow = 0.0325; // 45.0^(-0.9)
-  return Math.pow(mMinPow - uNorm * (mMinPow - mMaxPow), -1 / 0.9);
+  const mMinPow = KROUPA_OB_M_MIN_POW; // 8.00^(-0.9)
+  const mMaxPow = KROUPA_OB_M_MAX_POW; // 45.0^(-0.9)
+  return Math.pow(mMinPow - uNorm * (mMinPow - mMaxPow), -1 / KROUPA_OB_MASS_EXPONENT);
 }
 
 /**

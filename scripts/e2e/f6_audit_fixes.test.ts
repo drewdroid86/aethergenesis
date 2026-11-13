@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert';
 import * as THREE from 'three';
-import { computeMainSequenceLifetime, sampleKroupaMass } from '../../src/simulation/StellarPhysics.ts';
+import { computeMainSequenceLifetime, sampleKroupaMass, KROUPA_OB_M_MAX_POW, KROUPA_OB_MASS_EXPONENT } from '../../src/simulation/StellarPhysics.ts';
 import { solveKepler, keplerianToCartesian } from '../../src/simulation/OrbitalMechanics.ts';
 import fs from 'node:fs';
 import { AstrobiologyEngine } from '../../src/simulation/AstrobiologyEngine.ts';
@@ -313,14 +313,23 @@ test('F6-15: applyPreset takes a typed StarPreset, not any', () => {
   assert.ok(!heroSrc.includes('applyPreset(preset: any'), 'applyPreset must not take any');
 });
 
-// Rounded IMF exponents make the inverse-CDF endpoint ~45.026 Msun, so an
-// unseeded 5000-draw run exceeds 45 about 4% of the time (CI saw 45.024).
-test('F6-16: sampleKroupaMass samples OB-association high-mass tail (>=15 M_sun Black Hole progenitors)', { skip: 'flaky upper bound from rounded Kroupa exponents' }, () => {
+// Inverse CDF of the OB branch at the rounded anchor mMaxPow = 45^(-0.9):
+//   M_max = mMaxPow^(-1/0.9) = 0.0325^(-1/0.9) = 45.025954924871257
+// in float64 (Math.pow bits 0x404683527db0bf00). The anchor rounds 45^(-0.9),
+// so this endpoint sits above 45 and a cap of 45 fails ~4% of 5000-draw runs
+// (CI on 4610c4f drew 45.024). Math.random() is in [0, 1). At the largest
+// double below 1 the same expression returns 45.025954924871087, about 24 ulps
+// under M_max, because (1 - 0.94) / 0.06 rounds to 1 + 4 ulps and is never
+// reached. One ulp (~7.11e-15) covers Math.pow landing on the next
+// representable value above that endpoint.
+test('F6-16: sampleKroupaMass samples OB-association high-mass tail (>=15 M_sun Black Hole progenitors)', () => {
+  const kroupaMassMax = Math.pow(KROUPA_OB_M_MAX_POW, -1 / KROUPA_OB_MASS_EXPONENT);
+  const kroupaMassUpper = kroupaMassMax + 2 ** (Math.floor(Math.log2(kroupaMassMax)) - 52);
   let massiveCount = 0;
   const N = 5000;
   for (let i = 0; i < N; i++) {
     const m = sampleKroupaMass();
-    assert.ok(m >= 0.08 && m <= 45.0, `Mass out of bounds: ${m}`);
+    assert.ok(m >= 0.08 && m <= kroupaMassUpper, `Mass out of bounds: ${m} (upper ${kroupaMassUpper})`);
     if (m >= 15.0) massiveCount++;
   }
   // With 6% in 8-45 M_sun tail, ~2.5% of all stars are >= 15 M_sun
