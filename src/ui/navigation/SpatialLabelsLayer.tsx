@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useRef } from 'react';
 import * as THREE from 'three';
 import { HeroStarSystem } from '../../rendering/systems/HeroStarSystem';
-import { formatAdaptiveDistance, WORLD_UNITS_PER_AU } from '../../utils/navigationMath';
+import { formatAdaptiveDistance } from '../../utils/navigationMath';
 import { computeSpectralClass } from '../../simulation/StellarPhysics';
 import { audioEngine } from '../../audio/AudioEngine';
 
@@ -70,12 +70,12 @@ export const SpatialLabelsLayer: React.FC<SpatialLabelsLayerProps> = ({
 
                 const screenX = (_projVec.x + 1.0) * 0.5;
                 const screenY = (1.0 - _projVec.y) * 0.5;
-                const distance = camPos.distanceTo(s.position) / WORLD_UNITS_PER_AU;
+                const distance = camPos.distanceTo(s.position);
 
-                // LOD determination (in AU)
+                // LOD determination
                 let lod: 'far' | 'medium' | 'near' = 'far';
-                if (distance < 5 || s === selectedStar) lod = 'near';
-                else if (distance < 25) lod = 'medium';
+                if (distance < 15 || s === selectedStar) lod = 'near';
+                else if (distance < 150) lod = 'medium';
 
                 const name = s.physicsId ? `Star ${s.physicsId.substring(0, 6)}` : `Host Star ${i + 1}`;
                 const spectral = computeSpectralClass(s.currentTemp || 5778);

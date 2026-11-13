@@ -173,7 +173,7 @@ function findPresetStar(name) {
   if (!cleanName) return null;
   return PRESETS.find(p => {
     const pName = p.name.toLowerCase().replace(/[^a-z0-9]/g, '');
-    return cleanName === pName || cleanName.includes(pName) || (cleanName.length >= 3 && pName.includes(cleanName));
+    return cleanName === pName || (cleanName.length >= 4 && pName.startsWith(cleanName));
   });
 }
 

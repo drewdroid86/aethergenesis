@@ -6,8 +6,7 @@ import {
     calculateTargetWaypoint, 
     calculateRadarContacts, 
     calculateAttitudeTelemetry, 
-    formatAdaptiveDistance,
-    WORLD_UNITS_PER_AU
+    formatAdaptiveDistance
 } from '../../utils/navigationMath';
 import { computeSpectralClass } from '../../simulation/StellarPhysics';
 import { TargetWaypointHUD } from './TargetWaypointHUD';
@@ -115,7 +114,7 @@ export const NavigationDeck: React.FC<NavigationDeckProps> = ({
             for (let i = 0; i < starLimit; i++) {
                 const s = stars[i];
                 if (!s.visible || s.t < 0) continue;
-                const d = camPos.distanceTo(s.position) / WORLD_UNITS_PER_AU;
+                const d = camPos.distanceTo(s.position);
                 if (d < minDist) {
                     minDist = d;
                     nearest = s;
@@ -221,7 +220,7 @@ export const NavigationDeck: React.FC<NavigationDeckProps> = ({
                 }
 
                 if (closestStar) {
-                    const dist = camera.position.distanceTo(closestStar.position) / WORLD_UNITS_PER_AU;
+                    const dist = camera.position.distanceTo(closestStar.position);
                     const name = closestStar.physicsId ? `Star ${closestStar.physicsId.substring(0, 6)}` : 'Star';
                     const id = closestStar.physicsId || 'star';
                     const spectralClass = computeSpectralClass(closestStar.currentTemp || 5778);
@@ -521,7 +520,7 @@ export const TacticalFlightDeck: React.FC<TacticalFlightDeckProps> = ({
             const camPos = camera.position;
 
             if (selectedStar) {
-                const d = camPos.distanceTo(selectedStar.position) / WORLD_UNITS_PER_AU;
+                const d = camPos.distanceTo(selectedStar.position);
                 setInternalDistanceUnits(d);
                 const sName = selectedStar.physicsId ? `Star ${selectedStar.physicsId.substring(0, 6)}` : 'Host Star';
                 setInternalTargetName(sName);

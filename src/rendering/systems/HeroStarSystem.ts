@@ -815,9 +815,9 @@ export class HeroStarSystem extends THREE.Group {
             if (exitingPhase >= 0) {
                 this.onPhaseTransition?.(exitingPhase, newPhase);
                 if (
-                    newPhase === PHASES.MAIN_SEQUENCE ||
-                    exitingPhase === PHASES.RED_GIANT ||
-                    (exitingPhase === PHASES.MAIN_SEQUENCE && !keepPlanets)
+                    overrideT === undefined &&
+                    (exitingPhase === PHASES.RED_GIANT ||
+                        (exitingPhase === PHASES.MAIN_SEQUENCE && !keepPlanets))
                 ) {
                     this.onRecycle?.(this);
                 }

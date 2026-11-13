@@ -1125,7 +1125,6 @@ export class PlanetarySystemQueue {
                         star.planetarySystem.dispose();
                     }
                     star.planetarySystem = new PlanetarySystem(star, renderer ?? itemRenderer);
-                    star.onRecycle?.(star);
                 }
                 processedCreations++;
             }

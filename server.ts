@@ -294,7 +294,7 @@ app.get('/api/catalog/search', async (req, res) => {
     if (!cleanName) return res.status(400).json({ error: 'Invalid name parameter' });
     const preset = PRESETS.find(p => {
       const pName = p.name.toLowerCase().replace(/[^a-z0-9]/g, '');
-      return cleanName === pName || cleanName.includes(pName) || (cleanName.length >= 3 && pName.includes(cleanName));
+      return cleanName === pName || (cleanName.length >= 4 && pName.startsWith(cleanName));
     });
 
     if (preset) {
