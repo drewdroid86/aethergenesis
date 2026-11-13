@@ -1017,8 +1017,10 @@ export class PlanetarySystem {
         this.material.dispose();
         // BOLT: Cloned geometry must be disposed to avoid memory leaks
         this.instancedMesh.geometry.dispose();
+        this.instancedMesh.dispose();
         this.ringMaterial.dispose();
         this.ringInstancedMesh.geometry.dispose();
+        this.ringInstancedMesh.dispose();
 
         for (const child of this.orbitLinesGroup.children) {
             if (child instanceof THREE.LineLoop && child.geometry) {
@@ -1043,24 +1045,24 @@ export class PlanetarySystem {
         let maxBiomass = 0;
         let maxCiv = 0;
 
+        biomassArray.fill(0);
+        civArray.fill(0);
+
         const count = Math.min(astrobiologyStates.length, biomassArray.length);
         for (let i = 0; i < count; i++) {
             const state = astrobiologyStates[i];
             const biomass = state.biomass || 0.0;
             const civ = state.civilizationTier || 0.0;
+            const slot = (state.planet_id !== undefined ? this.slotById.get(state.planet_id) : undefined) ?? i;
 
             // BOLT: Direct typed array manipulation to eliminate setX() method call overhead
-            biomassArray[i] = biomass;
-            civArray[i] = civ;
+            if (slot >= 0 && slot < biomassArray.length) {
+                biomassArray[slot] = biomass;
+                civArray[slot] = civ;
+            }
             
             if (biomass > maxBiomass) maxBiomass = biomass;
             if (civ > maxCiv) maxCiv = civ;
-        }
-
-        // Clear tail when astrobiology state count shrinks
-        for (let i = count; i < biomassArray.length; i++) {
-            biomassArray[i] = 0.0;
-            civArray[i] = 0.0;
         }
 
         this.material.uniforms.u_biomass.value = maxBiomass;
@@ -1077,6 +1079,7 @@ export class PlanetarySystemQueue {
     private static BUDGET_PER_FRAME = 2; // Process at most 2 creations/disposals per frame
 
     public static flushDisposals() {
+        this.pendingCreations.length = 0;
         for (const system of this.pendingDisposals.splice(0)) system.dispose();
     }
 
@@ -1118,7 +1121,11 @@ export class PlanetarySystemQueue {
                 const { star, renderer: itemRenderer } = item;
                 // Double check the star is still in MAIN_SEQUENCE phase
                 if (star.phase === PHASES.MAIN_SEQUENCE) {
+                    if (star.planetarySystem) {
+                        star.planetarySystem.dispose();
+                    }
                     star.planetarySystem = new PlanetarySystem(star, renderer ?? itemRenderer);
+                    star.onRecycle?.(star);
                 }
                 processedCreations++;
             }

@@ -3,16 +3,17 @@ import WebSocket from 'ws';
 import assert from 'node:assert/strict';
 import { fileURLToPath } from 'node:url';
 import { join } from 'node:path';
-import { tmpdir } from 'node:os';
 import { spawn } from 'node:child_process';
 import { mkdtempSync, rmSync, mkdirSync, writeFileSync } from 'node:fs';
 // Standalone WebGL smoke check. Uses software rendering; timings are not device benchmarks.
 // Optional: CHROME_PATH and APPEARANCE_ARTIFACT_DIR. Screenshots use fixed seed/time/cameras.
 const root = fileURLToPath(new URL('../', import.meta.url));
 const label = 'rendered';
-const out = process.env.APPEARANCE_ARTIFACT_DIR || mkdtempSync(join(tmpdir(), 'aether-appearance-'));
+const tmpDir = process.env.TMPDIR || join(root, 'tmp');
+mkdirSync(tmpDir, { recursive: true });
+const out = process.env.APPEARANCE_ARTIFACT_DIR || mkdtempSync(join(tmpDir, 'aether-appearance-'));
 mkdirSync(out, { recursive: true });
-const profile = mkdtempSync(join(tmpdir(), 'aether-chrome-'));
+const profile = mkdtempSync(join(tmpDir, 'aether-chrome-'));
 const vite = await createServer({ root, server: { port: 4175, host: '127.0.0.1', hmr: false }, plugins: [{ name: 'test-page', configureServer(s) { s.middlewares.use((req, res, next) => { if (req.url !== '/__appearance__') return next(); res.setHeader('Content-Type', 'text/html'); res.end('<html><head><link rel="icon" href="data:,"></head><body style="margin:0;background:black"></body></html>'); }); } }] });
 let chrome;
 let ws;

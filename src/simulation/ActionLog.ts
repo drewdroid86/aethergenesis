@@ -60,6 +60,8 @@ export interface SimulationEvent extends SimulationEventPayload {
 
 export type ActionLogListener = (event: SimulationEvent) => void;
 
+const MAX_ACTION_LOG_EVENTS = 2000;
+
 export class ActionLog {
     private events: SimulationEvent[] = [];
     private listeners = new Set<ActionLogListener>();
@@ -69,6 +71,9 @@ export class ActionLog {
     logEvent(type: SimulationEventType, payload: SimulationEventPayload): SimulationEvent {
         const event: SimulationEvent = { ...payload, type, eventId: this.nextId++ };
         this.events.push(event);
+        if (this.events.length > MAX_ACTION_LOG_EVENTS) {
+            this.events.splice(0, this.events.length - MAX_ACTION_LOG_EVENTS);
+        }
         // Snapshot the listener set: a listener that unsubscribes mid-dispatch
         // must not skip or double-notify its neighbours.
         for (const listener of [...this.listeners]) {

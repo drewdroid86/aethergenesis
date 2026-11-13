@@ -29,7 +29,11 @@ export function useCosmicAge() {
     }, []);
 
     const onGlobalScrubStart = useCallback((e: React.PointerEvent) => {
-        (e.currentTarget as HTMLDivElement).setPointerCapture(e.pointerId);
+        try {
+            (e.currentTarget as HTMLDivElement).setPointerCapture(e.pointerId);
+        } catch {
+            // Ignore pointer capture errors
+        }
         isGlobalScrubbingRef.current = true;
         handleGlobalScrub(e);
     }, [handleGlobalScrub]);

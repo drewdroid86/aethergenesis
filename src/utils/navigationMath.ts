@@ -8,6 +8,7 @@ export const AU_TO_KM = 149597870.7; // 1 AU in km
 export const LY_TO_AU = 63241.077;    // 1 Light-Year in AU
 export const PC_TO_LY = 3.26156;      // 1 Parsec in Light-Years
 export const KPC_TO_LY = 3261.56;
+export const WORLD_UNITS_PER_AU = 12.0; // Matches PlanetarySystem ORBIT_SCALE (1 AU = 12 world units)
 
 // Reusable scratch vectors to ensure zero GC allocations during high-frequency telemetry updates
 const _camForward = new THREE.Vector3();
@@ -47,7 +48,7 @@ export function formatAdaptiveDistance(distanceUnits: number): FormattedDistance
         return { value: ly, unit: 'ly', formatted: `${ly.toFixed(2)} ly` };
     }
 
-    const kpc = ly / 1000;
+    const kpc = ly / KPC_TO_LY;
     return { value: kpc, unit: 'kpc', formatted: `${kpc.toFixed(2)} kpc` };
 }
 
@@ -62,7 +63,7 @@ export function calculateScaleRuler(
 ): { formatted: string; widthPx: number; fovDeg: number } {
     const fovRad = (camera.fov * Math.PI) / 180;
     const aspect = camera.aspect || (window.innerWidth / (window.innerHeight || 1));
-    const frustumWidth = 2.0 * Math.max(0.1, focusDistance) * Math.tan(fovRad * 0.5) * aspect;
+    const frustumWidth = (2.0 * Math.max(0.1, focusDistance) * Math.tan(fovRad * 0.5) * aspect) / WORLD_UNITS_PER_AU;
 
     // We want a ruler width between 70px and 150px
     const targetPixelWidth = Math.max(80, Math.min(140, viewportWidthPx * 0.1));
@@ -149,7 +150,7 @@ export function calculateTargetWaypoint(
     // Relative Bearing calculation (angle between camera look vector and target)
     camera.getWorldDirection(_camForward);
     _toTarget.subVectors(targetPosition, camera.position).normalize();
-    const distanceToTarget = camera.position.distanceTo(targetPosition);
+    const distanceToTarget = camera.position.distanceTo(targetPosition) / WORLD_UNITS_PER_AU;
 
     const forwardDot = Math.max(-1.0, Math.min(1.0, _camForward.dot(_toTarget)));
     const totalAngleOffBoresight = Math.round((Math.acos(forwardDot) * 180) / Math.PI);
@@ -180,7 +181,8 @@ export function calculateRadarContacts(
     camera: THREE.PerspectiveCamera,
     stars: HeroStarSystem[],
     selectedStar: HeroStarSystem | null,
-    maxRadarRangeAU: number = 100
+    maxRadarRangeAU: number = 100,
+    activeStarCount?: number
 ): RadarContact[] {
     const contacts: RadarContact[] = [];
     const camPos = camera.position;
@@ -193,11 +195,15 @@ export function calculateRadarContacts(
     let nfx = 0, nfz = -1; // default heading: looking -Z
     if (hLen >= 1e-6) { nfx = fx / hLen; nfz = fz / hLen; }
 
-    for (let i = 0; i < stars.length; i++) {
+    const starLimit = activeStarCount != null ? Math.min(stars.length, activeStarCount) : stars.length;
+    for (let i = 0; i < starLimit; i++) {
         const star = stars[i];
-        const dx = star.position.x - camPos.x;
-        const dy = star.position.y - camPos.y;
-        const dz = star.position.z - camPos.z;
+        // Skip inactive/culled or unborn stars (checking visible === false preserves partial test mocks)
+        if (star.visible === false || star.t < 0) continue;
+
+        const dx = (star.position.x - camPos.x) / WORLD_UNITS_PER_AU;
+        const dy = (star.position.y - camPos.y) / WORLD_UNITS_PER_AU;
+        const dz = (star.position.z - camPos.z) / WORLD_UNITS_PER_AU;
 
         const distance = Math.sqrt(dx * dx + dy * dy + dz * dz);
         if (distance > maxRadarRangeAU && star !== selectedStar) continue;
@@ -255,7 +261,7 @@ export function calculateAttitudeTelemetry(
 
     // 3. Ecliptic / Galactic Altitude
     const hostPosY = selectedStar ? selectedStar.position.y : 0;
-    const altitudeUnits = camera.position.y - hostPosY;
+    const altitudeUnits = (camera.position.y - hostPosY) / WORLD_UNITS_PER_AU;
     const sign = altitudeUnits >= 0 ? '+' : '−';
     const altInfo = formatAdaptiveDistance(Math.abs(altitudeUnits));
     const altitudeFormatted = `${sign}${altInfo.formatted}`;
@@ -265,13 +271,13 @@ export function calculateAttitudeTelemetry(
     let targetName = 'Galactic Center';
 
     if (selectedStar) {
-        const d = camera.position.distanceTo(selectedStar.position);
+        const d = camera.position.distanceTo(selectedStar.position) / WORLD_UNITS_PER_AU;
         distanceToTargetFormatted = formatAdaptiveDistance(d).formatted;
         targetName = selectedStar.physicsId ? `Star ${selectedStar.physicsId.substring(0, 6)}` : 'Host Star';
     }
 
     // 5. Scale Ruler
-    const ruler = calculateScaleRuler(camera, selectedStar ? camera.position.distanceTo(selectedStar.position) : 10, window.innerWidth);
+    const ruler = calculateScaleRuler(camera, selectedStar ? camera.position.distanceTo(selectedStar.position) : 10 * WORLD_UNITS_PER_AU, window.innerWidth);
 
     return {
         headingDeg,

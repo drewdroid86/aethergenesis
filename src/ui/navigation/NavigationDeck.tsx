@@ -6,7 +6,8 @@ import {
     calculateTargetWaypoint, 
     calculateRadarContacts, 
     calculateAttitudeTelemetry, 
-    formatAdaptiveDistance 
+    formatAdaptiveDistance,
+    WORLD_UNITS_PER_AU
 } from '../../utils/navigationMath';
 import { computeSpectralClass } from '../../simulation/StellarPhysics';
 import { TargetWaypointHUD } from './TargetWaypointHUD';
@@ -22,12 +23,17 @@ import { TargetLockHUD } from './TargetLockHUD';
 import { ChevronDown, ChevronUp } from 'lucide-react';
 import type { HudCoordRefs } from '../../utils/hooks/useSimulation';
 
+const _deckCamForward = new THREE.Vector3();
+const _deckToStar = new THREE.Vector3();
+
 export interface NavigationDeckProps {
     camera: THREE.PerspectiveCamera | null;
     stars: HeroStarSystem[];
+    activeStarCount?: number;
     selectedStar: HeroStarSystem | null;
     onSelectStar: (star: HeroStarSystem | null) => void;
     onAlignCamera: () => void;
+    onResetCamera?: () => void;
     // H1 fix: per-consumer coordinate refs. Sharing one ref object across
     // conditionally-mounted elements (badge drawer, attitude fallback) lets
     // React null it on unmount, freezing the tick-loop updates for the rest.
@@ -53,9 +59,11 @@ export interface NavigationDeckProps {
 export const NavigationDeck: React.FC<NavigationDeckProps> = ({
     camera,
     stars,
+    activeStarCount,
     selectedStar,
     onSelectStar,
     onAlignCamera,
+    onResetCamera,
     coordUiRefs,
     showRadar = true,
     showBoresight = true,
@@ -98,14 +106,16 @@ export const NavigationDeck: React.FC<NavigationDeckProps> = ({
             lastUpdateTime = now;
 
             const camPos = camera.position;
+            const starLimit = activeStarCount != null ? Math.min(stars.length, activeStarCount) : stars.length;
 
             // 1. Calculate Nearest Star & Camera Distance
             let minDist = Infinity;
             let nearest: HeroStarSystem | null = null;
 
-            for (let i = 0; i < stars.length; i++) {
+            for (let i = 0; i < starLimit; i++) {
                 const s = stars[i];
-                const d = camPos.distanceTo(s.position);
+                if (!s.visible || s.t < 0) continue;
+                const d = camPos.distanceTo(s.position) / WORLD_UNITS_PER_AU;
                 if (d < minDist) {
                     minDist = d;
                     nearest = s;
@@ -114,11 +124,13 @@ export const NavigationDeck: React.FC<NavigationDeckProps> = ({
 
             if (nearest) {
                 const name = nearest.physicsId ? `Star ${nearest.physicsId.substring(0, 6)}` : 'Host Star';
-                setNearestStarInfo({
-                    name,
-                    distance: formatAdaptiveDistance(minDist).formatted
-                });
-                setCameraDistanceUnits(minDist);
+                const distanceFormatted = formatAdaptiveDistance(minDist).formatted;
+                setNearestStarInfo(prev =>
+                    prev.name === name && prev.distance === distanceFormatted
+                        ? prev
+                        : { name, distance: distanceFormatted }
+                );
+                setCameraDistanceUnits(prev => (Math.abs(prev - minDist) < 1e-4 ? prev : minDist));
             }
 
             // 2. Calculate Target Waypoint & Off-Screen Vector
@@ -129,35 +141,78 @@ export const NavigationDeck: React.FC<NavigationDeckProps> = ({
                     selectedStar.physicsId ? `Star ${selectedStar.physicsId.substring(0, 6)}` : 'Host Star',
                     'Host Star'
                 );
-                setWaypoint(wp);
+                setWaypoint(prev =>
+                    prev &&
+                    prev.targetName === wp.targetName &&
+                    prev.targetType === wp.targetType &&
+                    prev.distanceFormatted === wp.distanceFormatted &&
+                    prev.isOnScreen === wp.isOnScreen &&
+                    prev.angleDeg === wp.angleDeg &&
+                    prev.bearingDeg === wp.bearingDeg &&
+                    prev.elevationAngleDeg === wp.elevationAngleDeg &&
+                    Math.abs(prev.screenX - wp.screenX) < 1e-4 &&
+                    Math.abs(prev.screenY - wp.screenY) < 1e-4
+                        ? prev
+                        : wp
+                );
             } else {
-                setWaypoint(null);
+                setWaypoint(prev => (prev === null ? prev : null));
             }
 
             // 3. Calculate Radar Contacts (only if radar is active and rendered via slot)
-            if (showRadar && (renderBottom != null) && stars.length > 0) {
-                const c = calculateRadarContacts(camera, stars, selectedStar, radarRange);
-                setContacts(c);
+            if (showRadar && (renderBottom != null) && starLimit > 0) {
+                const c = calculateRadarContacts(camera, stars, selectedStar, radarRange, starLimit);
+                setContacts(prev => {
+                    if (prev.length === 0 && c.length === 0) return prev;
+                    if (
+                        prev.length === c.length &&
+                        prev.every((p, idx) => {
+                            const n = c[idx];
+                            return (
+                                p.id === n.id &&
+                                p.distanceFormatted === n.distanceFormatted &&
+                                p.isSelected === n.isSelected &&
+                                p.spectralClass === n.spectralClass &&
+                                Math.abs(p.relX - n.relX) < 1e-4 &&
+                                Math.abs(p.relY - n.relY) < 1e-4 &&
+                                Math.abs(p.elevationRel - n.elevationRel) < 1e-4
+                            );
+                        })
+                    ) {
+                        return prev;
+                    }
+                    return c;
+                });
             }
 
             // 4. Calculate Attitude & Optical Scale Telemetry
             const att = calculateAttitudeTelemetry(camera, selectedStar);
-            setTelemetry(att);
+            setTelemetry(prev =>
+                prev.headingDeg === att.headingDeg &&
+                prev.pitchDeg === att.pitchDeg &&
+                prev.altitudeFormatted === att.altitudeFormatted &&
+                prev.distanceToTargetFormatted === att.distanceToTargetFormatted &&
+                prev.targetName === att.targetName &&
+                prev.fovDeg === att.fovDeg &&
+                prev.scaleRulerFormatted === att.scaleRulerFormatted &&
+                prev.scaleRulerWidthPx === att.scaleRulerWidthPx
+                    ? prev
+                    : att
+            );
 
             // 5. Calculate Boresight Center Rangefinder Target
-            if (showBoresight && stars.length > 0) {
+            if (showBoresight && starLimit > 0) {
                 raycasterRef.current.setFromCamera(centerVecRef.current, camera);
                 let closestStar: HeroStarSystem | null = null;
                 let closestAngle = 0.08;
 
-                const camForward = new THREE.Vector3();
-                camera.getWorldDirection(camForward);
-                const toStar = new THREE.Vector3();
+                camera.getWorldDirection(_deckCamForward);
 
-                for (let i = 0; i < stars.length; i++) {
+                for (let i = 0; i < starLimit; i++) {
                     const s = stars[i];
-                    toStar.subVectors(s.position, camera.position).normalize();
-                    const dot = camForward.dot(toStar);
+                    if (!s.visible || s.t < 0) continue;
+                    _deckToStar.subVectors(s.position, camera.position).normalize();
+                    const dot = _deckCamForward.dot(_deckToStar);
                     const angle = Math.acos(Math.max(-1, Math.min(1, dot)));
                     if (angle < closestAngle) {
                         closestAngle = angle;
@@ -166,31 +221,51 @@ export const NavigationDeck: React.FC<NavigationDeckProps> = ({
                 }
 
                 if (closestStar) {
-                    const dist = camera.position.distanceTo(closestStar.position);
+                    const dist = camera.position.distanceTo(closestStar.position) / WORLD_UNITS_PER_AU;
                     const name = closestStar.physicsId ? `Star ${closestStar.physicsId.substring(0, 6)}` : 'Star';
-                    setBoresightTarget({
-                        id: closestStar.physicsId || 'star',
-                        name,
-                        type: 'Star System',
-                        spectralClass: computeSpectralClass(closestStar.currentTemp || 5778),
-                        distanceFormatted: formatAdaptiveDistance(dist).formatted,
-                        mass_solar: closestStar.mass,
-                        temp_K: Math.round(closestStar.currentTemp)
-                    });
+                    const id = closestStar.physicsId || 'star';
+                    const spectralClass = computeSpectralClass(closestStar.currentTemp || 5778);
+                    const distanceFormatted = formatAdaptiveDistance(dist).formatted;
+                    const mass_solar = closestStar.currentMass ?? closestStar.mass;
+                    const temp_K = Math.round(closestStar.currentTemp);
+                    setBoresightTarget(prev =>
+                        prev &&
+                        prev.id === id &&
+                        prev.name === name &&
+                        prev.spectralClass === spectralClass &&
+                        prev.distanceFormatted === distanceFormatted &&
+                        prev.mass_solar === mass_solar &&
+                        prev.temp_K === temp_K
+                            ? prev
+                            : {
+                                id,
+                                name,
+                                type: 'Star System',
+                                spectralClass,
+                                distanceFormatted,
+                                mass_solar,
+                                temp_K
+                            }
+                    );
                 } else {
-                    setBoresightTarget(null);
+                    setBoresightTarget(prev => (prev === null ? prev : null));
                 }
             }
         };
 
         frameId = requestAnimationFrame(updateLoop);
         return () => cancelAnimationFrame(frameId);
-    }, [camera, stars, selectedStar, radarRange, showBoresight, showRadar, renderBottom, visible]);
+    }, [camera, stars, activeStarCount, selectedStar, radarRange, showBoresight, showRadar, renderBottom, visible]);
 
     const handleSelectContact = (id: string) => {
-        const found = stars.find(s => s.physicsId === id);
-        if (found) {
-            onSelectStar(found);
+        const starLimit = activeStarCount != null ? Math.min(stars.length, activeStarCount) : stars.length;
+        for (let i = 0; i < starLimit; i++) {
+            const s = stars[i];
+            if (!s.visible || s.t < 0) continue;
+            if (s.physicsId === id) {
+                onSelectStar(s);
+                break;
+            }
         }
     };
 
@@ -203,7 +278,7 @@ export const NavigationDeck: React.FC<NavigationDeckProps> = ({
             <div className="flex flex-col gap-2">
                 <SpatialBreadcrumbs 
                     starName={selectedStar?.physicsId ? `Star ${selectedStar.physicsId.substring(0, 6)}` : undefined}
-                    onResetUniverse={onAlignCamera}
+                    onResetUniverse={onResetCamera ?? onAlignCamera}
                     onFocusStar={onAlignCamera}
                 />
                 <CosmicScaleLadder 
@@ -229,6 +304,7 @@ export const NavigationDeck: React.FC<NavigationDeckProps> = ({
                 <SpatialLabelsLayer 
                     camera={camera}
                     stars={stars}
+                    activeStarCount={activeStarCount}
                     selectedStar={selectedStar}
                     onSelectStar={onSelectStar}
                 />
@@ -445,7 +521,7 @@ export const TacticalFlightDeck: React.FC<TacticalFlightDeckProps> = ({
             const camPos = camera.position;
 
             if (selectedStar) {
-                const d = camPos.distanceTo(selectedStar.position);
+                const d = camPos.distanceTo(selectedStar.position) / WORLD_UNITS_PER_AU;
                 setInternalDistanceUnits(d);
                 const sName = selectedStar.physicsId ? `Star ${selectedStar.physicsId.substring(0, 6)}` : 'Host Star';
                 setInternalTargetName(sName);
@@ -472,7 +548,7 @@ export const TacticalFlightDeck: React.FC<TacticalFlightDeckProps> = ({
     }, [camera, stars, selectedStar, activeRadarRange, isControlled]);
 
     const handleSelectContact = (id: string) => {
-        const found = stars.find(s => s.physicsId === id);
+        const found = stars.find(s => s.visible && s.t >= 0 && s.physicsId === id);
         if (found) {
             onSelectStar(found);
         }

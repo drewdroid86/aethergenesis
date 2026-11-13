@@ -173,7 +173,7 @@ function findPresetStar(name) {
   if (!cleanName) return null;
   return PRESETS.find(p => {
     const pName = p.name.toLowerCase().replace(/[^a-z0-9]/g, '');
-    return cleanName.includes(pName) || pName.includes(cleanName);
+    return cleanName === pName || cleanName.includes(pName) || (cleanName.length >= 3 && pName.includes(cleanName));
   });
 }
 
@@ -409,15 +409,8 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
       // Fallback to local presets
       let results = PRESETS.map(p => ({
-        name: p.name,
+        ...p,
         hip_id: null,
-        spectral_class: p.spectral_class,
-        mass_solar: p.mass_solar,
-        luminosity_solar: p.luminosity_solar,
-        temperature_K: p.temperature_K,
-        radius_solar: p.radius_solar,
-        distance_ly: p.distance_ly,
-        metallicity_Z: p.metallicity_Z,
         source: 'cached_preset',
       }));
 
@@ -431,7 +424,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         results = results.filter(r => r.mass_solar <= massMax);
       }
       if (isValidNumber(distMax)) {
-        results = results.filter(r => r.distance_ly <= distMax);
+        results = results.filter(r => r.distance_ly !== null && r.distance_ly <= distMax);
       }
 
       return {

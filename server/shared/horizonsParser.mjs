@@ -51,17 +51,25 @@ export function parseOrbitalElements(text) {
     aphelion_au = aphelion_au / kmToAu;
   }
 
+  if (eccentricity >= 1 || aphelion_au > 1e15) {
+    aphelion_au = null;
+  }
+
   let period_yr = null;
-  if (prMatch) {
+  if (eccentricity >= 1) {
+    period_yr = null;
+  } else if (prMatch) {
     // PR is usually in days, convert to years. If it's too large (e.g. in seconds), fall back to Kepler's 3rd Law.
     const rawPr = parseFloat(prMatch[1]);
     const parsedPrYr = rawPr / 365.25;
-    if (parsedPrYr > 10000 && eccentricity < 1 && semi_major_axis_au > 0) {
+    if (parsedPrYr > 1e15) {
+      period_yr = null;
+    } else if (parsedPrYr > 10000 && semi_major_axis_au > 0) {
       period_yr = Math.pow(semi_major_axis_au, 1.5);
     } else {
       period_yr = parsedPrYr;
     }
-  } else if (eccentricity < 1 && semi_major_axis_au > 0) {
+  } else if (semi_major_axis_au > 0) {
     period_yr = Math.pow(semi_major_axis_au, 1.5);
   }
 

@@ -192,6 +192,7 @@ export class CometSystem {
     private _vel = new THREE.Vector3();
     private _ionDir = new THREE.Vector3();
     private _dustDir = new THREE.Vector3();
+    private _wasAnyDisrupted = false;
 
     constructor(scene: THREE.Scene) {
         this.group = new THREE.Group();
@@ -277,6 +278,7 @@ export class CometSystem {
         this.tidalDebrisMesh.geometry.setAttribute('dColor', new THREE.InstancedBufferAttribute(new Float32Array(totalFragments * 3), 3));
         this.tidalDebrisMesh.geometry.setAttribute('dActive', new THREE.InstancedBufferAttribute(new Float32Array(totalFragments), 1));
         this.tidalDebrisMesh.frustumCulled = false;
+        this.tidalDebrisMesh.visible = false;
 
         // Coma color: blue-white (set once)
         const comaColors = this.comaMesh.geometry.attributes.cColor.array as Float32Array;
@@ -325,6 +327,7 @@ export class CometSystem {
         const debrisActives  = this.tidalDebrisMesh.geometry.attributes.dActive.array as Float32Array;
 
         const simYears = appTime * this.yearsPerSecond;
+        let anyDisrupted = false;
 
         for (let i = 0; i < this.precalcData.length; i++) {
             const data = this.precalcData[i];
@@ -365,30 +368,35 @@ export class CometSystem {
             // Halley (q=0.586) and Encke (q=0.336) on every perihelion even
             // though both real comets survive it.
             const rocheLimitAU = 0.05 * Math.cbrt(Math.max(0.1, stellarState.mass_solar || 1.0));
-            const isTidallyDisrupted = dist < rocheLimitAU;
+            const isTidallyDisrupted = dist < rocheLimitAU && dist < 3.0;
+            if (isTidallyDisrupted) {
+                anyDisrupted = true;
+            }
             const tidalShear = isTidallyDisrupted ? Math.min(1.0, (rocheLimitAU - dist) / (rocheLimitAU * 0.7)) : 0.0;
 
             // Update tidal debris fragment train (Shoemaker-Levy 9 string-of-pearls effect)
-            for (let k = 0; k < 6; k++) {
-                const fragIdx = i * 6 + k;
-                if (isTidallyDisrupted && dist < 3.0) {
-                    const longitudinalSpread = (k - 2.5) * 0.04 * (1.0 + tidalShear * 2.5);
-                    const fx = x + this._vel.x * longitudinalSpread;
-                    const fy = y + this._vel.y * longitudinalSpread;
-                    const fz = z + this._vel.z * longitudinalSpread;
+            if (isTidallyDisrupted || this._wasAnyDisrupted) {
+                for (let k = 0; k < 6; k++) {
+                    const fragIdx = i * 6 + k;
+                    if (isTidallyDisrupted) {
+                        const longitudinalSpread = (k - 2.5) * 0.04 * (1.0 + tidalShear * 2.5);
+                        const fx = x + this._vel.x * longitudinalSpread;
+                        const fy = y + this._vel.y * longitudinalSpread;
+                        const fz = z + this._vel.z * longitudinalSpread;
 
-                    this._matrix.makeTranslation(fx, fy, fz);
-                    this.tidalDebrisMesh.setMatrixAt(fragIdx, this._matrix);
+                        this._matrix.makeTranslation(fx, fy, fz);
+                        this.tidalDebrisMesh.setMatrixAt(fragIdx, this._matrix);
 
-                    debrisActives[fragIdx] = 1.0;
-                    debrisScales[fragIdx] = Math.max(0.18, (0.45 - Math.abs(k - 2.5) * 0.05) * (0.6 + tidalShear * 0.8));
-                    // Volatile ionization flare: intense cyan/gold ion emission
-                    debrisColors[fragIdx * 3 + 0] = 0.6 + 0.4 * Math.sin(k * 1.5 + appTime * 5.0);
-                    debrisColors[fragIdx * 3 + 1] = 0.85 + 0.15 * Math.cos(k * 1.2);
-                    debrisColors[fragIdx * 3 + 2] = 1.0;
-                } else {
-                    debrisActives[fragIdx] = 0.0;
-                    debrisScales[fragIdx] = 0.0;
+                        debrisActives[fragIdx] = 1.0;
+                        debrisScales[fragIdx] = Math.max(0.18, (0.45 - Math.abs(k - 2.5) * 0.05) * (0.6 + tidalShear * 0.8));
+                        // Volatile ionization flare: intense cyan/gold ion emission
+                        debrisColors[fragIdx * 3 + 0] = 0.6 + 0.4 * Math.sin(k * 1.5 + appTime * 5.0);
+                        debrisColors[fragIdx * 3 + 1] = 0.85 + 0.15 * Math.cos(k * 1.2);
+                        debrisColors[fragIdx * 3 + 2] = 1.0;
+                    } else {
+                        debrisActives[fragIdx] = 0.0;
+                        debrisScales[fragIdx] = 0.0;
+                    }
                 }
             }
 
@@ -445,7 +453,6 @@ export class CometSystem {
         this.comaMesh.instanceMatrix.needsUpdate       = true;
         this.ionTailMesh.instanceMatrix.needsUpdate    = true;
         this.dustTailMesh.instanceMatrix.needsUpdate   = true;
-        this.tidalDebrisMesh.instanceMatrix.needsUpdate = true;
 
         this.comaMesh.geometry.attributes.cScale.needsUpdate  = true;
         this.comaMesh.geometry.attributes.cActive.needsUpdate = true;
@@ -462,9 +469,14 @@ export class CometSystem {
         this.dustTailMesh.geometry.attributes.cActive.needsUpdate = true;
         this.dustTailMesh.geometry.attributes.cColor.needsUpdate  = true;
 
-        this.tidalDebrisMesh.geometry.attributes.dScale.needsUpdate  = true;
-        this.tidalDebrisMesh.geometry.attributes.dColor.needsUpdate  = true;
-        this.tidalDebrisMesh.geometry.attributes.dActive.needsUpdate = true;
+        this.tidalDebrisMesh.visible = anyDisrupted;
+        if (anyDisrupted || this._wasAnyDisrupted) {
+            this.tidalDebrisMesh.instanceMatrix.needsUpdate = true;
+            this.tidalDebrisMesh.geometry.attributes.dScale.needsUpdate  = true;
+            this.tidalDebrisMesh.geometry.attributes.dColor.needsUpdate  = true;
+            this.tidalDebrisMesh.geometry.attributes.dActive.needsUpdate = true;
+        }
+        this._wasAnyDisrupted = anyDisrupted;
     }
 
     dispose(): void {
@@ -472,6 +484,10 @@ export class CometSystem {
         this.ionTailMesh.geometry.dispose();
         this.dustTailMesh.geometry.dispose();
         this.tidalDebrisMesh.geometry.dispose();
+        this.comaMesh.dispose();
+        this.ionTailMesh.dispose();
+        this.dustTailMesh.dispose();
+        this.tidalDebrisMesh.dispose();
         this.comaMat.dispose();
         this.tailMat.dispose();
         this.debrisMat.dispose();

@@ -53,7 +53,11 @@ export function useStarSelection({ engineRef, controlsRef }: UseStarSelectionPro
     }, []);
 
     const onScrubStart = useCallback((e: React.PointerEvent) => {
-        (e.currentTarget as HTMLDivElement).setPointerCapture(e.pointerId);
+        try {
+            (e.currentTarget as HTMLDivElement).setPointerCapture(e.pointerId);
+        } catch {
+            // Ignore pointer capture errors
+        }
         isScrubbingRef.current = true;
         handleScrub(e);
     }, [handleScrub]);
