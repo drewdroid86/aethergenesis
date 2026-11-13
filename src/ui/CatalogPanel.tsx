@@ -130,16 +130,24 @@ export const CatalogPanel: React.FC<CatalogPanelProps> = ({
                     <Database size={18} className="text-purple-400" />
                     Catalog & Presets
                 </h2>
-                <button onClick={() => setIsOpen(false)} className="hover:text-red-400 transition-colors">
+                <button
+                    type="button"
+                    aria-label="Close catalog"
+                    onClick={() => setIsOpen(false)}
+                    className="hover:text-red-400 transition-colors"
+                >
                     <X size={18} />
                 </button>
             </div>
 
             {/* Navigation Tabs */}
-            <div className="flex gap-2 mb-4 bg-black/30 p-1 rounded-lg">
+            <div role="tablist" aria-label="Catalog sections" className="flex gap-2 mb-4 bg-black/30 p-1 rounded-lg">
                 {(['presets', 'search', 'horizons'] as const).map(tab => (
                     <button
                         key={tab}
+                        type="button"
+                        role="tab"
+                        aria-selected={activeTab === tab}
                         onClick={() => { setActiveTab(tab); setFetchError(null); }}
                         className={`flex-1 text-center py-1.5 rounded-md text-xs font-mono capitalize transition-all ${
                             activeTab === tab ? 'bg-purple-600/30 text-white font-bold' : 'text-gray-400 hover:text-white'
@@ -285,7 +293,7 @@ export const CatalogPanel: React.FC<CatalogPanelProps> = ({
                                         <div>
                                             <div className="font-semibold text-sky-200">{body.name}</div>
                                             <div className="text-[9px] text-gray-400">
-                                                Ecc: {body.eccentricity.toFixed(3)} | Perihelion: {body.perihelion_au.toFixed(2)} AU
+                                                Ecc: {Number.isFinite(body.eccentricity) ? body.eccentricity.toFixed(3) : 'N/A'} | Perihelion: {Number.isFinite(body.perihelion_au) ? `${body.perihelion_au.toFixed(2)} AU` : 'N/A'}
                                             </div>
                                         </div>
                                         <button

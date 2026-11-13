@@ -8,6 +8,7 @@ import { audioEngine } from '../../audio/AudioEngine';
 interface SpatialLabelsLayerProps {
     camera: THREE.PerspectiveCamera | null;
     stars: HeroStarSystem[];
+    activeStarCount?: number;
     selectedStar: HeroStarSystem | null;
     onSelectStar: (star: HeroStarSystem) => void;
     maxLabels?: number;
@@ -31,6 +32,7 @@ const _projVec = new THREE.Vector3();
 export const SpatialLabelsLayer: React.FC<SpatialLabelsLayerProps> = ({
     camera,
     stars,
+    activeStarCount,
     selectedStar,
     onSelectStar,
     maxLabels = 8
@@ -52,9 +54,11 @@ export const SpatialLabelsLayer: React.FC<SpatialLabelsLayerProps> = ({
 
             const projected: ProjectedStarLabel[] = [];
             const camPos = camera.position;
+            const starLimit = activeStarCount != null ? Math.min(stars.length, activeStarCount) : stars.length;
 
-            for (let i = 0; i < stars.length; i++) {
+            for (let i = 0; i < starLimit; i++) {
                 const s = stars[i];
+                if (!s.visible || s.t < 0) continue;
                 _projVec.copy(s.position);
                 _projVec.project(camera);
 
@@ -137,15 +141,40 @@ export const SpatialLabelsLayer: React.FC<SpatialLabelsLayerProps> = ({
                 if (nonColliding.length >= maxLabels) break;
             }
 
-            setLabels(nonColliding);
+            setLabels(prev => {
+                if (prev.length === 0 && nonColliding.length === 0) return prev;
+                if (
+                    prev.length === nonColliding.length &&
+                    prev.every((p, idx) => {
+                        const n = nonColliding[idx];
+                        return (
+                            p.id === n.id &&
+                            p.lod === n.lod &&
+                            p.isSelected === n.isSelected &&
+                            p.spectralClass === n.spectralClass &&
+                            p.distanceFormatted === n.distanceFormatted &&
+                            Math.abs(p.screenX - n.screenX) < 1e-4 &&
+                            Math.abs(p.screenY - n.screenY) < 1e-4
+                        );
+                    })
+                ) {
+                    return prev;
+                }
+                return nonColliding;
+            });
         };
 
         frameId = requestAnimationFrame(updateLabels);
         return () => cancelAnimationFrame(frameId);
-    }, [camera, stars, selectedStar, maxLabels]);
+    }, [camera, stars, activeStarCount, selectedStar, maxLabels]);
+
+    const hasInteractiveButtons = labels.some(item => item.lod !== 'far' || item.isSelected);
 
     return (
-        <div className="fixed inset-0 pointer-events-none z-10 select-none overflow-hidden" aria-hidden="true">
+        <div
+            className="fixed inset-0 pointer-events-none z-10 select-none overflow-hidden"
+            aria-hidden={hasInteractiveButtons ? undefined : 'true'}
+        >
             {labels.map((item) => {
                 const posX = `${(item.screenX * 100).toFixed(2)}vw`;
                 const posY = `${(item.screenY * 100).toFixed(2)}vh`;
@@ -157,6 +186,7 @@ export const SpatialLabelsLayer: React.FC<SpatialLabelsLayerProps> = ({
                             key={item.id}
                             className="absolute -translate-x-1/2 -translate-y-1/2 w-1.5 h-1.5 rounded-full bg-[#7EB8FF]/60 shadow-[0_0_4px_#7EB8FF] transition-opacity duration-300"
                             style={{ left: posX, top: posY }}
+                            aria-hidden="true"
                         />
                     );
                 }
@@ -166,6 +196,7 @@ export const SpatialLabelsLayer: React.FC<SpatialLabelsLayerProps> = ({
                     return (
                         <button
                             key={item.id}
+                            type="button"
                             onClick={() => {
                                 audioEngine.playUiClick();
                                 onSelectStar(item.star);
@@ -184,6 +215,7 @@ export const SpatialLabelsLayer: React.FC<SpatialLabelsLayerProps> = ({
                 return (
                     <button
                         key={item.id}
+                        type="button"
                         onClick={() => {
                             audioEngine.playUiClick();
                             onSelectStar(item.star);
@@ -199,7 +231,7 @@ export const SpatialLabelsLayer: React.FC<SpatialLabelsLayerProps> = ({
                         <div className="text-[#7EB8FF]/80 text-[8px] mt-0.5 flex items-center gap-1.5">
                             <span>{item.distanceFormatted}</span>
                             <span>•</span>
-                            <span>{item.star.mass.toFixed(1)} M☉</span>
+                            <span>{(item.star.currentMass ?? item.star.mass).toFixed(1)} M☉</span>
                         </div>
                     </button>
                 );

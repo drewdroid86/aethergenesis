@@ -1,10 +1,13 @@
-import { readFileSync, readdirSync, mkdtempSync, writeFileSync, rmSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { readFileSync, readdirSync, mkdirSync, mkdtempSync, writeFileSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
 import ts from 'typescript';
 
-const dir = mkdtempSync(join(tmpdir(), 'aether-shaders-'));
+const root = fileURLToPath(new URL('../', import.meta.url));
+const tmpDir = process.env.TMPDIR || join(root, 'tmp');
+mkdirSync(tmpDir, { recursive: true });
+const dir = mkdtempSync(join(tmpDir, 'aether-shaders-'));
 const noise = readFileSync('src/shaders/utils/noise.glsl', 'utf8');
 const vertexPrefix = 'precision highp float;\nattribute vec3 position;\nattribute vec3 normal;\nattribute vec2 uv;\nuniform mat4 modelMatrix;\nuniform mat4 modelViewMatrix;\nuniform mat4 projectionMatrix;\nuniform mat4 viewMatrix;\nuniform mat3 normalMatrix;\nuniform vec3 cameraPosition;\n';
 const fragmentPrefix = 'precision highp float;\nuniform mat4 viewMatrix;\nuniform vec3 cameraPosition;\n';

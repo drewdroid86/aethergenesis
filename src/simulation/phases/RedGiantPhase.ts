@@ -219,6 +219,7 @@ export class RedGiantPhase implements PhaseComponent {
         // BOLT: redGiantMesh and flareMesh use shared GEOMETRIES, do NOT dispose
         this.redGiantMat.dispose();
         this.flareMat.dispose();
+        this.flareMesh?.dispose();
         if (this._haloMat) {
             this._haloMat.dispose();
         }

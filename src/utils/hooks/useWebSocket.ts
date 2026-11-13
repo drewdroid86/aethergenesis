@@ -15,8 +15,8 @@ export function useWebSocket({ engineRef, selectedStarRef }: UseWebSocketProps) 
         const host = window.location.hostname || 'localhost';
         let port = window.location.port;
 
-        // Development override: if running on default Vite dev port 3000, connect to backend at 3001
-        if (import.meta.env.DEV && (port === '3000' || !port)) {
+        // Development override: if running on default Vite dev port 3000 or 5173, connect to backend at 3001
+        if (import.meta.env.DEV && (port === '3000' || port === '5173' || !port)) {
             port = '3001';
         }
 

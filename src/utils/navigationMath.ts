@@ -43,11 +43,11 @@ export function formatAdaptiveDistance(distanceUnits: number): FormattedDistance
     // values by ~63x past 10000 units and created a hard discontinuity at the
     // boundary (9999 -> 0.158 ly vs 10001 -> 10.001 ly).
     const ly = d / LY_TO_AU;
-    if (ly < 1000) {
+    if (ly < KPC_TO_LY) {
         return { value: ly, unit: 'ly', formatted: `${ly.toFixed(2)} ly` };
     }
 
-    const kpc = ly / 1000;
+    const kpc = ly / KPC_TO_LY;
     return { value: kpc, unit: 'kpc', formatted: `${kpc.toFixed(2)} kpc` };
 }
 
@@ -180,7 +180,8 @@ export function calculateRadarContacts(
     camera: THREE.PerspectiveCamera,
     stars: HeroStarSystem[],
     selectedStar: HeroStarSystem | null,
-    maxRadarRangeAU: number = 100
+    maxRadarRangeAU: number = 100,
+    activeStarCount?: number
 ): RadarContact[] {
     const contacts: RadarContact[] = [];
     const camPos = camera.position;
@@ -193,8 +194,12 @@ export function calculateRadarContacts(
     let nfx = 0, nfz = -1; // default heading: looking -Z
     if (hLen >= 1e-6) { nfx = fx / hLen; nfz = fz / hLen; }
 
-    for (let i = 0; i < stars.length; i++) {
+    const starLimit = activeStarCount != null ? Math.min(stars.length, activeStarCount) : stars.length;
+    for (let i = 0; i < starLimit; i++) {
         const star = stars[i];
+        // Skip inactive/culled or unborn stars (checking visible === false preserves partial test mocks)
+        if (star.visible === false || star.t < 0) continue;
+
         const dx = star.position.x - camPos.x;
         const dy = star.position.y - camPos.y;
         const dz = star.position.z - camPos.z;
