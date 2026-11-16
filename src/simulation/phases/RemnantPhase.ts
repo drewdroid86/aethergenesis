@@ -652,7 +652,6 @@ export class RemnantPhase implements PhaseComponent {
             // what holds the default camera off the disk plane.
             this.blackHoleGroup.rotation.x = BH_DISK_TILT_X;
             this.blackHoleGroup.rotation.z = 0;
-            this.applyShadowAuthority();
             if (this.bhDiskMesh) {
                 this._camLocal.copy(cameraPos);
                 this.bhDiskMesh.worldToLocal(this._camLocal);
@@ -666,14 +665,6 @@ export class RemnantPhase implements PhaseComponent {
             if (this.bhJetMaterial) {
                 this.bhJetMaterial.uniforms.uTime.value = appTime;
                 this.bhJetMaterial.uniforms.uOpacity.value = globalFade;
-            }
-
-            // Local rim stays muted whenever the cinematic lens can run.
-            if (this._lensMesh) this._lensMesh.visible = false;
-            if (this._lensMat) {
-                this._lensMat.uniforms.uTime.value = appTime;
-                this._lensMat.uniforms.uStrength.value = 0;
-                this._lensMat.uniforms.uOpacity.value = 0;
             }
         } else if (this.mass > STELLAR_CONSTANTS.PHYSICS.MASS_THRESHOLD_SUPERNOVA) {
             // Neutron Star branch (> 8 Msun): scale 1.0, blue-white color, active beams & magnetic lines

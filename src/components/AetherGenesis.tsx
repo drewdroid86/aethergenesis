@@ -173,9 +173,11 @@ export function AetherGenesis() {
         visible={showNavDeck}
         camera={engineRef.current?.camera ?? null}
         stars={engineRef.current?.heroStars ?? []}
+        activeStarCount={engineRef.current?.activeHeroStarCount}
         selectedStar={selectedStar}
         onSelectStar={(star) => setSelectedStar(star)}
         onAlignCamera={centerOnStar}
+        onResetCamera={resetCamera}
         coordUiRefs={{ badge: badgeCoordRefs, attitude: attitudeCoordRefs }}
         renderTop={(topBar) => (
           // Phone (<=480px): the floating top cluster (header HUD + deck

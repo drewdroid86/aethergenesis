@@ -115,26 +115,40 @@ export class Engine {
         }
     }
 
+    private _cachedStellarState: StellarState | null = null;
+    private _cachedStarId: string = '';
+    private _cachedStarMass: number = -1;
+    private _cachedStarAgeYr: number = -1;
+    private _cachedStarPhase: number = -1;
+
     getStellarState(): StellarState {
         const star = this.selectedStar || this.heroStars[0];
         if (star) {
+            const ageYr = star.currentRealAge * 1e6;
+            if (
+                this._cachedStellarState &&
+                this._cachedStarId === star.physicsId &&
+                this._cachedStarMass === star.mass &&
+                this._cachedStarAgeYr === ageYr &&
+                this._cachedStarPhase === star.phase
+            ) {
+                return this._cachedStellarState;
+            }
             const state = createStellarState(
                 star.physicsId,
                 star.mass,
                 0.02,
-                star.currentRealAge * 1e6
+                ageYr
             );
-            const phaseStrMap: Record<number, StellarPhase> = {
-                0: 'nebula',
-                1: 'protostar',
-                2: 'main_sequence',
-                3: 'red_giant',
-                4: 'supernova',
-                5: 'remnant'
-            };
-            if (phaseStrMap[star.phase]) {
-                state.phase = phaseStrMap[star.phase];
+            const mappedPhase = PHASE_NUM_TO_NAME[star.phase];
+            if (mappedPhase) {
+                state.phase = mappedPhase;
             }
+            this._cachedStellarState = state;
+            this._cachedStarId = star.physicsId;
+            this._cachedStarMass = star.mass;
+            this._cachedStarAgeYr = ageYr;
+            this._cachedStarPhase = star.phase;
             return state;
         }
         return createStellarState('hero_star', 1.0, 0.02, 0);
@@ -308,6 +322,9 @@ export class Engine {
                     triggered_at_yr: star.currentRealAge * 1e6,
                     trigger_condition: 'hero_star_update',
                 });
+                if (this.phaseTransitionLog.length > 2000) {
+                    this.phaseTransitionLog.splice(0, this.phaseTransitionLog.length - 2000);
+                }
                 actionLog.logEvent('PHASE_TRANSITION', {
                     actorId: star.physicsId,
                     cosmicAge: this.cosmicAge,
@@ -496,7 +513,7 @@ export class Engine {
             // Intentional: comet/belt/dyson systems are singletons showcasing the focus star's system.
             const targetStar = this.selectedStar || this.heroStars[0];
             const targetStarPos = targetStar?.position;
-            const targetStarMass = targetStar?.mass || 1.0;
+            const targetStarMass = targetStar?.currentMass ?? targetStar?.mass ?? 1.0;
             // Comet phase visibility updates continuously during scrubber drags into non-MS phases
             this.cometSystem.update(this.getStellarState(), this.appTime, targetStarPos);
             this.dysonSwarmSystem.update(this.highestKardashevTier, this.appTime, targetStarPos, this.isPaused || isScrubbing ? 0 : delta);
@@ -550,6 +567,7 @@ export class Engine {
                 star.setLightCulled(true);
             }
         }
+        candidates.length = count;
 
         if (count <= MAX_ACTIVE_POINT_LIGHTS) {
             // All candidates fit — enable all, no sorting needed
@@ -569,18 +587,16 @@ export class Engine {
                 (s as any).__lightDistSq = dx * dx + dy * dy + dz * dz;
             }
 
-            // Partial sort: we only need the top-N, so use selection-style partitioning
-            // For simplicity and correctness, full sort by distSq ascending, lum descending as tiebreaker
-            const slice = candidates.slice(0, count);
-            slice.sort((a, b) => {
+            // Full sort in-place on scratch buffer by distSq ascending, lum descending as tiebreaker
+            candidates.sort((a, b) => {
                 const da = (a as any).__lightDistSq;
                 const db = (b as any).__lightDistSq;
                 if (da !== db) return da - db;
                 return b.currentLum - a.currentLum; // higher lum wins
             });
 
-            for (let i = 0; i < slice.length; i++) {
-                slice[i].setLightCulled(i >= MAX_ACTIVE_POINT_LIGHTS);
+            for (let i = 0; i < count; i++) {
+                candidates[i].setLightCulled(i >= MAX_ACTIVE_POINT_LIGHTS);
             }
         }
 
@@ -604,7 +620,6 @@ export class Engine {
         if (this.container.contains(this.renderer.domElement)) {
             this.container.removeChild(this.renderer.domElement);
         }
-        this.renderer.dispose();
 
         for (let i = 0; i < this.heroStars.length; i++) {
             this.heroStars[i].dispose(this.renderer);
@@ -618,5 +633,6 @@ export class Engine {
         this.heroStars = [];
 
         this.scene.clear();
+        this.renderer.dispose();
     }
 }

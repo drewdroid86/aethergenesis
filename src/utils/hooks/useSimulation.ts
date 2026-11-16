@@ -276,13 +276,13 @@ export function useSimulation(containerRef: React.RefObject<HTMLDivElement | nul
 
         const selected = selectedStarRef.current ?? engineRef.current?.heroStars[0];
         const centralMass = selected?.currentMass ?? selected?.mass ?? 1.0;
-        const eccentricity = Math.max(0, elements.eccentricity || 0);
+        const eccentricity = Math.max(0, elements.eccentricity ?? 0);
         const safeEcc = Math.min(0.9999, eccentricity);
-        const semiMajorAxis_au = elements.semi_major_axis_au || (elements.perihelion_au ? (elements.perihelion_au / (1 - safeEcc)) : 1.0);
-        const inclination_deg = elements.inclination_deg || 0;
-        const longitudeOfAscendingNode_deg = elements.longitude_ascending_node_deg || elements.longitudeOfAscendingNode_deg || 0;
-        const argumentOfPeriapsis_deg = elements.argument_perihelion_deg || elements.argumentOfPeriapsis_deg || 0;
-        const meanAnomaly_deg = elements.mean_anomaly_deg || elements.meanAnomaly_deg || 0;
+        const semiMajorAxis_au = elements.semi_major_axis_au ?? (elements.perihelion_au != null ? (elements.perihelion_au / (1 - safeEcc)) : 1.0);
+        const inclination_deg = elements.inclination_deg ?? 0;
+        const longitudeOfAscendingNode_deg = elements.longitude_ascending_node_deg ?? elements.longitudeOfAscendingNode_deg ?? 0;
+        const argumentOfPeriapsis_deg = elements.argument_perihelion_deg ?? elements.argumentOfPeriapsis_deg ?? 0;
+        const meanAnomaly_deg = elements.mean_anomaly_deg ?? elements.meanAnomaly_deg ?? 0;
 
         if (![centralMass, eccentricity, semiMajorAxis_au, inclination_deg, longitudeOfAscendingNode_deg, argumentOfPeriapsis_deg, meanAnomaly_deg].every(Number.isFinite)
             || centralMass <= 0 || semiMajorAxis_au <= 0 || eccentricity >= 1) return;
@@ -296,14 +296,17 @@ export function useSimulation(containerRef: React.RefObject<HTMLDivElement | nul
             meanAnomaly_deg
         }, centralMass);
 
-        const bodyType: 'comet' | 'asteroid' | 'planet' = elements.type === 'asteroid' ? 'asteroid' : (elements.type === 'comet' ? 'comet' : (eccentricity > 0.8 ? 'comet' : 'planet'));
+        const bodyType: 'comet' | 'asteroid' | 'planet' =
+            elements.type === 'asteroid' || elements.type === 'comet' || elements.type === 'planet'
+                ? elements.type
+                : (eccentricity > 0.8 ? 'comet' : 'planet');
 
         const newBody: OrbitalBody = {
             id: nextCatalogId(),
             catalogId: String(elements.naif_id ?? elements.name ?? ''),
             type: bodyType,
-            mass_solar: elements.mass_solar || (bodyType === 'comet' ? 1e-12 : (bodyType === 'asteroid' ? 1e-10 : 0.000003)),
-            radius_km: elements.radius_km || (bodyType === 'comet' ? 5.0 : 10.0),
+            mass_solar: elements.mass_solar ?? (bodyType === 'comet' ? 1e-12 : (bodyType === 'asteroid' ? 1e-10 : 0.000003)),
+            radius_km: elements.radius_km ?? (bodyType === 'comet' ? 5.0 : 10.0),
             color: bodyType === 'comet' ? '#aaddff' : '#aaaaaa',
             position_au: cartesian.position,
             velocity_au_yr: cartesian.velocity
@@ -589,7 +592,7 @@ export function useSimulation(containerRef: React.RefObject<HTMLDivElement | nul
                         bodies: [],
                         generation: workerGeneration,
                         centralMass_solar: centralMass,
-                        dt_yr: 0.05,
+                        dt_yr: timeScaleRef.current === 'cosmic' ? 0.3 : 0.05,
                         isRunning: !isPausedRef.current
                     }
                 });
@@ -733,6 +736,16 @@ export function useSimulation(containerRef: React.RefObject<HTMLDivElement | nul
                 setAstrobiologyData(data);
             };
 
+            const coordRefSets: HudCoordRefs[] = [hudRefs, badgeCoordRefs, attitudeCoordRefs];
+            const phaseStrMap: Record<number, string> = {
+                0: 'nebula',
+                1: 'protostar',
+                2: 'main_sequence',
+                3: 'red_giant',
+                4: 'supernova',
+                5: 'remnant'
+            };
+
             coordinator.onTick = (cosmicAgeVal, delta) => {
                 try {
                     registerFrameDeltaRef.current(delta, performance.now());
@@ -784,7 +797,6 @@ export function useSimulation(containerRef: React.RefObject<HTMLDivElement | nul
                     // Sharing one ref object across conditionally-mounted
                     // elements lets React null it on unmount, permanently
                     // freezing these readouts for still-mounted consumers.
-                    const coordRefSets: HudCoordRefs[] = [hudRefs, badgeCoordRefs, attitudeCoordRefs];
                     for (const coordRefs of coordRefSets) {
                         if (coordRefs.hudX.current) coordRefs.hudX.current.innerText = engine.camera.position.x.toFixed(4);
                         if (coordRefs.hudY.current) coordRefs.hudY.current.innerText = engine.camera.position.y.toFixed(4);
@@ -794,19 +806,11 @@ export function useSimulation(containerRef: React.RefObject<HTMLDivElement | nul
 
                     if (selectedStarRef.current) {
                         const s = selectedStarRef.current;
-                        const phaseStrMap: Record<number, string> = {
-                            0: 'nebula',
-                            1: 'protostar',
-                            2: 'main_sequence',
-                            3: 'red_giant',
-                            4: 'supernova',
-                            5: 'remnant'
-                        };
                         const sPhase = phaseStrMap[s.phase] || 'main_sequence';
                         
                         if (uiRefs.phase.current) uiRefs.phase.current.innerText = sPhase.replace('_', ' ').toUpperCase();
                         if (uiRefs.temp.current) uiRefs.temp.current.innerText = Math.round(s.currentTemp).toLocaleString();
-                        if (uiRefs.mass.current) uiRefs.mass.current.innerText = s.mass.toFixed(2);
+                        if (uiRefs.mass.current) uiRefs.mass.current.innerText = (s.currentMass ?? s.mass).toFixed(2);
                         if (uiRefs.age.current) uiRefs.age.current.innerText = s.currentRealAge.toFixed(1);
                         if (uiRefs.lum.current) uiRefs.lum.current.innerText = s.currentLum.toFixed(3);
                         
@@ -998,6 +1002,7 @@ export function useSimulation(containerRef: React.RefObject<HTMLDivElement | nul
                 const maxT = STELLAR_CONSTANTS.PHASE_BOUNDARIES.LIFECYCLE_MAX;
                 const t = k==='Home'?0 : k==='End'?maxT : selectedStarRef.current.t+(k==='ArrowLeft'?-0.015:0.015);
                 selectedStarRef.current.t = Math.max(0, Math.min(maxT, t));
+                selectedStarRef.current.syncBirthAge(engineRef.current?.cosmicAge ?? cosmicAgeRef.current, Math.max(0.01, physicsRef.current.G));
                 const perc = Math.min(100, Math.max(0, Math.round((selectedStarRef.current.t / maxT) * 100)));
                 e.currentTarget.setAttribute('aria-valuenow', perc.toString());
                 e.currentTarget.setAttribute('aria-valuetext', `${perc}% of Stellar Lifecycle (${PHASE_NAMES[selectedStarRef.current.phase]})`);

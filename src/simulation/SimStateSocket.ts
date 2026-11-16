@@ -12,14 +12,15 @@ export interface StellarState extends Omit<CoreStellarState, 'phase' | 'spectral
 
 export interface OrbitalState {
     body_id: string;
+    catalog_id?: string;
     body_type: string;
     position_au: { x: number; y: number; z: number };
-    velocity_au_yr: { vx: number; vy: number; vz: number };
+    velocity_au_yr: { x: number; y: number; z: number };
     semi_major_axis_au: number;
-    hz_status: 'inside' | 'outside' | 'in_zone';
+    hz_status?: 'inside' | 'outside' | 'in_zone';
     coma_active: boolean;
     tail_vector: { x: number; y: number; z: number } | null;
-    sim_time_yr: number;
+    sim_time_yr?: number;
 }
 
 export interface AstrobiologyState {
@@ -264,11 +265,23 @@ export function initWebSocketServer(server: http.Server, allowedOrigins: string[
                 if (data.type === 'state') {
                     // Security: Validate state structure and limits before broadcasting to prevent DoS via massive payloads
                     if (data.data && typeof data.data === 'object') {
+                        const stellar = data.data.stellar;
+                        const VALID_PHASES = ['nebula', 'protostar', 'main_sequence', 'red_giant', 'supernova', 'remnant'];
+                        const isValidStellar =
+                            stellar &&
+                            typeof stellar === 'object' &&
+                            typeof stellar.phase === 'string' &&
+                            VALID_PHASES.includes(stellar.phase) &&
+                            (stellar.mass_solar === undefined || Number.isFinite(stellar.mass_solar)) &&
+                            (stellar.luminosity_solar === undefined || Number.isFinite(stellar.luminosity_solar)) &&
+                            (stellar.radius_solar === undefined || Number.isFinite(stellar.radius_solar)) &&
+                            (stellar.temperature_K === undefined || Number.isFinite(stellar.temperature_K)) &&
+                            (stellar.age_yr === undefined || Number.isFinite(stellar.age_yr));
                         const orbitalCount = Array.isArray(data.data.orbital) ? data.data.orbital.length : 0;
                         const astrobiologyCount = Array.isArray(data.data.astrobiology) ? data.data.astrobiology.length : 0;
 
                         // Security: Limit number of entities to prevent DoS via broadcast amplification
-                        if (orbitalCount <= 500 && astrobiologyCount <= 500) {
+                        if (isValidStellar && orbitalCount <= 500 && astrobiologyCount <= 500) {
                             // Forward simulation state to all other clients (specifically MCP servers)
                             broadcastSimState(data.data, ws);
                         }

@@ -24,6 +24,7 @@ export const SpatialBreadcrumbs: React.FC<SpatialBreadcrumbsProps> = ({
         >
             {/* Level 1: Universe */}
             <button
+                type="button"
                 onClick={() => {
                     audioEngine.playUiClick();
                     onResetUniverse();
@@ -47,6 +48,7 @@ export const SpatialBreadcrumbs: React.FC<SpatialBreadcrumbsProps> = ({
                 <>
                     <ChevronRight size={10} className="text-[#7EB8FF]/40" />
                     <button
+                        type="button"
                         onClick={() => {
                             audioEngine.playUiClick();
                             onFocusStar?.();
@@ -65,6 +67,7 @@ export const SpatialBreadcrumbs: React.FC<SpatialBreadcrumbsProps> = ({
                 <>
                     <ChevronRight size={10} className="text-[#7EB8FF]/40" />
                     <button
+                        type="button"
                         onClick={() => {
                             audioEngine.playUiClick();
                             onFocusPlanet?.();
