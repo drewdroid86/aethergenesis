@@ -10,6 +10,32 @@ let dt_yr = 1.0 / 365.25; // default 1 day step
 let tickTimeout: any = null;
 let dtAccumulator = 0;
 let generation = 0;
+// AESTHETIC: scene-scale interaction boundaries supplied by the stellar renderer.
+// Capture is deliberately enlarged to the visible shadow; this is not a GR solver.
+let blastRadius_au = 0;
+let captureRadius_au = 0;
+
+function retireDestroyedBodies(): void {
+    if (blastRadius_au <= 0 && captureRadius_au <= 0) return;
+    const survivors: OrbitalBody[] = [];
+    for (const body of bodies) {
+        const r = Math.hypot(body.position_au.x, body.position_au.y, body.position_au.z);
+        const captured = captureRadius_au > 0 && r <= captureRadius_au;
+        if (captured || (blastRadius_au > 0 && r <= blastRadius_au)) {
+            emitSimEvent(captured ? 'ACCRETION' : 'DESTRUCTION', {
+                actorId: body.id, targetIds: [body.id], masses: [body.mass_solar],
+                positions: [{ ...body.position_au }],
+                note: captured ? 'Captured at the visible black-hole boundary' : 'Struck by the supernova shock front',
+            });
+        } else survivors.push(body);
+    }
+    if (survivors.length !== bodies.length) {
+        bodies = survivors;
+        accelsValid = false;
+        recomputeTMin();
+        emitRoster();
+    }
+}
 
 // ─── Stable-id roster (Phase B) ─────────────────────────────────────────────
 // Every body carries a stable string id from creation. Bodies that arrive
@@ -93,7 +119,7 @@ function emitSimEvent(
     }
 ): void {
     (self as any).postMessage({
-        type: 'SIM_EVENT',
+        type: 'SIM_EVENT', generation,
         event: { type, seq: workerEventSeq++, wallTimestamp: Date.now(), cosmicAge: 0, ...fields },
     });
 }
@@ -189,6 +215,7 @@ self.onmessage = (e) => {
     const { type, payload } = e.data;
     if (type === 'INIT') {
         generation = payload.generation ?? 0;
+        blastRadius_au = captureRadius_au = 0;
         // Validate inbound bodies — same poison guard as ADD_BODY (a single
         // NaN field used to freeze the integration loop forever).
         const inbound = Array.isArray(payload.bodies) ? payload.bodies : [];
@@ -222,6 +249,15 @@ self.onmessage = (e) => {
             clearTimeout(tickTimeout);
             tickTimeout = null;
         }
+    } else if (type === 'UPDATE_DESTRUCTION') {
+        if (payload.generation !== generation) return;
+        const blast = payload.blastRadius_au;
+        const capture = payload.captureRadius_au;
+        if (!Number.isFinite(blast) || blast < 0 || !Number.isFinite(capture) || capture < 0) return;
+        blastRadius_au = blast;
+        captureRadius_au = capture;
+        retireDestroyedBodies();
+        emitBuffer();
     } else if (type === 'ADD_BODY') {
         // PH2 fix: reject malformed bodies instead of letting them poison the
         // integration (a single NaN field used to freeze the loop forever).
@@ -272,6 +308,7 @@ self.onmessage = (e) => {
         }
     } else if (type === 'RESET_BODIES') {
         generation = payload.generation ?? generation;
+        blastRadius_au = captureRadius_au = 0;
         const inboundReset = Array.isArray(payload.bodies) ? payload.bodies : [];
         const rejectedReset = inboundReset.filter((b: any) => !isValidBody(b)).length;
         if (rejectedReset > 0) {
@@ -451,9 +488,20 @@ function integrate(subDt: number): void {
         b.velocity_au_yr.y += ay * dt_half;
         b.velocity_au_yr.z += az * dt_half;
 
-        b.position_au.x += b.velocity_au_yr.x * subDt;
-        b.position_au.y += b.velocity_au_yr.y * subDt;
-        b.position_au.z += b.velocity_au_yr.z * subDt;
+        const oldX = b.position_au.x, oldY = b.position_au.y, oldZ = b.position_au.z;
+        const dx = b.velocity_au_yr.x * subDt, dy = b.velocity_au_yr.y * subDt, dz = b.velocity_au_yr.z * subDt;
+        b.position_au.x += dx;
+        b.position_au.y += dy;
+        b.position_au.z += dz;
+        if (captureRadius_au > 0) {
+            // Swept segment check prevents fast plunges tunnelling through the shadow.
+            const lengthSq = dx * dx + dy * dy + dz * dz;
+            const u = lengthSq > 0 ? Math.max(0, Math.min(1, -(oldX * dx + oldY * dy + oldZ * dz) / lengthSq)) : 0;
+            const nearX = oldX + dx * u, nearY = oldY + dy * u, nearZ = oldZ + dz * u;
+            if (nearX * nearX + nearY * nearY + nearZ * nearZ <= captureRadius_au * captureRadius_au) {
+                b.position_au.x = nearX; b.position_au.y = nearY; b.position_au.z = nearZ;
+            }
+        }
 
         // Clamp maximum distance to 1000 AU to prevent infinity propagation
         const distSq = b.position_au.x * b.position_au.x + b.position_au.y * b.position_au.y + b.position_au.z * b.position_au.z;
@@ -543,6 +591,7 @@ export function physicsTickInner() {
     let steps = 0;
     while (dtAccumulator >= subDt && steps < MAX_SUBSTEPS) {
         integrate(subDt);
+        if (captureRadius_au > 0) retireDestroyedBodies();
         dtAccumulator -= subDt;
         steps++;
     }
@@ -551,6 +600,7 @@ export function physicsTickInner() {
     // execute a single micro-step for low-framerate responsiveness when dt_yr < subDt
     if (steps === 0 && dtAccumulator > 0) {
         integrate(dtAccumulator);
+        if (captureRadius_au > 0) retireDestroyedBodies();
         dtAccumulator = 0;
     }
 

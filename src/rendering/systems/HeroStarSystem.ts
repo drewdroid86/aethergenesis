@@ -307,50 +307,23 @@ export class HeroStarSystem extends THREE.Group {
         }
     }
 
-    /**
-     * Hides the visuals for a departing phase and optionally keeps the PlanetarySystem
-     * alive when transitioning MAIN_SEQUENCE → RED_GIANT so scorch can render.
-     * @param exitingPhase   The phase being left.
-     * @param keepPlanetsForRedGiant  When true and exitingPhase is MAIN_SEQUENCE,
-     *                                the PlanetarySystem is NOT disposed — it carries
-     *                                forward into the Red Giant phase for scorch rendering.
-     *                                Always pass false for full-reset code paths (respawn,
-     *                                applyPreset, transitionToPhase called externally).
-     */
-    private _exitPhase(exitingPhase: number, keepPlanetsForRedGiant: boolean): void {
-        if (exitingPhase === PHASES.NEBULA) {
-            this._nebulaPhase?.hide();
-        } else if (exitingPhase === PHASES.PROTOSTAR) {
-            this._protostarPhase?.hide();
-            // M1: the nebula lingers as a secondary visual through the first
-            // 80% of PROTOSTAR (updateAsSecondary sets both meshes visible
-            // every frame) and neither update path runs again after the exit,
-            // so hide it here or the sphere + dust cloud stay rendered,
-            // visibly static, for the rest of the lifecycle.
-            this._nebulaPhase?.hide();
-        } else if (exitingPhase === PHASES.MAIN_SEQUENCE) {
-            this._mainSequencePhase?.hide();
-            if (!keepPlanetsForRedGiant) {
-                PlanetarySystemQueue.cancelCreation(this);
-                if (this.planetarySystem) {
-                    PlanetarySystemQueue.enqueueDisposal(this.planetarySystem);
-                    this.planetarySystem = undefined;
-                }
-            }
-            // If keepPlanetsForRedGiant is true, planetarySystem stays alive intentionally.
-        } else if (exitingPhase === PHASES.RED_GIANT) {
-            this._redGiantPhase?.hide();
-            // Planets are vaporised when Red Giant ends — dispose regardless.
+    /** Preserve bodies across forward evolution; dispose them on resets/rewinds. */
+    private _exitPhase(exitingPhase: number, keepPlanets: boolean): void {
+        if (!keepPlanets) {
             PlanetarySystemQueue.cancelCreation(this);
             if (this.planetarySystem) {
                 PlanetarySystemQueue.enqueueDisposal(this.planetarySystem);
                 this.planetarySystem = undefined;
             }
-        } else if (exitingPhase === PHASES.SUPERNOVA) {
-            this._supernovaPhase?.hide();
-        } else if (exitingPhase === PHASES.REMNANT) {
-            this._remnantPhase?.hide();
         }
+        if (exitingPhase === PHASES.NEBULA) this._nebulaPhase?.hide();
+        else if (exitingPhase === PHASES.PROTOSTAR) {
+            this._protostarPhase?.hide();
+            this._nebulaPhase?.hide();
+        } else if (exitingPhase === PHASES.MAIN_SEQUENCE) this._mainSequencePhase?.hide();
+        else if (exitingPhase === PHASES.RED_GIANT) this._redGiantPhase?.hide();
+        else if (exitingPhase === PHASES.SUPERNOVA) this._supernovaPhase?.hide();
+        else if (exitingPhase === PHASES.REMNANT) this._remnantPhase?.hide();
     }
 
     public syncBirthAge(cosmicAge: number, effG: number = 1.0): void {
@@ -724,11 +697,10 @@ export class HeroStarSystem extends THREE.Group {
 
         // BOLT: Determine current phase and handle transitions
         if (this._activePhase !== newPhase) {
-            // Keep planets alive specifically for MAIN_SEQUENCE → RED_GIANT so scorch can render.
-            // All other exits dispose planets unconditionally.
+            // Preserve the same bodies through forward evolution and its aftermath.
             const exitingPhase = this._activePhase;
-            const keepPlanets = exitingPhase === PHASES.MAIN_SEQUENCE && newPhase === PHASES.RED_GIANT;
-            this._exitPhase(exitingPhase, /* keepPlanetsForRedGiant */ keepPlanets);
+            const keepPlanets = newPhase > exitingPhase && exitingPhase >= PHASES.MAIN_SEQUENCE;
+            this._exitPhase(exitingPhase, keepPlanets);
 
             if (newPhase === PHASES.NEBULA) this.nebulaPhase.show();
             else if (newPhase === PHASES.PROTOSTAR) this.protostarPhase.show();
@@ -798,12 +770,14 @@ export class HeroStarSystem extends THREE.Group {
         } else if (this.phase === PHASES.SUPERNOVA) {
             targetSuper = 1;
             this.supernovaPhase.update(delta, appTime, cameraPos, physics, this.t, lowDetail, globalFade);
+            this.planetarySystem?.update(delta, appTime, nbodyBuffer, lowDetail, globalFade, undefined, physics.strongForce || 1);
             isFlashingNow = this.supernovaPhase?.isFlashing ?? false;
             if (isFlashingNow && !this._wasSupernovaFlashing) {
                 audioEngine.playSupernovaSound();
             }
         } else {
             this.remnantPhase.update(delta, appTime, cameraPos, physics, this.t, lowDetail, globalFade);
+            this.planetarySystem?.update(delta, appTime, nbodyBuffer, lowDetail, globalFade);
             // Sub-BH remnants (< 15 Msun): targetNs drives remnant sphere opacity (reused for both WD <= 8 and NS > 8)
             if (this.mass < STELLAR_CONSTANTS.PHYSICS.MASS_THRESHOLD_BLACK_HOLE) {
                 targetNs = 1;

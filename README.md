@@ -23,7 +23,7 @@
 
 ## ✨ What is ÆTHERGENESIS?
 
-ÆTHERGENESIS is a **physically accurate, real-time universe simulation** running entirely in your browser. Watch ~5,000 decorative background points and up to 600 simulated hero stars ignite at 'ultra' tier, galaxies spiral into being, comets trace Keplerian orbits, and civilizations rise and fall — all driven by real astrophysics and the fundamental constants *you* control.
+ÆTHERGENESIS is a **real-time universe simulation** with physics running in your browser and a backend for catalogs, AI analysis, and live state access. Its visuals combine astrophysical models with artistic approximations; it is not a research-grade cosmology or relativistic ray-tracing solver. Watch ~5,000 decorative background points and up to 600 simulated hero stars ignite at 'ultra' tier, galaxies spiral into being, comets trace Keplerian orbits, and civilizations rise and fall — all driven by real astrophysics and the fundamental constants *you* control.
 
 Powered by **Three.js**, **WebGL/GLSL shaders**, **WebAudio synthesis**, and the **Google Gemini AI API**, it is equal parts simulation engine and interactive art installation.
 
@@ -35,10 +35,10 @@ Powered by **Three.js**, **WebGL/GLSL shaders**, **WebAudio synthesis**, and the
 graph TD
     User["👤 Browser Client"] --> UI["⚛️ React 19 UI Layer (Hud, InspectPanel, CatalogPanel)"]
     UI --> Engine["🌌 Engine Core (src/core/engine.ts)"]
-    Engine --> Worker["⚡ N-Body WebWorker (Velocity-Verlet Integrator)"]
+    UI --> Worker["⚡ N-Body WebWorker (Velocity-Verlet Integrator)"]
     Engine --> Render["🎨 Rendering Pipeline (EffectComposer + OutputPass ACES ToneMapping)"]
     Render --> Shaders["🔥 Custom GLSL Shaders (Star Surface, Nebula Raymarcher, Doppler Disk, Pulsar Jets)"]
-    UI --> Audio["🎵 WebAudio Cosmic Synth Engine (CosmicAudioEngine.ts)"]
+    UI --> Audio["🎵 WebAudio Cosmic Synth Engine (AudioEngine.ts)"]
     Engine --> Server["🔌 Express 5 Backend & WebSocket Server (server.ts)"]
     Server --> Gemini["🤖 Google Gemini AI API (Stellar Telemetry & Analysis)"]
     Server --> SIMBAD["🔭 SIMBAD Astronomical Database API"]
@@ -58,6 +58,12 @@ graph TD
 - 💫 **Dynamic Planet Orbit Lines** — Concentric glowing cyan trajectory line loops (`LineLoop`) rendering Keplerian planetary orbits in real time.
 - 💥 **Supernova Shockwaves** — Dynamic radial UV wave displacement propagation during stellar supernova explosions.
 - ✨ **Twinkling Background Stars** — Custom point shader with Gaussian radial falloff (`exp(-distSq * 14.0)`) and sinusoidal twinkling.
+
+### 💥 Destruction encounters
+- **Supernova:** use the HUD button to stage a massive star with four nearby worlds. Its expanding shell destroys reached bodies and leaves cooling debris instead of instantly hiding the planetary system.
+- **Feed black hole:** stage four planets on plunging orbits. Watch them heat, stretch, shed glowing trails, and disappear at the visible shadow boundary. Outer stable orbits are not automatically consumed.
+- Both buttons replace the selected star (or the first star if none is selected), frame the encounter, and resume playback. Encounter orbital time is slowed for visibility; selecting another star or changing time mode restores normal pacing.
+- Destruction and capture remove bodies from the worker roster and enter the action log. Debris, tidal elongation, and the enlarged scene-scale destruction boundaries are cinematic approximations, not hydrodynamics or a relativistic tidal-disruption solver.
 
 ### 🎵 Immersive WebAudio Soundscapes
 - 🛸 **Native WebAudio Ambient Synthesizer** — Zero-dependency procedural spatial soundscapes featuring multi-oscillator cosmic drones with LFO low-pass filter breathing.
@@ -81,8 +87,8 @@ graph TD
 | **Physics** | Custom Velocity Verlet N-Body Sub-Stepped Integrator (Web Worker) |
 | **AI Integration** | Google Gemini API (`@google/genai`) |
 | **Backend & MCP** | Express 5, WebSocket (`ws`), MCP Servers (`nasa-horizons`, `sim-state`, `stellar-catalog`) |
-| **Testing** | 45-Scenario Automated E2E Test Suite |
-| **Deployment** | GitHub Pages (frontend) + Render (backend) |
+| **Testing** | Regression suites, WebSocket/MCP checks, and standalone rendered smoke tests |
+| **Deployment** | Render full application; GitHub Pages static frontend (see deployment limitations) |
 
 ---
 
@@ -90,8 +96,8 @@ graph TD
 
 ### Prerequisites
 
-- **Node.js** v20+
-- A **Gemini API key** — get one free at [aistudio.google.com](https://aistudio.google.com/apikey)
+- **Node.js** 22.13+ on the 22.x line (see [dependency requirements](docs/DEVELOPMENT.md)).
+- A **Gemini API key** for optional AI analysis — obtain one at [aistudio.google.com](https://aistudio.google.com/apikey). The simulation does not require it.
 
 ### Local Development
 
@@ -99,14 +105,14 @@ graph TD
    ```bash
    git clone https://github.com/drewdroid86/aethergenesis.git
    cd aethergenesis
-   npm install
+   npm ci
    ```
 
 2. **Configure environment:**
    ```bash
    cp .env.example .env
    ```
-   Edit `.env` and set at minimum:
+   Edit `.env` and configure the publisher tokens. Add the Gemini key for AI analysis and the separate control token for simulation MCP:
    ```env
    GEMINI_API_KEY="your-key-here"
    WS_TOKEN="a-strong-random-secret"
@@ -136,18 +142,28 @@ graph TD
 
 ## 🧪 Testing & Quality Verification
 
-Run the complete suite of verification commands:
-
 ```bash
-# TypeScript Typecheck
-npm run typecheck
-
-# Production Bundle Build
-npm run build
-
-# Run 45-Scenario E2E Automated Integration Suite
-node node_modules/tsx/dist/cli.mjs scripts/run-e2e-tests.ts
+npm run lint       # ESLint and TypeScript
+npm run build      # Production client bundle
+npm test           # Registered suites, WebSocket auth, orbit rendering
+npm run test:mcp   # Additional checks for MCP changes
 ```
+
+Stop the development backend before `npm test`; the test runner starts its own
+server on port 3001. Some catalog checks use external services. Browser appearance
+and mobile layout checks run separately; see [development and testing](docs/DEVELOPMENT.md).
+
+## 📚 Repository documentation
+
+- [Repository map and architecture](docs/ARCHITECTURE.md): entry points, runtime flow, directory responsibilities, and API surface.
+- [Development and operations](docs/DEVELOPMENT.md): environment variables, commands, tests, MCP setup, deployment, and troubleshooting.
+- [Project rules](AGENTS.md): coding conventions and required checks.
+- [Changelog](CHANGELOG.md) and [project log](PROJECT-LOG.md): release and session history.
+- [Historical audits](docs/audits/) and [rendering exploration](docs/plans/RENDERING-MODEL-EXPLORATION.md): dated findings and proposals, not current setup instructions.
+
+The full application expects its frontend, API, and WebSockets on the same
+production origin. The GitHub Pages workflow publishes only static assets;
+it does not connect them to Render automatically. See [deployment details](docs/DEVELOPMENT.md#deployment).
 
 ---
 
@@ -181,7 +197,7 @@ node node_modules/tsx/dist/cli.mjs scripts/run-e2e-tests.ts
   - `astrobiology` — Habitability scoring, HZ migration, atmosphere retention
   - `shader-optimization` — WebGL/GLSL cross-platform compliance, raymarching, tone mapping
 
-AI coding assistants can invoke these skills directly during pair programming on cosmic physics or GLSL shader development.
+The checked-in bundle contains the manifest, skills, and rules. MCP servers live in `server/mcp/` and require host configuration; see [MCP setup](docs/DEVELOPMENT.md#mcp-setup). The older [plugin implementation plan](AETHERGENESIS_AGY_PLUGIN.md) includes proposed files that are not currently shipped.
 
 ---
 

@@ -23,6 +23,13 @@ This log is updated after every AI session. Each AI signs off with their entry. 
 
 ## RECENT LOGS
 
+### 2026-11-05 — Documentation refresh and local development setup (Codex)
+- Added architecture and development guides covering runtime boundaries, repository layout, API routes, environment variables, test scope, MCP setup, deployment, and troubleshooting.
+- Corrected README setup requirements, the audio filename, stale test-count claims, and the distinction between static Pages hosting and the full application. Marked the old plugin plan as historical and scoped Termux-specific guidance.
+- Corrected `.env.example`: `PORT` controls the HTTP/WebSocket listener; `SIM_PORT` is an MCP destination/CSP hint. Clarified public publisher credentials versus private control credentials.
+- Started `npm run dev:full` using an ignored local `.env` with generated development tokens and local browser origins. No application code changed.
+- Verification: checked 50 local documentation links, documented npm script names, and `git diff --check`. Both development HTTP endpoints returned 200 and a WebSocket handshake authenticated successfully. Runtime regression suites were not run for these documentation changes. Existing user changes in `AGENTS.md`, `package-lock.json`, and untracked `nvm-install.sh` were preserved.
+
 ### 2026-11-03 — Prepare graphical upgrades for main (GPT-6)
 - Fetched `origin/main` at `3d0a1f2`; the feature branch starts at that exact commit, with no upstream conflicts.
 - Rechecked lint/typecheck, production build, and the repository's `glslangValidator` shader validation. Preparing a pull request targeting `main` for the complete stellar/black-hole appearance change, including its regression tests and rendered smoke-test command.

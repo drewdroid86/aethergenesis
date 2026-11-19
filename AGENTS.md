@@ -27,3 +27,8 @@ Muse Code reads this file as project rules when it runs in this directory.
 - Run `npm run dev:full` for the client and server; see `.env.example` for configuration. Never commit secrets.
 - Quality checks: `npm run lint` (includes typecheck), `npm run build`, `npm test`, and `npm run test:mcp` for MCP changes.
 - `VITE_` variables are included in the browser bundle; treat them as public.
+
+## Conventions
+
+- Use ESM `import` and `export` syntax in source files.
+- Use the `.test.ts` suffix for test files.

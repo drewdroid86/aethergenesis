@@ -1,6 +1,8 @@
 import * as THREE from 'three';
 import { PHASES, STELLAR_CONSTANTS } from '../../core/constants';
 import { GEOMETRIES } from '../../simulation/phases/geometries';
+import { DestructionEffects } from './DestructionEffects';
+import { blackHoleShadowRadius } from '../../simulation/phases/RemnantPhase';
 import { computeLuminosity } from '../../simulation/StellarPhysics';
 
 /**
@@ -455,6 +457,38 @@ function hashString(str: string): number {
 }
 
 export class PlanetarySystem {
+    // AESTHETIC: not physics-derived, intentional size boost for encounter demos.
+    public spectacleScale = 1;
+    private debris?: DestructionEffects;
+    private destroyed = new Set<string>();
+    private trailClock = 0;
+
+    /** AESTHETIC: not physics-derived, intentional. Boundaries match the visible
+     * shell/shadow in scene units, converted to worker AU (12 scene units/AU).
+     * These are cinematic destruction thresholds, not physical tidal radii.
+     */
+    public destructionBounds(strongForce = 1): { blastRadius_au: number; captureRadius_au: number } {
+        const star = this.parent as any;
+        const supernova = star.phase === PHASES.SUPERNOVA && star.mass >= STELLAR_CONSTANTS.PHYSICS.MASS_THRESHOLD_SUPERNOVA;
+        const progress = Math.max(0, Math.min(1, (star.t - STELLAR_CONSTANTS.PHASE_BOUNDARIES.SUPERNOVA_START) / STELLAR_CONSTANTS.PHASE_BOUNDARIES.SUPERNOVA_DURATION));
+        return {
+            blastRadius_au: supernova ? (1 + progress * STELLAR_CONSTANTS.VISUALS.SUPERNOVA_RING_SCALE_HIGH_MASS) * strongForce / 12 : 0,
+            captureRadius_au: star.phase === PHASES.REMNANT && star.mass >= STELLAR_CONSTANTS.PHYSICS.MASS_THRESHOLD_BLACK_HOLE ? blackHoleShadowRadius(star.mass) / 12 : 0,
+        };
+    }
+
+    public isBodyDestroyed(id: string): boolean { return this.destroyed.has(id); }
+
+    public destroyBody(id: string, position: { x: number; y: number; z: number }, capture: boolean): void {
+        if (this.destroyed.has(id)) return;
+        this.destroyed.add(id);
+        // Bound session memory while retaining all current roster/procedural ids.
+        if (this.destroyed.size > 512) this.destroyed.delete(this.destroyed.values().next().value!);
+        this.debris ??= new DestructionEffects(this.parent);
+        const scale = this.visualsById.get(id)?.scale ?? 0.2;
+        this.debris.burst(position.x * 12, position.z * 12, position.y * 12, capture, scale);
+    }
+
     private instancedMesh: THREE.InstancedMesh;
     private ringInstancedMesh: THREE.InstancedMesh;
     private ringMaterial: THREE.ShaderMaterial;
@@ -773,11 +807,17 @@ export class PlanetarySystem {
     /**
      * Update orbits: evaluates live nbodyBuffer if focused star; evaluates unique procedural Keplerian orbits otherwise.
      */
-    update(delta: number, appTime: number, buffer?: Float32Array | null, lowDetail?: boolean, globalFade: number = 1.0, redGiantScale?: number): void {
+    update(delta: number, appTime: number, buffer?: Float32Array | null, lowDetail?: boolean, globalFade: number = 1.0, redGiantScale?: number, strongForce = 1): void {
         const star = this.parent as any;
         const isRedGiant = star.phase === PHASES.RED_GIANT;
         
-        if ((star.phase !== PHASES.MAIN_SEQUENCE && !isRedGiant) || lowDetail) {
+        this.debris?.update(delta, globalFade);
+        const destructivePhase = star.phase === PHASES.SUPERNOVA || star.phase === PHASES.REMNANT;
+        const bounds = this.destructionBounds(strongForce);
+        this.trailClock += delta;
+        const emitTrail = this.trailClock >= 0.04;
+        if (emitTrail) this.trailClock = 0;
+        if ((star.phase !== PHASES.MAIN_SEQUENCE && !isRedGiant && !destructivePhase) || lowDetail) {
             this.group.visible = false;
             return;
         }
@@ -785,7 +825,7 @@ export class PlanetarySystem {
         this.material.uniforms.uTime.value += delta;
         this.material.uniforms.uOpacity.value = globalFade;
         this.material.uniforms.uLowDetail.value = lowDetail ? 1.0 : 0.0;
-        this.orbitLinesGroup.visible = !isRedGiant;
+        this.orbitLinesGroup.visible = !isRedGiant && !destructivePhase;
         
         this.parent.getWorldPosition(this.material.uniforms.u_starPosition.value);
         
@@ -910,8 +950,21 @@ export class PlanetarySystem {
                 z = Math.sin(theta) * r;
             }
 
+            const bodyId = isBufferDriven ? (this.rosterIds[i] ?? `slot_${i}`) : `preset_body_${i}`;
+            const distance = Math.hypot(x, y, z);
+            // Background systems use the same shell boundary without running a
+            // second integrator on the main thread. Focused bodies retire in worker.
+            if (!isBufferDriven && bounds.blastRadius_au > 0 && distance <= bounds.blastRadius_au * 12) {
+                this.destroyBody(bodyId, { x: x / 12, y: z / 12, z: y / 12 }, false);
+            }
+            const destroyed = this.destroyed.has(bodyId);
+            const tide = bounds.captureRadius_au > 0 ? Math.max(0, 1 - distance / (bounds.captureRadius_au * 12 * 5)) : 0;
+            if (tide > 0 && !destroyed && emitTrail) {
+                this.debris ??= new DestructionEffects(this.parent);
+                this.debris.burst(x, y, z, true, bScale, 6);
+            }
             // Per-planet scorch from Red Giant proximity
-            let newScorch = 0.0;
+            let newScorch = tide * 0.9;
             if (redGiantScale !== undefined && redGiantScale > 0) {
                 const dist = Math.sqrt(x * x + y * y + z * z);
                 const dmgRadius = redGiantScale * STELLAR_CONSTANTS.VISUALS.RED_GIANT_PLANET_DMG_RADIUS;
@@ -931,7 +984,7 @@ export class PlanetarySystem {
             const rotTheta = (x + y) * 0.01 + bSeed;
             const cos = Math.cos(rotTheta);
             const sin = Math.sin(rotTheta);
-            const s = bScale * Math.max(0.01, 1.0 - newScorch * 0.8);
+            const s = destroyed ? 0 : bScale * this.spectacleScale * Math.max(0.01, 1.0 - newScorch * 0.8);
             const sc = s * cos;
             const ss = s * sin;
 
@@ -958,6 +1011,17 @@ export class PlanetarySystem {
             matrixArray[offset + 13] = y;
             matrixArray[offset + 14] = z;
             matrixArray[offset + 15] = 1;
+
+            if (tide > 0 && distance > 0) {
+                // AESTHETIC: not physics-derived, intentional tidal elongation.
+                const stretch = 1 + tide * 7;
+                const planar = Math.max(0.001, Math.hypot(x, z));
+                matrixArray[offset] = s * stretch * x / planar;
+                matrixArray[offset + 2] = s * stretch * z / planar;
+                matrixArray[offset + 5] = s / Math.sqrt(stretch);
+                matrixArray[offset + 8] = -s * z / planar / Math.sqrt(stretch);
+                matrixArray[offset + 10] = s * x / planar / Math.sqrt(stretch);
+            }
 
             // Planetary ring matrix (Gas Giants + ~33% of Ice Worlds)
             const hasRing = bType === 1 || (bType === 2 && (Math.floor(bSeed * 10.0) % 3 === 0));
@@ -1014,6 +1078,8 @@ export class PlanetarySystem {
      * GPU cleanup.
      */
     dispose() {
+        this.debris?.dispose();
+        this.destroyed.clear();
         this.material.dispose();
         // BOLT: Cloned geometry must be disposed to avoid memory leaks
         this.instancedMesh.geometry.dispose();
