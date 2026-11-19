@@ -10,6 +10,11 @@ JPL Horizons, all evolved by a real n-body integrator. Three.js + React
 + TypeScript. Frame every change against that north star.
 
 ## Environment: Termux on unrooted Android
+
+These notes apply to the original Android setup, not every checkout. Inspect the
+actual environment before applying them. See [development guidance](docs/DEVELOPMENT.md)
+for portable setup, test prerequisites, and deployment.
+
 - You run natively in Termux. `/tmp` is NOT writable — use `./tmp` or `$HOME/tmp`.
 - Background servers: detach stdin (`< /dev/null`), logs to `$HOME` (e.g. `~/vite.log`).
 - `npm run dev` serves on :3000. Express backend `server.ts` on :3001.
@@ -20,12 +25,16 @@ JPL Horizons, all evolved by a real n-body integrator. Three.js + React
 ## The ritual — run after every change, all green before calling it done
 1. `npx tsc --noEmit` — zero errors
 2. `npm run build` — must succeed
-3. `npm test` — full suite green (E2E suites incl. f1–f13, registered in run-e2e-tests.ts)
+3. `npm test` — registered E2E suites, WebSocket authentication, and orbit-rendering checks; stop the development backend first
 4. Show the diff.
 
-Notes: F1-T1-5 hits live JPL Horizons (a 404 there is external flakiness,
-not a merge blocker). E2E tests hard-fail without Chromium — by design,
-do not "fix" it by skipping.
+For documentation-only changes, validate links, commands, and source consistency.
+
+Catalog tests may call live external services; investigate and report failures
+rather than assuming every 404 is external flakiness. The normal `npm test`
+command does not launch Chromium. Standalone appearance checks require Chromium
+and fail if it cannot start; the standalone mobile layout suite reports a skip
+if no Chromium executable is found.
 
 ## Git workflow
 - Work on feature branches (`feat/...`, `fix/...`). Commit your work on the branch.

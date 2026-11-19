@@ -16,6 +16,8 @@
 /** Simulation event types. A string union so new types are cheap to add. */
 export type SimulationEventType =
     | 'SPAWN'
+    | 'DESTRUCTION'
+    | 'ACCRETION'
     | 'COLLISION'
     | 'MERGE'
     | 'DETONATE'

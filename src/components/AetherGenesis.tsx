@@ -64,6 +64,7 @@ export function AetherGenesis() {
     loadStarPreset,
     addBodyToSimulation,
     spawnDefaultBody,
+    playDestruction,
     currentTier, 
     fps, 
     showTierDownIndicator, 
@@ -241,6 +242,7 @@ export function AetherGenesis() {
                   resetCamera={resetCamera}
                   centerOnStar={centerOnStar}
                   onSpawnBody={spawnDefaultBody}
+                  onDestruction={playDestruction}
                 />
               </div>
             }

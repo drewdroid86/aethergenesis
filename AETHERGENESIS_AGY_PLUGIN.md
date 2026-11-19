@@ -1,4 +1,10 @@
 # AetherGenesis: Antigravity 2.0 Plugin Implementation
+
+> **Historical implementation plan.** The prompts and proposed tree below are
+> retained as design history, not current setup instructions. The checked-in
+> bundle has a manifest, skills, and rules, but no `hooks.json` or
+> `mcp_config.json`. For current behavior, see the [repository map](docs/ARCHITECTURE.md)
+> and [MCP setup](docs/DEVELOPMENT.md#mcp-setup).
 **Runtime: `agy` (Antigravity CLI)**
 **Model: Gemini 3.7 Flash**
 **Architecture: Native Plugin Bundle with MCP Servers + Agent Skills**

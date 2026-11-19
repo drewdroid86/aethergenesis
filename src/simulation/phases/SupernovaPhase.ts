@@ -22,6 +22,7 @@ export class SupernovaPhase implements PhaseComponent {
     private baseRadius: number;
     private seed: number;
     public isFlashing: boolean = false;
+    private flashOpacity = 0;
 
     private initialized = false;
 
@@ -174,6 +175,9 @@ export class SupernovaPhase implements PhaseComponent {
         if (!this.ejectaMat?.uniforms?.uColor) return;
         const normT = (t - STELLAR_CONSTANTS.PHASE_BOUNDARIES.SUPERNOVA_START) / STELLAR_CONSTANTS.PHASE_BOUNDARIES.SUPERNOVA_DURATION;
         const fade = typeof globalFade === 'number' ? globalFade : 1.0;
+        // AESTHETIC: not physics-derived, intentional brief flash envelope.
+        // A full-phase opaque core hid every planet and its destruction.
+        this.flashOpacity = Math.exp(-Math.max(0, normT) * 35);
         
         if (this.mass >= STELLAR_CONSTANTS.PHYSICS.MASS_THRESHOLD_SUPERNOVA) {
             if (normT < STELLAR_CONSTANTS.VISUALS.SUPERNOVA_FLASH_DURATION) this.isFlashing = true;
@@ -190,7 +194,7 @@ export class SupernovaPhase implements PhaseComponent {
             this.ejectaMat.uniforms.uColor.value.setHex(normT < 0.2 ? 0xffffff : 0xff4411);
             if (this.ejectaMat.uniforms.uOpacity) this.ejectaMat.uniforms.uOpacity.value = fade;
 
-            this.coreFlashMesh.scale.setScalar(this.baseRadius * 7.0 * (1.0 - normT));
+            this.coreFlashMesh.scale.setScalar(this.baseRadius * (0.18 + 1.2 * this.flashOpacity));
         } else {
             this.snRing.visible = true;
             this.snRing.scale.setScalar((1.0 + normT * STELLAR_CONSTANTS.VISUALS.SUPERNOVA_RING_SCALE_LOW_MASS) * (physics.strongForce || 1.0));
@@ -209,7 +213,7 @@ export class SupernovaPhase implements PhaseComponent {
     }
 
     setOpacity(opacity: number): void {
-        (this.coreFlashMesh.material as THREE.MeshBasicMaterial).opacity = opacity;
+        (this.coreFlashMesh.material as THREE.MeshBasicMaterial).opacity = opacity * this.flashOpacity;
         if (this.snRing?.material) {
             const shellMat = this.snRing.material as THREE.ShaderMaterial;
             if (shellMat.uniforms?.uOpacity) {

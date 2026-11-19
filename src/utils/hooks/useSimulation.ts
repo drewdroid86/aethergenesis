@@ -52,7 +52,8 @@ export function rekeyNBodyForStar(star: HeroStarSystem, renderer: THREE.WebGLRen
     // at the wrong energy (stale-velocity bug).
     const orbits = star.planetarySystem?.proceduralOrbits;
     if (orbits && orbits.length > 0) {
-        const bodies: OrbitalBody[] = buildWorkerBodiesFromOrbits(orbits, centralMass);
+        const bodies: OrbitalBody[] = buildWorkerBodiesFromOrbits(orbits, centralMass)
+            .filter(body => !star.planetarySystem?.isBodyDestroyed(body.id));
         nbodyWorker.postMessage({
             type: 'RESET_BODIES',
             payload: { bodies, centralMass_solar: centralMass, generation: ++workerGeneration }
@@ -126,6 +127,7 @@ export function useSimulation(containerRef: React.RefObject<HTMLDivElement | nul
     // Cosmic Age & Time Scale State
     const [timeScale, setTimeScale] = useState<'cosmic' | 'realtime'>('cosmic');
     const timeScaleRef = useRef(timeScale);
+    const encounterStarRef = useRef<HeroStarSystem | null>(null);
     useEffect(() => { 
         timeScaleRef.current = timeScale; 
         if (engineRef.current) engineRef.current.timeScale = timeScale;
@@ -133,6 +135,7 @@ export function useSimulation(containerRef: React.RefObject<HTMLDivElement | nul
 
     // Sync worker time scale when timeScale state changes
     useEffect(() => {
+        encounterStarRef.current = null;
         if (nbodyWorkerRef.current) {
             const dt = timeScale === 'cosmic' ? 0.3 : 0.05;
             nbodyWorkerRef.current.postMessage({
@@ -245,6 +248,10 @@ export function useSimulation(containerRef: React.RefObject<HTMLDivElement | nul
     const loadStarPreset = useCallback((preset: any) => {
         setIsCatalogOpen(false);
         if (!preset) return;
+        encounterStarRef.current = null;
+        nbodyWorkerRef.current?.postMessage({ type: 'UPDATE_TIMESTEP', payload: {
+            dt_yr: timeScaleRef.current === 'cosmic' ? 0.3 : 0.05,
+        } });
         const star = selectedStarRef.current || engineRef.current?.heroStars[0];
         if (star) {
             star.applyPreset(preset, engineRef.current?.renderer, engineRef.current?.cosmicAge, engineRef.current?.physicsConstants);
@@ -350,6 +357,10 @@ export function useSimulation(containerRef: React.RefObject<HTMLDivElement | nul
     }) => {
         const star = selectedStarRef.current ?? engineRef.current?.heroStars[0];
         if (!star || !nbodyWorkerRef.current) return null;
+        if (!star.planetarySystem && star.phase === PHASES.REMNANT) {
+            star.planetarySystem = new PlanetarySystem(star, engineRef.current?.renderer);
+            star.planetarySystem.proceduralOrbits.length = 0;
+        }
         // Authoritative phase-aware mass, not the birth mass (stale-velocity bug).
         const rawMass = star.currentMass ?? star.mass;
         const centralMass = Number.isFinite(rawMass) && (rawMass as number) > 0 ? (rawMass as number) : 1.0;
@@ -413,6 +424,56 @@ export function useSimulation(containerRef: React.RefObject<HTMLDivElement | nul
         }
         return spawnBodyAtRef.current({ x: px, y: py, z: pz });
     }, [selectedStarRef]);
+
+    // User-triggered scenarios: use real worker trajectories with slowed
+    // display time so the encounter remains readable instead of crossing in one frame.
+    const playDestruction = useCallback((kind: 'supernova' | 'black-hole') => {
+        const engine = engineRef.current;
+        const worker = nbodyWorkerRef.current;
+        const star = selectedStarRef.current ?? engine?.heroStars[0];
+        if (!engine || !worker || !star) return;
+        const blackHole = kind === 'black-hole';
+        encounterStarRef.current = star;
+        star.applyPreset({ name: blackHole ? 'Black-hole encounter' : 'Supernova encounter',
+            mass_solar: 21.2, age_gyr: 0.001,
+            ...(blackHole ? { phase: 'remnant' } : {}),
+            planets: [0.35, 0.7, 1.2, 2.0].map((distance_au, i) => ({ name: `World ${i + 1}`,
+                distance_au, mass_earth: 1, radius_earth: 1, type: 'rocky' })),
+        }, engine.renderer, engine.cosmicAge, engine.physicsConstants);
+        PlanetarySystemQueue.cancelCreation(star);
+        star.planetarySystem ??= new PlanetarySystem(star, engine.renderer);
+        star.planetarySystem.spectacleScale = 3;
+        engine.selectedStar = star;
+        setSelectedStar(star);
+        invalidateNBodySnapshot();
+        rekeyNBodyForStar(star, engine.renderer, worker);
+        if (blackHole) {
+            clearNBodyWorker(worker, star.currentMass);
+            for (let i = 0; i < 4; i++) {
+                const angle = i * 1.7;
+                const radius = 0.55 + i * 0.24;
+                const body = buildSpawnBody({ id: nextCatalogId(), centralMass_solar: star.currentMass,
+                    position_au: { x: Math.cos(angle) * radius, y: Math.sin(angle) * radius, z: 0.015 * i } });
+                // Sub-circular angular momentum produces a plunging orbit; no invented inward force.
+                body.velocity_au_yr.x *= 0.18;
+                body.velocity_au_yr.y *= 0.18;
+                worker.postMessage({ type: 'ADD_BODY', payload: { body } });
+                actionLog.logEvent('SPAWN', { actorId: body.id, masses: [body.mass_solar], positions: [{ ...body.position_au }],
+                    cosmicAge: engine.cosmicAge, wallTimestamp: Date.now(), note: 'Black-hole encounter: plunging orbit' });
+            }
+        } else engine.forceSupernova();
+        lastSyncedWorkerMassRef.current = star.currentMass;
+        worker.postMessage({ type: 'UPDATE_TIMESTEP', payload: { dt_yr: 0.00035 } });
+        engine.isPaused = false;
+        engine.isPlayingCosmic = true;
+        setIsPaused(false);
+        setIsPlayingCosmic(true);
+        worker.postMessage({ type: 'SET_RUNNING', payload: { isRunning: true } });
+        const cameraOffset = blackHole ? new THREE.Vector3(0, 9, 24) : new THREE.Vector3(0, 25, 75);
+        engine.camera.position.copy(star.position).add(cameraOffset);
+        controlsRef.current?.target.copy(star.position);
+        controlsRef.current?.update();
+    }, [selectedStarRef, setSelectedStar, invalidateNBodySnapshot, setIsPlayingCosmic]);
 
     const adjustStarfieldTier = useCallback((newTier: PerformanceTier) => {
         if (!engineRef.current || !engineRef.current.scene) return;
@@ -558,6 +619,14 @@ export function useSimulation(containerRef: React.RefObject<HTMLDivElement | nul
                             engineRef.current.nbodyRosterVersion++;
                         }
                     } else if (e.data.type === 'SIM_EVENT') {
+                        const event = e.data.event;
+                        if (event?.type === 'DESTRUCTION' || event?.type === 'ACCRETION') {
+                            if (e.data.generation !== workerGeneration) return;
+                            const star = selectedStarRef.current ?? engineRef.current?.heroStars[0];
+                            if (event.actorId && event.positions?.[0]) {
+                                star?.planetarySystem?.destroyBody(event.actorId, event.positions[0], event.type === 'ACCRETION');
+                            }
+                        }
                         // Physics-event channel: worker arrival order is the
                         // log order — never dropped, never reordered.
                         ingestWorkerEvent(
@@ -745,13 +814,30 @@ export function useSimulation(containerRef: React.RefObject<HTMLDivElement | nul
                 4: 'supernova',
                 5: 'remnant'
             };
+            let lastDestructionKey = '';
 
             coordinator.onTick = (cosmicAgeVal, delta) => {
                 try {
                     registerFrameDeltaRef.current(delta, performance.now());
 
                     const focusedStar = selectedStarRef.current ?? engine.heroStars[0];
+                    if (encounterStarRef.current && encounterStarRef.current !== focusedStar) {
+                        encounterStarRef.current = null;
+                        nbodyWorkerRef.current?.postMessage({ type: 'UPDATE_TIMESTEP', payload: {
+                            dt_yr: timeScaleRef.current === 'cosmic' ? 0.3 : 0.05,
+                        } });
+                    }
                     if (focusedStar && nbodyWorkerRef.current) {
+                        const bounds = focusedStar.planetarySystem?.destructionBounds(physicsRef.current.strongForce || 1);
+                        const destructionKey = `${workerGeneration}:${bounds?.blastRadius_au ?? 0}:${bounds?.captureRadius_au ?? 0}`;
+                        if (destructionKey !== lastDestructionKey) {
+                            lastDestructionKey = destructionKey;
+                            nbodyWorkerRef.current.postMessage({ type: 'UPDATE_DESTRUCTION', payload: {
+                                generation: workerGeneration,
+                                blastRadius_au: bounds?.blastRadius_au ?? 0,
+                                captureRadius_au: bounds?.captureRadius_au ?? 0,
+                            } });
+                        }
                         const currentMass = focusedStar.currentMass ?? focusedStar.mass;
                         const lastSynced = lastSyncedWorkerMassRef.current;
                         if (
@@ -1019,6 +1105,7 @@ export function useSimulation(containerRef: React.RefObject<HTMLDivElement | nul
         loadStarPreset,
         addBodyToSimulation,
         spawnBodyAt,
+        playDestruction,
         spawnDefaultBody,
         spawnBody: spawnDefaultBody,
         engineRef,

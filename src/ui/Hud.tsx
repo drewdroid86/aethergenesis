@@ -571,6 +571,7 @@ export interface HudActionButtonsProps {
     resetCamera: () => void;
     centerOnStar: () => void;
     onSpawnBody?: () => void;
+    onDestruction?: (kind: 'supernova' | 'black-hole') => void;
     className?: string;
 }
 
@@ -583,12 +584,27 @@ export const HudActionButtons: React.FC<HudActionButtonsProps> = ({
     resetCamera,
     centerOnStar,
     onSpawnBody,
+    onDestruction,
     className = '',
 }) => {
     const [isMuted, setIsMuted] = useState(() => audioEngine.getIsMuted());
 
     return (
         <div className={`flex flex-col items-center md:items-end gap-2 text-center md:text-right ${className}`.trim()}>
+            {onDestruction && (
+                <div className="grid grid-cols-2 gap-2 w-full pointer-events-auto">
+                    <button type="button" onClick={() => onDestruction('supernova')}
+                        title="Stage a supernova and watch its planets break apart"
+                        className="min-h-11 px-2 rounded-md border border-orange-400/50 bg-orange-950/80 text-orange-100 text-[10px] font-semibold focus-visible:ring-2 focus-visible:ring-orange-300">
+                        Supernova
+                    </button>
+                    <button type="button" onClick={() => onDestruction('black-hole')}
+                        title="Send four planets on plunging orbits into a black hole"
+                        className="min-h-11 px-2 rounded-md border border-violet-400/50 bg-violet-950/80 text-violet-100 text-[10px] font-semibold focus-visible:ring-2 focus-visible:ring-violet-300">
+                        Feed black hole
+                    </button>
+                </div>
+            )}
             {onSpawnBody && (
                 <button 
                     type="button"
