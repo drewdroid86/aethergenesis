@@ -227,8 +227,13 @@ export class MainSequencePhase implements PhaseComponent {
         this.starMat.uniforms.uTime.value = appTime;
         this.starMat.uniforms.uHbar.value = physics.hbar || 1.0;
         this.starMat.uniforms.uLowDetail.value = (lowDetail || false) ? 1.0 : 0.0;
-        this.flareMat.uniforms.uTime.value = appTime;
-        this.updateProminences(appTime);
+        if (this.flareMesh) {
+            this.flareMesh.visible = !lowDetail;
+        }
+        if (!lowDetail && delta > 0) {
+            this.flareMat.uniforms.uTime.value = appTime;
+            this.updateProminences(appTime, delta);
+        }
 
         // The shared palette follows the authoritative StellarPhysics temperature.
         if (currentTemp) {
@@ -248,7 +253,7 @@ export class MainSequencePhase implements PhaseComponent {
         }
     }
 
-    private updateProminences(appTime: number): void {
+    private updateProminences(appTime: number, delta: number = 1 / 60): void {
         if (!this.flareMesh) return;
         this._p.set(0, 0, 0);
         for (let i = 0; i < this.flareState.length; i++) {
@@ -259,7 +264,7 @@ export class MainSequencePhase implements PhaseComponent {
             this._s.set(s, s, s);
             this._m4.compose(this._p, this._q, this._s);
             this.flareMesh.setMatrixAt(i, this._m4);
-            f.rot.z += 0.0004; // slow drift with stellar rotation
+            f.rot.z += 0.024 * delta; // slow drift with stellar rotation
         }
         this.flareMesh.instanceMatrix.needsUpdate = true;
     }
@@ -292,6 +297,7 @@ export class MainSequencePhase implements PhaseComponent {
         // BOLT: Star, corona, flares, and HZ use shared GEOMETRIES, do NOT dispose
         this.starMat.dispose();
         this.flareMat.dispose();
+        this.flareMesh?.dispose();
         if (this.diffractionMat) {
             this.diffractionMat.dispose();
             this.diffractionMesh.geometry.dispose();

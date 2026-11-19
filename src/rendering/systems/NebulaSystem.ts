@@ -15,6 +15,7 @@ const NOISE_SCALE = 0.002;
 const vertexShader = `
     attribute float pSize;
     attribute vec3 pColor;
+    uniform float uFocusDim;
     varying vec3 vWorldPosition;
     varying vec3 vColor;
 
@@ -26,12 +27,15 @@ const vertexShader = `
         
         // Size attenuation: scale point size by distance to camera
         gl_PointSize = max(pSize * (${SIZE_REF.toFixed(1)} / -mvPosition.z), 0.0);
+        // Focused black hole: shrink the sprites so one cloud cannot cover the disk.
+        gl_PointSize *= mix(1.0, 0.42, uFocusDim);
         gl_Position = projectionMatrix * mvPosition;
     }
 `;
 
 const fragmentShader = `
     uniform float uTime;
+    uniform float uFocusDim;
     varying vec3 vWorldPosition;
     varying vec3 vColor;
 
@@ -63,7 +67,9 @@ const fragmentShader = `
         // Soft edge blending
         alpha *= (1.0 - smoothstep(0.4, 1.0, dist));
         
-        gl_FragColor = vec4(finalColor, alpha * 0.18);
+        // uFocusDim is 1 only while a black hole is framed nearby. The cloud
+        // stays in frame, dim enough that it does not wash the disk or the shadow.
+        gl_FragColor = vec4(finalColor, alpha * 0.18 * mix(1.0, 0.28, uFocusDim));
     }
 `;
 
@@ -157,7 +163,8 @@ export class NebulaSystem {
 
         this.material = new THREE.ShaderMaterial({
             uniforms: {
-                uTime: { value: 0 }
+                uTime: { value: 0 },
+                uFocusDim: { value: 0 }
             },
             vertexShader,
             fragmentShader,
@@ -167,7 +174,7 @@ export class NebulaSystem {
             depthTest: true,
         });
         this.material.name = 'BackgroundNebulaMaterial';
-        this.material.customProgramCacheKey = () => 'background_nebula_material';
+        this.material.customProgramCacheKey = () => 'background_nebula_material_v2';
 
         this.points = new THREE.Points(geometry, this.material);
         this.points.renderOrder = -10;
@@ -180,6 +187,15 @@ export class NebulaSystem {
      * @param _delta Time since last frame (unused but part of signature)
      * @param time Total elapsed time for noise animation
      */
+    /** 0 leaves the clouds alone. 1 is the framed-black-hole dim. */
+    setFocusDim(dim: number): void {
+        if (!this.material) return;
+        const next = Math.min(1, Math.max(0, dim));
+        if (this.material.uniforms.uFocusDim.value !== next) {
+            this.material.uniforms.uFocusDim.value = next;
+        }
+    }
+
     update(_delta: number, time: number): void {
         if (this.material) {
             this.material.uniforms.uTime.value = time;

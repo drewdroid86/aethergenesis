@@ -3,9 +3,9 @@ import fs from 'fs';
 
 function run(cmd) {
   try {
-    return execSync(cmd, { encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'] }).trim();
+    return execSync(cmd, { encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'] }).trimEnd();
   } catch (err) {
-    return err.stdout ? err.stdout.trim() : '';
+    return err.stdout ? err.stdout.trimEnd() : '';
   }
 }
 

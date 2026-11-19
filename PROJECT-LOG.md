@@ -23,6 +23,27 @@ This log is updated after every AI session. Each AI signs off with their entry. 
 
 ## RECENT LOGS
 
+### 2026-11-10 — Unskip F6-16 at the real Kroupa endpoint (Grok 4.7)
+- `sampleKroupaMass()` still inverts the rounded OB anchors `0.1539` and `0.0325`. `Math.pow(0.0325, -1/0.9)` is `45.025954924871257` (float64 `0x404683527db0bf00`). A cap of 45 sits under that endpoint, which is why a 5000-draw run failed about 4% of the time (CI on `4610c4f` drew 45.024).
+- F6-16 runs again. The upper bound is that endpoint plus one ulp (`≈ 7.11e-15`), computed from the exported anchors `KROUPA_OB_M_MAX_POW` and `KROUPA_OB_MASS_EXPONENT`. Draws of at least 15 M☉ are still required, and the 0.08 M☉ floor is unchanged. The sampler exponents are the same numbers, now named so the test cannot drift.
+- Two loops of 500 F6-16 runs, 0 failures in both. The loop that recorded each run's maximum saw `45.02520222306707` M☉, under the bound `45.025954924871264`. Counts of M ≥ 15 stayed between 107 and 171 out of 5000. The full e2e suite passed, and `f6_audit_fixes.test.ts` skipped nothing.
+
+### 2026-11-09 — Cygnus X-1 focus: filaments, framing, and the belt band (Grok 4.7)
+- **Framing.** Focusing a black hole (`HeroStarSystem.blackHoleFocusOffset`, used by `centerOnStar` and the tap-select path) places the camera so the disk diameter is half the viewport width, at 0.48 rad above the disk plane, and at least 4.5 shadow radii out. Other stars still use the distance-40 offset, including the zero-length `(0, 0, 40)` fallback.
+- **Disk.** The opaque thermal plane was the beige cone. Filaments are thin integer harmonics of the Keplerian shear (17, 29, 7, 2), brighter toward the inner rim, with the existing Doppler `delta^3.2` term. The far inner rim lifts over the shadow on the primary mesh and under it on the secondary. Radius is only gathered, and never inside the shadow limb.
+- **Black band.** Not a shader patch. `AsteroidBeltSystem` draws 10,000 rocks at radii 2.0–3.5 on every focused star. Those radii sit inside the accretion disk, so at a shallow angle the rocks project as a jagged band across the shadow. The belt stays hidden while the focused star is a black hole and comes back for every other host. Geometry and shading of the rocks are unchanged.
+- **Haze.** Background nebula sprites shrink and drop to 0.28 alpha while a black hole is framed inside 18 units. They stay in the sky, behind the disk.
+- **Seam.** `fe878c7` is not on main. Main's lanes used non-integer shear multipliers (`2.6`, `1.15`, `3.1`) and the under-image faded on `vFacing`, so it still shared the plane with the primary. Both are ported: integer shear harmonics, and `smoothstep(0.04, 0.45, vCurl)` on the under-image. The ring's duplicated θ = 2π column is indexed back onto column 0 so that ray is not drawn twice.
+- **Safeguards unchanged.** One cinematic photon ring. `updateLensing` still snaps strength to 0 when the remnant is behind the camera. Chromatic split still runs only when `uLensingStrength > 0.001`. `bhArchMesh` is still absent. `_lensMesh` stays `visible = false` with strength 0.
+- **Rig.** SwiftShader, 1280×720, FOV 75°, synced `readPixels`, 10 frames before and 12 after. Before is the live scene (disk + 10k-rock belt + nebula) at the old shallow cameras. After hides the belt, dims the nebula, and uses the new focus distance (7.04).
+  - Three-quarter: median 700.1 ms, p95 771.8 ms, 808,192 tris → median 227.3 ms, p95 236.1 ms, 8,168 tris.
+  - Edge-on: median 551.3 ms, p95 567.5 ms, 808,192 tris → median 170.8 ms, p95 175.3 ms, 8,192 tris.
+- **Verification:** `F6-19` (frame fraction, elevation, horizon clearance, integer harmonics, curl-weighted under-image, belt hide). `F6-18` and `F17` still hold the shadow authority, the shared palette, and the single-ring contracts.
+
+### 2026-11-08 — Skip flaky Kroupa mass-bound check (Grok 4.7)
+- CI on `4610c4f` (#261) failed `F6-16` when `sampleKroupaMass()` returned 45.024 M☉. The rounded high-mass exponent makes the inverse-CDF endpoint ~45.026, so a 5000-draw run fails about 4% of the time. #261 did not change the sampler, and the author's local suite passed.
+- Skipped `F6-16` so that unseeded bound check no longer fails the build.
+
 ### 2026-11-05 — Documentation refresh and local development setup (Codex)
 - Added architecture and development guides covering runtime boundaries, repository layout, API routes, environment variables, test scope, MCP setup, deployment, and troubleshooting.
 - Corrected README setup requirements, the audio filename, stale test-count claims, and the distinction between static Pages hosting and the full application. Marked the old plugin plan as historical and scoped Termux-specific guidance.

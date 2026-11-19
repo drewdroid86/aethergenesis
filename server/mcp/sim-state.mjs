@@ -57,6 +57,7 @@ function connectWebSocket() {
           
           if (lastPhase !== null && lastPhase !== currentPhase) {
             const duration = lastPhaseStartTime !== null ? (currentAge - lastPhaseStartTime) : null;
+            if (phaseHistory.length >= 200) phaseHistory.shift();
             phaseHistory.push({
               phase: currentPhase,
               triggered_at_yr: currentAge,

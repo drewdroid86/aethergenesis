@@ -1,6 +1,16 @@
 import * as THREE from 'three';
 import { PHASES, STELLAR_CONSTANTS } from '../../core/constants';
-import { computeLuminosity, sampleKroupaMass, createStellarState, StellarPhase } from '../../simulation/StellarPhysics';
+import {
+    computeLuminosity,
+    computeMainSequenceLifetime,
+    computePhase,
+    computeRadius,
+    computeRemnantType,
+    computeTemperature,
+    sampleKroupaMass,
+    createStellarState,
+    StellarPhase,
+} from '../../simulation/StellarPhysics';
 import { PhysicsConstants, DEFAULT_CONSTANTS } from '../../types/physics';
 import { colorTempToRGB } from '../../physics/math';
 import { NebulaPhase } from '../../simulation/phases/NebulaPhase';
@@ -8,7 +18,7 @@ import { ProtostarPhase } from '../../simulation/phases/ProtostarPhase';
 import { MainSequencePhase } from '../../simulation/phases/MainSequencePhase';
 import { RedGiantPhase } from '../../simulation/phases/RedGiantPhase';
 import { SupernovaPhase } from '../../simulation/phases/SupernovaPhase';
-import { RemnantPhase } from '../../simulation/phases/RemnantPhase';
+import { RemnantPhase, blackHoleFocusOffsetFromDisk } from '../../simulation/phases/RemnantPhase';
 import { GEOMETRIES } from '../../simulation/phases/geometries';
 import { PlanetarySystem, PlanetarySystemQueue } from './PlanetarySystem';
 import { audioEngine } from '../../audio/AudioEngine';
@@ -29,6 +39,8 @@ const STELLAR_PHASE_TO_NUM: Record<StellarPhase, number> = {
 };
 
 const _frustumSphere = new THREE.Sphere();
+const _bhFocusNormal = new THREE.Vector3();
+const _bhFocusQuat = new THREE.Quaternion();
 
 /**
  * Catalog star preset (mirrors the server catalog shape in server.ts).
@@ -133,6 +145,25 @@ export class HeroStarSystem extends THREE.Group {
     }
 
     public hitMesh: THREE.Mesh;
+
+    /**
+     * Offset from the star that frames a black hole: disk plus outer rim near
+     * half the viewport width, outside the shadow, and above the disk plane.
+     * Null for every other phase. The returned vector is a fresh copy.
+     */
+    public blackHoleFocusOffset(camera: THREE.PerspectiveCamera): THREE.Vector3 | null {
+        if (this.phase !== PHASES.REMNANT || this.mass < STELLAR_CONSTANTS.PHYSICS.MASS_THRESHOLD_BLACK_HOLE) {
+            return null;
+        }
+        const group = this._remnantPhase?.blackHoleGroup;
+        if (!group) return null;
+        this.updateWorldMatrix(true, true);
+        const normal = _bhFocusNormal.set(0, 1, 0).applyQuaternion(group.getWorldQuaternion(_bhFocusQuat));
+        const aspect = camera.aspect > 0.05 ? camera.aspect : 1;
+        const scale = Number.isFinite(this.scale.x) ? Math.abs(this.scale.x) : 1;
+        return blackHoleFocusOffsetFromDisk(this.mass, scale || 1, normal, camera.fov, aspect);
+    }
+
     public planetarySystem?: PlanetarySystem;
     public starLight?: THREE.PointLight;
 
@@ -676,7 +707,9 @@ export class HeroStarSystem extends THREE.Group {
             this.visible = globalFade > 0.01;
         }
 
-        if (!ignites && this.t > STELLAR_CONSTANTS.PHASE_BOUNDARIES.PROTOSTAR_LIMIT) this.t = STELLAR_CONSTANTS.PHASE_BOUNDARIES.PROTOSTAR_LIMIT;
+        if (!ignites && this.t >= STELLAR_CONSTANTS.PHASE_BOUNDARIES.PROTOSTAR_LIMIT) {
+            this.t = STELLAR_CONSTANTS.PHASE_BOUNDARIES.PROTOSTAR_LIMIT * 0.999;
+        }
         if (this.t > STELLAR_CONSTANTS.PHASE_BOUNDARIES.REMNANT_START) {
             this.t = Math.min(1.65, this.t);
             this.isSupernovaFlashing = false;
@@ -686,14 +719,47 @@ export class HeroStarSystem extends THREE.Group {
         this.currentRealAge = Math.max(0, this.t * this.lifespanReal);
         const age_yr = this.currentRealAge * 1e6;
 
-        const metallicity = (physics as any)?.metallicity ?? 0.02;
-        const stellarState = createStellarState(this.physicsId, this.mass, metallicity, age_yr);
-        const newPhase = STELLAR_PHASE_TO_NUM[stellarState.phase];
+        // [SIM-H3]: Compute scalar stellar state directly without per-frame object allocations
+        const tau_ms = computeMainSequenceLifetime(this.mass);
+        const phaseStr = computePhase(this.mass, age_yr, tau_ms);
+        const newPhase = STELLAR_PHASE_TO_NUM[phaseStr];
 
-        this.currentTemp = stellarState.temperature_K;
-        this.currentLum = stellarState.luminosity_solar;
-        this.currentMass = stellarState.mass_solar;
-        this.currentRadius = stellarState.radius_solar;
+        let mass_solar = this.mass;
+        if (phaseStr === 'red_giant') {
+            const rgFraction = Math.min((age_yr - tau_ms) / (tau_ms * 0.2), 1.0);
+            mass_solar = this.mass * (1 - rgFraction * 0.4);
+        } else if (phaseStr === 'supernova' || phaseStr === 'remnant') {
+            if (this.mass <= STELLAR_CONSTANTS.PHYSICS.MASS_THRESHOLD_SUPERNOVA) {
+                mass_solar = Math.min(this.mass, Math.max(0.5, 0.394 + 0.109 * this.mass));
+            } else {
+                mass_solar = Math.min(this.mass, Math.max(1.4, this.mass * 0.2));
+            }
+        }
+
+        let luminosity_solar: number;
+        if (phaseStr === 'nebula') {
+            luminosity_solar = computeLuminosity(this.mass) * 0.001;
+        } else if (phaseStr === 'protostar') {
+            luminosity_solar = computeLuminosity(this.mass) * 0.1;
+        } else if (phaseStr === 'main_sequence') {
+            luminosity_solar = computeLuminosity(mass_solar);
+        } else if (phaseStr === 'red_giant') {
+            const rgProgress = Math.min((age_yr - tau_ms) / (tau_ms * 0.2), 1.0);
+            luminosity_solar = computeLuminosity(this.mass) * (10 + 90 * rgProgress);
+        } else if (phaseStr === 'supernova') {
+            luminosity_solar = 1e9;
+        } else {
+            const remnant = computeRemnantType(mass_solar);
+            luminosity_solar = remnant === 'black_hole' ? 0 : remnant === 'neutron_star' ? 0.1 : 0.01;
+        }
+
+        const radius_solar = computeRadius(mass_solar, phaseStr, age_yr, tau_ms);
+        const temperature_K = computeTemperature(luminosity_solar, radius_solar);
+
+        this.currentTemp = temperature_K;
+        this.currentLum = luminosity_solar;
+        this.currentMass = mass_solar;
+        this.currentRadius = radius_solar;
 
         // BOLT: Determine current phase and handle transitions
         if (this._activePhase !== newPhase) {
@@ -720,6 +786,13 @@ export class HeroStarSystem extends THREE.Group {
             this.phase = newPhase;
             if (exitingPhase >= 0) {
                 this.onPhaseTransition?.(exitingPhase, newPhase);
+                if (
+                    overrideT === undefined &&
+                    (exitingPhase === PHASES.RED_GIANT ||
+                        (exitingPhase === PHASES.MAIN_SEQUENCE && !keepPlanets))
+                ) {
+                    this.onRecycle?.(this);
+                }
             }
         }
 
@@ -761,10 +834,10 @@ export class HeroStarSystem extends THREE.Group {
             this.planetarySystem?.update(delta, appTime, nbodyBuffer, lowDetail, globalFade);
         } else if (this.phase === PHASES.RED_GIANT) {
             targetRed = 1;
-            this.redGiantPhase.update(delta, appTime, cameraPos, physics, this.t, lowDetail, this.currentTemp, stellarState.radius_solar);
+            this.redGiantPhase.update(delta, appTime, cameraPos, physics, this.t, lowDetail, this.currentTemp, this.currentRadius);
             // Thread the live giant radius into update for per-planet scorch computation.
             if (this.planetarySystem) {
-                const redGiantScale = this.redGiantPhase.getCurrentScale(this.t, appTime, stellarState.radius_solar);
+                const redGiantScale = this.redGiantPhase.getCurrentScale(this.t, appTime, this.currentRadius);
                 this.planetarySystem.update(delta, appTime, nbodyBuffer, lowDetail, globalFade, redGiantScale);
             }
         } else if (this.phase === PHASES.SUPERNOVA) {

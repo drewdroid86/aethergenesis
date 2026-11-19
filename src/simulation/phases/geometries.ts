@@ -60,6 +60,18 @@ export const GEOMETRIES = {
             BH_DISK_RADIAL_SEGMENTS,
         );
         geo.rotateX(Math.PI / 2);
+        // The last theta column sits on the first (θ = 2π). Leaving both
+        // in the index draws that ray twice and cuts a bright seam through
+        // the filaments. Point the duplicate column back at column 0.
+        const index = geo.getIndex();
+        if (index) {
+            const stride = BH_DISK_THETA_SEGMENTS + 1;
+            for (let i = 0; i < index.count; i++) {
+                const vertex = index.getX(i);
+                if (vertex % stride === BH_DISK_THETA_SEGMENTS) index.setX(i, vertex - BH_DISK_THETA_SEGMENTS);
+            }
+            index.needsUpdate = true;
+        }
         // Far-side vertices bend off the plane (see RemnantPhase disk shader).
         // The flat annulus bound would clip that curl at the frustum edge.
         geo.computeBoundingSphere();

@@ -1,8 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert';
 import { spawn, type ChildProcess } from 'node:child_process';
-import { existsSync, mkdtempSync, rmSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { existsSync, mkdirSync, mkdtempSync, rmSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import WsPkg from 'ws';
@@ -216,7 +215,9 @@ test(
       });
       await waitFor(PREVIEW_URL, 30000);
 
-      profileDir = mkdtempSync(join(tmpdir(), 'f-mobile-layout-'));
+      const tmpDir = process.env.TMPDIR || join(root, 'tmp');
+      mkdirSync(tmpDir, { recursive: true });
+      profileDir = mkdtempSync(join(tmpDir, 'f-mobile-layout-'));
       chrome = spawn(
         CHROME!,
         [

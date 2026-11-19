@@ -153,7 +153,7 @@ Civilization: ${geminiData.civilization}`;
             setIsAnalyzing(true);
             const payload = {
                 temp: Math.round(selectedStar.currentTemp),
-                mass: parseFloat(selectedStar.mass.toFixed(2)),
+                mass: parseFloat((selectedStar.currentMass ?? selectedStar.mass).toFixed(2)),
                 lum: parseFloat(selectedStar.currentLum.toFixed(3)),
                 age: parseFloat(selectedStar.currentRealAge.toFixed(1)),
                 phase: PHASE_NAMES[selectedStar.phase],
@@ -297,10 +297,12 @@ Civilization: ${geminiData.civilization}`;
                         aria-label="Stellar lifecycle timeline" 
                         aria-valuemin={0} 
                         aria-valuemax={100}
+                        aria-valuenow={Math.round(Math.min(100, Math.max(0, (selectedStar.t / 1.6) * 100)))}
                         className="w-full h-2 bg-white/10 rounded-full overflow-hidden cursor-ew-resize relative group focus-visible:ring-2 focus-visible:ring-[#C084FC] outline-none"
                         onPointerDown={handlePointerDown}
                         onPointerMove={handlePointerMove}
                         onPointerUp={handlePointerUp}
+                        onPointerCancel={handlePointerUp}
                         onKeyDown={onKeyDown}
                     >
                         <div ref={uiRefs.timelineFill} className="h-full bg-gradient-to-r from-blue-500 via-fuchsia-500 to-red-500" style={{width: '0%'}}></div>

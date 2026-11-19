@@ -1,12 +1,12 @@
 import test from 'node:test';
 import assert from 'node:assert';
 import * as THREE from 'three';
-import { computeMainSequenceLifetime, sampleKroupaMass } from '../../src/simulation/StellarPhysics.ts';
+import { computeMainSequenceLifetime, sampleKroupaMass, KROUPA_OB_M_MAX_POW, KROUPA_OB_MASS_EXPONENT } from '../../src/simulation/StellarPhysics.ts';
 import { solveKepler, keplerianToCartesian } from '../../src/simulation/OrbitalMechanics.ts';
 import fs from 'node:fs';
 import { AstrobiologyEngine } from '../../src/simulation/AstrobiologyEngine.ts';
-import { RemnantPhase, WHITE_DWARF_SCALE, WHITE_DWARF_COLOR, NEUTRON_STAR_COLOR, blackHoleShadowRadius, blackHoleWorldShadowRadius, blackHoleGravitationalRadius, blackHoleInFrontOfCamera, BH_CORE_FILL } from '../../src/simulation/phases/RemnantPhase.ts';
-import { BH_CORE_RADIUS, BH_DISK_INNER, BH_DISK_THETA_SEGMENTS, GEOMETRIES } from '../../src/simulation/phases/geometries.ts';
+import { RemnantPhase, WHITE_DWARF_SCALE, WHITE_DWARF_COLOR, NEUTRON_STAR_COLOR, blackHoleShadowRadius, blackHoleWorldShadowRadius, blackHoleGravitationalRadius, blackHoleInFrontOfCamera, blackHoleFocusOffsetFromDisk, BH_CORE_FILL, BH_FOCUS_ELEVATION_RAD } from '../../src/simulation/phases/RemnantPhase.ts';
+import { BH_CORE_RADIUS, BH_DISK_INNER, BH_DISK_OUTER, BH_DISK_THETA_SEGMENTS, GEOMETRIES } from '../../src/simulation/phases/geometries.ts';
 import { mulberry32 } from '../../src/physics/math.ts';
 import { setStellarAge } from '../../src/simulation/stellarAge.ts';
 import { SimulationCoordinator } from '../../src/simulation/SimulationCoordinator.ts';
@@ -313,12 +313,23 @@ test('F6-15: applyPreset takes a typed StarPreset, not any', () => {
   assert.ok(!heroSrc.includes('applyPreset(preset: any'), 'applyPreset must not take any');
 });
 
+// Inverse CDF of the OB branch at the rounded anchor mMaxPow = 45^(-0.9):
+//   M_max = mMaxPow^(-1/0.9) = 0.0325^(-1/0.9) = 45.025954924871257
+// in float64 (Math.pow bits 0x404683527db0bf00). The anchor rounds 45^(-0.9),
+// so this endpoint sits above 45 and a cap of 45 fails ~4% of 5000-draw runs
+// (CI on 4610c4f drew 45.024). Math.random() is in [0, 1). At the largest
+// double below 1 the same expression returns 45.025954924871087, about 24 ulps
+// under M_max, because (1 - 0.94) / 0.06 rounds to 1 + 4 ulps and is never
+// reached. One ulp (~7.11e-15) covers Math.pow landing on the next
+// representable value above that endpoint.
 test('F6-16: sampleKroupaMass samples OB-association high-mass tail (>=15 M_sun Black Hole progenitors)', () => {
+  const kroupaMassMax = Math.pow(KROUPA_OB_M_MAX_POW, -1 / KROUPA_OB_MASS_EXPONENT);
+  const kroupaMassUpper = kroupaMassMax + 2 ** (Math.floor(Math.log2(kroupaMassMax)) - 52);
   let massiveCount = 0;
   const N = 5000;
   for (let i = 0; i < N; i++) {
     const m = sampleKroupaMass();
-    assert.ok(m >= 0.08 && m <= 45.0, `Mass out of bounds: ${m}`);
+    assert.ok(m >= 0.08 && m <= kroupaMassUpper, `Mass out of bounds: ${m} (upper ${kroupaMassUpper})`);
     if (m >= 15.0) massiveCount++;
   }
   // With 6% in 8-45 M_sun tail, ~2.5% of all stars are >= 15 M_sun
@@ -370,6 +381,40 @@ test('F6-18: black hole shadow authority scales meshes and the arch is not prima
   const expected = blackHoleShadowRadius(40) / BH_DISK_INNER;
   assert.ok(Math.abs(disk.scale.x - expected) < 1e-4, 'setMass rescales the disk from b_c');
   phase.dispose();
+});
+
+test('F6-19: Cygnus focus frames the disk off the horizon and the disk plane', () => {
+  const normal = new THREE.Vector3(0, 1, 0).applyAxisAngle(new THREE.Vector3(1, 0, 0), 0.22);
+  const offset = blackHoleFocusOffsetFromDisk(21.2, 1, normal, 75, 1280 / 720);
+  const distance = offset.length();
+  const span = BH_DISK_OUTER * 2;
+  const frustumW = 2 * distance * Math.tan((75 * Math.PI) / 180 / 2) * (1280 / 720);
+  const fraction = span / frustumW;
+  assert.ok(fraction >= 0.4 && fraction <= 0.6, `disk width fraction ${fraction}`);
+  const elevation = Math.asin(Math.abs(offset.clone().normalize().dot(normal.clone().normalize())));
+  assert.ok(Math.abs(elevation - BH_FOCUS_ELEVATION_RAD) < 1e-3, `elevation ${elevation}`);
+  assert.ok(distance > blackHoleShadowRadius(21.2) * 4, 'camera stays outside the shadow');
+  assert.ok(distance > BH_DISK_OUTER, 'camera stays outside the disk body');
+
+  const heroSrc = fs.readFileSync('src/rendering/systems/HeroStarSystem.ts', 'utf8');
+  assert.ok(heroSrc.includes('blackHoleFocusOffsetFromDisk'), 'HeroStarSystem frames a black hole through the disk offset');
+  assert.ok(heroSrc.includes('this.phase !== PHASES.REMNANT'), 'only a remnant black hole takes the close frame');
+  const selectionSrc = fs.readFileSync('src/utils/hooks/useStarSelection.ts', 'utf8');
+  assert.ok(selectionSrc.includes('blackHoleFocusOffset'), 'centerOnStar uses the black-hole frame');
+  assert.ok(selectionSrc.includes('new THREE.Vector3(0, 0, 40)'), 'non-black-hole focus keeps the zero-length fallback');
+
+  const engineSrc = fs.readFileSync('src/core/engine.ts', 'utf8');
+  assert.ok(engineSrc.includes('this.asteroidBeltSystem.setVisible(!focusedBlackHole)'), 'the belt is hidden only while a black hole is focused');
+  const remnantSrc = fs.readFileSync('src/simulation/phases/RemnantPhase.ts', 'utf8');
+  assert.ok(remnantSrc.includes('sin(shear * 17.0)'), 'filament harmonics are integers');
+  assert.ok(remnantSrc.includes('smoothstep(0.04, 0.45, vCurl)'), 'under-image fades with the curl weight');
+  assert.ok(!remnantSrc.includes('shear * 2.6') && !remnantSrc.includes('shear * 1.15'), 'non-integer shear harmonics are gone');
+  assert.ok(remnantSrc.includes('lensSphere.visible = false'));
+  assert.ok(!remnantSrc.includes('bhArchMesh'));
+  const cine = fs.readFileSync('src/shaders/cinematic.frag.glsl', 'utf8');
+  assert.ok(cine.includes('if (uLensingStrength > 0.001)'));
+  const pipe = fs.readFileSync('src/rendering/pipeline.ts', 'utf8');
+  assert.ok(pipe.includes('if (!inFront)') && pipe.includes('this.lensingStrength = 0'));
 });
 
 test('F6-17: HeroStarSystem applyPreset and cosmic lifecycle preserve Black Hole phase and persistence', () => {

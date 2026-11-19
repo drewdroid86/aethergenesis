@@ -511,6 +511,13 @@ test('F4-T4-53: P2 AsteroidBeltSystem concentric rings, DysonSwarmSystem precess
   assert.strictEqual(rings[1].mesh.position.y, 20);
   assert.strictEqual(rings[2].mesh.position.z, 30);
 
+  belt.setVisible(false);
+  assert.strictEqual(rings[0].mesh.visible, false, 'hidden belt must not draw the band across a black hole');
+  assert.strictEqual(rings[1].mesh.visible, false);
+  assert.strictEqual(rings[2].mesh.visible, false);
+  belt.setVisible(true);
+  assert.strictEqual(rings[0].mesh.visible, true, 'other hosts still show the belt');
+
   belt.dispose();
   assert.strictEqual((belt as any).rings.length, 0);
   assert.strictEqual(scene.children.length, 0, 'Disposed belt meshes must be removed from scene');

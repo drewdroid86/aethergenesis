@@ -13,13 +13,15 @@ export const BoresightScanner: React.FC<BoresightScannerProps> = ({
     selectedStarId, 
     onLockTarget 
 }) => {
+    const showCallout = Boolean(target && target.id !== selectedStarId);
+
     return (
         <div 
             className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none z-15 flex flex-col items-center select-none"
-            aria-hidden="true"
+            aria-hidden={showCallout ? undefined : 'true'}
         >
             {/* Center Crosshair Flight Reticle */}
-            <div className="relative w-8 h-8 flex items-center justify-center">
+            <div className="relative w-8 h-8 flex items-center justify-center" aria-hidden="true">
                 {/* 4 subtle direction ticks */}
                 <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[1px] h-2 bg-[#7EB8FF]/30" />
                 <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-[1px] h-2 bg-[#7EB8FF]/30" />
@@ -32,7 +34,8 @@ export const BoresightScanner: React.FC<BoresightScannerProps> = ({
 
             {/* Target telemetry callout if celestial object is in line of sight (and not already selected) */}
             {target && target.id !== selectedStarId && (
-                <div 
+                <button 
+                    type="button"
                     onClick={() => onLockTarget?.(target.id)}
                     className="mt-3 pointer-events-auto bg-[rgba(8,8,20,0.85)] backdrop-blur-md border border-[#C084FC]/50 px-3 py-1.5 rounded-xl shadow-[0_0_20px_rgba(192,132,252,0.25)] flex flex-col items-center cursor-pointer transition-all hover:scale-105"
                     title="Click to lock target"
@@ -49,7 +52,7 @@ export const BoresightScanner: React.FC<BoresightScannerProps> = ({
                         <span>•</span>
                         <span className="text-[#C084FC]">{target.distanceFormatted}</span>
                     </div>
-                </div>
+                </button>
             )}
         </div>
     );

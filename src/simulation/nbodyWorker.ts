@@ -424,7 +424,6 @@ function recomputeTMin(): void {
     }
     let tMin = Number.POSITIVE_INFINITY;
     for (const b of bodies) {
-        if (b.type !== 'planet') continue;
         const px = b.position_au.x;
         const py = b.position_au.y;
         const pz = b.position_au.z;
@@ -474,7 +473,7 @@ function integrate(subDt: number): void {
             b.position_au.y = 0.0;
             b.position_au.z = 0.0;
             b.velocity_au_yr.x = 0.0;
-            b.velocity_au_yr.y = (2.0 * Math.PI) / Math.sqrt((i + 1) * 2.0);
+            b.velocity_au_yr.y = ((2.0 * Math.PI) / Math.sqrt((i + 1) * 2.0)) * Math.sqrt(Math.max(0.01, centralMass_solar));
             b.velocity_au_yr.z = 0.0;
             accelsValid = false;
             continue;
@@ -521,6 +520,7 @@ function integrate(subDt: number): void {
 
     // 3. Recalculate accelerations at new positions: a(t + dt)
     calculateAccelerations(accelBuffer);
+    accelsValid = true;
 
     // 4. Second half-step: v(t + dt) = v(t + dt/2) + a(t + dt) * dt/2
     for (let i = 0; i < n; i++) {

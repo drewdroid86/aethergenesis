@@ -9,13 +9,18 @@ import { isOriginAllowed } from './src/utils/security';
 dotenv.config();
 
 const app = express();
-const port = process.env.PORT || 3001;
+const port = process.env.PORT || process.env.SIM_PORT || 3001;
 
 // Security: Defense in depth - minimize fingerprinting
 app.disable('x-powered-by');
 
 // Security: Trust proxy for correct IP detection in rate limiting (e.g., on Render)
-app.set('trust proxy', process.env.TRUST_PROXY || false);
+app.set(
+  'trust proxy',
+  process.env.TRUST_PROXY === 'true'
+    ? 1
+    : (process.env.TRUST_PROXY && process.env.TRUST_PROXY !== 'false' ? process.env.TRUST_PROXY : false)
+);
 
 // Security: Limit payload size to mitigate DoS risks
 app.use(express.json({ limit: '10kb' }));
@@ -25,31 +30,30 @@ if (process.env.APP_URL && !allowedOrigins.includes(process.env.APP_URL)) {
   allowedOrigins.push(process.env.APP_URL);
 }
 
+const scriptSrc = process.env.NODE_ENV === 'production' ? "'self'" : "'self' 'unsafe-eval'";
+const wsPort = process.env.SIM_PORT || String(port);
+const wsOrigins = allowedOrigins.map(o => {
+  try {
+    const url = new URL(o);
+    const wsProtocol = url.protocol === 'https:' ? 'wss:' : 'ws:';
+    // Map both the base origin and the simulation port specifically
+    const baseWs = `${wsProtocol}//${url.hostname}${url.port ? `:${url.port}` : ''}`;
+    const simWs = `${wsProtocol}//${url.hostname}:${wsPort}`;
+    return `${baseWs} ${simWs}`;
+  } catch {
+    return '';
+  }
+}).filter(Boolean).join(' ');
+const connectSrc = `'self' ${wsOrigins}`;
+const cspHeader = `default-src 'self'; script-src ${scriptSrc}; style-src 'self' 'unsafe-inline'; connect-src ${connectSrc}; img-src 'self' data: https:; font-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; upgrade-insecure-requests;`;
+
 // Security: Set enhanced security headers
 app.use((_req, res, next) => {
   res.setHeader('X-Content-Type-Options', 'nosniff');
   res.setHeader('X-Frame-Options', 'DENY');
   res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains; preload');
   res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
-  const scriptSrc = process.env.NODE_ENV === 'production' ? "'self'" : "'self' 'unsafe-eval'";
-
-  // Security: Restrict connect-src to self and specific allowed origins for WebSockets
-  const wsPort = process.env.SIM_PORT || '3001';
-  const wsOrigins = allowedOrigins.map(o => {
-    try {
-      const url = new URL(o);
-      const wsProtocol = url.protocol === 'https:' ? 'wss:' : 'ws:';
-      // Map both the base origin and the simulation port specifically
-      const baseWs = `${wsProtocol}//${url.hostname}${url.port ? `:${url.port}` : ''}`;
-      const simWs = `${wsProtocol}//${url.hostname}:${wsPort}`;
-      return `${baseWs} ${simWs}`;
-    } catch {
-      return '';
-    }
-  }).filter(Boolean).join(' ');
-  const connectSrc = `'self' ${wsOrigins}`;
-
-  res.setHeader('Content-Security-Policy', `default-src 'self'; script-src ${scriptSrc}; style-src 'self' 'unsafe-inline'; connect-src ${connectSrc}; img-src 'self' data: https:; font-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; upgrade-insecure-requests;`);
+  res.setHeader('Content-Security-Policy', cspHeader);
   res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
   res.setHeader('Cross-Origin-Opener-Policy', 'same-origin');
   res.setHeader('Cross-Origin-Resource-Policy', 'same-origin');
@@ -89,22 +93,32 @@ const apiRateLimitMap = new LRUCache<string, RateLimitData>({
   ttl: RATE_LIMIT_WINDOW
 });
 
+const horizonsElementCache = new LRUCache<string, Record<string, unknown>>({
+  max: 250,
+  ttl: 60 * 60 * 1000
+});
+
+const simbadSearchCache = new LRUCache<string, unknown[]>({
+  max: 250,
+  ttl: 60 * 60 * 1000
+});
+
 function checkApiRateLimit(req: express.Request, res: express.Response, maxRequests = 60): boolean {
   const ip = req.ip || req.socket.remoteAddress || 'unknown';
   const now = Date.now();
-  const record = apiRateLimitMap.get(ip) || { count: 0, windowStart: now };
-  if (now - record.windowStart > RATE_LIMIT_WINDOW) {
-    record.count = 0;
-    record.windowStart = now;
+  let record = apiRateLimitMap.get(ip);
+  const isNewWindow = !record || (now - record.windowStart > RATE_LIMIT_WINDOW);
+  if (isNewWindow) {
+    record = { count: 0, windowStart: now };
   }
-  if (record.count >= maxRequests) {
-    const waitSec = Math.ceil((RATE_LIMIT_WINDOW - (now - record.windowStart)) / 1000);
+  if (record!.count >= maxRequests) {
+    const waitSec = Math.ceil((RATE_LIMIT_WINDOW - (now - record!.windowStart)) / 1000);
     res.setHeader('Retry-After', waitSec.toString());
     res.status(429).json({ error: 'Too many requests. Please wait ' + waitSec + 's.' });
     return false;
   }
-  record.count++;
-  apiRateLimitMap.set(ip, record);
+  record!.count++;
+  apiRateLimitMap.set(ip, record!, { noUpdateTTL: !isNewWindow });
   return true;
 }
 
@@ -206,7 +220,7 @@ const parseOrbitalElements = _parseOrbitalElements as (text: string) => {
   argument_perihelion_deg: number;
   mean_anomaly_deg: number;
   period_yr: number | null;
-  aphelion_au: number;
+  aphelion_au: number | null;
   perihelion_au: number;
 };
 const horizonsRecordMatchesRequest = _horizonsRecordMatchesRequest as (
@@ -280,11 +294,17 @@ app.get('/api/catalog/search', async (req, res) => {
     if (!cleanName) return res.status(400).json({ error: 'Invalid name parameter' });
     const preset = PRESETS.find(p => {
       const pName = p.name.toLowerCase().replace(/[^a-z0-9]/g, '');
-      return cleanName.includes(pName) || pName.includes(cleanName);
+      return cleanName === pName || (cleanName.length >= 4 && pName.startsWith(cleanName));
     });
 
     if (preset) {
       return res.json([preset]);
+    }
+
+    const cacheKey = `name:${cleanName}`;
+    const cachedName = simbadSearchCache.get(cacheKey);
+    if (cachedName) {
+      return res.json(cachedName);
     }
 
     // 2. Query SIMBAD
@@ -308,7 +328,7 @@ app.get('/api/catalog/search', async (req, res) => {
           const innerHz = Number(Math.sqrt(params.luminosity_solar / 1.1).toFixed(2));
           const outerHz = Number(Math.sqrt(params.luminosity_solar / 0.53).toFixed(2));
           
-          return res.json([{
+          const found = [{
             name: mainId,
             hip_id: null,
             spectral_class: spType,
@@ -321,7 +341,9 @@ app.get('/api/catalog/search', async (req, res) => {
             chandrasekhar_relevant: params.mass_solar > 0.8,
             literature_reference: 'Simbad Database & Observational Catalog',
             source: 'SIMBAD',
-          }]);
+          }];
+          simbadSearchCache.set(cacheKey, found);
+          return res.json(found);
         }
       }
     } catch (err) {
@@ -382,15 +404,8 @@ app.get('/api/catalog/search', async (req, res) => {
 
   // Fallback to presets
   let results = PRESETS.map(p => ({
-    name: p.name,
+    ...p,
     hip_id: null,
-    spectral_class: p.spectral_class,
-    mass_solar: p.mass_solar,
-    luminosity_solar: p.luminosity_solar,
-    temperature_K: p.temperature_K,
-    radius_solar: p.radius_solar,
-    distance_ly: p.distance_ly,
-    metallicity_Z: p.metallicity_Z,
     source: 'cached_preset',
   }));
 
@@ -412,10 +427,13 @@ app.get('/api/catalog/search', async (req, res) => {
 
 const FALLBACK_SMALL_BODIES: Record<string, {
   body_name: string;
+  type: 'comet' | 'asteroid';
   semi_major_axis_au: number;
   eccentricity: number;
   inclination_deg: number;
+  longitude_ascending_node_deg: number;
   ascending_node_deg: number;
+  argument_perihelion_deg: number;
   perihelion_arg_deg: number;
   mean_anomaly_deg: number;
   period_yr: number;
@@ -424,10 +442,13 @@ const FALLBACK_SMALL_BODIES: Record<string, {
 }> = {
   '1p': {
     body_name: '1P/Halley',
+    type: 'comet',
     semi_major_axis_au: 17.834,
     eccentricity: 0.967,
     inclination_deg: 162.26,
+    longitude_ascending_node_deg: 58.42,
     ascending_node_deg: 58.42,
+    argument_perihelion_deg: 111.33,
     perihelion_arg_deg: 111.33,
     mean_anomaly_deg: 38.38,
     period_yr: 75.3,
@@ -436,10 +457,13 @@ const FALLBACK_SMALL_BODIES: Record<string, {
   },
   'halley': {
     body_name: '1P/Halley',
+    type: 'comet',
     semi_major_axis_au: 17.834,
     eccentricity: 0.967,
     inclination_deg: 162.26,
+    longitude_ascending_node_deg: 58.42,
     ascending_node_deg: 58.42,
+    argument_perihelion_deg: 111.33,
     perihelion_arg_deg: 111.33,
     mean_anomaly_deg: 38.38,
     period_yr: 75.3,
@@ -448,10 +472,13 @@ const FALLBACK_SMALL_BODIES: Record<string, {
   },
   '67p': {
     body_name: '67P/Churyumov-Gerasimenko',
+    type: 'comet',
     semi_major_axis_au: 3.463,
     eccentricity: 0.641,
     inclination_deg: 7.04,
+    longitude_ascending_node_deg: 50.15,
     ascending_node_deg: 50.15,
+    argument_perihelion_deg: 22.14,
     perihelion_arg_deg: 22.14,
     mean_anomaly_deg: 14.2,
     period_yr: 6.44,
@@ -460,10 +487,13 @@ const FALLBACK_SMALL_BODIES: Record<string, {
   },
   'hale-bopp': {
     body_name: 'C/1995 O1 (Hale-Bopp)',
+    type: 'comet',
     semi_major_axis_au: 186.0,
     eccentricity: 0.995,
     inclination_deg: 89.4,
+    longitude_ascending_node_deg: 282.5,
     ascending_node_deg: 282.5,
+    argument_perihelion_deg: 130.6,
     perihelion_arg_deg: 130.6,
     mean_anomaly_deg: 5.0,
     period_yr: 2534.0,
@@ -472,10 +502,13 @@ const FALLBACK_SMALL_BODIES: Record<string, {
   },
   '2p': {
     body_name: '2P/Encke',
+    type: 'comet',
     semi_major_axis_au: 2.21,
     eccentricity: 0.848,
     inclination_deg: 11.78,
+    longitude_ascending_node_deg: 334.57,
     ascending_node_deg: 334.57,
+    argument_perihelion_deg: 186.55,
     perihelion_arg_deg: 186.55,
     mean_anomaly_deg: 120.0,
     period_yr: 3.3,
@@ -484,10 +517,13 @@ const FALLBACK_SMALL_BODIES: Record<string, {
   },
   '9p': {
     body_name: '9P/Tempel 1',
+    type: 'comet',
     semi_major_axis_au: 3.12,
     eccentricity: 0.517,
     inclination_deg: 10.5,
+    longitude_ascending_node_deg: 68.9,
     ascending_node_deg: 68.9,
+    argument_perihelion_deg: 178.9,
     perihelion_arg_deg: 178.9,
     mean_anomaly_deg: 45.0,
     period_yr: 5.5,
@@ -496,10 +532,13 @@ const FALLBACK_SMALL_BODIES: Record<string, {
   },
   'ceres': {
     body_name: '1 Ceres',
+    type: 'asteroid',
     semi_major_axis_au: 2.767,
     eccentricity: 0.076,
     inclination_deg: 10.59,
+    longitude_ascending_node_deg: 80.3,
     ascending_node_deg: 80.3,
+    argument_perihelion_deg: 73.6,
     perihelion_arg_deg: 73.6,
     mean_anomaly_deg: 77.4,
     period_yr: 4.6,
@@ -508,10 +547,13 @@ const FALLBACK_SMALL_BODIES: Record<string, {
   },
   'pallas': {
     body_name: '2 Pallas',
+    type: 'asteroid',
     semi_major_axis_au: 2.772,
     eccentricity: 0.231,
     inclination_deg: 34.8,
+    longitude_ascending_node_deg: 173.1,
     ascending_node_deg: 173.1,
+    argument_perihelion_deg: 310.0,
     perihelion_arg_deg: 310.0,
     mean_anomaly_deg: 60.0,
     period_yr: 4.62,
@@ -520,10 +562,13 @@ const FALLBACK_SMALL_BODIES: Record<string, {
   },
   'juno': {
     body_name: '3 Juno',
+    type: 'asteroid',
     semi_major_axis_au: 2.67,
     eccentricity: 0.256,
     inclination_deg: 13.0,
+    longitude_ascending_node_deg: 169.8,
     ascending_node_deg: 169.8,
+    argument_perihelion_deg: 248.4,
     perihelion_arg_deg: 248.4,
     mean_anomaly_deg: 25.0,
     period_yr: 4.36,
@@ -532,10 +577,13 @@ const FALLBACK_SMALL_BODIES: Record<string, {
   },
   'vesta': {
     body_name: '4 Vesta',
+    type: 'asteroid',
     semi_major_axis_au: 2.36,
     eccentricity: 0.089,
     inclination_deg: 7.14,
+    longitude_ascending_node_deg: 103.8,
     ascending_node_deg: 103.8,
+    argument_perihelion_deg: 151.2,
     perihelion_arg_deg: 151.2,
     mean_anomaly_deg: 20.0,
     period_yr: 3.63,
@@ -544,10 +592,13 @@ const FALLBACK_SMALL_BODIES: Record<string, {
   },
   'eros': {
     body_name: '433 Eros',
+    type: 'asteroid',
     semi_major_axis_au: 1.458,
     eccentricity: 0.223,
     inclination_deg: 10.83,
+    longitude_ascending_node_deg: 304.3,
     ascending_node_deg: 304.3,
+    argument_perihelion_deg: 178.8,
     perihelion_arg_deg: 178.8,
     mean_anomaly_deg: 315.0,
     period_yr: 1.76,
@@ -555,6 +606,15 @@ const FALLBACK_SMALL_BODIES: Record<string, {
     aphelion_au: 1.78,
   }
 };
+
+function inferSmallBodyType(bodyId: string, bodyName: string, eccentricity: number, fallbackType?: 'comet' | 'asteroid'): 'comet' | 'asteroid' {
+  if (fallbackType) return fallbackType;
+  const trimmedId = bodyId.trim();
+  if (/^(?:\d+[PD]\b|[CPDI]\/)/i.test(trimmedId) || bodyName.includes('/') || /\bcomet\b/i.test(bodyName) || eccentricity > 0.8) {
+    return 'comet';
+  }
+  return 'asteroid';
+}
 
 app.get('/api/horizons/search', async (req, res) => {
   if (!checkApiRateLimit(req, res)) return;
@@ -589,6 +649,10 @@ app.get('/api/horizons/search', async (req, res) => {
     }
 
     const normalizedKey = bodyId.trim().toLowerCase();
+    const cachedElements = horizonsElementCache.get(normalizedKey);
+    if (cachedElements) {
+      return res.json({ ...cachedElements, naif_id: bodyId });
+    }
     const fallback = FALLBACK_SMALL_BODIES[normalizedKey];
 
     try {
@@ -761,12 +825,16 @@ app.get('/api/horizons/search', async (req, res) => {
       }
 
       const parsed = parseOrbitalElements(resultText);
-      return res.json({
+      const inferredType = inferSmallBodyType(bodyId, bodyName, parsed.eccentricity, fallback?.type);
+      const payload = {
         body_name: bodyName,
         naif_id: bodyId,
+        type: inferredType,
         ...parsed,
         source: 'NASA JPL Horizons',
-      });
+      };
+      horizonsElementCache.set(normalizedKey, payload);
+      return res.json(payload);
     } catch (err: any) {
       // Security: Log detailed error internally, return generic message to client
       console.error('Horizons body lookup error:', err);
@@ -789,7 +857,7 @@ app.get('/api/horizons/search', async (req, res) => {
     if (type === 'comet') kindParam = '&sb-kind=c';
     if (type === 'asteroid') kindParam = '&sb-kind=a';
 
-    const url = `https://ssd-api.jpl.nasa.gov/sbdb_query.api?fields=spkid,full_name,e,q,i,per${kindParam}&limit=${limit}&phys-par=0`;
+    const url = `https://ssd-api.jpl.nasa.gov/sbdb_query.api?fields=spkid,full_name,e,q,i,per,om,w,ma,a${kindParam}&limit=${limit}&phys-par=0`;
 
     try {
       const response = await fetchWithTimeout(url);
@@ -798,32 +866,50 @@ app.get('/api/horizons/search', async (req, res) => {
       }
       const data = await response.json();
       if (data.data && Array.isArray(data.data)) {
-        const results = data.data.map((row: any) => {
-          const naif_id = row[0];
-          const name = row[1].trim();
-          const eccentricity = parseFloat(row[2]);
-          const perihelion_au = parseFloat(row[3]);
-          const inclination_deg = parseFloat(row[4]);
-          const period_yr = row[5] ? (parseFloat(row[5]) / 365.25) : null;
+        const results = data.data
+          .filter((row: any) => Number.isFinite(parseFloat(row[2])) && Number.isFinite(parseFloat(row[3])))
+          .map((row: any) => {
+            const naif_id = row[0];
+            const name = row[1].trim();
+            const eccentricity = parseFloat(row[2]);
+            const perihelion_au = parseFloat(row[3]);
+            const rawInc = parseFloat(row[4]);
+            const inclination_deg = Number.isFinite(rawInc) ? rawInc : 0;
+            const rawPer = row[5] != null ? parseFloat(row[5]) : NaN;
+            const period_yr = Number.isFinite(rawPer) ? (rawPer / 365.25) : null;
+            const rawOm = parseFloat(row[6]);
+            const longitude_ascending_node_deg = Number.isFinite(rawOm) ? rawOm : 0;
+            const rawW = parseFloat(row[7]);
+            const argument_perihelion_deg = Number.isFinite(rawW) ? rawW : 0;
+            const rawMa = parseFloat(row[8]);
+            const mean_anomaly_deg = Number.isFinite(rawMa) ? rawMa : 0;
+            const rawA = parseFloat(row[9]);
+            const semi_major_axis_au = Number.isFinite(rawA) && rawA > 0
+              ? rawA
+              : (eccentricity < 1 ? perihelion_au / (1 - eccentricity) : perihelion_au);
 
-          // NOTE: a bare 'P' check misclassifies asteroids (e.g. "2 Pallas").
-          // Cometary designations carry a '/' ("1P/Halley", "C/1995 O1 ...").
-          const isComet = type === 'comet' || name.includes('/');
-          const coma_onset_au = isComet ? 3.0 : null;
-          const tail_onset_au = isComet ? 2.5 : null;
+            // NOTE: a bare 'P' check misclassifies asteroids (e.g. "2 Pallas").
+            // Cometary designations carry a '/' ("1P/Halley", "C/1995 O1 ...").
+            const isComet = type === 'comet' || name.includes('/');
+            const coma_onset_au = isComet ? 3.0 : null;
+            const tail_onset_au = isComet ? 2.5 : null;
 
-          return {
-            naif_id,
-            name,
-            type: isComet ? 'comet' : 'asteroid',
-            period_yr,
-            eccentricity,
-            perihelion_au,
-            inclination_deg,
-            coma_onset_au,
-            tail_onset_au,
-          };
-        });
+            return {
+              naif_id,
+              name,
+              type: isComet ? 'comet' : 'asteroid',
+              period_yr,
+              semi_major_axis_au,
+              eccentricity,
+              perihelion_au,
+              inclination_deg,
+              longitude_ascending_node_deg,
+              argument_perihelion_deg,
+              mean_anomaly_deg,
+              coma_onset_au,
+              tail_onset_au,
+            };
+          });
         return res.json(results);
       } else {
         throw new Error('Invalid structure');
@@ -833,19 +919,19 @@ app.get('/api/horizons/search', async (req, res) => {
       let results: any[];
       if (type === 'comet') {
         results = [
-          { naif_id: "1P", name: "1P/Halley", type: "comet", period_yr: 75.3, eccentricity: 0.967, perihelion_au: 0.586, inclination_deg: 162.2, coma_onset_au: 3.0, tail_onset_au: 2.5 },
-          { naif_id: "67P", name: "67P/Churyumov-Gerasimenko", type: "comet", period_yr: 6.44, eccentricity: 0.641, perihelion_au: 1.24, inclination_deg: 7.04, coma_onset_au: 3.0, tail_onset_au: 2.5 },
-          { naif_id: "Hale-Bopp", name: "C/1995 O1 (Hale-Bopp)", type: "comet", period_yr: 2534.0, eccentricity: 0.995, perihelion_au: 0.914, inclination_deg: 89.4, coma_onset_au: 3.0, tail_onset_au: 2.5 },
-          { naif_id: "2P", name: "2P/Encke", type: "comet", period_yr: 3.3, eccentricity: 0.848, perihelion_au: 0.336, inclination_deg: 11.78, coma_onset_au: 3.0, tail_onset_au: 2.5 },
-          { naif_id: "9P", name: "9P/Tempel 1", type: "comet", period_yr: 5.5, eccentricity: 0.517, perihelion_au: 1.5, inclination_deg: 10.5, coma_onset_au: 3.0, tail_onset_au: 2.5 }
+          { naif_id: "1P", name: "1P/Halley", type: "comet", period_yr: 75.3, semi_major_axis_au: 17.834, eccentricity: 0.967, perihelion_au: 0.586, inclination_deg: 162.2, longitude_ascending_node_deg: 58.42, argument_perihelion_deg: 111.33, mean_anomaly_deg: 38.38, coma_onset_au: 3.0, tail_onset_au: 2.5 },
+          { naif_id: "67P", name: "67P/Churyumov-Gerasimenko", type: "comet", period_yr: 6.44, semi_major_axis_au: 3.463, eccentricity: 0.641, perihelion_au: 1.24, inclination_deg: 7.04, longitude_ascending_node_deg: 50.15, argument_perihelion_deg: 22.14, mean_anomaly_deg: 14.2, coma_onset_au: 3.0, tail_onset_au: 2.5 },
+          { naif_id: "Hale-Bopp", name: "C/1995 O1 (Hale-Bopp)", type: "comet", period_yr: 2534.0, semi_major_axis_au: 186.0, eccentricity: 0.995, perihelion_au: 0.914, inclination_deg: 89.4, longitude_ascending_node_deg: 282.5, argument_perihelion_deg: 130.6, mean_anomaly_deg: 5.0, coma_onset_au: 3.0, tail_onset_au: 2.5 },
+          { naif_id: "2P", name: "2P/Encke", type: "comet", period_yr: 3.3, semi_major_axis_au: 2.21, eccentricity: 0.848, perihelion_au: 0.336, inclination_deg: 11.78, longitude_ascending_node_deg: 334.57, argument_perihelion_deg: 186.55, mean_anomaly_deg: 120.0, coma_onset_au: 3.0, tail_onset_au: 2.5 },
+          { naif_id: "9P", name: "9P/Tempel 1", type: "comet", period_yr: 5.5, semi_major_axis_au: 3.12, eccentricity: 0.517, perihelion_au: 1.5, inclination_deg: 10.5, longitude_ascending_node_deg: 68.9, argument_perihelion_deg: 178.9, mean_anomaly_deg: 45.0, coma_onset_au: 3.0, tail_onset_au: 2.5 }
         ];
       } else {
         results = [
-          { naif_id: "Ceres", name: "1 Ceres", type: "asteroid", period_yr: 4.6, eccentricity: 0.076, perihelion_au: 2.56, inclination_deg: 10.6, coma_onset_au: null, tail_onset_au: null },
-          { naif_id: "Pallas", name: "2 Pallas", type: "asteroid", period_yr: 4.62, eccentricity: 0.231, perihelion_au: 2.13, inclination_deg: 34.8, coma_onset_au: null, tail_onset_au: null },
-          { naif_id: "Juno", name: "3 Juno", type: "asteroid", period_yr: 4.36, eccentricity: 0.256, perihelion_au: 1.98, inclination_deg: 13.0, coma_onset_au: null, tail_onset_au: null },
-          { naif_id: "Vesta", name: "4 Vesta", type: "asteroid", period_yr: 3.63, eccentricity: 0.089, perihelion_au: 2.15, inclination_deg: 7.14, coma_onset_au: null, tail_onset_au: null },
-          { naif_id: "Eros", name: "433 Eros", type: "asteroid", period_yr: 1.76, eccentricity: 0.223, perihelion_au: 1.13, inclination_deg: 10.8, coma_onset_au: null, tail_onset_au: null }
+          { naif_id: "Ceres", name: "1 Ceres", type: "asteroid", period_yr: 4.6, semi_major_axis_au: 2.767, eccentricity: 0.076, perihelion_au: 2.56, inclination_deg: 10.6, longitude_ascending_node_deg: 80.3, argument_perihelion_deg: 73.6, mean_anomaly_deg: 77.4, coma_onset_au: null, tail_onset_au: null },
+          { naif_id: "Pallas", name: "2 Pallas", type: "asteroid", period_yr: 4.62, semi_major_axis_au: 2.772, eccentricity: 0.231, perihelion_au: 2.13, inclination_deg: 34.8, longitude_ascending_node_deg: 173.1, argument_perihelion_deg: 310.0, mean_anomaly_deg: 60.0, coma_onset_au: null, tail_onset_au: null },
+          { naif_id: "Juno", name: "3 Juno", type: "asteroid", period_yr: 4.36, semi_major_axis_au: 2.67, eccentricity: 0.256, perihelion_au: 1.98, inclination_deg: 13.0, longitude_ascending_node_deg: 169.8, argument_perihelion_deg: 248.4, mean_anomaly_deg: 25.0, coma_onset_au: null, tail_onset_au: null },
+          { naif_id: "Vesta", name: "4 Vesta", type: "asteroid", period_yr: 3.63, semi_major_axis_au: 2.36, eccentricity: 0.089, perihelion_au: 2.15, inclination_deg: 7.14, longitude_ascending_node_deg: 103.8, argument_perihelion_deg: 151.2, mean_anomaly_deg: 20.0, coma_onset_au: null, tail_onset_au: null },
+          { naif_id: "Eros", name: "433 Eros", type: "asteroid", period_yr: 1.76, semi_major_axis_au: 1.458, eccentricity: 0.223, perihelion_au: 1.13, inclination_deg: 10.8, longitude_ascending_node_deg: 304.3, argument_perihelion_deg: 178.8, mean_anomaly_deg: 315.0, coma_onset_au: null, tail_onset_au: null }
         ];
       }
       return res.json(results.slice(0, limit));
@@ -877,29 +963,6 @@ app.post('/api/analyze', async (req, res) => {
     return res.status(400).json({ error: 'Invalid request body.' });
   }
 
-  // Security: Rate limiting by IP
-  const ip = req.ip || req.socket.remoteAddress || 'unknown';
-  const now = Date.now();
-  const record = analysisLimitMap.get(ip) || { count: 0, windowStart: now };
-
-  if (now - record.windowStart > RATE_LIMIT_WINDOW) {
-    record.count = 0;
-    record.windowStart = now;
-  }
-
-  if (record.count >= MAX_REQUESTS_PER_WINDOW) {
-    const waitSec = Math.ceil((RATE_LIMIT_WINDOW - (now - record.windowStart)) / 1000);
-    res.setHeader('Retry-After', waitSec.toString());
-    return res.status(429).json({ error: 'Too many requests. Please wait ' + waitSec + 's.' });
-  }
-
-  record.count++;
-
-  // Security: Prevent caching of sensitive AI results
-  res.setHeader('Cache-Control', 'no-store, max-age=0');
-
-  analysisLimitMap.set(ip, record);
-
   const { temp, mass, lum, age, phase, G, alpha } = req.body;
 
   // Security: Input validation and sanitization to prevent prompt injection and malformed requests
@@ -923,6 +986,29 @@ app.post('/api/analyze', async (req, res) => {
   if (phase === 'Nebula' || phase === 'Protostar') {
     return res.status(400).json({ error: 'No planets exist in this phase — analysis requires Main Sequence or later.' });
   }
+
+  // Security: Rate limiting by IP (evaluated after input/phase validation)
+  const ip = req.ip || req.socket.remoteAddress || 'unknown';
+  const now = Date.now();
+  let record = analysisLimitMap.get(ip);
+  const isNewWindow = !record || (now - record.windowStart > RATE_LIMIT_WINDOW);
+
+  if (isNewWindow) {
+    record = { count: 0, windowStart: now };
+  }
+
+  if (record!.count >= MAX_REQUESTS_PER_WINDOW) {
+    const waitSec = Math.ceil((RATE_LIMIT_WINDOW - (now - record!.windowStart)) / 1000);
+    res.setHeader('Retry-After', waitSec.toString());
+    return res.status(429).json({ error: 'Too many requests. Please wait ' + waitSec + 's.' });
+  }
+
+  record!.count++;
+
+  // Security: Prevent caching of sensitive AI results
+  res.setHeader('Cache-Control', 'no-store, max-age=0');
+
+  analysisLimitMap.set(ip, record!, { noUpdateTTL: !isNewWindow });
 
   const GEN_AI_TIMEOUT = 10000;
   let timeoutHandle: NodeJS.Timeout;

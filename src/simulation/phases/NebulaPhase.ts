@@ -11,7 +11,6 @@ export class NebulaPhase implements PhaseComponent {
     private nebulaMesh!: THREE.Mesh;
     private dustCloud!: THREE.Points;
     private parent!: THREE.Group;
-    private _matrixInitialized: boolean = false;
     private initialized = false;
 
     constructor() {

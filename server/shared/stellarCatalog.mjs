@@ -158,7 +158,7 @@ const PRESETS = [
     metallicity_Z: 0.01,
     distance_ly: 11.9,
     age_gyr: 5.8,
-    known_planets: 4,
+    known_planets: 5,
     habitable_zone_inner_au: 0.68,
     habitable_zone_outer_au: 1.2,
     chandrasekhar_relevant: false,

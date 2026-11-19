@@ -27,7 +27,7 @@ async function runTestFile(filePath: string): Promise<boolean> {
   console.log(`========================================`);
 
   return new Promise((resolve) => {
-    const child = spawn('node', ['node_modules/tsx/dist/cli.mjs', '--test', filePath], {
+    const child = spawn('node', ['--import', 'tsx', '--test', filePath], {
       stdio: 'inherit',
       env: {
         ...process.env,
@@ -52,7 +52,7 @@ async function main() {
   console.log('Starting E2E Test Runner...');
 
   // Start Express/WebSocket Server in background
-  const serverProcess = spawn('node', ['node_modules/tsx/dist/cli.mjs', 'server.ts'], {
+  const serverProcess = spawn('node', ['--import', 'tsx', 'server.ts'], {
     env: {
       ...process.env,
       PORT: PORT.toString(),

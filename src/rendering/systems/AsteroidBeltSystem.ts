@@ -293,6 +293,18 @@ export class AsteroidBeltSystem {
         }
     }
 
+    /**
+     * The belt radii (2.0–3.5) sit inside a black-hole accretion disk.
+     * Drawn there, the rocks project as a jagged band across the shadow.
+     * Callers hide the meshes for a focused black hole and show them again
+     * for every other host. Geometry and shading are unchanged.
+     */
+    setVisible(visible: boolean): void {
+        for (const ring of this.rings) {
+            ring.mesh.visible = visible;
+        }
+    }
+
     update(time: number, starPosition?: THREE.Vector3, starMass: number = 1.0): void {
         const base = time * 0.05 * Math.sqrt(Math.max(0.01, starMass));
         for (const ring of this.rings) {
