@@ -165,7 +165,8 @@ export function computeRadius(
   mass_solar: number,
   phase: StellarPhase,
   age_yr: number,
-  tau_ms: number
+  tau_ms: number,
+  initialMass_solar?: number
 ): number {
   const r_ms = Math.pow(mass_solar, 0.8);
 
@@ -177,9 +178,11 @@ export function computeRadius(
     case 'main_sequence':
       return r_ms;
     case 'red_giant': {
+      // Anchor expansion on birth mass so envelope wind loss never shrinks R below R_MS
+      const baseRms = Math.pow(initialMass_solar ?? mass_solar, 0.8);
       const t_norm = Math.max(0, Math.min(1, (age_yr - tau_ms) / (0.2 * tau_ms)));
-      const expansion = 1.0 + 99.0 * Math.pow(t_norm, 2);
-      const raw = r_ms * expansion;
+      const expansion = 1.0 + 99.0 * Math.pow(t_norm, 1.25);
+      const raw = baseRms * expansion;
       return Math.min(raw, 500);
     }
     case 'supernova':
@@ -333,7 +336,7 @@ export function computePhase(
   if (age_yr < tau_ms * REAL_PHASE_FRACTIONS.PROTOSTAR_END) return 'protostar';
   if (age_yr < tau_ms * REAL_PHASE_FRACTIONS.MAIN_SEQUENCE_END) return 'main_sequence';
   if (age_yr < tau_ms * REAL_PHASE_FRACTIONS.RED_GIANT_END) return 'red_giant';
-  if (age_yr < tau_ms * REAL_PHASE_FRACTIONS.SUPERNOVA_END && mass_solar >= STELLAR_CONSTANTS.PHYSICS.MASS_THRESHOLD_SUPERNOVA) return 'supernova';
+  if (age_yr < tau_ms * REAL_PHASE_FRACTIONS.SUPERNOVA_END && mass_solar > STELLAR_CONSTANTS.PHYSICS.MASS_THRESHOLD_SUPERNOVA) return 'supernova';
   return 'remnant';
 }
 
@@ -399,6 +402,26 @@ function computeCurrentMass(
 }
 
 /**
+ * Compute Red Giant luminosity from a continuous Hayashi cooling track anchored at ZAMS.
+ * Prevents the discontinuous 10x luminosity / B-class temperature spike on RG entry.
+ */
+export function computeRedGiantLuminosity(
+  initialMass_solar: number,
+  radius_solar: number,
+  rgProgress: number
+): number {
+  const clampedProgress = Math.max(0, Math.min(1, rgProgress));
+  const l_ms = computeLuminosity(initialMass_solar);
+  const r_ms = Math.pow(initialMass_solar, 0.8);
+  const t_ms = computeTemperature(l_ms, r_ms);
+  const hayashiTipK = 3250;
+  const targetTemp = t_ms > hayashiTipK
+    ? hayashiTipK + (t_ms - hayashiTipK) * Math.exp(-3.5 * clampedProgress)
+    : t_ms * (1 - 0.1 * clampedProgress);
+  return Math.max(l_ms, radius_solar * radius_solar * Math.pow(targetTemp / 5778, 4));
+}
+
+/**
  * Compute luminosity adjusted for evolutionary phase.
  *
  * @param initialMass_solar — Birth mass
@@ -406,6 +429,7 @@ function computeCurrentMass(
  * @param phase — Current phase
  * @param age_yr — Current age
  * @param tau_ms — Main sequence lifetime
+ * @param radius_solar — Optional precomputed radius in solar radii
  * @returns Luminosity in solar luminosities
  */
 function computePhaseLuminosity(
@@ -413,7 +437,8 @@ function computePhaseLuminosity(
   mass_solar: number,
   phase: StellarPhase,
   age_yr: number,
-  tau_ms: number
+  tau_ms: number,
+  radius_solar?: number
 ): number {
   switch (phase) {
     case 'nebula':
@@ -423,8 +448,9 @@ function computePhaseLuminosity(
     case 'main_sequence':
       return computeLuminosity(mass_solar);
     case 'red_giant': {
-      const rgProgress = Math.min((age_yr - tau_ms) / (tau_ms * 0.2), 1.0);
-      return computeLuminosity(initialMass_solar) * (10 + 90 * rgProgress);
+      const rgProgress = Math.max(0, Math.min((age_yr - tau_ms) / (tau_ms * 0.2), 1.0));
+      const r = radius_solar ?? computeRadius(mass_solar, phase, age_yr, tau_ms, initialMass_solar);
+      return computeRedGiantLuminosity(initialMass_solar, r, rgProgress);
     }
     case 'supernova':
       return 1e9;
@@ -467,10 +493,10 @@ export function createStellarState(
   const tau_ms = computeMainSequenceLifetime(initialMass_solar);
   const phase = computePhase(initialMass_solar, age_yr, tau_ms);
   const mass_solar = computeCurrentMass(initialMass_solar, phase, age_yr, tau_ms);
+  const radius_solar = computeRadius(mass_solar, phase, age_yr, tau_ms, initialMass_solar);
   const luminosity_solar = computePhaseLuminosity(
-    initialMass_solar, mass_solar, phase, age_yr, tau_ms
+    initialMass_solar, mass_solar, phase, age_yr, tau_ms, radius_solar
   );
-  const radius_solar = computeRadius(mass_solar, phase, age_yr, tau_ms);
   const temperature_K = computeTemperature(luminosity_solar, radius_solar);
   const spectralClass = computeSpectralClass(temperature_K);
   const absoluteMagnitude = computeAbsoluteMagnitude(luminosity_solar);

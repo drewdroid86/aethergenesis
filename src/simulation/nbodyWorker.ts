@@ -5,7 +5,8 @@ import type { SimulationEventType } from './ActionLog';
 let bodies: OrbitalBody[] = [];
 let centralMass_solar: number = 1.0;
 let isRunning = false;
-const softeningSq = 0.0001; // small softening for N-body
+const centralSofteningSq = 1e-8; // minimal central softening (1e-4 AU) preserves close-in exoplanet gravity
+const pairSofteningSq = 0.0001; // pairwise softening prevents close-approach slingshot tunneling
 let dt_yr = 1.0 / 365.25; // default 1 day step
 let tickTimeout: any = null;
 let dtAccumulator = 0;
@@ -181,8 +182,8 @@ function detectCollisions(): void {
     }
 }
 
-// BOLT: Persistent buffers for zero-allocation
-let accelBuffer = new Float32Array(0);
+// BOLT: Persistent buffers for zero-allocation (float64 avoids 32-bit truncation across substeps)
+let accelBuffer = new Float64Array(0);
 let accelsValid = false;
 
 // Double buffering with per-tick reallocation for thread transfers (one-way
@@ -316,7 +317,7 @@ self.onmessage = (e) => {
         }
         bodies = inboundReset.filter(isValidBody);
         ensureStableIds(bodies);
-        if (payload.centralMass_solar && payload.centralMass_solar > 0) {
+        if (Number.isFinite(payload.centralMass_solar) && payload.centralMass_solar > 0) {
             centralMass_solar = payload.centralMass_solar;
         }
         recomputeTMin();
@@ -332,7 +333,7 @@ self.onmessage = (e) => {
  * BOLT: Optimized zero-allocation acceleration calculation
  * Writes directly into targetBuffer to avoid object creation.
  */
-function calculateAccelerations(targetBuffer: Float32Array): void {
+function calculateAccelerations(targetBuffer: Float64Array): void {
     const n = bodies.length;
     targetBuffer.fill(0, 0, n * 3);
 
@@ -345,11 +346,13 @@ function calculateAccelerations(targetBuffer: Float32Array): void {
 
         if (!Number.isFinite(px) || !Number.isFinite(py) || !Number.isFinite(pz)) continue;
 
-        const rSoftSq = px * px + py * py + pz * pz + softeningSq;
+        const rSoftSq = px * px + py * py + pz * pz + centralSofteningSq;
         const r = Math.sqrt(rSoftSq);
-        
+        const r3 = r * rSoftSq;
+        if (r3 < 1e-12 || !Number.isFinite(r3)) continue;
+
         // aMag = -G * M / r^3. Use r * rSoftSq to save one multiplication.
-        const aMag = -(G_mu * centralMass_solar) / (r * rSoftSq);
+        const aMag = -(G_mu * centralMass_solar) / r3;
         if (!Number.isFinite(aMag)) continue;
 
         targetBuffer[i * 3 + 0] += aMag * px;
@@ -373,11 +376,11 @@ function calculateAccelerations(targetBuffer: Float32Array): void {
 
             if (!Number.isFinite(dx) || !Number.isFinite(dy) || !Number.isFinite(dz)) continue;
             
-            const distSoftSq = dx*dx + dy*dy + dz*dz + softeningSq;
+            const distSoftSq = dx*dx + dy*dy + dz*dz + pairSofteningSq;
             const dist = Math.sqrt(distSoftSq);
             const dist3 = dist * distSoftSq;
 
-            if (dist3 < 1e-6 || !Number.isFinite(dist3)) continue;
+            if (dist3 < 1e-12 || !Number.isFinite(dist3)) continue;
 
             // Acceleration on i due to j: a_i = G * m_j * dir / dist^3
             const aMag_i = (G_mu * bj.mass_solar) / dist3;
@@ -449,7 +452,7 @@ function recomputeTMin(): void {
 function integrate(subDt: number): void {
     const n = bodies.length;
     if (accelBuffer.length !== n * 3) {
-        accelBuffer = new Float32Array(n * 3);
+        accelBuffer = new Float64Array(n * 3);
         accelsValid = false;
     }
     const dt_half = subDt * 0.5;
@@ -558,7 +561,7 @@ export function physicsTick() {
 export function physicsTickInner() {
     const n = bodies.length;
     if (accelBuffer.length !== n * 3) {
-        accelBuffer = new Float32Array(n * 3);
+        accelBuffer = new Float64Array(n * 3);
         accelsValid = false;
     }
 

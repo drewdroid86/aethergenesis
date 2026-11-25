@@ -5,6 +5,7 @@ import {
     computeMainSequenceLifetime,
     computePhase,
     computeRadius,
+    computeRedGiantLuminosity,
     computeRemnantType,
     computeTemperature,
     sampleKroupaMass,
@@ -142,6 +143,17 @@ export class HeroStarSystem extends THREE.Group {
 
     private get remnantPhase(): RemnantPhase {
         return this._remnantPhase;
+    }
+
+    syncMass(mass: number, baseRadius: number): void {
+        if (Number.isFinite(mass) && mass > 0) {
+            this.mass = mass;
+        }
+        if (Number.isFinite(baseRadius) && baseRadius > 0) {
+            this.baseRadius = baseRadius;
+        }
+        this._supernovaPhase?.setMass(this.mass, this.baseRadius);
+        this._remnantPhase?.setMass(this.mass);
     }
 
     public hitMesh: THREE.Mesh;
@@ -736,6 +748,8 @@ export class HeroStarSystem extends THREE.Group {
             }
         }
 
+        const radius_solar = computeRadius(mass_solar, phaseStr, age_yr, tau_ms, this.mass);
+
         let luminosity_solar: number;
         if (phaseStr === 'nebula') {
             luminosity_solar = computeLuminosity(this.mass) * 0.001;
@@ -744,8 +758,8 @@ export class HeroStarSystem extends THREE.Group {
         } else if (phaseStr === 'main_sequence') {
             luminosity_solar = computeLuminosity(mass_solar);
         } else if (phaseStr === 'red_giant') {
-            const rgProgress = Math.min((age_yr - tau_ms) / (tau_ms * 0.2), 1.0);
-            luminosity_solar = computeLuminosity(this.mass) * (10 + 90 * rgProgress);
+            const rgProgress = Math.max(0, Math.min((age_yr - tau_ms) / (tau_ms * 0.2), 1.0));
+            luminosity_solar = computeRedGiantLuminosity(this.mass, radius_solar, rgProgress);
         } else if (phaseStr === 'supernova') {
             luminosity_solar = 1e9;
         } else {
@@ -753,7 +767,6 @@ export class HeroStarSystem extends THREE.Group {
             luminosity_solar = remnant === 'black_hole' ? 0 : remnant === 'neutron_star' ? 0.1 : 0.01;
         }
 
-        const radius_solar = computeRadius(mass_solar, phaseStr, age_yr, tau_ms);
         const temperature_K = computeTemperature(luminosity_solar, radius_solar);
 
         this.currentTemp = temperature_K;

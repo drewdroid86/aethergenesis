@@ -553,7 +553,8 @@ test('F4-T4-53: P2 AsteroidBeltSystem concentric rings, DysonSwarmSystem precess
 
   // 3. NebulaSystem static verification
   const nebulaCode = fs.readFileSync(path.resolve(process.cwd(), 'src/rendering/systems/NebulaSystem.ts'), 'utf-8');
-  assert.ok(nebulaCode.includes('gl_PointSize = max(pSize * (${SIZE_REF.toFixed(1)} / -mvPosition.z), 0.0);'), 'Vertex shader must guard behind-camera point sizes');
+  assert.ok(nebulaCode.includes('if (mvPosition.z >= -0.1)'), 'Vertex shader must guard behind-camera point sizes');
+  assert.ok(nebulaCode.includes('clamp(pSize * (${SIZE_REF.toFixed(1)} / max(-mvPosition.z, 1.0)), 1.0, 256.0)'), 'Vertex shader must floor depth and clamp max point size');
   assert.ok(nebulaCode.includes('fbm_3('), 'Fragment shader must use 3-octave fbm_3');
   assert.ok(!nebulaCode.includes('fbm(noisePos'), 'Fragment shader must not call 5-octave fbm');
   assert.ok(nebulaCode.includes('SIZE_REF = 2000.0'), 'Must define SIZE_REF = 2000.0');
