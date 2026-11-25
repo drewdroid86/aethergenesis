@@ -37,6 +37,15 @@ export class SupernovaPhase implements PhaseComponent {
         this.seed = seed;
     }
 
+    setMass(mass: number, baseRadius?: number): void {
+        if (Number.isFinite(mass) && mass > 0) {
+            this.mass = mass;
+        }
+        if (baseRadius !== undefined && Number.isFinite(baseRadius) && baseRadius > 0) {
+            this.baseRadius = baseRadius;
+        }
+    }
+
     init(parent: THREE.Group): void {
         if (this.initialized) {
             phaseCounters.blockedDoubleInits++;
@@ -121,7 +130,7 @@ export class SupernovaPhase implements PhaseComponent {
                     vec3 col = uColor * (1.0 + shell * 2.0);
                     
                     // Fade aggressively at the end of expansion
-                    float fade = 1.0 - pow(uExp, 3.0);
+                    float fade = 1.0 - pow(clamp(uExp, 0.0, 1.0), 3.0);
                     
                     gl_FragColor = vec4(col, clamp(shell * fade * uOpacity, 0.0, 1.0));
                 }
@@ -173,13 +182,14 @@ export class SupernovaPhase implements PhaseComponent {
     update(delta: number, appTime: number, cameraPos: THREE.Vector3, physics: PhysicsConstants, t: number, _lowDetail?: boolean, globalFade: number = 1.0): void {
         this.isFlashing = false;
         if (!this.ejectaMat?.uniforms?.uColor) return;
-        const normT = (t - STELLAR_CONSTANTS.PHASE_BOUNDARIES.SUPERNOVA_START) / STELLAR_CONSTANTS.PHASE_BOUNDARIES.SUPERNOVA_DURATION;
+        const rawNormT = (t - STELLAR_CONSTANTS.PHASE_BOUNDARIES.SUPERNOVA_START) / STELLAR_CONSTANTS.PHASE_BOUNDARIES.SUPERNOVA_DURATION;
+        const normT = Math.max(0, Math.min(1, rawNormT));
         const fade = typeof globalFade === 'number' ? globalFade : 1.0;
         // AESTHETIC: not physics-derived, intentional brief flash envelope.
         // A full-phase opaque core hid every planet and its destruction.
         this.flashOpacity = Math.exp(-Math.max(0, normT) * 35);
         
-        if (this.mass >= STELLAR_CONSTANTS.PHYSICS.MASS_THRESHOLD_SUPERNOVA) {
+        if (this.mass > STELLAR_CONSTANTS.PHYSICS.MASS_THRESHOLD_SUPERNOVA) {
             if (normT < STELLAR_CONSTANTS.VISUALS.SUPERNOVA_FLASH_DURATION) this.isFlashing = true;
 
             this.snRing.visible = true;

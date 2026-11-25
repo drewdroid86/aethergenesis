@@ -22,19 +22,19 @@ varying vec3 vViewDir;
 
 void main() {
     vec3 p = vLocalPosition * 5.0 * uTurbulence;
-    vec3 shift = vec3(
-        fbm(p + vec3(0.0, uTime * 0.28, 0.0)),
-        fbm(p + vec3(1.7, 0.0, uTime * 0.28)),
-        fbm(p + vec3(0.0, 3.1, uTime * 0.28))
-    );
-    
+
     float n1, n2, granulation, fineCell;
     if (uLowDetail > 0.5) {
-        n1 = fbm_3(p + shift);
+        n1 = fbm_3(p + vec3(0.0, uTime * 0.28, 0.0));
         n2 = fbm_3(p * 2.2 - vec3(uTime * 0.45));
         granulation = 0.5;
         fineCell = 0.5;
     } else {
+        vec3 shift = vec3(
+            fbm(p + vec3(0.0, uTime * 0.28, 0.0)),
+            fbm(p + vec3(1.7, 0.0, uTime * 0.28)),
+            fbm(p + vec3(0.0, 3.1, uTime * 0.28))
+        );
         vec3 warpedP = p + shift * 1.35;
         n1 = fbm(warpedP);
         n2 = fbm(warpedP * 2.4 - vec3(uTime * 0.45));
@@ -47,7 +47,7 @@ void main() {
     float noiseVal = (n1 * 0.45 + n2 * 0.30 + cellContrast * 0.25);
     
     // Eddington viewing angle cosine mu = cos(theta)
-    float mu = max(0.0, dot(normalize(vNormal), normalize(vViewDir)));
+    float mu = clamp(dot(normalize(vNormal), normalize(vViewDir)), 0.0, 1.0);
     
     // Solar sunspots: dark cool umbra core + filamentary penumbra surround (spec-compliant smoothstep)
     float sunspotUmbra = 1.0 - smoothstep(0.18, 0.225, n1);
@@ -77,7 +77,7 @@ void main() {
     finalColor *= vec3(1.0) - uLimbDarkening * (1.0 - mu);
     
     // Subtle chromospheric spicule emission ring at extreme grazing limb
-    float spiculeRim = pow(1.0 - mu, 4.5) * (0.6 + 0.4 * n2);
+    float spiculeRim = pow(max(1e-5, 1.0 - mu), 4.5) * (0.6 + 0.4 * n2);
     finalColor += uColor * spiculeRim * 0.12;
     
     gl_FragColor = vec4(finalColor, uOpacity);

@@ -138,7 +138,7 @@ float pFbm(vec3 p) {
 void main() {
     vec3 color = vec3(0.0);
     float type = floor(vType + 0.5);
-    vec3 p = vPosition * 2.5 + vSeed + uTime * 0.06;
+    vec3 p = vPosition * 2.5 + vSeed;
     float n = pFbm(p);
     float detailN = snoise(p * 5.5);
 
@@ -291,10 +291,11 @@ void main() {
     vec3 N_smooth = normalize(vNormal);
     vec3 N = N_smooth;
     if (uLowDetail < 0.5) {
+        float h0 = snoise(p * 3.0);
         float hx = snoise(p * 3.0 + vec3(0.06, 0.0, 0.0));
         float hy = snoise(p * 3.0 + vec3(0.0, 0.06, 0.0));
         float hz = snoise(p * 3.0 + vec3(0.0, 0.0, 0.06));
-        vec3 gradH = vec3(hx - detailN, hy - detailN, hz - detailN);
+        vec3 gradH = vec3(hx - h0, hy - h0, hz - h0);
         gradH -= N_smooth * dot(gradH, N_smooth);
         N = normalize(N_smooth - gradH * bumpAmp);
     }
@@ -319,7 +320,8 @@ void main() {
     }
 
     // Rayleigh atmospheric Fresnel rim scattering + warm sunset terminator twilight
-    float fresnel = pow(1.0 - max(dot(N_smooth, viewDir), 0.0), 2.8);
+    float ndv = clamp(dot(N_smooth, viewDir), 0.0, 1.0);
+    float fresnel = pow(max(1e-5, 1.0 - ndv), 2.8);
     float dayAtmo = smoothstep(-0.28, 0.45, dayFactor);
     float twilight = smoothstep(-0.24, 0.04, dayFactor) * (1.0 - smoothstep(0.04, 0.32, dayFactor));
     vec3 twilightCol = vec3(1.0, 0.42, 0.12);
@@ -693,7 +695,7 @@ export class PlanetarySystem {
                 const a = useLiterature ? literatureA[i] : currentA;
                 currentA = currentA * (1.35 + nextRand() * 0.35);
 
-                const baseOmega = Math.sqrt((4.0 * Math.PI * Math.PI * starMass) / Math.max(0.001, a * a * a));
+                const baseOmega = Math.sqrt((4.0 * Math.PI * Math.PI * starMass) / Math.max(1e-7, a * a * a));
                 const phase = nextRand() * Math.PI * 2;
                 const pSeed = nextRand() * 1000.0;
 

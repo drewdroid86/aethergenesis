@@ -212,8 +212,9 @@ test('F6-10: SupernovaPhase isFlashing reset hygiene, ejecta uOpacity uniform, s
   assert.ok(fragSrc.includes('uniform float uOpacity;'), 'ejecta.frag.glsl must declare uniform float uOpacity');
   assert.ok(fragSrc.includes('* uOpacity'), 'ejecta.frag.glsl must multiply output alpha by uOpacity');
 
-  // Verify ejecta vertex shader point-size depth guard
-  assert.ok(vertSrc.includes('max(-mvPos.z, 0.001)'), 'ejecta.vert.glsl must guard against non-positive depth in point size division');
+  // Verify ejecta vertex shader point-size depth guard and upper bound
+  assert.ok(vertSrc.includes('max(-mvPos.z, 1.0)'), 'ejecta.vert.glsl must guard against non-positive depth in point size division');
+  assert.ok(vertSrc.includes('64.0'), 'ejecta.vert.glsl must clamp point size upper bound');
   assert.ok(vertSrc.includes('max(0.0,'), 'ejecta.vert.glsl must clamp point size to non-negative');
 
   // Verify SupernovaPhase sets ejectaMat uOpacity in init, update, and setOpacity

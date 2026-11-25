@@ -159,12 +159,13 @@ export class Engine {
         const star = this.selectedStar || this.heroStars[0];
         if (!star) return;
 
-        // Ensure mass >= 8.1 so supernova can physically occur
+        // Ensure mass >= 8.1 so supernova can physically occur across physics & phase renderers
         const mass = Math.max(star.mass, 8.1);
-        star.mass = mass;
         star.lifespanReal = computeMainSequenceLifetime(mass) / 1e6;
-        star.baseRadius = Math.pow(mass, 0.8) * 0.8;
-        
+        const nextBaseRadius = Math.pow(mass, 0.8) * 0.8;
+        star.syncMass(mass, nextBaseRadius);
+        star.phase = PHASES.SUPERNOVA;
+
         // Advance normalized timeline progress t to supernova phase start (1.2 τ_MS)
         setStellarAge(star, (STELLAR_CONSTANTS.PHASE_BOUNDARIES.SUPERNOVA_START + 0.01) * star.lifespanReal, this.cosmicAge, this.physicsConstants.G);
     }

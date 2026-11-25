@@ -45,8 +45,8 @@ export function solveKepler(M: number, e: number, tolerance: number = 1e-6, maxI
     let Mn = M % (2.0 * Math.PI);
     if (Mn > Math.PI) Mn -= 2.0 * Math.PI;
     if (Mn < -Math.PI) Mn += 2.0 * Math.PI;
-    // Initial guess for E
-    let E = ecc < 0.8 ? Mn : Math.PI;
+    // Initial guess for E (match Mn sign so Newton-Raphson stays on the monotone side of E = 0)
+    let E = ecc < 0.8 ? Mn : (Mn < 0 ? -Math.PI : Math.PI);
     let F = E - ecc * Math.sin(E) - Mn;
     let i = 0;
 

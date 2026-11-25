@@ -25,10 +25,14 @@ const vertexShader = `
         vWorldPosition = worldPosition.xyz;
         vec4 mvPosition = viewMatrix * worldPosition;
         
-        // Size attenuation: scale point size by distance to camera
-        gl_PointSize = max(pSize * (${SIZE_REF.toFixed(1)} / -mvPosition.z), 0.0);
-        // Focused black hole: shrink the sprites so one cloud cannot cover the disk.
-        gl_PointSize *= mix(1.0, 0.42, uFocusDim);
+        // Size attenuation: scale point size by distance to camera, clamped and culled behind camera
+        if (mvPosition.z >= -0.1) {
+            gl_PointSize = 0.0;
+        } else {
+            gl_PointSize = clamp(pSize * (${SIZE_REF.toFixed(1)} / max(-mvPosition.z, 1.0)), 1.0, 256.0);
+            // Focused black hole: shrink the sprites so one cloud cannot cover the disk.
+            gl_PointSize *= mix(1.0, 0.42, uFocusDim);
+        }
         gl_Position = projectionMatrix * mvPosition;
     }
 `;

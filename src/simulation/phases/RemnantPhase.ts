@@ -247,9 +247,9 @@ function createBlackHoleDiskMaterial(kind: 'primary' | 'secondary'): THREE.Shade
                 // streaks across that ray. dist-only terms are continuous.
                 float orbitalFreq = 4.5 / pow(dist + 0.2, 1.5);
                 float shear = angle - log(max(dist, 0.55)) * 6.0 - uTime * 0.22 * orbitalFreq;
-                float lane = pow(0.5 + 0.5 * sin(shear * 17.0), 18.0);
-                float lane2 = pow(0.5 + 0.5 * sin(shear * 29.0 + 1.3), 26.0);
-                float lane3 = pow(0.5 + 0.5 * sin(shear * 7.0), 10.0);
+                float lane = pow(max(0.0, 0.5 + 0.5 * sin(shear * 17.0)), 18.0);
+                float lane2 = pow(max(0.0, 0.5 + 0.5 * sin(shear * 29.0 + 1.3)), 26.0);
+                float lane3 = pow(max(0.0, 0.5 + 0.5 * sin(shear * 7.0)), 10.0);
                 float along = smoothstep(0.22, 0.8, 0.5 + 0.5 * sin(shear * 2.0 + dist * 0.35));
                 float threads = clamp(lane * 0.7 + lane2 * 0.62 + lane3 * 0.28, 0.0, 1.0);
                 threads *= mix(0.18, 1.0, along);
@@ -648,6 +648,7 @@ export class RemnantPhase implements PhaseComponent {
         // white dwarf (<= 8 branch), so the pulsar branch is > 8, not >= 8.
         if (this.mass >= STELLAR_CONSTANTS.PHYSICS.MASS_THRESHOLD_BLACK_HOLE) {
             this.blackHoleGroup.visible = globalFade > 0.01;
+            this.neutronStarGroup.visible = false;
             // Spin axis stays near +Y (jets). Focus framing, not this tilt, is
             // what holds the default camera off the disk plane.
             this.blackHoleGroup.rotation.x = BH_DISK_TILT_X;
@@ -668,6 +669,7 @@ export class RemnantPhase implements PhaseComponent {
             }
         } else if (this.mass > STELLAR_CONSTANTS.PHYSICS.MASS_THRESHOLD_SUPERNOVA) {
             // Neutron Star branch (> 8 Msun): scale 1.0, blue-white color, active beams & magnetic lines
+            this.blackHoleGroup.visible = false;
             this.neutronStarGroup.scale.setScalar(1.0);
             this.nsMat.color.setHex(NEUTRON_STAR_COLOR);
             this.pulsarGroup.visible = true;
@@ -681,6 +683,7 @@ export class RemnantPhase implements PhaseComponent {
             }
         } else {
             // White Dwarf branch (<= 8 Msun): larger Earth-sized warm-white sphere, no pulsar beams or magnetic lines
+            this.blackHoleGroup.visible = false;
             this.neutronStarGroup.scale.setScalar(WHITE_DWARF_SCALE);
             this.nsMat.color.setHex(WHITE_DWARF_COLOR);
             this.pulsarGroup.visible = false;
