@@ -118,9 +118,13 @@ proposes `hooks.json` and `mcp_config.json`; those files are not currently shipp
 
 For a full application, serve `dist/`, `/api`, and WebSockets on the same public
 origin. `npm start` provides this arrangement after `npm run build`. Render's
-[`render.yaml`](../render.yaml) defines this deployment. Configure its environment
-values before building; add `WS_CONTROL_TOKEN` separately if control is needed.
-The current blueprint does not declare that variable.
+[`render.yaml`](../render.yaml) defines this deployment (Node 22, free plan,
+`/health` check). Its build runs [`scripts/render-build.sh`](../scripts/render-build.sh),
+which sets `VITE_WS_TOKEN` from `WS_TOKEN` when it is unset and fails the build if
+the two differ, so only `WS_TOKEN` needs a value. In the Render dashboard set
+`WS_TOKEN` (letters, digits, `-` and `_` only; `openssl rand -hex 32`) and
+`APP_URL` (the service's public URL); `GEMINI_API_KEY` is optional. Add
+`WS_CONTROL_TOKEN` or `ALLOWED_ORIGINS` in the dashboard only if needed.
 
 The [Pages workflow](../.github/workflows/deploy.yml) publishes static assets
 with `/aethergenesis/` as their base path. It does not deploy Express or inject

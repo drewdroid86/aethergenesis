@@ -1,19 +1,35 @@
+# Render Blueprint: full app (Vite frontend + Express API + WebSocket) on one origin.
+# Values marked sync: false are entered in the Render dashboard, never committed.
 services:
   - type: web
     name: aethergenesis
-    env: node
-    buildCommand: npm install --include=dev && npm run build
+    runtime: node
+    plan: free # free tier sleeps after ~15 min idle; change to starter for always-on
+    buildCommand: sh scripts/render-build.sh
     startCommand: npm start
+    healthCheckPath: /health
     envVars:
-      - key: GEMINI_API_KEY
-        sync: false
-      - key: WS_TOKEN
-        sync: false
-      - key: VITE_WS_TOKEN
-        sync: false
-      - key: APP_URL
-        sync: false
-      - key: ALLOWED_ORIGINS
-        sync: false
+      # Vite 8 needs Node 20.19+ or 22.12+; Render resolves this to the latest 22.x.
+      - key: NODE_VERSION
+        value: "22"
       - key: NODE_ENV
         value: production
+      # Render terminates TLS in front of the app; trust one proxy hop for client IPs.
+      - key: TRUST_PROXY
+        value: "true"
+      # Required. Letters, digits, - and _ only (WebSocket subprotocol).
+      # Generate with: openssl rand -hex 32
+      # Also used at build time as VITE_WS_TOKEN (public in the bundle).
+      - key: WS_TOKEN
+        sync: false
+      # Public URL of this service, e.g. https://aethergenesis.onrender.com.
+      # Added to the allowed origins for CORS and WebSocket checks.
+      - key: APP_URL
+        sync: false
+      # Optional. AI analysis is disabled without it.
+      - key: GEMINI_API_KEY
+        sync: false
+      # Optional, add in the dashboard only if needed:
+      #   ALLOWED_ORIGINS   extra comma-separated origins beyond APP_URL
+      #   WS_CONTROL_TOKEN  private MCP control token; must differ from WS_TOKEN
+      #   VITE_WS_TOKEN     not needed; defaults to WS_TOKEN at build time
