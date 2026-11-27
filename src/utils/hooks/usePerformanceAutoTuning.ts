@@ -45,6 +45,32 @@ interface UsePerformanceAutoTuningProps {
     engineRef?: React.MutableRefObject<Engine | null>;
 }
 
+const PERFORMANCE_TIERS: PerformanceTier[] = ['low', 'medium', 'high', 'ultra'];
+
+export function clampTierToHardwareCeiling(
+    requestedTier: PerformanceTier,
+    maxTier: PerformanceTier = detectPerformanceTier()
+): PerformanceTier {
+    const requestedIndex = PERFORMANCE_TIERS.indexOf(requestedTier);
+    const maxTierIndex = PERFORMANCE_TIERS.indexOf(maxTier);
+    if (requestedIndex === -1 || maxTierIndex === -1) {
+        return requestedTier;
+    }
+    return requestedIndex > maxTierIndex ? maxTier : requestedTier;
+}
+
+export function getAutoUpgradedTier(
+    currentTier: PerformanceTier,
+    maxTier: PerformanceTier = detectPerformanceTier()
+): PerformanceTier | null {
+    const currentTierIndex = PERFORMANCE_TIERS.indexOf(currentTier);
+    const maxTierIndex = PERFORMANCE_TIERS.indexOf(maxTier);
+    if (currentTierIndex === -1 || maxTierIndex === -1 || currentTierIndex >= maxTierIndex) {
+        return null;
+    }
+    return PERFORMANCE_TIERS[currentTierIndex + 1];
+}
+
 export function usePerformanceAutoTuning({ adjustStarfieldTier, rebuildStarfieldGeometry, engineRef }: UsePerformanceAutoTuningProps) {
     const [currentTier, setCurrentTier] = useState<PerformanceTier>(detectPerformanceTier);
     const currentTierRef = useRef(currentTier);
@@ -215,15 +241,15 @@ export function usePerformanceAutoTuning({ adjustStarfieldTier, rebuildStarfield
         return () => window.removeEventListener('keydown', handleKeyDown);
     }, []);
 
-    const handleTierChange = useCallback((newTier: PerformanceTier) => {
+    const handleTierChange = useCallback((requestedTier: PerformanceTier) => {
+        const newTier = clampTierToHardwareCeiling(requestedTier);
         if (newTier === currentTierRef.current) return;
 
         const previousTier = currentTierRef.current;
         currentTierRef.current = newTier;
         setCurrentTier(newTier);
 
-        const tiers: PerformanceTier[] = ['low', 'medium', 'high', 'ultra'];
-        const isDowngrade = tiers.indexOf(newTier) < tiers.indexOf(previousTier);
+        const isDowngrade = PERFORMANCE_TIERS.indexOf(newTier) < PERFORMANCE_TIERS.indexOf(previousTier);
         if (isDowngrade) {
             setShowTierDownIndicator(true); 
 
@@ -372,22 +398,24 @@ export function usePerformanceAutoTuning({ adjustStarfieldTier, rebuildStarfield
             consecutiveFramesAboveThresholdRef.current = 0;
         }
 
-        const tiers: PerformanceTier[] = ['low', 'medium', 'high', 'ultra'];
-        const currentTierIndex = tiers.indexOf(currentTierRef.current);
+        const currentTierIndex = PERFORMANCE_TIERS.indexOf(currentTierRef.current);
+        const maxTierIndex = PERFORMANCE_TIERS.indexOf(detectPerformanceTier());
 
         if (consecutiveFramesBelowThresholdRef.current >= CONSECUTIVE_FRAMES_THRESHOLD) {
             if (currentTierIndex > 0 && (currentTime - lastTierChangeTimeRef.current > TIER_COOLDOWN_MS)) {
-                const newTier = tiers[currentTierIndex - 1];
+                const newTier = PERFORMANCE_TIERS[currentTierIndex - 1];
                 handleTierChange(newTier);
                 lastTierChangeTimeRef.current = currentTime;
                 consecutiveFramesBelowThresholdRef.current = 0; 
             }
         } else if (consecutiveFramesAboveThresholdRef.current >= CONSECUTIVE_UPGRADE_FRAMES_THRESHOLD) {
-            if (currentTierIndex < tiers.length - 1 && (currentTime - lastTierChangeTimeRef.current > TIER_COOLDOWN_MS)) {
-                const newTier = tiers[currentTierIndex + 1];
-                handleTierChange(newTier);
-                lastTierChangeTimeRef.current = currentTime;
-                consecutiveFramesAboveThresholdRef.current = 0;
+            if (currentTierIndex < maxTierIndex && (currentTime - lastTierChangeTimeRef.current > TIER_COOLDOWN_MS)) {
+                const newTier = getAutoUpgradedTier(currentTierRef.current);
+                if (newTier) {
+                    handleTierChange(newTier);
+                    lastTierChangeTimeRef.current = currentTime;
+                    consecutiveFramesAboveThresholdRef.current = 0;
+                }
             }
         }
     }, [handleTierChange, diagnosticsEnabled, engineRef, isDebugMode]);

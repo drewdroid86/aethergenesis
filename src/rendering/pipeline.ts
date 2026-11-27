@@ -20,6 +20,7 @@ export class Pipeline {
     // BOLT: Cached vector instances to avoid per-frame allocations during 60/120fps render loop
     private _tempV: THREE.Vector3 = new THREE.Vector3();
     private _screenPos: THREE.Vector2 = new THREE.Vector2(0.5, 0.5);
+    private _viewportAspect: number = 1.0;
     // Resting bloom. updateLensing tightens this while a black hole is in front
     // so the photon ring and disk don't bloom into a soft blob.
     // AESTHETIC: not physics-derived, intentional restrained stellar halo.
@@ -31,11 +32,18 @@ export class Pipeline {
         this.composer = new EffectComposer(renderer);
         this.composer.setPixelRatio(renderer.getPixelRatio());
 
+        const renderSize = renderer.getSize(new THREE.Vector2());
+        const width = renderSize.x > 0 ? renderSize.x : (typeof window !== 'undefined' && window.innerWidth > 0 ? window.innerWidth : 1);
+        const height = renderSize.y > 0 ? renderSize.y : (typeof window !== 'undefined' && window.innerHeight > 0 ? window.innerHeight : 1);
+        this._viewportAspect = height > 0
+            ? width / height
+            : (Number.isFinite(camera.aspect) && camera.aspect > 0 ? camera.aspect : 1.0);
+
         const renderPass = new RenderPass(scene, camera);
         this.composer.addPass(renderPass);
 
         this.bloomPass = new UnrealBloomPass(
-            new THREE.Vector2(window.innerWidth, window.innerHeight), 
+            new THREE.Vector2(width, height),
             this._bloomStrength, this._bloomRadius, this._bloomThreshold
         );
         this.composer.addPass(this.bloomPass);
@@ -60,7 +68,8 @@ export class Pipeline {
         this.composer.addPass(this.gradePass);
     }
 
-    public updateLensing(selectedStar: any, camera: THREE.PerspectiveCamera, delta: number) {
+    public updateLensing(selectedStar: any, camera: THREE.PerspectiveCamera, delta: number, isPaused: boolean = false) {
+        camera.updateMatrixWorld();
         this._screenPos.set(0.5, 0.5);
         let screenRadius = 0.0;
 
@@ -108,18 +117,19 @@ export class Pipeline {
             this.lensingStrength = THREE.MathUtils.damp(this.lensingStrength, targetLensing, 8.0, delta);
         }
         
-        if (selectedStar && selectedStar.isSupernovaFlashing) {
-            if (this.cinematicPass.uniforms.uShockwave) {
-                const currentW = this.cinematicPass.uniforms.uShockwave.value || 0;
-                this.cinematicPass.uniforms.uShockwave.value = (currentW + delta * 1.5) % 1.0;
-            }
-        } else {
-            if (this.cinematicPass.uniforms.uShockwave) {
-                this.cinematicPass.uniforms.uShockwave.value = THREE.MathUtils.lerp(
-                    this.cinematicPass.uniforms.uShockwave.value || 0,
-                    0.0,
-                    delta * 10.0
-                );
+        const shockwaveUniform = this.cinematicPass.uniforms.uShockwave;
+        if (shockwaveUniform) {
+            const simDelta = isPaused ? 0 : Math.max(0, Number.isFinite(delta) ? delta : 0);
+            if (simDelta > 0) {
+                const currentW = Number.isFinite(shockwaveUniform.value) ? shockwaveUniform.value : 0;
+                if (selectedStar && selectedStar.isSupernovaFlashing) {
+                    shockwaveUniform.value = (currentW + simDelta * 1.5) % 1.0;
+                } else if (currentW > 0) {
+                    // Finish expanding outward so (1.0 - uShockwave) decays amplitude to 0
+                    // instead of lerping backward toward screen center.
+                    const nextW = currentW + simDelta * 1.5;
+                    shockwaveUniform.value = nextW >= 1.0 ? 0.0 : nextW;
+                }
             }
         }
 
@@ -133,7 +143,10 @@ export class Pipeline {
             this.cinematicPass.uniforms.uBlackHoleRadius.value = screenRadius;
         }
         if (this.cinematicPass.uniforms.uAspectRatio) {
-            this.cinematicPass.uniforms.uAspectRatio.value = window.innerHeight > 0 ? window.innerWidth / window.innerHeight : 1.0;
+            this.cinematicPass.uniforms.uAspectRatio.value =
+                Number.isFinite(camera.aspect) && camera.aspect > 0
+                    ? camera.aspect
+                    : this._viewportAspect;
         }
 
         // Bloom tightens only while the shadow is large enough to read. A wide
@@ -154,6 +167,9 @@ export class Pipeline {
     }
 
     setSize(width: number, height: number) {
+        if (width > 0 && height > 0) {
+            this._viewportAspect = width / height;
+        }
         this.composer.setSize(width, height);
         this.bloomPass.resolution.set(width, height);
     }

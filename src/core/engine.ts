@@ -453,6 +453,7 @@ export class Engine {
         }
 
         // BOLT: Global frame calculations
+        this.camera.updateMatrixWorld();
         this._frustum.setFromProjectionMatrix(this._projScreenMatrix.multiplyMatrices(this.camera.projectionMatrix, this.camera.matrixWorldInverse));
         const protostarFlicker = 0.8 + 0.2 * Math.sin(this.appTime * 20.0);
 
@@ -535,7 +536,7 @@ export class Engine {
         PlanetarySystemQueue.process(this.renderer);
 
         // Update post-processing lensing uniforms
-        this.pipeline.updateLensing(this.selectedStar || this.heroStars[0], this.camera, delta);
+        this.pipeline.updateLensing(this.selectedStar || this.heroStars[0], this.camera, delta, this.isPaused);
 
         // Use pipeline for rendering with post-processing - still render when paused for camera movement
         this.pipeline.render(this.appTime, delta);
