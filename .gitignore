@@ -14,15 +14,16 @@ eslint-report.txt
 .agents/
 !.agents/plugins/aethergenesis/
 !.agents/plugins/aethergenesis/**
+.claude/
 .codex/
 .cursor/
 .gemini/
 .jules/
 .vscode/
+.worktrees/
 .zed/
 config/
 opencode.json
 .mcp.json
-.jules/
 benchmark-output.json
 pr-review-report.md

@@ -8,7 +8,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
   pull-requests: write
 
 jobs:
@@ -16,12 +16,12 @@ jobs:
     name: Run Physics Benchmarks
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
-          node-version: '20'
+          node-version: '22'
           cache: 'npm'
 
       - name: Install Dependencies
@@ -30,11 +30,23 @@ jobs:
       - name: Run Physics Benchmark
         run: node node_modules/tsx/dist/cli.mjs scripts/benchmark-physics.js
 
+      - name: Restore Benchmark History Cache
+        uses: actions/cache@v4
+        with:
+          path: ./benchmark-cache
+          key: ${{ runner.os }}-physics-benchmark-${{ github.run_id }}
+          restore-keys: |
+            ${{ runner.os }}-physics-benchmark-
+
+      - name: Ensure Benchmark Cache Directory
+        run: mkdir -p ./benchmark-cache
+
       - name: Store & Compare Benchmark Results
         uses: benchmark-action/github-action-benchmark@v1
         with:
           tool: 'customSmallerIsBetter'
           output-file-path: 'benchmark-output.json'
+          external-data-json-path: './benchmark-cache/benchmark-data.json'
           github-token: ${{ secrets.GITHUB_TOKEN }}
           auto-push: false
           summary-always: true
