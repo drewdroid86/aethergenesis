@@ -353,14 +353,15 @@ export class CometSystem {
 
             const dist = this._posV.length();
 
-            // Calculate velocity direction for dust tail (update prevPosition every frame to avoid staleness)
-            const prev = this.prevPositions[i];
-            if (prev.lengthSq() > 0) {
-                this._vel.set(x - prev.x, y - prev.y, z - prev.z).normalize();
-            } else {
-                this._vel.set(0, 0, 0);
-            }
-            prev.set(x, y, z);
+            // Analytical Keplerian orbital velocity tangent dr/dtheta (stays valid on
+            // frame 0, when paused at constant appTime, and across star mass switches).
+            const vzOrb = data.e + Math.cos(theta);
+            this._vel.set(
+                -Math.sin(theta),
+                vzOrb * Math.sin(data.incRad),
+                vzOrb * Math.cos(data.incRad),
+            ).normalize();
+            this.prevPositions[i].set(x, y, z);
 
             // Stellar Roche limit for a low-density volatile body:
             // d ~ 2.44 R_star (rho_star/rho_comet)^(1/3) ≈ 0.015 AU for the

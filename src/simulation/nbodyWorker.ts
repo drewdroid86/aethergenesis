@@ -226,7 +226,7 @@ self.onmessage = (e) => {
         }
         bodies = inbound.filter(isValidBody);
         ensureStableIds(bodies);
-        if (Number.isFinite(payload.centralMass_solar) && payload.centralMass_solar > 0) {
+        if (typeof payload.centralMass_solar === 'number' && Number.isFinite(payload.centralMass_solar) && payload.centralMass_solar > 0) {
             centralMass_solar = payload.centralMass_solar;
         } else {
             centralMass_solar = 1.0;
@@ -317,7 +317,7 @@ self.onmessage = (e) => {
         }
         bodies = inboundReset.filter(isValidBody);
         ensureStableIds(bodies);
-        if (Number.isFinite(payload.centralMass_solar) && payload.centralMass_solar > 0) {
+        if (typeof payload.centralMass_solar === 'number' && Number.isFinite(payload.centralMass_solar) && payload.centralMass_solar > 0) {
             centralMass_solar = payload.centralMass_solar;
         }
         recomputeTMin();
@@ -412,36 +412,52 @@ const MAX_SUBSTEPS = 2000;      // Hard cap on substeps per tick (freeze protect
 let discardedTime_yr = 0;
 let lastDiscardWarn_yr = 0;
 
-// FIX-06: smallest orbital period (yr) among the worker's planets, derived
-// from the bodies already in the INIT/RESET payloads (vis-viva osculating
-// semi-major axis + Kepler's third law, T = 2π√(a³/GM)). Infinity when
-// unknown (no planets) → substep falls back to MAX_PHYSICS_DT as before.
+// FIX-06: smallest orbital timescale (yr) among ALL bodies in the worker
+// (planets, comets, asteroids, stars, black holes), derived from osculating
+// periapsis q = a * (1 - e) (bounded by softening and current radius r) so
+// close-in non-planet bodies and high-eccentricity comets resolve perihelion
+// passages instead of falling back to MAX_PHYSICS_DT.
 let tMin_yr = Number.POSITIVE_INFINITY;
 let lastSubstepCapWarn_ms = 0;
 
 function recomputeTMin(): void {
     const mu = G_mu * centralMass_solar;
-    if (!(mu > 0)) {
+    if (!(mu > 0) || !Number.isFinite(mu)) {
         tMin_yr = Number.POSITIVE_INFINITY;
         return;
     }
+    const rSoft = Math.sqrt(centralSofteningSq);
     let tMin = Number.POSITIVE_INFINITY;
     for (const b of bodies) {
         const px = b.position_au.x;
         const py = b.position_au.y;
         const pz = b.position_au.z;
         const rSq = px * px + py * py + pz * pz;
-        if (!(rSq > 0)) continue;
+        if (!(rSq > 0) || !Number.isFinite(rSq)) continue;
         const r = Math.sqrt(rSq);
         const vx = b.velocity_au_yr.x;
         const vy = b.velocity_au_yr.y;
         const vz = b.velocity_au_yr.z;
         const vSq = vx * vx + vy * vy + vz * vz;
+        if (!Number.isFinite(vSq)) continue;
         const invA = 2.0 / r - vSq / mu; // vis-viva: 1/a
-        if (!(invA > 0)) continue; // unbound/parabolic: no period to resolve
-        const a = 1.0 / invA;
-        const T = 2.0 * Math.PI * Math.sqrt(a * a * a / mu);
-        if (T < tMin) tMin = T;
+        let rChar: number;
+        if (invA > 0) {
+            const a = 1.0 / invA;
+            const hx = py * vz - pz * vy;
+            const hy = pz * vx - px * vz;
+            const hz = px * vy - py * vx;
+            const hSq = hx * hx + hy * hy + hz * hz;
+            const eSq = Math.max(0, 1.0 - (hSq * invA) / mu);
+            const e = Math.min(1.0, Math.sqrt(eSq));
+            const q = a * (1.0 - e);
+            rChar = Math.min(r, Math.max(rSoft, q));
+        } else {
+            // Unbound/parabolic/hyperbolic: resolve instantaneous close flyby
+            rChar = Math.max(rSoft, r);
+        }
+        const T = 2.0 * Math.PI * Math.sqrt((rChar * rChar * rChar) / mu);
+        if (Number.isFinite(T) && T < tMin) tMin = T;
     }
     tMin_yr = tMin;
 }
@@ -472,11 +488,13 @@ function integrate(subDt: number): void {
         // a poisoned y/z used to slip through the x-only check and re-poison
         // the accelerations on the next substep).
         if (!isFiniteVec3(b.position_au) || !isFiniteVec3(b.velocity_au_yr)) {
-            b.position_au.x = (i + 1) * 2.0;
+            const safeMass = Number.isFinite(centralMass_solar) && centralMass_solar > 0 ? centralMass_solar : 1.0;
+            const r0 = (i + 1) * 2.0;
+            b.position_au.x = r0;
             b.position_au.y = 0.0;
             b.position_au.z = 0.0;
             b.velocity_au_yr.x = 0.0;
-            b.velocity_au_yr.y = ((2.0 * Math.PI) / Math.sqrt((i + 1) * 2.0)) * Math.sqrt(Math.max(0.01, centralMass_solar));
+            b.velocity_au_yr.y = (2.0 * Math.PI * Math.sqrt(safeMass)) / Math.sqrt(r0);
             b.velocity_au_yr.z = 0.0;
             accelsValid = false;
             continue;

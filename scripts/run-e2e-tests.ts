@@ -120,6 +120,11 @@ async function main() {
     'scripts/e2e/f20_phase_visibility_latch.test.ts',
     'scripts/e2e/f22_offscreen_light_redgiant_bounds.test.ts',
     'scripts/e2e/f23_paused_opacity_remnant_sync.test.ts',
+    'scripts/e2e/f24_comet_paused_vel.test.ts',
+    'scripts/e2e/f24_planet_astro_slots.test.ts',
+    'scripts/e2e/f25_planet_buffer_switch.test.ts',
+    'scripts/e2e/f26_planet_queue_post_ms.test.ts',
+    'scripts/e2e/f29_nbody_substep_and_guards.test.ts',
     'scripts/e2e/f29_websocket_optional_token.test.ts',
     'scripts/e2e/f30_keyscrub_sync_birthage.test.ts',
   ];

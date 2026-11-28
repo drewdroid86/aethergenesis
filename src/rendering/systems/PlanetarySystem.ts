@@ -525,6 +525,7 @@ export class PlanetarySystem {
     private rosterIds: string[] = [];
     private slotById = new Map<string, number>();
     private visualsById = new Map<string, { scale: number; type: number; seed: number }>();
+    private astroById = new Map<string, { biomass: number; civ: number }>();
     /** Last roster version applied; the engine re-applies when its version moves. */
     public rosterVersion = -1;
     private typeAttr!: THREE.InstancedBufferAttribute;
@@ -591,10 +592,35 @@ export class PlanetarySystem {
             this.typeAttr.needsUpdate = true;
             this.seedAttr.needsUpdate = true;
         }
+        this.syncAstroSlotsForRoster();
         // Retired ids vanish from slotById via the clear() above and their
         // slots compact away; their cached visuals restore the look if an id
         // ever returns. Orbit rings depend on the roster rows — rebuild them.
         this.clearOrbitLines();
+    }
+
+    /** Remap cached astrobiology attributes onto active roster slots and zero retired slots. */
+    private syncAstroSlotsForRoster(): void {
+        if (!this.biomassAttr || !this.civAttr) return;
+        const biomassArray = this.biomassAttr.array as Float32Array;
+        const civArray = this.civAttr.array as Float32Array;
+        biomassArray.fill(0.0);
+        civArray.fill(0.0);
+        let maxBiomass = 0;
+        let maxCiv = 0;
+        for (const [id, slot] of this.slotById) {
+            if (slot < 0 || slot >= biomassArray.length) continue;
+            const astro = this.astroById.get(id);
+            if (!astro) continue;
+            biomassArray[slot] = astro.biomass;
+            civArray[slot] = astro.civ;
+            if (astro.biomass > maxBiomass) maxBiomass = astro.biomass;
+            if (astro.civ > maxCiv) maxCiv = astro.civ;
+        }
+        this.biomassAttr.needsUpdate = true;
+        this.civAttr.needsUpdate = true;
+        this.material.uniforms.u_biomass.value = maxBiomass;
+        this.material.uniforms.u_kardashevTier.value = maxCiv;
     }
 
     /** Resolve a roster id to its stable instance slot (undefined if unknown). */
@@ -615,6 +641,7 @@ export class PlanetarySystem {
         this.orbitLinesGroup.clear();
         this.orbitLinesBuilt = false;
         this.orbitBuiltBodyCount = -1;
+        this.orbitBuiltFromBuffer = false;
     }
 
     /**
@@ -799,6 +826,7 @@ export class PlanetarySystem {
      * (Roster swaps additionally reset via applyRoster → clearOrbitLines.)
      */
     private orbitBuiltBodyCount: number = -1;
+    private orbitBuiltFromBuffer: boolean = false;
     private orbitLineMat: THREE.LineBasicMaterial = new THREE.LineBasicMaterial({
         color: 0x3399ff,
         transparent: true,
@@ -846,12 +874,14 @@ export class PlanetarySystem {
         if (numBodies === 0 && this.orbitLinesBuilt) this.clearOrbitLines();
 
         // Construct orbit trajectory path lines once per body generation —
-        // rebuild whenever the live body count changes (INIT empty roster,
-        // per-star re-key), so the rings always reflect the current roster.
-        if ((!this.orbitLinesBuilt || numBodies !== this.orbitBuiltBodyCount) && numBodies > 0) {
+        // rebuild whenever the live body count or driver mode changes (INIT empty
+        // roster, per-star re-key, buffer<->procedural switch), so the rings
+        // always reflect the current orbit source.
+        if ((!this.orbitLinesBuilt || numBodies !== this.orbitBuiltBodyCount || isBufferDriven !== this.orbitBuiltFromBuffer) && numBodies > 0) {
             this.clearOrbitLines();
             this.orbitLinesBuilt = true;
             this.orbitBuiltBodyCount = numBodies;
+            this.orbitBuiltFromBuffer = isBufferDriven;
             for (let i = 0; i < numBodies; i++) {
                 const orbitScale = 12.0;
                 let radius: number;
@@ -930,16 +960,6 @@ export class PlanetarySystem {
                 x = buffer![i * 7 + 0] * orbitScale;
                 y = buffer![i * 7 + 2] * orbitScale;
                 z = buffer![i * 7 + 1] * orbitScale;
-                // Id-bound visuals survive reorders: rewrite this frame's
-                // slot attributes (a reordered roster reuses slots).
-                if (typeArray[slot] !== bType) {
-                    typeArray[slot] = bType;
-                    visualsDirty = true;
-                }
-                if (seedArray[slot] !== bSeed) {
-                    seedArray[slot] = bSeed;
-                    visualsDirty = true;
-                }
             } else {
                 const po = this.proceduralOrbits[i];
                 bScale = po.scale;
@@ -950,6 +970,17 @@ export class PlanetarySystem {
                 x = Math.cos(theta) * r;
                 y = 0.0;
                 z = Math.sin(theta) * r;
+            }
+
+            // Keep slot type/seed attributes synced for both buffer-driven
+            // rosters and procedural fallback after switching away from buffer.
+            if (typeArray[slot] !== bType) {
+                typeArray[slot] = bType;
+                visualsDirty = true;
+            }
+            if (seedArray[slot] !== bSeed) {
+                seedArray[slot] = bSeed;
+                visualsDirty = true;
             }
 
             const bodyId = isBufferDriven ? (this.rosterIds[i] ?? `slot_${i}`) : `preset_body_${i}`;
@@ -1109,26 +1140,36 @@ export class PlanetarySystem {
     updateAstrobiology(astrobiologyStates: any[]): void {
         const biomassArray = this.biomassAttr.array as Float32Array;
         const civArray = this.civAttr.array as Float32Array;
-        
+
+        biomassArray.fill(0.0);
+        civArray.fill(0.0);
+
         let maxBiomass = 0;
         let maxCiv = 0;
 
-        biomassArray.fill(0);
-        civArray.fill(0);
-
-        const count = Math.min(astrobiologyStates.length, biomassArray.length);
-        for (let i = 0; i < count; i++) {
+        for (let i = 0; i < astrobiologyStates.length; i++) {
             const state = astrobiologyStates[i];
+            if (!state) continue;
             const biomass = state.biomass || 0.0;
             const civ = state.civilizationTier || 0.0;
-            const slot = (state.planet_id !== undefined ? this.slotById.get(state.planet_id) : undefined) ?? i;
+            const planetId = typeof state.planet_id === 'string' ? state.planet_id : this.rosterIds[i];
+
+            if (planetId !== undefined) {
+                this.astroById.set(planetId, { biomass, civ });
+                if (this.astroById.size > 512) {
+                    const oldest = this.astroById.keys().next();
+                    if (!oldest.done) this.astroById.delete(oldest.value);
+                }
+            }
+
+            const mappedSlot = planetId !== undefined ? this.slotById.get(planetId) : undefined;
+            const slot = mappedSlot !== undefined ? mappedSlot : i;
+            if (slot < 0 || slot >= biomassArray.length) continue;
 
             // BOLT: Direct typed array manipulation to eliminate setX() method call overhead
-            if (slot >= 0 && slot < biomassArray.length) {
-                biomassArray[slot] = biomass;
-                civArray[slot] = civ;
-            }
-            
+            biomassArray[slot] = biomass;
+            civArray[slot] = civ;
+
             if (biomass > maxBiomass) maxBiomass = biomass;
             if (civ > maxCiv) maxCiv = civ;
         }
@@ -1187,11 +1228,14 @@ export class PlanetarySystemQueue {
             const item = this.pendingCreations.shift();
             if (item) {
                 const { star, renderer: itemRenderer } = item;
-                // Double check the star is still in MAIN_SEQUENCE phase
-                if (star.phase === PHASES.MAIN_SEQUENCE) {
-                    if (star.planetarySystem) {
-                        star.planetarySystem.dispose();
-                    }
+                // Allow post-MAIN_SEQUENCE phases that retain planetary systems, and avoid
+                // overwriting an already-materialized system.
+                const isPlanetaryPhase =
+                    star.phase === PHASES.MAIN_SEQUENCE ||
+                    star.phase === PHASES.RED_GIANT ||
+                    star.phase === PHASES.SUPERNOVA ||
+                    star.phase === PHASES.REMNANT;
+                if (!star.planetarySystem && isPlanetaryPhase) {
                     star.planetarySystem = new PlanetarySystem(star, renderer ?? itemRenderer);
                 }
                 processedCreations++;
