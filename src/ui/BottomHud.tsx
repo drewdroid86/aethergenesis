@@ -21,28 +21,28 @@ export const BottomHud: React.FC<BottomHudProps> = ({
 }) => {
     return (
         <div
-            className={`absolute bottom-0 w-full pb-[max(1rem,env(safe-area-inset-bottom))] md:pb-[max(2rem,env(safe-area-inset-bottom))] px-4 md:px-8 flex flex-col md:flex-row md:items-end md:justify-between gap-2.5 md:gap-3 z-20 pointer-events-none max-[480px]:max-h-[38vh] max-[480px]:overflow-y-auto ${className}`.trim()}
+            className={`absolute bottom-0 w-full pb-[max(1rem,env(safe-area-inset-bottom))] md:pb-[max(2rem,env(safe-area-inset-bottom))] px-4 md:px-8 flex flex-col md:flex-row md:flex-wrap lg:flex-nowrap md:items-end md:justify-between gap-2.5 md:gap-3 z-20 pointer-events-none max-[480px]:max-h-[38vh] max-[480px]:overflow-y-auto ${className}`.trim()}
         >
             {left != null && left !== false ? (
-                <div className="w-full md:w-auto flex justify-center md:justify-start md:flex-1 items-end">
+                <div className="w-full md:w-auto min-w-0 flex justify-center md:justify-start md:flex-1 items-end">
                     {left}
                 </div>
             ) : (
-                <div className="hidden md:flex md:flex-1" aria-hidden="true" />
+                <div className="hidden md:flex md:flex-1 min-w-0" aria-hidden="true" />
             )}
 
             {center != null && center !== false ? (
-                <div className="w-full md:w-auto flex justify-center md:flex-initial items-end">
+                <div className="w-full md:w-auto min-w-0 flex justify-center md:flex-1 lg:flex-initial items-end">
                     {center}
                 </div>
             ) : null}
 
             {right != null && right !== false ? (
-                <div className="w-full md:w-auto flex justify-center md:justify-end md:flex-1 items-end">
+                <div className="w-full md:w-auto min-w-0 flex justify-center md:justify-end md:flex-1 items-end">
                     {right}
                 </div>
             ) : (
-                <div className="hidden md:flex md:flex-1" aria-hidden="true" />
+                <div className="hidden md:flex md:flex-1 min-w-0" aria-hidden="true" />
             )}
         </div>
     );

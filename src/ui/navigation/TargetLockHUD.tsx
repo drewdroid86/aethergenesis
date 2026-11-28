@@ -3,6 +3,7 @@ import { Target, Crosshair, Sparkles, X, FastForward } from 'lucide-react';
 import { HeroStarSystem } from '../../rendering/systems/HeroStarSystem';
 import { audioEngine } from '../../audio/AudioEngine';
 import { formatAdaptiveDistance } from '../../utils/navigationMath';
+import { formatHudPhaseLabel } from '../phaseLabel';
 
 interface TargetLockHUDProps {
     star: HeroStarSystem;
@@ -32,7 +33,7 @@ export const TargetLockHUD: React.FC<TargetLockHUDProps> = ({
 }) => {
     const formattedDistance = formatAdaptiveDistance(distanceUnits).formatted;
     const name = star.physicsId ? `Star ${star.physicsId.substring(0, 8)}` : 'Host Star';
-    const phaseName = PHASE_TITLES[star.phase] || 'Star';
+    const phaseName = formatHudPhaseLabel(star, PHASE_TITLES, 'Star');
 
     return (
         <div 
