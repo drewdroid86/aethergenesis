@@ -435,6 +435,21 @@ export const CosmicAgeCard: React.FC<CosmicAgeCardProps> = ({
 }) => {
     const [shareCopied, setShareCopied] = useState(false);
     const [isDragging, setIsDragging] = useState(false);
+    const isDraggingRef = useRef(false);
+    const onGlobalScrubEndRef = useRef(onGlobalScrubEnd);
+
+    useEffect(() => {
+        onGlobalScrubEndRef.current = onGlobalScrubEnd;
+    }, [onGlobalScrubEnd]);
+
+    useEffect(() => {
+        return () => {
+            if (isDraggingRef.current) {
+                isDraggingRef.current = false;
+                onGlobalScrubEndRef.current();
+            }
+        };
+    }, []);
 
     const shareUniverse = () => {
         audioEngine.playUiClick();
@@ -447,6 +462,7 @@ export const CosmicAgeCard: React.FC<CosmicAgeCardProps> = ({
     };
 
     const handlePointerDown = (e: React.PointerEvent) => {
+        isDraggingRef.current = true;
         setIsDragging(true);
         try {
             (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
@@ -460,7 +476,9 @@ export const CosmicAgeCard: React.FC<CosmicAgeCardProps> = ({
         if (isDragging) onGlobalScrubMove(e);
     };
 
-    const handlePointerUp = (e: React.PointerEvent) => {
+    const endGlobalScrub = (e: React.PointerEvent) => {
+        if (!isDraggingRef.current && !isDragging) return;
+        isDraggingRef.current = false;
         setIsDragging(false);
         try {
             (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId);
@@ -470,14 +488,22 @@ export const CosmicAgeCard: React.FC<CosmicAgeCardProps> = ({
         onGlobalScrubEnd();
     };
 
+    const handlePointerUp = (e: React.PointerEvent) => {
+        endGlobalScrub(e);
+    };
+
+    const handlePointerCancel = (e: React.PointerEvent) => {
+        endGlobalScrub(e);
+    };
+
     return (
-        <div className={`flex flex-col items-center gap-3 sm:gap-4 w-full max-w-full sm:max-w-md md:max-w-[440px] lg:max-w-xl pointer-events-none ${className}`.trim()}>
-            <div className="w-full px-4 py-3 sm:px-8 sm:py-4 bg-[rgba(8,8,20,0.6)] backdrop-blur-2xl border border-[rgba(126,184,255,0.2)] rounded-2xl flex flex-col items-center group pointer-events-auto">
+        <div className={`flex flex-col items-center gap-3 sm:gap-4 w-full min-w-0 max-w-full sm:max-w-md md:max-w-[300px] lg:max-w-xl pointer-events-none ${className}`.trim()}>
+            <div className="w-full min-w-0 px-4 py-3 sm:px-6 lg:px-8 sm:py-4 bg-[rgba(8,8,20,0.6)] backdrop-blur-2xl border border-[rgba(126,184,255,0.2)] rounded-2xl flex flex-col items-center group pointer-events-auto">
                 <div className="flex flex-wrap justify-between w-full items-center gap-2 mb-3">
                     <span className="text-[9px] uppercase tracking-widest text-[#7EB8FF] truncate">
                         Global Cosmic Age (Gyr) <span className="opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity ml-2 text-[8px] text-[#C084FC] hidden sm:inline">[Arrows to Seek]</span>
                     </span>
-                    <div className="flex gap-1.5 sm:gap-2">
+                    <div className="flex flex-wrap items-center justify-end gap-1.5 sm:gap-2 min-w-0 max-w-full">
                         <div
                             className="flex bg-[rgba(8,8,20,0.8)] border border-[rgba(126,184,255,0.2)] rounded-full p-0.5 pointer-events-auto mr-2 relative group/timescale"
                             role="radiogroup"
@@ -549,11 +575,12 @@ export const CosmicAgeCard: React.FC<CosmicAgeCardProps> = ({
                     aria-valuemin={0}
                     aria-valuemax={14}
                     aria-valuenow={parseFloat(cosmicAge.toFixed(2))}
-                    className="w-full h-3 bg-white/10 rounded-full overflow-hidden cursor-ew-resize relative focus-visible:ring-2 focus-visible:ring-[#C084FC] outline-none"
+                    className="w-full h-3 bg-white/10 rounded-full overflow-hidden cursor-ew-resize touch-none relative focus-visible:ring-2 focus-visible:ring-[#C084FC] outline-none"
                     onPointerDown={handlePointerDown}
                     onPointerMove={handlePointerMove}
                     onPointerUp={handlePointerUp}
-                    onPointerCancel={handlePointerUp}
+                    onPointerCancel={handlePointerCancel}
+                    onLostPointerCapture={handlePointerCancel}
                     onKeyDown={(e) => onKeyDown(e, true)}
                 >
                     <div ref={uiRefs.globalTimelineFill} className="h-full bg-gradient-to-r from-[#7EB8FF] to-[#C084FC]" style={{width: `${(cosmicAge / 14.0) * 100}%`}}></div>

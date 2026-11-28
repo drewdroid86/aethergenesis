@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from "motion/react";
 import { Scan, Zap, Pause, Play, X, Copy, Check, Loader2, RefreshCw } from 'lucide-react';
-import { PHASE_NAMES } from '../core/constants';
+import { formatHudPhaseLabel } from './phaseLabel';
 import { HeroStarSystem } from '../rendering/systems/HeroStarSystem';
 import { PhysicsConstants } from '../types/physics';
 
@@ -55,11 +55,41 @@ export const InspectPanel: React.FC<InspectPanelProps> = ({
     const lastAnalysisTimeRef = useRef(0);
     const abortControllerRef = useRef<AbortController | null>(null);
     const [isDragging, setIsDragging] = useState(false);
+    const isDraggingRef = useRef(false);
+    const onScrubEndRef = useRef(onScrubEnd);
 
-    // Reset AI analysis when selected star changes
     useEffect(() => {
+        onScrubEndRef.current = onScrubEnd;
+    }, [onScrubEnd]);
+
+    // Reset AI analysis and abort any in-flight scan when selected star changes
+    useEffect(() => {
+        if (abortControllerRef.current) {
+            abortControllerRef.current.abort();
+            abortControllerRef.current = null;
+        }
+        setIsAnalyzing(false);
         setGeminiData(null);
+        setCooldownRemaining(0);
+        lastAnalysisTimeRef.current = 0;
     }, [selectedStar?.physicsId]);
+
+    // U4: Per-frame HUD phase label update via DOM ref (no React state)
+    useEffect(() => {
+        let frameId: number;
+        const updatePhaseDomRef = () => {
+            const phaseEl = uiRefs.phase.current;
+            if (phaseEl && selectedStar) {
+                const label = formatHudPhaseLabel(selectedStar);
+                if (phaseEl.innerText !== label) {
+                    phaseEl.innerText = label;
+                }
+            }
+            frameId = requestAnimationFrame(updatePhaseDomRef);
+        };
+        updatePhaseDomRef();
+        return () => cancelAnimationFrame(frameId);
+    }, [selectedStar, uiRefs.phase]);
 
     useEffect(() => {
         if (cooldownRemaining <= 0) return;
@@ -107,6 +137,7 @@ Civilization: ${geminiData.civilization}`;
     };
 
     const handlePointerDown = (e: React.PointerEvent) => {
+        isDraggingRef.current = true;
         setIsDragging(true);
         try {
             (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
@@ -120,7 +151,9 @@ Civilization: ${geminiData.civilization}`;
         if (isDragging) onScrubMove(e);
     };
 
-    const handlePointerUp = (e: React.PointerEvent) => {
+    const endStellarScrub = (e: React.PointerEvent) => {
+        if (!isDraggingRef.current && !isDragging) return;
+        isDraggingRef.current = false;
         setIsDragging(false);
         try {
             (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId);
@@ -128,6 +161,14 @@ Civilization: ${geminiData.civilization}`;
             // Ignored
         }
         onScrubEnd();
+    };
+
+    const handlePointerUp = (e: React.PointerEvent) => {
+        endStellarScrub(e);
+    };
+
+    const handlePointerCancel = (e: React.PointerEvent) => {
+        endStellarScrub(e);
     };
 
     const analyzeSystem = async () => {
@@ -156,7 +197,7 @@ Civilization: ${geminiData.civilization}`;
                 mass: parseFloat((selectedStar.currentMass ?? selectedStar.mass).toFixed(2)),
                 lum: parseFloat(selectedStar.currentLum.toFixed(3)),
                 age: parseFloat(selectedStar.currentRealAge.toFixed(1)),
-                phase: PHASE_NAMES[selectedStar.phase],
+                phase: formatHudPhaseLabel(selectedStar),
                 G: physics.G,
                 alpha: physics.alpha
             };
@@ -201,18 +242,22 @@ Civilization: ${geminiData.civilization}`;
             if (abortControllerRef.current) {
                 abortControllerRef.current.abort();
             }
+            if (isDraggingRef.current) {
+                isDraggingRef.current = false;
+                onScrubEndRef.current();
+            }
         };
     }, []);
 
     return (
         <motion.div
-            initial={{ opacity: 0, x: 20, y: '-50%', filter: 'blur(10px)' }}
-            animate={{ opacity: 1, x: 0, y: '-50%', filter: 'blur(0px)' }}
-            exit={{ opacity: 0, x: 20, y: '-50%', filter: 'blur(10px)' }}
+            initial={{ opacity: 0, x: 20, filter: 'blur(10px)' }}
+            animate={{ opacity: 1, x: 0, filter: 'blur(0px)' }}
+            exit={{ opacity: 0, x: 20, filter: 'blur(10px)' }}
             transition={{ duration: 0.4, ease: "easeOut" }}
             role="region"
             aria-label="Stellar Telemetry Panel"
-            className="absolute right-8 top-1/2 w-[min(320px,85vw)] overflow-hidden bg-[rgba(14,14,28,0.7)] backdrop-blur-xl border border-[rgba(126,184,255,0.3)] rounded-2xl p-6 z-30 shadow-[0_0_30px_rgba(0,0,0,0.5)] pointer-events-auto"
+            className="absolute min-[481px]:right-8 min-[481px]:top-1/2 min-[481px]:-translate-y-1/2 w-[min(320px,85vw)] max-h-[calc(100dvh-4rem)] max-[480px]:left-4 max-[480px]:right-4 max-[480px]:w-[calc(100vw-2rem)] max-[480px]:top-[calc(40vh_+_0.5rem)] max-[480px]:max-h-[21vh] max-[480px]:p-4 overflow-y-auto custom-scrollbar bg-[rgba(14,14,28,0.7)] backdrop-blur-xl border border-[rgba(126,184,255,0.3)] rounded-2xl p-6 z-30 shadow-[0_0_30px_rgba(0,0,0,0.5)] pointer-events-auto"
         >
             <div className="flex items-center justify-between mb-6 pb-4 border-b border-[rgba(126,184,255,0.1)] group/header">
                 <div className="flex items-center gap-3">
@@ -249,7 +294,7 @@ Civilization: ${geminiData.civilization}`;
             <div className="space-y-4 font-mono text-xs">
                 <div className="flex justify-between items-center">
                     <span className="text-[#7EB8FF]/70 uppercase tracking-wider">Phase</span>
-                    <span ref={uiRefs.phase} className="text-[#C084FC] font-bold text-right">-</span>
+                    <span ref={uiRefs.phase} className="text-[#C084FC] font-bold text-right">{formatHudPhaseLabel(selectedStar)}</span>
                 </div>
                 <div className="flex justify-between items-center bg-white/5 p-2 rounded">
                     <span className="text-[#7EB8FF]/70 uppercase tracking-wider flex items-center gap-2">
@@ -298,11 +343,12 @@ Civilization: ${geminiData.civilization}`;
                         aria-valuemin={0} 
                         aria-valuemax={100}
                         aria-valuenow={Math.round(Math.min(100, Math.max(0, (selectedStar.t / 1.6) * 100)))}
-                        className="w-full h-2 bg-white/10 rounded-full overflow-hidden cursor-ew-resize relative group focus-visible:ring-2 focus-visible:ring-[#C084FC] outline-none"
+                        className="w-full h-2 bg-white/10 rounded-full overflow-hidden cursor-ew-resize touch-none relative group focus-visible:ring-2 focus-visible:ring-[#C084FC] outline-none"
                         onPointerDown={handlePointerDown}
                         onPointerMove={handlePointerMove}
                         onPointerUp={handlePointerUp}
-                        onPointerCancel={handlePointerUp}
+                        onPointerCancel={handlePointerCancel}
+                        onLostPointerCapture={handlePointerCancel}
                         onKeyDown={onKeyDown}
                     >
                         <div ref={uiRefs.timelineFill} className="h-full bg-gradient-to-r from-blue-500 via-fuchsia-500 to-red-500" style={{width: '0%'}}></div>
