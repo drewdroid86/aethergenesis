@@ -117,7 +117,11 @@ async function main() {
     'scripts/e2e/f18_shockwave_pause.test.ts',
     'scripts/e2e/f18_touch_tier_cap.test.ts',
     'scripts/e2e/f19_deep_audit_p0.test.ts',
+    'scripts/e2e/f20_phase_visibility_latch.test.ts',
+    'scripts/e2e/f22_offscreen_light_redgiant_bounds.test.ts',
+    'scripts/e2e/f23_paused_opacity_remnant_sync.test.ts',
     'scripts/e2e/f29_websocket_optional_token.test.ts',
+    'scripts/e2e/f30_keyscrub_sync_birthage.test.ts',
   ];
 
   let allPassed = true;

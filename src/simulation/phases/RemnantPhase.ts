@@ -691,8 +691,8 @@ export class RemnantPhase implements PhaseComponent {
         }
     }
 
-    updateRemnantOpacity(delta: number, targetNs: number, globalFade: number = 1.0): void {
-        const speed = delta * STELLAR_CONSTANTS.TRANSITIONS.DEFAULT_SPEED;
+    updateRemnantOpacity(delta: number, targetNs: number, globalFade: number = 1.0): number {
+        const speed = delta > 0 ? delta * STELLAR_CONSTANTS.TRANSITIONS.DEFAULT_SPEED : 1.0;
 
         const nextOpNs = stepOp(this._opNs, targetNs, speed);
         if (this._opNs !== nextOpNs) {
@@ -724,6 +724,7 @@ export class RemnantPhase implements PhaseComponent {
         if (this.neutronStarGroup.visible !== isVisible) {
             this.neutronStarGroup.visible = isVisible;
         }
+        return this._opNs;
     }
 
     show(): void {
@@ -733,6 +734,11 @@ export class RemnantPhase implements PhaseComponent {
     hide(): void {
         this.neutronStarGroup.visible = false;
         this.blackHoleGroup.visible = false;
+        this._opNs = 0;
+        this._opNsLines = 0;
+        if (this.nsMat) this.nsMat.opacity = 0;
+        if (this.tubeMat) this.tubeMat.opacity = 0;
+        if (this.beamMat?.uniforms?.uOpacity) this.beamMat.uniforms.uOpacity.value = 0;
     }
 
     dispose(): void {

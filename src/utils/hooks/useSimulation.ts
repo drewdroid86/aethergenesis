@@ -4,7 +4,7 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { Engine } from '../../core/engine';
 import { HeroStarSystem } from '../../rendering/systems/HeroStarSystem';
 import { NebulaSystem } from '../../rendering/systems/NebulaSystem';
-import { PHASE_NAMES, PHASES, STELLAR_CONSTANTS } from '../../core/constants';
+import { PHASES, STELLAR_CONSTANTS } from '../../core/constants';
 import { PhysicsConstants, DEFAULT_CONSTANTS } from '../../types/physics';
 import { getNumStarsForTier, PerformanceTier } from '../../utils/performance';
 import { OrbitalBody, buildWorkerBodiesFromOrbits, keplerianToCartesian } from '../../simulation/OrbitalMechanics';
@@ -12,6 +12,7 @@ import { PlanetarySystem, PlanetarySystemQueue } from '../../rendering/systems/P
 import { SimulationCoordinator } from '../../simulation/SimulationCoordinator';
 import { actionLog, ingestWorkerEvent } from '../../simulation/ActionLog';
 import { buildSpawnBody, nextCatalogId, type SpawnMode } from '../../simulation/spawnBody';
+import { applyStarLifecycleScrub } from '../../simulation/stellarAge';
 
 // Sub-hooks
 import { useWebSocket } from './useWebSocket';
@@ -1035,7 +1036,19 @@ export function useSimulation(containerRef: React.RefObject<HTMLDivElement | nul
     const wrappedOnScrubEnd = useCallback(() => {
         if (engineRef.current) engineRef.current.isScrubbing = false;
         onScrubEnd();
-    }, [onScrubEnd]);
+        const star = selectedStarRef.current;
+        if (star && engineRef.current) {
+            const cosmicAgeVal = engineRef.current.cosmicAge ?? cosmicAgeRef.current ?? 5.0;
+            const effG = Math.max(0.01, engineRef.current.physicsConstants?.G ?? physicsRef.current?.G ?? 1.0);
+            applyStarLifecycleScrub(star, star.t, cosmicAgeVal, effG);
+            if (nbodyWorkerRef.current) {
+                invalidateNBodySnapshot();
+                rekeyNBodyForStar(star, engineRef.current.renderer, nbodyWorkerRef.current);
+                const rawMass = star.currentMass ?? star.mass;
+                lastSyncedWorkerMassRef.current = Number.isFinite(rawMass) && rawMass > 0 ? rawMass : 1.0;
+            }
+        }
+    }, [onScrubEnd, selectedStarRef, cosmicAgeRef, invalidateNBodySnapshot]);
 
     return {
         selectedStar,
@@ -1085,13 +1098,20 @@ export function useSimulation(containerRef: React.RefObject<HTMLDivElement | nul
                 e.currentTarget.setAttribute('aria-valuenow', formattedAge);
                 e.currentTarget.setAttribute('aria-valuetext', `${formattedAge} Billion Years`);
             } else if (selectedStarRef.current) {
+                const star = selectedStarRef.current;
                 const maxT = STELLAR_CONSTANTS.PHASE_BOUNDARIES.LIFECYCLE_MAX;
-                const t = k==='Home'?0 : k==='End'?maxT : selectedStarRef.current.t+(k==='ArrowLeft'?-0.015:0.015);
-                selectedStarRef.current.t = Math.max(0, Math.min(maxT, t));
-                selectedStarRef.current.syncBirthAge(engineRef.current?.cosmicAge ?? cosmicAgeRef.current, Math.max(0.01, physicsRef.current.G));
-                const perc = Math.min(100, Math.max(0, Math.round((selectedStarRef.current.t / maxT) * 100)));
+                const t = k==='Home'?0 : k==='End'?maxT : star.t+(k==='ArrowLeft'?-0.015:0.015);
+                const cosmicAgeVal = engineRef.current?.cosmicAge ?? cosmicAgeRef.current ?? 5.0;
+                const effG = Math.max(0.01, engineRef.current?.physicsConstants?.G ?? physicsRef.current?.G ?? 1.0);
+                const { percentage: perc, phaseName } = applyStarLifecycleScrub(star, t, cosmicAgeVal, effG);
+                if (engineRef.current && nbodyWorkerRef.current) {
+                    invalidateNBodySnapshot();
+                    rekeyNBodyForStar(star, engineRef.current.renderer, nbodyWorkerRef.current);
+                    const rawMass = star.currentMass ?? star.mass;
+                    lastSyncedWorkerMassRef.current = Number.isFinite(rawMass) && rawMass > 0 ? rawMass : 1.0;
+                }
                 e.currentTarget.setAttribute('aria-valuenow', perc.toString());
-                e.currentTarget.setAttribute('aria-valuetext', `${perc}% of Stellar Lifecycle (${PHASE_NAMES[selectedStarRef.current.phase]})`);
+                e.currentTarget.setAttribute('aria-valuetext', `${perc}% of Stellar Lifecycle (${phaseName})`);
             }
         },
         currentSeed: encodeSeed(physics),

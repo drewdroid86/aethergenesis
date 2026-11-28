@@ -330,13 +330,17 @@ export class HeroStarSystem extends THREE.Group {
             this.nebulaPhase.show();
         } else if (newPhase === PHASES.PROTOSTAR) {
             this.protostarPhase.show();
+            this._lastVisP = true;
         } else if (newPhase === PHASES.MAIN_SEQUENCE) {
             this.mainSequencePhase.show();
+            this._lastVisM = true;
             PlanetarySystemQueue.enqueueCreation(this, renderer);
         } else if (newPhase === PHASES.RED_GIANT) {
             this.redGiantPhase.show();
+            this._lastVisR = true;
         } else if (newPhase === PHASES.SUPERNOVA) {
             this.supernovaPhase.show();
+            this._lastVisS = true;
         } else if (newPhase === PHASES.REMNANT) {
             this.remnantPhase.show();
         }
@@ -359,14 +363,25 @@ export class HeroStarSystem extends THREE.Group {
                 this.planetarySystem = undefined;
             }
         }
-        if (exitingPhase === PHASES.NEBULA) this._nebulaPhase?.hide();
-        else if (exitingPhase === PHASES.PROTOSTAR) {
-            this._protostarPhase?.hide();
+        if (exitingPhase === PHASES.NEBULA) {
             this._nebulaPhase?.hide();
-        } else if (exitingPhase === PHASES.MAIN_SEQUENCE) this._mainSequencePhase?.hide();
-        else if (exitingPhase === PHASES.RED_GIANT) this._redGiantPhase?.hide();
-        else if (exitingPhase === PHASES.SUPERNOVA) this._supernovaPhase?.hide();
-        else if (exitingPhase === PHASES.REMNANT) this._remnantPhase?.hide();
+        } else if (exitingPhase === PHASES.PROTOSTAR) {
+            this._protostarPhase?.hide();
+            this._lastVisP = false;
+            this._nebulaPhase?.hide();
+        } else if (exitingPhase === PHASES.MAIN_SEQUENCE) {
+            this._mainSequencePhase?.hide();
+            this._lastVisM = false;
+        } else if (exitingPhase === PHASES.RED_GIANT) {
+            this._redGiantPhase?.hide();
+            this._lastVisR = false;
+        } else if (exitingPhase === PHASES.SUPERNOVA) {
+            this._supernovaPhase?.hide();
+            this._lastVisS = false;
+        } else if (exitingPhase === PHASES.REMNANT) {
+            this._remnantPhase?.hide();
+            this._opNs = 0;
+        }
     }
 
     public syncBirthAge(cosmicAge: number, effG: number = 1.0): void {
@@ -675,6 +690,9 @@ export class HeroStarSystem extends THREE.Group {
 
         if (overrideT !== undefined) {
              this.t = overrideT;
+             if (cosmicAge !== undefined) {
+                 this.syncBirthAge(cosmicAge, effG);
+             }
         } else if (cosmicAge !== undefined) {
              const ageMyr = (cosmicAge - this.birthAge) * 1000;
              if (ageMyr < 0) this.t = -0.1;
@@ -714,6 +732,11 @@ export class HeroStarSystem extends THREE.Group {
 
         if (this.t < 0) {
             this.visible = false;
+            this.wantsLight = false;
+            if (this.starLight) {
+                this.starLight.intensity = 0;
+                this.starLight.visible = false;
+            }
             return;
         } else {
             this.visible = globalFade > 0.01;
@@ -725,6 +748,9 @@ export class HeroStarSystem extends THREE.Group {
         if (this.t > STELLAR_CONSTANTS.PHASE_BOUNDARIES.REMNANT_START) {
             this.t = Math.min(1.65, this.t);
             this.isSupernovaFlashing = false;
+        }
+        if (overrideT !== undefined && cosmicAge !== undefined) {
+            this.syncBirthAge(cosmicAge, effG);
         }
 
         // Explicit per-star time advances may place birthAge before the simulation epoch.
@@ -782,16 +808,22 @@ export class HeroStarSystem extends THREE.Group {
             this._exitPhase(exitingPhase, keepPlanets);
 
             if (newPhase === PHASES.NEBULA) this.nebulaPhase.show();
-            else if (newPhase === PHASES.PROTOSTAR) this.protostarPhase.show();
+            else if (newPhase === PHASES.PROTOSTAR) {
+                this.protostarPhase.show();
+                this._lastVisP = true;
+            }
             else if (newPhase === PHASES.MAIN_SEQUENCE) {
                 this.mainSequencePhase.show();
+                this._lastVisM = true;
                 PlanetarySystemQueue.enqueueCreation(this, renderer);
             }
             else if (newPhase === PHASES.RED_GIANT) {
                 this.redGiantPhase.show();
+                this._lastVisR = true;
             }
             else if (newPhase === PHASES.SUPERNOVA) {
                 this.supernovaPhase.show();
+                this._lastVisS = true;
             }
             else if (newPhase === PHASES.REMNANT) this.remnantPhase.show();
 
@@ -811,12 +843,15 @@ export class HeroStarSystem extends THREE.Group {
 
         // BOLT: Frustum culling early return with bounding radius padding for expanded phases
         let boundRadius = this.baseRadius * 4.0;
-        if (this.phase === PHASES.SUPERNOVA) boundRadius = this.baseRadius * 60.0;
+        if (this.phase === PHASES.RED_GIANT) {
+            boundRadius = Math.max(boundRadius, this.currentRadius * STELLAR_CONSTANTS.VISUALS.WORLD_UNITS_PER_R_SUN * 1.35);
+        } else if (this.phase === PHASES.SUPERNOVA) boundRadius = this.baseRadius * 60.0;
         else if (this.phase === PHASES.NEBULA) boundRadius = 15.0;
         _frustumSphere.center.copy(this.position);
         _frustumSphere.radius = boundRadius * expL;
         const isVisible = frustum ? frustum.intersectsSphere(_frustumSphere) : true;
         if (!isVisible && overrideT === undefined) {
+            this._updateStarLight(globalFade);
             if (this.planetarySystem && nbodyBuffer != null) {
                 this.planetarySystem.update(delta, appTime, nbodyBuffer, false, globalFade);
             }
@@ -874,7 +909,8 @@ export class HeroStarSystem extends THREE.Group {
         this._wasSupernovaFlashing = isFlashingNow;
         
         // BOLT: Optimize transition opacities with state-guarded assignments to reduce Three.js overhead
-        const speed = delta * STELLAR_CONSTANTS.TRANSITIONS.DEFAULT_SPEED;
+        const speed = delta > 0 ? delta * STELLAR_CONSTANTS.TRANSITIONS.DEFAULT_SPEED : 1.0;
+        const visGroup = globalFade > 0.01;
 
         // 1. Protostar Transition
         this._opP = stepOp(this._opP, targetProto, speed);
@@ -885,9 +921,9 @@ export class HeroStarSystem extends THREE.Group {
                 this.protostarPhase.setOpacity(finalOpP);
                 this._lastOpP = finalOpP;
             }
-            if (!this._lastVisP) {
-                this.protostarPhase.protostarGroup.visible = globalFade > 0.01;
-                this._lastVisP = true;
+            if (this._lastVisP !== visGroup) {
+                this.protostarPhase.protostarGroup.visible = visGroup;
+                this._lastVisP = visGroup;
             }
         } else if (this._protostarPhase) {
             if (this._lastOpP !== 0) {
@@ -908,9 +944,9 @@ export class HeroStarSystem extends THREE.Group {
                 this.mainSequencePhase.setOpacity(finalOpM);
                 this._lastOpM = finalOpM;
             }
-            if (!this._lastVisM) {
-                this.mainSequencePhase.mainSeqGroup.visible = globalFade > 0.01;
-                this._lastVisM = true;
+            if (this._lastVisM !== visGroup) {
+                this.mainSequencePhase.mainSeqGroup.visible = visGroup;
+                this._lastVisM = visGroup;
             }
         } else if (this._mainSequencePhase) {
             if (this._lastOpM !== 0) {
@@ -931,9 +967,9 @@ export class HeroStarSystem extends THREE.Group {
                 this.redGiantPhase.setOpacity(finalOpR);
                 this._lastOpR = finalOpR;
             }
-            if (!this._lastVisR) {
-                this.redGiantPhase.redGiantGroup.visible = globalFade > 0.01;
-                this._lastVisR = true;
+            if (this._lastVisR !== visGroup) {
+                this.redGiantPhase.redGiantGroup.visible = visGroup;
+                this._lastVisR = visGroup;
             }
         } else if (this._redGiantPhase) {
             if (this._lastOpR !== 0) {
@@ -954,9 +990,9 @@ export class HeroStarSystem extends THREE.Group {
                 this.supernovaPhase.setOpacity(finalOpS);
                 this._lastOpS = finalOpS;
             }
-            if (!this._lastVisS) {
-                this.supernovaPhase.supernovaGroup.visible = globalFade > 0.01;
-                this._lastVisS = true;
+            if (this._lastVisS !== visGroup) {
+                this.supernovaPhase.supernovaGroup.visible = visGroup;
+                this._lastVisS = visGroup;
             }
         } else if (this._supernovaPhase) {
             if (this._lastOpS !== 0) {
@@ -970,31 +1006,18 @@ export class HeroStarSystem extends THREE.Group {
         }
 
         if (targetNs > 0 || (this._remnantPhase && this._opNs > 0)) {
-            this.remnantPhase.updateRemnantOpacity(delta, targetNs, globalFade);
+            this._opNs = this.remnantPhase.updateRemnantOpacity(delta, targetNs, globalFade);
         }
 
         // Dynamic update of star light color and intensity based on temperature and luminosity
         // NOTE: starLight.visible is now controlled by Engine._cullStarLights(), not here.
-        if (this.starLight) {
-            if (this.phase === PHASES.MAIN_SEQUENCE || this.phase === PHASES.RED_GIANT || this.phase === PHASES.PROTOSTAR || this.phase === PHASES.SUPERNOVA) {
-                this.starLight.intensity = Math.min(50.0, this.currentLum * 2.0) * globalFade;
-                if (this.phase === PHASES.SUPERNOVA) {
-                    this.starLight.color.setHex(0xffffff);
-                    this.starLight.intensity = 100.0 * globalFade;
-                } else {
-                    colorTempToRGB(this.currentTemp, this.starLight.color);
-                }
-                this.wantsLight = globalFade > 0.01;
-            } else {
-                this.wantsLight = false;
-            }
-        }
+        this._updateStarLight(globalFade);
 
         // Dynamic hitMesh scaling per phase to match visual radius with a minimum click target of 2.0 (GEOMETRIES.hit radius is 8.0)
         if (this.hitMesh) {
             let targetRadius = this.baseRadius;
             if (this.phase === PHASES.RED_GIANT) {
-                targetRadius = this.baseRadius * 4.0;
+                targetRadius = Math.max(this.baseRadius * 4.0, this.currentRadius * STELLAR_CONSTANTS.VISUALS.WORLD_UNITS_PER_R_SUN);
             } else if (this.phase === PHASES.SUPERNOVA) {
                 targetRadius = this.baseRadius * 6.0;
             } else if (this.phase === PHASES.REMNANT) {
@@ -1005,6 +1028,29 @@ export class HeroStarSystem extends THREE.Group {
             const hitScale = Math.max(0.25, targetRadius / 8.0);
             this.hitMesh.scale.setScalar(hitScale);
         }
+    }
+
+    private _updateStarLight(globalFade: number): void {
+        if (!this.starLight) return;
+        const emitsLight =
+            this.phase === PHASES.MAIN_SEQUENCE ||
+            this.phase === PHASES.RED_GIANT ||
+            this.phase === PHASES.PROTOSTAR ||
+            this.phase === PHASES.SUPERNOVA;
+        if (emitsLight) {
+            if (this.phase === PHASES.SUPERNOVA) {
+                this.starLight.color.setHex(0xffffff);
+                this.starLight.intensity = 100.0 * globalFade;
+            } else {
+                this.starLight.intensity = Math.min(50.0, this.currentLum * 2.0) * globalFade;
+                colorTempToRGB(this.currentTemp, this.starLight.color);
+            }
+            this.wantsLight = globalFade > 0.01;
+        } else {
+            this.wantsLight = false;
+            this.starLight.intensity = 0;
+        }
+        this.starLight.visible = !this._lightCulled && this.wantsLight;
     }
 
     /**
