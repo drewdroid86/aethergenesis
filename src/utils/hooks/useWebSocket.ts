@@ -1,10 +1,22 @@
 import { useEffect, useRef } from 'react';
-import { Engine } from '../../core/engine';
-import { HeroStarSystem } from '../../rendering/systems/HeroStarSystem';
+import type { Engine } from '../../core/engine';
+import type { HeroStarSystem } from '../../rendering/systems/HeroStarSystem';
 
 interface UseWebSocketProps {
     engineRef: React.MutableRefObject<Engine | null>;
     selectedStarRef: React.MutableRefObject<HeroStarSystem | null>;
+}
+
+export function resolveWebSocketToken(rawToken: unknown, isDev: boolean): string | null {
+    const token = typeof rawToken === 'string' ? rawToken.trim() : '';
+    if (!token) {
+        if (isDev) {
+            console.error('VITE_WS_TOKEN is not set. WebSocket connection will fail.');
+            throw new Error('VITE_WS_TOKEN must be configured in .env for development');
+        }
+        return null;
+    }
+    return token;
 }
 
 export function useWebSocket({ engineRef, selectedStarRef }: UseWebSocketProps) {
@@ -20,12 +32,10 @@ export function useWebSocket({ engineRef, selectedStarRef }: UseWebSocketProps) 
             port = '3001';
         }
 
-        const wsToken = import.meta.env.VITE_WS_TOKEN;
+        const wsToken = resolveWebSocketToken(import.meta.env.VITE_WS_TOKEN, Boolean(import.meta.env.DEV));
         if (!wsToken) {
-            console.error('VITE_WS_TOKEN is not set. WebSocket connection will fail.');
-            if (import.meta.env.DEV) {
-                throw new Error('VITE_WS_TOKEN must be configured in .env for development');
-            }
+            wsRef.current = null;
+            return;
         }
         const wsUrl = `${protocol}//${host}${port ? `:${port}` : ''}`;
         let socket: WebSocket | null = null;

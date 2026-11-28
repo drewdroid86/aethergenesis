@@ -113,7 +113,11 @@ async function main() {
     'scripts/e2e/f16_stellar_time.test.ts',
     'scripts/e2e/f17_stellar_appearance.test.ts',
     'scripts/e2e/f18_destruction.test.ts',
+    'scripts/e2e/f18_camera_matrix_aspect.test.ts',
+    'scripts/e2e/f18_shockwave_pause.test.ts',
+    'scripts/e2e/f18_touch_tier_cap.test.ts',
     'scripts/e2e/f19_deep_audit_p0.test.ts',
+    'scripts/e2e/f29_websocket_optional_token.test.ts',
   ];
 
   let allPassed = true;
